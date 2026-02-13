@@ -2,7 +2,7 @@
 
 const PARTICLE_COUNT = 120;
 const MAX_SPEED = 0.08;
-const ACCESS_PASSWORD = "тишина";
+const ACCESS_PASSWORD = "тишина, брат мой";
 
 const ICONS = {
     mic: {
