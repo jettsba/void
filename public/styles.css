@@ -1,0 +1,315 @@
+/* =========================
+   ROOT VARIABLES
+========================= */
+
+:root {
+    --color-bg: #0f0f0f;
+
+    --color-text-primary: #cccccc;
+    --color-text-secondary: #9e9e9e;
+
+    --color-button: #cccccc;
+    --color-button-hover: #b3b3b3;
+
+    --color-participant-bg: #1a1a1a;
+    --color-participant-border: #2a2a2a;
+
+    --radius-large: 10px;
+    --radius-circle: 10px;
+
+    --transition-fast: 0.2s ease;
+}
+
+
+/* =========================
+   RESET
+========================= */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+
+/* =========================
+   BASE
+========================= */
+
+body {
+    background: var(--color-bg);
+    font-family: 'Handjet', sans-serif;
+    color: var(--color-text-primary);
+    overflow: hidden;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+
+/* =========================
+   BACKGROUND CANVAS
+========================= */
+
+#background {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+}
+
+/* =========================
+   INTRO SCREEN
+========================= */
+
+.intro {
+    position: fixed;
+    inset: 0;
+    background: transparent;
+    z-index: 10;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    opacity: 1;
+    transition: opacity 1.2s ease;
+}
+
+
+.intro-content {
+    text-align: center;
+}
+
+.intro-title {
+    font-size: 55px;
+    margin-bottom: 30px;
+}
+
+.intro-input {
+    background: transparent;
+    border: none;
+    outline: none;
+
+    color: var(--color-text-primary);
+    font-family: inherit;
+    font-size: 25px;
+    font-weight: 300;
+    text-align: center;
+    width: 300px;
+
+    caret-color: var(--color-text-primary);
+}
+
+.intro.fade-out {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.hidden-start {
+    opacity: 0;
+    transition: opacity 6s ease;
+}
+
+.app.visible {
+    opacity: 1;
+}
+
+.intro-error {
+    margin-top: 15px;
+    font-size: 50px;
+    opacity: 0;
+    transform: translateY(5px) translateX(5px);
+    transition: 0.3s ease;
+    rotate: 45deg;
+}
+
+.intro-error.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+
+/* =========================
+   LAYOUT
+========================= */
+
+.app {
+    position: relative;
+    z-index: 1;
+    height: 100vh;
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+
+/* =========================
+   LOGO
+========================= */
+
+.logo {
+    position: absolute;
+    top: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+}
+
+.logo-img {
+    width: 240px;
+    height: auto;
+    display: block;
+}
+
+.logo span {
+    display: block;
+    margin: auto;
+    margin-top: 10px;
+    font-size: 20px;
+    font-weight: 300;
+    letter-spacing: 5px;
+    transform: translateX(-10px);
+    color: var(--color-text-secondary);
+}
+
+
+/* =========================
+   PARTICIPANTS
+========================= */
+
+.participants {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 20px;
+
+    max-width: 500px;
+    margin-bottom: 40px;
+}
+
+.participant {
+    width: 80px;
+    height: 80px;
+    border-radius: var(--radius-circle);
+
+    background: var(--color-participant-bg);
+    border: 1px solid var(--color-participant-border);
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    font-size: 14px;
+}
+
+
+/* =========================
+   BUTTON
+========================= */
+
+.join-btn {
+    margin-top: 300px;
+    padding: 15px 40px;
+    border-radius: var(--radius-large);
+    border: none;
+
+    font-size: 22px;
+    font-weight: 600;
+    font-family: inherit;
+
+    background: var(--color-button);
+    color: #111;
+
+    cursor: pointer;
+    transition: var(--transition-fast);
+}
+
+.join-btn:hover {
+    background: var(--color-button-hover);
+}
+
+
+/* =========================
+   CONTROLS
+========================= */
+
+.controls {
+    margin-top: 20px;
+    display: flex;
+    gap: 15px;
+}
+
+.control-btn {
+    width: 56px;
+    height: 56px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: var(--radius-circle);
+    border: none;
+
+    background: var(--color-button);
+    cursor: pointer;
+    transition: var(--transition-fast);
+}
+
+.control-btn:hover {
+    background: var(--color-button-hover);
+}
+
+.control-btn img {
+    width: 25px;
+    height: 25px;
+    object-fit: contain;
+    pointer-events: none;
+}
+
+.control-btn.off {
+    background: #888;
+}
+
+.control-btn.off img {
+    filter: brightness(0.7);
+}
+
+#soundIcon {
+    transform: scale(1.12)
+}
+
+#soundBtn.off img {
+    transform: scale(1.05) translateX(2px);
+}
+
+#micBtn.off img {
+    transform: scale(1);
+}
+
+/* =========================
+   MOBILE
+========================= */
+
+@media (max-width: 600px) {
+
+    .logo {
+        margin-top: 100px;
+    }
+
+    .logo img {
+        width: 230px;
+    }
+
+    .participant {
+        width: 60px;
+        height: 60px;
+        font-size: 12px;
+    }
+
+    .join-btn {
+        margin-top: 290px;
+        width: 50%;
+        font-size: 20px;
+    }
+}

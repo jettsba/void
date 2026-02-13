@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Void Room</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" href="static/favicon.ico" type="image/x-icon">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Handjet:wght@100..900&display=swap" rel="stylesheet">
+</head>
+
+<body>
+
+<canvas id="background"></canvas>
+
+<audio id="ambientSound" src="static/ambient.mp3"></audio>
+<audio id="welcomeSound" src="static/welcome.mp3"></audio>
+
+<div class="intro" id="intro">
+    <div class="intro-content">
+        <h1 class="intro-title">Что есть музыка жизни?</h1>
+        <input
+                type="text"
+                id="introInput"
+                class="intro-input"
+                autocomplete="off"
+        />
+        <div class="intro-error" id="introError">+</div>
+    </div>
+</div>
+
+<div class="app hidden-start">
+    <div class="logo">
+        <img class="logo-img" src="static/logo_text_web.png" alt="Void Logo">
+        <span>private club.</span>
+    </div>
+
+    <!-- Зона участников -->
+    <div class="participants" id="participants">
+
+    </div>
+
+    <button class="join-btn" id="joinBtn">
+        Присоединиться к тишине
+    </button>
+
+    <div class="controls" id="controls">
+        <button class="control-btn" id="micBtn">
+            <img id="micIcon" src="static/icon_mic_on.png" alt="Mic">
+        </button>
+
+        <button class="control-btn" id="soundBtn">
+            <img id="soundIcon" src="static/icon_sound_on.png" alt="Sound">
+        </button>
+    </div>
+
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
