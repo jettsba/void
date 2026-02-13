@@ -1,140 +1,219 @@
-/* ===============================
-   GLOBAL STATE
-================================ */
-let pc = null;
-let ws = null;
-let joined = false;
+/* ========= CONFIG ========= */
 
-/* ===============================
-   DOM
-================================ */
-const btn = document.getElementById('btn');
-const status = document.getElementById('status');
-const logo = document.querySelector('.logo-main');
+const PARTICLE_COUNT = 120;
+const MAX_SPEED = 0.08;
+const ACCESS_PASSWORD = "тишина";
 
-/* ===============================
-   EVENTS
-================================ */
-btn.addEventListener('click', join);
+const ICONS = {
+    mic: {
+        on: "static/icon_mic_on.png",
+        off: "static/icon_mic_off.png"
+    },
+    sound: {
+        on: "static/icon_sound_on.png",
+        off: "static/icon_sound_off.png"
+    }
+};
 
-/* ===============================
-   VOICE JOIN
-================================ */
-async function join() {
-    if (joined) return;
+/* ========= STATE ========= */
 
-    btn.classList.add('disabled');
-    status.textContent = 'подключение к VOID...';
-    logo.classList.remove('glow');
+let canvas;
+let ctx;
+let particles = [];
 
-    ws = new WebSocket(`ws://${location.hostname}:3001`);
+let intro;
+let introInput;
+let introError;
+let app;
 
-    const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: false }
-    });
+let micBtn;
+let soundBtn;
+let micIcon;
+let soundIcon;
 
-    pc = new RTCPeerConnection({
-        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-    });
+let isMicOn = true;
+let isSoundOn = true;
 
-    stream.getTracks().forEach(t => pc.addTrack(t, stream));
+let ambientSound;
+let welcomeSound;
+let hasStartedAudio = false;
+let hasPlayedWelcome = false;
 
-    pc.ontrack = e => {
-        const audio = document.createElement('audio');
-        audio.srcObject = e.streams[0];
-        audio.autoplay = true;
-        document.body.appendChild(audio);
-    };
+/* ========= INIT ========= */
 
-    pc.onicecandidate = e => {
-        if (e.candidate) {
-            ws.send(JSON.stringify({ ice: e.candidate }));
-        }
-    };
+init();
 
-    ws.onmessage = async e => {
-        const msg = JSON.parse(e.data);
+function init() {
+    canvas = document.getElementById("background");
+    ctx = canvas.getContext("2d");
 
-        if (msg.sdp) {
-            await pc.setRemoteDescription(msg.sdp);
-            if (msg.sdp.type === 'offer') {
-                const answer = await pc.createAnswer();
-                await pc.setLocalDescription(answer);
-                ws.send(JSON.stringify({ sdp: answer }));
-            }
-        }
+    intro = document.getElementById("intro");
+    introInput = document.getElementById("introInput");
+    introError = document.getElementById("introError");
+    app = document.querySelector(".app");
 
-        if (msg.ice) {
-            pc.addIceCandidate(msg.ice);
-        }
-    };
+    micBtn = document.getElementById("micBtn");
+    soundBtn = document.getElementById("soundBtn");
+    micIcon = document.getElementById("micIcon");
+    soundIcon = document.getElementById("soundIcon");
 
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-    ws.send(JSON.stringify({ sdp: offer }));
+    ambientSound = document.getElementById("ambientSound");
+    welcomeSound = document.getElementById("welcomeSound");
 
-    joined = true;
-    status.textContent = 'ты в VOID';
-    logo.classList.add('glow');
+    resizeCanvas();
+    createParticles();
+    animate();
+
+    introInput.focus();
+
+    window.addEventListener("resize", resizeCanvas);
+    introInput.addEventListener("keydown", handleKeyPress);
+    introInput.addEventListener("input", tryStartAudio);
+
+    micBtn.addEventListener("click", toggleMic);
+    soundBtn.addEventListener("click", toggleSound);
+
+    document.body.style.opacity = "1";
 }
 
-/* ===============================
-   PARTICLES (VOID SPACE)
-================================ */
-function initParticles() {
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
+/* ========= PARTICLES ========= */
 
-    document.body.appendChild(canvas);
-    canvas.style.position = 'fixed';
-    canvas.style.inset = 0;
-    canvas.style.zIndex = 0;
-    canvas.style.pointerEvents = 'none';
-
-    let w, h;
-
-    function resize() {
-        w = canvas.width = window.innerWidth;
-        h = canvas.height = window.innerHeight;
-    }
-
-    window.addEventListener('resize', resize);
-    resize();
-
-    const particles = Array.from({ length: 120 }, () => ({
-        x: Math.random() * w,
-        y: Math.random() * h,
-        r: Math.random() * 1.2 + 0.2,
-        vx: (Math.random() - 0.5) * 0.15,
-        vy: (Math.random() - 0.5) * 0.15,
-        a: Math.random() * 0.5 + 0.2
-    }));
-
-    function tick() {
-        ctx.clearRect(0, 0, w, h);
-
-        for (const p of particles) {
-            p.x += p.vx;
-            p.y += p.vy;
-
-            if (p.x < 0) p.x = w;
-            if (p.x > w) p.x = 0;
-            if (p.y < 0) p.y = h;
-            if (p.y > h) p.y = 0;
-
-            ctx.beginPath();
-            ctx.fillStyle = `rgba(255,255,255,${p.a})`;
-            ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-            ctx.fill();
-        }
-
-        requestAnimationFrame(tick);
-    }
-
-    tick();
+function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    createParticles();
 }
 
-/* ===============================
-   INIT
-================================ */
-initParticles();
+function createParticles() {
+    particles = [];
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
+        particles.push(createParticle());
+    }
+}
+
+function createParticle() {
+    return {
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        size: Math.random() * 1.5 + 0.3,
+        speedX: (Math.random() - 0.5) * MAX_SPEED,
+        speedY: (Math.random() - 0.5) * MAX_SPEED
+    };
+}
+
+function updateParticles() {
+    particles.forEach(p => {
+        p.x += p.speedX;
+        p.y += p.speedY;
+
+        if (p.x < 0 || p.x > canvas.width || p.y < 0 || p.y > canvas.height) {
+            Object.assign(p, createParticle());
+        }
+    });
+}
+
+function drawParticles() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    particles.forEach(p => {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(204,204,204,0.35)";
+        ctx.fill();
+    });
+}
+
+function animate() {
+    updateParticles();
+    drawParticles();
+    requestAnimationFrame(animate);
+}
+
+/* ========= INTRO LOGIC ========= */
+
+function normalizeText(text) {
+    return text
+        .toLowerCase()
+        .replace(/[.,!?;:"'()-]/g, "")
+        .trim();
+}
+
+function handleKeyPress(e) {
+    if (e.key === "Enter") {
+        checkPassword();
+    }
+}
+
+function checkPassword() {
+    if (hasPlayedWelcome) return;
+
+    const userValue = normalizeText(introInput.value);
+    const correctValue = normalizeText(ACCESS_PASSWORD);
+
+    if (userValue === correctValue) {
+        hasPlayedWelcome = true;
+        playWelcomeSound();
+
+        setTimeout(() => {
+            unlockApp();
+        }, 400);
+
+    } else {
+        showError();
+    }
+}
+
+function showError() {
+    introError.classList.add("visible");
+
+    setTimeout(() => {
+        introError.classList.remove("visible");
+    }, 1200);
+}
+
+function unlockApp() {
+    intro.classList.add("fade-out");
+
+    intro.addEventListener("transitionend", () => {
+        intro.style.display = "none";
+        app.classList.add("visible");
+    }, { once: true });
+}
+
+/* ========= AUDIO ========= */
+
+function tryStartAudio() {
+    if (!hasStartedAudio) {
+        ambientSound.volume = 0.4;
+        ambientSound.play().catch(() => {});
+        hasStartedAudio = true;
+    }
+}
+
+function playWelcomeSound() {
+    welcomeSound.currentTime = 0;
+    welcomeSound.volume = 1;
+    welcomeSound.play().catch(() => {});
+}
+
+/* ========= CONTROLS ========= */
+
+function toggleMic() {
+    isMicOn = !isMicOn;
+    updateMicUI();
+}
+
+function toggleSound() {
+    isSoundOn = !isSoundOn;
+    updateSoundUI();
+}
+
+function updateMicUI() {
+    micIcon.src = isMicOn ? ICONS.mic.on : ICONS.mic.off;
+    micBtn.classList.toggle("off", !isMicOn);
+}
+
+function updateSoundUI() {
+    soundIcon.src = isSoundOn ? ICONS.sound.on : ICONS.sound.off;
+    soundBtn.classList.toggle("off", !isSoundOn);
+}
