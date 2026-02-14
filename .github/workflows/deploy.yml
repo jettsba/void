@@ -1,0 +1,23 @@
+name: Deploy Frontend
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.TIMEWEB_SSH_KEY }}
+
+      - name: Deploy via rsync
+        run: |
+          rsync -avz --delete public/ ci578655@vh456.timeweb.ru:~/void/public_html/
