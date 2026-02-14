@@ -20,4 +20,4 @@ jobs:
 
       - name: Deploy via rsync
         run: |
-          rsync -avz --delete public/ ci578655@vh456.timeweb.ru:~/void/public_html/
+          rsync -avz --delete public/ ci578655@vh456.timeweb.ru:/home/c/ci578655/void/public_html/
