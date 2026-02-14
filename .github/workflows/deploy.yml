@@ -18,6 +18,11 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.FRONTEND_SSH_KEY }}
 
+      - name: Add server to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H vh456.timeweb.ru >> ~/.ssh/known_hosts
+
       - name: Deploy via rsync
         run: |
           rsync -avz --delete public/ ci578655@vh456.timeweb.ru:/home/c/ci578655/void/public_html/
