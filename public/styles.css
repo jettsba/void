@@ -109,6 +109,15 @@ body {
     transition: opacity 6s ease;
 }
 
+.hidden {
+    display: none;
+}
+
+.create-disabled {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
 .app.visible {
     opacity: 1;
 }
@@ -140,7 +149,6 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
 }
 
 
@@ -179,37 +187,57 @@ body {
 ========================= */
 
 .participants {
+    height: 120px;
+    margin-top: 260px;
     display: flex;
-    flex-wrap: wrap;
+    align-items: center;
     justify-content: center;
     gap: 20px;
-
-    max-width: 500px;
-    margin-bottom: 40px;
 }
 
 .participant {
     width: 80px;
     height: 80px;
-    border-radius: var(--radius-circle);
 
-    background: var(--color-participant-bg);
-    border: 1px solid var(--color-participant-border);
+    border-radius: 15px;
+    background: var(--color-button);
 
     display: flex;
     align-items: center;
     justify-content: center;
 
-    font-size: 14px;
+    opacity: 0;
+    transform: scale(0.8);
 }
 
+.participant.pop-in {
+    animation: pop-in 0.25s ease forwards;
+}
+
+.participant.pop-out {
+    animation: pop-out 0.2s ease forwards;
+}
+
+@keyframes pop-in {
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes pop-out {
+    to {
+        opacity: 0;
+        transform: scale(0.7);
+    }
+}
 
 /* =========================
    BUTTON
 ========================= */
 
 .join-btn {
-    margin-top: 300px;
+    width: 320px;
     padding: 15px 40px;
     border-radius: var(--radius-large);
     border: none;
@@ -229,20 +257,33 @@ body {
     background: var(--color-button-hover);
 }
 
+.action-area {
+    margin-top: auto;
+    margin-bottom: 90px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+}
 
 /* =========================
    CONTROLS
 ========================= */
 
 .controls {
-    margin-top: 20px;
+    width: 320px;
     display: flex;
+    justify-content: center;
     gap: 15px;
 }
 
+#createBtn {
+    width: 320px;
+}
+
 .control-btn {
-    width: 56px;
-    height: 56px;
+    width: 160px;
+    height: 54px;
 
     display: flex;
     align-items: center;
@@ -294,22 +335,49 @@ body {
 @media (max-width: 600px) {
 
     .logo {
-        margin-top: 100px;
+        margin-top: 120px;
     }
 
-    .logo img {
-        width: 230px;
+    .logo-img {
+        width: 250px;
+    }
+
+    .participants {
+        margin-top: 370px;
+        height: 90px;
     }
 
     .participant {
         width: 60px;
         height: 60px;
-        font-size: 12px;
+    }
+
+    .participant img {
+        max-width: 55%;
+    }
+
+    .action-area {
+        margin-top: 100px;
+        margin-bottom: 40px;
+        gap: 10px;
     }
 
     .join-btn {
-        margin-top: 290px;
-        width: 50%;
-        font-size: 20px;
+        max-width: 220px;
+        font-size: 18px;
+        padding: 14px 20px;
     }
+
+    .control-btn {
+        max-width: 103px;
+        height: 48px;
+    }
+}
+
+/* =========================
+   HIDDEN RULE
+========================= */
+
+.hidden {
+    display: none !important;
 }

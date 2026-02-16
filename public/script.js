@@ -2,7 +2,7 @@
 
 const PARTICLE_COUNT = 120;
 const MAX_SPEED = 0.08;
-const ACCESS_PASSWORD = "тишина, брат мой";
+const ACCESS_PASSWORD = "тишина";
 
 const ICONS = {
     mic: {
@@ -31,6 +31,7 @@ let soundBtn;
 let micIcon;
 let soundIcon;
 
+let controls;
 let isMicOn = true;
 let isSoundOn = true;
 
@@ -38,6 +39,12 @@ let ambientSound;
 let welcomeSound;
 let hasStartedAudio = false;
 let hasPlayedWelcome = false;
+
+let joinBtn;
+let createBtn;
+let participantsContainer;
+
+let isJoined = false;
 
 /* ========= INIT ========= */
 
@@ -52,6 +59,7 @@ function init() {
     introError = document.getElementById("introError");
     app = document.querySelector(".app");
 
+    controls = document.getElementById("controls");
     micBtn = document.getElementById("micBtn");
     soundBtn = document.getElementById("soundBtn");
     micIcon = document.getElementById("micIcon");
@@ -59,6 +67,10 @@ function init() {
 
     ambientSound = document.getElementById("ambientSound");
     welcomeSound = document.getElementById("welcomeSound");
+
+    joinBtn = document.getElementById("joinBtn");
+    createBtn = document.getElementById("createBtn");
+    participantsContainer = document.getElementById("participants");
 
     resizeCanvas();
     createParticles();
@@ -74,6 +86,9 @@ function init() {
     soundBtn.addEventListener("click", toggleSound);
 
     document.body.style.opacity = "1";
+
+    joinBtn.addEventListener("click", toggleJoin);
+    createBtn.classList.add("create-disabled");
 }
 
 /* ========= PARTICLES ========= */
@@ -216,4 +231,62 @@ function updateMicUI() {
 function updateSoundUI() {
     soundIcon.src = isSoundOn ? ICONS.sound.on : ICONS.sound.off;
     soundBtn.classList.toggle("off", !isSoundOn);
+}
+
+function toggleJoin() {
+    if (!isJoined) {
+        joinRoom();
+    } else {
+        leaveRoom();
+    }
+}
+
+function joinRoom() {
+    isJoined = true;
+
+    joinBtn.textContent = "Отключиться";
+
+    createBtn.classList.add("hidden");
+
+    controls.classList.remove("hidden");
+
+    addParticipant();
+}
+
+function leaveRoom() {
+    isJoined = false;
+
+    joinBtn.textContent = "Присоединиться";
+
+    createBtn.classList.remove("hidden");
+    controls.classList.add("hidden");
+
+    const participant = document.querySelector(".participant");
+
+    if (participant) {
+        participant.classList.remove("pop-in");
+        participant.classList.add("pop-out");
+
+        participant.addEventListener("animationend", () => {
+            participantsContainer.innerHTML = "";
+        }, { once: true });
+    }
+}
+
+
+function addParticipant() {
+    const participant = document.createElement("div");
+    participant.classList.add("participant");
+
+    const icon = document.createElement("img");
+    icon.src = "static/icon_user.png";
+    icon.alt = "User";
+    icon.style.width = "40px";
+
+    participant.appendChild(icon);
+
+    participantsContainer.appendChild(participant);
+    requestAnimationFrame(() => {
+        participant.classList.add("pop-in");
+    });
 }
