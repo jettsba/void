@@ -199,7 +199,7 @@ function unlockApp() {
 
 function tryStartAudio() {
     if (!hasStartedAudio) {
-        ambientSound.volume = 0.4;
+        ambientSound.volume = 0.2;
         ambientSound.play().catch(() => {});
         hasStartedAudio = true;
     }
@@ -207,7 +207,7 @@ function tryStartAudio() {
 
 function playWelcomeSound() {
     welcomeSound.currentTime = 0;
-    welcomeSound.volume = 1;
+    welcomeSound.volume = 0.4;
     welcomeSound.play().catch(() => {});
 }
 
