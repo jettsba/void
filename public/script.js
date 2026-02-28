@@ -15,6 +15,22 @@ const ICONS = {
     }
 };
 
+const USERNAME_ADJECTIVES = [
+    "Silent","Dark","Hidden","Lost","Frozen","Broken","Shadowed","Neon","Crimson","Fading",
+    "Restless","Distant","Echoing","Obscure","Ghostly","Cold","Blurred","Glitched","Static","Muted",
+    "Hollow","Twisted","Shattered","Unknown","Ancient","Binary","Digital","Quantum","Parallel","Midnight",
+    "Dusty","Fragmented","Encrypted","Corrupted","Drifting","Endless","Dim","Invisible","Flickering","Dead",
+    "Remote","Subtle","Abstract","Lonely","Shifting","Chaotic","Null","Cosmic","Spectral","Cursed"
+];
+
+const USERNAME_NOUNS = [
+    "Nova","Orbit","Pulse","Storm","Signal","Drift","Flare","Wave","Abyss","Core",
+    "Matrix","Cluster","Sector","Portal","Fragment","Archive","Node","Protocol","Cipher","Spectrum",
+    "Server","Module","Vector","Terminal","Resonance","Pixel","Zero","Commit","Process","Channel",
+    "Flux","Noise","Loop","Packet","Dimension","Radius","Interface","Kernel","Sequence","Trace",
+    "Frame","Shard","Horizon","Code","Anomaly","Beacon","Circuit","Entity","Voidline","Nexus"
+];
+
 /* ========= STATE ========= */
 
 let canvas;
@@ -46,6 +62,9 @@ let participantsContainer;
 
 let isJoined = false;
 
+let usernameElement;
+let currentUsername = null;
+
 /* ========= INIT ========= */
 
 init();
@@ -72,9 +91,12 @@ function init() {
     createBtn = document.getElementById("createBtn");
     participantsContainer = document.getElementById("participants");
 
+    usernameElement = document.getElementById("username");
+
     resizeCanvas();
     createParticles();
     animate();
+    generateAndAssignUsername();
 
     introInput.focus();
 
@@ -289,4 +311,21 @@ function addParticipant() {
     requestAnimationFrame(() => {
         participant.classList.add("pop-in");
     });
+}
+
+/* ========= USERNAME ========= */
+
+function getRandomWord(array) {
+    return array[Math.floor(Math.random() * array.length)];
+}
+
+function generateUsername() {
+    const first = getRandomWord(USERNAME_ADJECTIVES);
+    const second = getRandomWord(USERNAME_NOUNS);
+    return first + second;
+}
+
+function generateAndAssignUsername() {
+    currentUsername = generateUsername();
+    usernameElement.textContent = currentUsername;
 }

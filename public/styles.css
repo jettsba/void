@@ -236,6 +236,14 @@ body {
    BUTTON
 ========================= */
 
+#username {
+    display: none;
+    font-size: 18px;
+    letter-spacing: 1px;
+    color: var(--color-text-secondary);
+    text-decoration: underline;
+}
+
 .join-btn {
     width: 320px;
     padding: 15px 40px;
