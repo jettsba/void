@@ -2,7 +2,7 @@
 
 const PARTICLE_COUNT = 120;
 const MAX_SPEED = 0.08;
-const ACCESS_PASSWORD = "тишина";
+const ACCESS_PASSWORD = "";
 
 const ICONS = {
     mic: {
@@ -65,6 +65,10 @@ let isJoined = false;
 let usernameElement;
 let currentUsername = null;
 
+let currentRoomCode = null;
+
+let clientId = null;
+
 /* ========= INIT ========= */
 
 init();
@@ -97,6 +101,7 @@ function init() {
     createParticles();
     animate();
     generateAndAssignUsername();
+    clientId = generateClientId();
 
     introInput.focus();
 
@@ -109,8 +114,15 @@ function init() {
 
     document.body.style.opacity = "1";
 
-    joinBtn.addEventListener("click", toggleJoin);
-    createBtn.classList.add("create-disabled");
+    createBtn.addEventListener("click", handleCreateClick);
+    joinBtn.addEventListener("click", () => {
+        if (!isJoined) {
+            handleJoinClick();
+        } else {
+            leaveRoom();
+        }
+    });
+
 }
 
 /* ========= PARTICLES ========= */
@@ -263,7 +275,17 @@ function toggleJoin() {
     }
 }
 
-function joinRoom() {
+async function joinRoom() {
+    await initMedia();
+    connectSocket();
+
+    sendSocket({
+        type: "join-room",
+        code: "VOID",
+        userId: clientId,
+        nickname: currentUsername
+    });
+
     isJoined = true;
 
     joinBtn.textContent = "Отключиться";
@@ -271,11 +293,22 @@ function joinRoom() {
     createBtn.classList.add("hidden");
 
     controls.classList.remove("hidden");
-
-    addParticipant();
 }
 
-function leaveRoom() {
+async function leaveRoom() {
+
+    closeAllConnections();
+
+    sendSocket({
+        type: "leave-room",
+        userId: clientId,
+        room: currentRoomCode
+    });
+
+    setTimeout(() => {
+        if (socket) socket.close();
+    }, 100);
+
     isJoined = false;
 
     joinBtn.textContent = "Присоединиться";
@@ -296,18 +329,19 @@ function leaveRoom() {
 }
 
 
-function addParticipant() {
+function addParticipant(userId) {
+
     const participant = document.createElement("div");
     participant.classList.add("participant");
+    participant.dataset.userId = userId;
 
     const icon = document.createElement("img");
     icon.src = "static/icon_user.png";
-    icon.alt = "User";
     icon.style.width = "40px";
 
     participant.appendChild(icon);
-
     participantsContainer.appendChild(participant);
+
     requestAnimationFrame(() => {
         participant.classList.add("pop-in");
     });
@@ -328,4 +362,104 @@ function generateUsername() {
 function generateAndAssignUsername() {
     currentUsername = generateUsername();
     usernameElement.textContent = currentUsername;
+}
+
+function addRemoteParticipant(name) {
+    const participant = document.createElement("div");
+    participant.classList.add("participant");
+
+    const icon = document.createElement("img");
+    icon.src = "static/icon_user.png";
+    icon.style.width = "40px";
+
+    participant.appendChild(icon);
+    participantsContainer.appendChild(participant);
+
+    requestAnimationFrame(() => {
+        participant.classList.add("pop-in");
+    });
+}
+
+function generateRoomCode(length = 5) {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let result = "";
+    for (let i = 0; i < length; i++) {
+        result += chars[Math.floor(Math.random() * chars.length)];
+    }
+    return result;
+}
+
+async function handleCreateClick() {
+
+    currentRoomCode = generateRoomCode();
+
+    await initMedia();
+    await connectSocket();
+
+    sendSocket({
+        type: "create-room",
+        code: currentRoomCode,
+        userId: clientId,
+        nickname: currentUsername
+    });
+}
+
+async function handleJoinClick() {
+
+    const code = prompt("Введите код комнаты:");
+    if (!code) return;
+
+    currentRoomCode = code.toUpperCase();
+
+    await initMedia();
+    await connectSocket();
+
+    sendSocket({
+        type: "join-room",
+        code: currentRoomCode,
+        userId: clientId,
+        nickname: currentUsername
+    });
+}
+
+function enterRoomUI() {
+
+    isJoined = true;
+
+    joinBtn.textContent = "Отключиться";
+
+    createBtn.classList.add("hidden");
+
+    controls.classList.remove("hidden");
+
+    addParticipant();
+}
+
+function removeParticipant(userId) {
+
+    const el = document.querySelector(
+        `.participant[data-user-id="${userId}"]`
+    );
+
+    if (!el) return;
+
+    el.classList.remove("pop-in");
+    el.classList.add("pop-out");
+
+    el.addEventListener("animationend", () => {
+        el.remove();
+    }, { once: true });
+}
+
+function generateClientId(length = 8) {
+
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    let result = "";
+
+    for (let i = 0; i < length; i++) {
+        const randomIndex = Math.floor(Math.random() * chars.length);
+        result += chars[randomIndex];
+    }
+
+    return result;
 }

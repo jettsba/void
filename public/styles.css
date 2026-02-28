@@ -113,11 +113,6 @@ body {
     display: none;
 }
 
-.create-disabled {
-    opacity: 0.5;
-    pointer-events: none;
-}
-
 .app.visible {
     opacity: 1;
 }
