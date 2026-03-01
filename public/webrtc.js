@@ -5,7 +5,11 @@ let peers = new Map();
 
 async function initMedia() {
     localStream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
+        audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+        },
         video: false
     });
 
