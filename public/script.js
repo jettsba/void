@@ -288,7 +288,7 @@ async function joinRoom() {
 
     isJoined = true;
 
-    joinBtn.textContent = "Отключиться";
+    joinBtn.textContent = "disconnect";
 
     createBtn.classList.add("hidden");
 
@@ -311,7 +311,7 @@ async function leaveRoom() {
 
     isJoined = false;
 
-    joinBtn.textContent = "Присоединиться";
+    joinBtn.textContent = "connect";
 
     createBtn.classList.remove("hidden");
     controls.classList.add("hidden");
@@ -426,7 +426,7 @@ function enterRoomUI() {
 
     isJoined = true;
 
-    joinBtn.textContent = "Отключиться";
+    joinBtn.textContent = "disconnect";
 
     createBtn.classList.add("hidden");
 

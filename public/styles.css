@@ -14,9 +14,6 @@
     --color-participant-bg: #1a1a1a;
     --color-participant-border: #2a2a2a;
 
-    --radius-large: 10px;
-    --radius-circle: 10px;
-
     --transition-fast: 0.2s ease;
 }
 
@@ -191,10 +188,9 @@ body {
 }
 
 .participant {
-    width: 80px;
-    height: 80px;
+    width: 70px;
+    height: 70px;
 
-    border-radius: 15px;
     background: var(--color-button);
 
     display: flex;
@@ -232,7 +228,7 @@ body {
 ========================= */
 
 #username {
-    display: none;
+
     font-size: 18px;
     letter-spacing: 1px;
     color: var(--color-text-secondary);
@@ -240,9 +236,8 @@ body {
 }
 
 .join-btn {
-    width: 320px;
+    width: 200px;
     padding: 15px 40px;
-    border-radius: var(--radius-large);
     border: none;
 
     font-size: 22px;
@@ -274,25 +269,24 @@ body {
 ========================= */
 
 .controls {
-    width: 320px;
+    width: 200px;
     display: flex;
     justify-content: center;
     gap: 15px;
 }
 
 #createBtn {
-    width: 320px;
+    width: 200px;
 }
 
 .control-btn {
-    width: 160px;
+    width: 95px;
     height: 54px;
 
     display: flex;
     align-items: center;
     justify-content: center;
 
-    border-radius: var(--radius-circle);
     border: none;
 
     background: var(--color-button);
