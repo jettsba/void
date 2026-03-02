@@ -75,14 +75,13 @@ function handleSocketMessage(data) {
             break;
 
         case "new-participant":
-            addParticipant(data.userId);
+            addParticipant(data.userId, data.nickname);
             callUser(data.userId);
             break;
 
         case "user-list":
             data.users.forEach(user => {
-                addParticipant(user.id);
-                // callUser(user.id);
+                addParticipant(user.id, user.nickname);
             });
             break;
 

@@ -71,7 +71,9 @@ let clientId = null;
 
 /* ========= INIT ========= */
 
-init();
+document.addEventListener("DOMContentLoaded", () => {
+    init();
+});
 
 function init() {
     canvas = document.getElementById("background");
@@ -94,8 +96,6 @@ function init() {
     joinBtn = document.getElementById("joinBtn");
     createBtn = document.getElementById("createBtn");
     participantsContainer = document.getElementById("participants");
-
-    usernameElement = document.getElementById("username");
 
     resizeCanvas();
     createParticles();
@@ -329,17 +329,28 @@ async function leaveRoom() {
 }
 
 
-function addParticipant(userId) {
+function addParticipant(userId, nickname) {
 
     const participant = document.createElement("div");
     participant.classList.add("participant");
     participant.dataset.userId = userId;
 
+    const avatar = document.createElement("div");
+    avatar.classList.add("participant-avatar");
+
     const icon = document.createElement("img");
     icon.src = "static/icon_user.png";
     icon.style.width = "40px";
 
-    participant.appendChild(icon);
+    avatar.appendChild(icon);
+
+    const name = document.createElement("div");
+    name.classList.add("participant-name");
+    name.textContent = nickname || "Unknown";
+
+    participant.appendChild(avatar);
+    participant.appendChild(name);
+
     participantsContainer.appendChild(participant);
 
     requestAnimationFrame(() => {
@@ -361,23 +372,6 @@ function generateUsername() {
 
 function generateAndAssignUsername() {
     currentUsername = generateUsername();
-    usernameElement.textContent = currentUsername;
-}
-
-function addRemoteParticipant(name) {
-    const participant = document.createElement("div");
-    participant.classList.add("participant");
-
-    const icon = document.createElement("img");
-    icon.src = "static/icon_user.png";
-    icon.style.width = "40px";
-
-    participant.appendChild(icon);
-    participantsContainer.appendChild(participant);
-
-    requestAnimationFrame(() => {
-        participant.classList.add("pop-in");
-    });
 }
 
 function generateRoomCode(length = 5) {
@@ -432,7 +426,7 @@ function enterRoomUI() {
 
     controls.classList.remove("hidden");
 
-    addParticipant();
+    addParticipant(clientId, currentUsername);
 }
 
 function removeParticipant(userId) {
