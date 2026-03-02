@@ -2,6 +2,8 @@
 
 let localStream = null;
 let peers = new Map();
+let audioContext = null;
+let analyserMap = new Map();
 
 async function initMedia() {
     localStream = await navigator.mediaDevices.getUserMedia({
@@ -12,7 +14,7 @@ async function initMedia() {
         },
         video: false
     });
-
+    createVolumeAnalyser(localStream, clientId);
     console.log("🎤 Microphone access granted");
 }
 
@@ -46,6 +48,7 @@ function createPeer(userId) {
         audio.playsInline = true;
 
         document.body.appendChild(audio);
+        createVolumeAnalyser(event.streams[0], userId);
     };
 
     peers.set(userId, peer);
@@ -127,4 +130,46 @@ function closeAllConnections() {
     });
 
     console.log("🔴 WebRTC stopped");
+}
+
+function createVolumeAnalyser(stream, userId) {
+
+    if (!audioContext) {
+        audioContext = new AudioContext();
+    }
+
+    const analyser = audioContext.createAnalyser();
+    analyser.fftSize = 256;
+
+    const source = audioContext.createMediaStreamSource(stream);
+    source.connect(analyser);
+
+    analyserMap.set(userId, analyser);
+
+    monitorVolume(userId, analyser);
+}
+
+function monitorVolume(userId, analyser) {
+
+    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+    function checkVolume() {
+
+        analyser.getByteFrequencyData(dataArray);
+
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i++) {
+            sum += dataArray[i];
+        }
+
+        const average = sum / dataArray.length;
+
+        if (window.onVolumeChange) {
+            window.onVolumeChange(userId, average);
+        }
+
+        requestAnimationFrame(checkVolume);
+    }
+
+    checkVolume();
 }

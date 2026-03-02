@@ -457,3 +457,19 @@ function generateClientId(length = 8) {
 
     return result;
 }
+
+window.onVolumeChange = function(userId, volume) {
+
+    const avatar = document.querySelector(
+        `.participant[data-user-id="${userId}"] .participant-avatar`
+    );
+
+    if (!avatar) return;
+
+    const intensity = Math.min(volume / 100, 1);
+
+    avatar.style.boxShadow = `
+        0 0 ${10 + intensity * 25}px
+        rgba(255,255,255,${0.2 + intensity * 0.5})
+    `;
+};
