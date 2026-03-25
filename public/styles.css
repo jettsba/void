@@ -332,6 +332,19 @@ body {
     transform: scale(1);
 }
 
+.room-info {
+    margin-top: 10px;
+    font-size: 14px;
+    color: var(--color-text-secondary);
+    letter-spacing: 2px;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.room-info:hover {
+    color: var(--color-text-primary);
+}
+
 /* =========================
    MOBILE
 ========================= */

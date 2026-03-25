@@ -69,6 +69,9 @@ let currentRoomCode = null;
 
 let clientId = null;
 
+let roomInfo;
+let roomCodeText;
+
 /* ========= INIT ========= */
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -97,6 +100,9 @@ function init() {
     createBtn = document.getElementById("createBtn");
     participantsContainer = document.getElementById("participants");
 
+    roomInfo = document.getElementById("roomInfo");
+    roomCodeText = document.getElementById("roomCodeText");
+
     resizeCanvas();
     createParticles();
     animate();
@@ -120,6 +126,19 @@ function init() {
             handleJoinClick();
         } else {
             leaveRoom();
+        }
+    });
+
+    roomInfo.addEventListener("click", async () => {
+        try {
+            await navigator.clipboard.writeText(currentRoomCode);
+            roomCodeText.textContent = "copied!";
+
+            setTimeout(() => {
+                roomCodeText.textContent = `room #${currentRoomCode}`;
+            }, 1000);
+        } catch (e) {
+            console.error("Copy failed", e);
         }
     });
 
@@ -295,6 +314,20 @@ async function joinRoom() {
     controls.classList.remove("hidden");
 }
 
+function removeAllParticipants() {
+
+    const all = document.querySelectorAll(".participant");
+
+    all.forEach(el => {
+        el.classList.remove("pop-in");
+        el.classList.add("pop-out");
+
+        el.addEventListener("animationend", () => {
+            el.remove();
+        }, { once: true });
+    });
+}
+
 async function leaveRoom() {
 
     closeAllConnections();
@@ -309,6 +342,8 @@ async function leaveRoom() {
         if (socket) socket.close();
     }, 100);
 
+    roomInfo.classList.add("hidden");
+
     isJoined = false;
 
     joinBtn.textContent = "connect";
@@ -316,16 +351,7 @@ async function leaveRoom() {
     createBtn.classList.remove("hidden");
     controls.classList.add("hidden");
 
-    const participant = document.querySelector(".participant");
-
-    if (participant) {
-        participant.classList.remove("pop-in");
-        participant.classList.add("pop-out");
-
-        participant.addEventListener("animationend", () => {
-            participantsContainer.innerHTML = "";
-        }, { once: true });
-    }
+    removeAllParticipants();
 }
 
 
@@ -426,6 +452,9 @@ function enterRoomUI() {
 
     controls.classList.remove("hidden");
 
+    roomInfo.classList.remove("hidden");
+    roomCodeText.textContent = `room #${currentRoomCode}`;
+
     addParticipant(clientId, currentUsername);
 }
 
@@ -435,7 +464,7 @@ function removeParticipant(userId) {
         `.participant[data-user-id="${userId}"]`
     );
 
-    if (!el) return;
+    if (!el || el.classList.contains("pop-out")) return;
 
     el.classList.remove("pop-in");
     el.classList.add("pop-out");
