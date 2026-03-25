@@ -267,13 +267,30 @@ function playWelcomeSound() {
 /* ========= CONTROLS ========= */
 
 function toggleMic() {
-    isMicOn = !isMicOn;
-    updateMicUI();
+
+    if (!isSoundOn) {
+        isSoundOn = true;
+        isMicOn = true;
+    } else {
+        isMicOn = !isMicOn;
+    }
+
+    applyAudioState();
 }
 
 function toggleSound() {
+
+    const wasOff = !isSoundOn;
+
     isSoundOn = !isSoundOn;
-    updateSoundUI();
+
+    if (!isSoundOn) {
+        isMicOn = false;
+    } else {
+        isMicOn = true;
+    }
+
+    applyAudioState();
 }
 
 function updateMicUI() {
@@ -284,6 +301,37 @@ function updateMicUI() {
 function updateSoundUI() {
     soundIcon.src = isSoundOn ? ICONS.sound.on : ICONS.sound.off;
     soundBtn.classList.toggle("off", !isSoundOn);
+}
+
+function updateSelfVisualState() {
+
+    const el = document.querySelector(
+        `.participant[data-user-id="${clientId}"]`
+    );
+
+    if (!el) return;
+
+    el.classList.toggle("muted", !isMicOn);
+    el.classList.toggle("deaf", !isSoundOn);
+}
+
+function applyAudioState() {
+
+    if (localStream) {
+        localStream.getAudioTracks().forEach(track => {
+            track.enabled = isMicOn && isSoundOn;
+        });
+    }
+
+    document.querySelectorAll("audio").forEach(audio => {
+        audio.muted = !isSoundOn;
+    });
+
+    updateMicUI();
+    updateSoundUI();
+
+    updateSelfVisualState();
+
 }
 
 function toggleJoin() {
@@ -456,6 +504,7 @@ function enterRoomUI() {
     roomCodeText.textContent = `room #${currentRoomCode}`;
 
     addParticipant(clientId, currentUsername);
+    applyAudioState();
 }
 
 function removeParticipant(userId) {

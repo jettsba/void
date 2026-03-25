@@ -206,6 +206,8 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
+    position: relative;
+    overflow: hidden;
 }
 
 .participant-name {
@@ -236,6 +238,30 @@ body {
         opacity: 0;
         transform: scale(0.7);
     }
+}
+
+.participant.muted .participant-avatar {
+    opacity: 0.8;
+}
+
+.participant.muted .participant-avatar::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    opacity: 0.6;
+    background: repeating-linear-gradient(
+            135deg,
+            rgba(0,0,0,0.0),
+            rgba(0,0,0,0.0) 6px,
+            rgba(0,0,0,0.35) 6px,
+            rgba(0,0,0,0.35) 10px
+    );
+
+    pointer-events: none;
+}
+
+.participant.deaf .participant-avatar {
+    opacity: 0.2;
 }
 
 /* =========================

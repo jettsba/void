@@ -47,6 +47,8 @@ function createPeer(userId) {
         audio.autoplay = true;
         audio.playsInline = true;
 
+        audio.muted = !isSoundOn;
+
         document.body.appendChild(audio);
         createVolumeAnalyser(event.streams[0], userId);
     };
