@@ -58,6 +58,10 @@ wss.on("connection", (ws) => {
                     handleLeaveRoom(ws, data);
                     break;
 
+                case "audio-state":
+                    handleAudioState(ws, data);
+                    break;
+
                 case "offer":
                 case "answer":
                 case "ice":
@@ -132,16 +136,22 @@ function handleJoinConfirm(ws, data) {
     ws.roomCode = code;
     ws.userId = userId;
 
-    room.users.set(userId, { ws, nickname });
+    room.users.set(userId, {
+        ws,
+        nickname,
+        mic: true,
+        sound: true
+    });
 
-    // Отправляем список существующих пользователей
     const usersList = [];
 
     room.users.forEach((user, id) => {
         if (id !== userId) {
             usersList.push({
                 id,
-                nickname: user.nickname
+                nickname: user.nickname,
+                mic: user.mic,
+                sound: user.sound
             });
         }
     });
@@ -163,6 +173,29 @@ function handleJoinConfirm(ws, data) {
     });
 
     console.log(`👤 ${nickname} (${userId}) joined room ${code}`);
+}
+
+function handleAudioState(ws, data) {
+
+    const room = rooms.get(ws.roomCode);
+    if (!room) return;
+
+    const user = room.users.get(ws.userId);
+    if (!user) return;
+
+    user.mic = data.mic;
+    user.sound = data.sound;
+
+    room.users.forEach((u, id) => {
+        if (id !== ws.userId && u.ws.readyState === 1) {
+            u.ws.send(JSON.stringify({
+                type: "audio-state",
+                userId: ws.userId,
+                mic: data.mic,
+                sound: data.sound
+            }));
+        }
+    });
 }
 
 function handleLeaveRoom(ws, data) {

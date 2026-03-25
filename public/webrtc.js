@@ -4,6 +4,8 @@ let localStream = null;
 let peers = new Map();
 let audioContext = null;
 let analyserMap = new Map();
+let audioMap = new Map();
+let volumeMap = new Map();
 
 async function initMedia() {
     localStream = await navigator.mediaDevices.getUserMedia({
@@ -50,6 +52,12 @@ function createPeer(userId) {
         audio.muted = !isSoundOn;
 
         document.body.appendChild(audio);
+
+        audioMap.set(userId, audio);
+
+        const savedVolume = volumeMap.get(userId) ?? 1;
+        audio.volume = savedVolume;
+
         createVolumeAnalyser(event.streams[0], userId);
     };
 
@@ -119,6 +127,7 @@ function closeAllConnections() {
     });
 
     peers.clear();
+    audioMap.clear();
 
     if (localStream) {
         localStream.getTracks().forEach(track => {

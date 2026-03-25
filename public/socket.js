@@ -63,6 +63,10 @@ function handleSocketMessage(data) {
             alert("Комната не найдена");
             break;
 
+        case "audio-state":
+            updateParticipantAudioState(data.userId, data.mic, data.sound);
+            break;
+
         case "participant-left":
             removeParticipant(data.userId);
 
@@ -82,6 +86,12 @@ function handleSocketMessage(data) {
         case "user-list":
             data.users.forEach(user => {
                 addParticipant(user.id, user.nickname);
+
+                updateParticipantAudioState(
+                    user.id,
+                    user.mic,
+                    user.sound
+                );
             });
             break;
 

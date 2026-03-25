@@ -332,6 +332,26 @@ function applyAudioState() {
 
     updateSelfVisualState();
 
+    sendSocket({
+        type: "audio-state",
+        room: currentRoomCode,
+        userId: clientId,
+        mic: isMicOn,
+        sound: isSoundOn
+    });
+
+}
+
+function updateParticipantAudioState(userId, mic, sound) {
+
+    const el = document.querySelector(
+        `.participant[data-user-id="${userId}"]`
+    );
+
+    if (!el) return;
+
+    el.classList.toggle("muted", !mic);
+    el.classList.toggle("deaf", !sound);
 }
 
 function toggleJoin() {
@@ -409,6 +429,10 @@ function addParticipant(userId, nickname) {
     participant.classList.add("participant");
     participant.dataset.userId = userId;
 
+    if (userId === clientId) {
+        participant.classList.add("self");
+    }
+
     const avatar = document.createElement("div");
     avatar.classList.add("participant-avatar");
 
@@ -430,6 +454,12 @@ function addParticipant(userId, nickname) {
     requestAnimationFrame(() => {
         participant.classList.add("pop-in");
     });
+
+    if (userId !== clientId) {
+        participant.addEventListener("click", () => {
+            toggleVolumeControl(participant, userId);
+        });
+    }
 }
 
 /* ========= USERNAME ========= */
@@ -521,6 +551,45 @@ function removeParticipant(userId) {
     el.addEventListener("animationend", () => {
         el.remove();
     }, { once: true });
+}
+
+function toggleVolumeControl(participant, userId) {
+
+    const existing = participant.querySelector(".volume-control");
+    if (existing) {
+        existing.remove();
+        return;
+    }
+
+    document.querySelectorAll(".volume-control").forEach(el => el.remove());
+
+    const wrapper = document.createElement("div");
+    wrapper.classList.add("volume-control");
+
+    const slider = document.createElement("input");
+    slider.type = "range";
+    slider.min = 0;
+    slider.max = 100;
+
+    const saved = volumeMap.get(userId) ?? 1;
+    slider.value = saved * 100;
+
+    slider.addEventListener("input", () => {
+        const value = slider.value / 100;
+
+        volumeMap.set(userId, value);
+
+        const audio = audioMap.get(userId);
+        if (audio) {
+            audio.volume = value;
+        }
+    });
+
+    slider.addEventListener("click", (e) => e.stopPropagation());
+    wrapper.addEventListener("click", (e) => e.stopPropagation());
+
+    wrapper.appendChild(slider);
+    participant.appendChild(wrapper);
 }
 
 function generateClientId(length = 8) {

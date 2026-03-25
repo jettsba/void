@@ -192,6 +192,7 @@ body {
     flex-direction: column;
     align-items: center;
     gap: 8px;
+    position: relative;
 
     opacity: 0;
     transform: scale(0.8);
@@ -214,8 +215,20 @@ body {
     font-size: 15px;
     color: var(--color-text-secondary);
     text-align: center;
-    max-width: 85px;
+    max-width: 100px;
     word-break: break-word;
+}
+
+.participant.self {
+    cursor: default;
+}
+
+.participant:not(.self) {
+    cursor: pointer;
+}
+
+.participant.self .participant-name {
+    text-decoration: underline;
 }
 
 .participant.pop-in {
@@ -371,6 +384,17 @@ body {
     color: var(--color-text-primary);
 }
 
+.volume-control {
+    position: absolute;
+    bottom: -35px;
+
+    width: 100px;
+}
+
+.volume-control input {
+    width: 100%;
+}
+
 /* =========================
    MOBILE
 ========================= */
@@ -393,6 +417,7 @@ body {
     .participant {
         width: 60px;
         height: 60px;
+
     }
 
     .participant img {
