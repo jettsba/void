@@ -53,6 +53,8 @@ let isSoundOn = true;
 
 let ambientSound;
 let welcomeSound;
+let joinSound;
+let leaveSound;
 let hasStartedAudio = false;
 let hasPlayedWelcome = false;
 
@@ -95,6 +97,8 @@ function init() {
 
     ambientSound = document.getElementById("ambientSound");
     welcomeSound = document.getElementById("welcomeSound");
+    joinSound = document.getElementById("joinSound");
+    leaveSound = document.getElementById("leaveSound");
 
     joinBtn = document.getElementById("joinBtn");
     createBtn = document.getElementById("createBtn");
@@ -314,6 +318,18 @@ function playWelcomeSound() {
     welcomeSound.play().catch(() => {});
 }
 
+function playJoinSound() {
+    joinSound.currentTime = 0;
+    joinSound.volume = 0.4;
+    joinSound.play().catch(() => {});
+}
+
+function playLeaveSound() {
+    leaveSound.currentTime = 0;
+    leaveSound.volume = 0.4;
+    leaveSound.play().catch(() => {});
+}
+
 /* ========= CONTROLS ========= */
 
 function toggleMic() {
@@ -447,6 +463,8 @@ function removeAllParticipants() {
 }
 
 async function leaveRoom() {
+
+    playLeaveSound();
 
     closeAllConnections();
 
@@ -583,6 +601,8 @@ function enterRoomUI() {
 
     addParticipant(clientId, currentUsername);
     applyAudioState();
+
+    playJoinSound();
 }
 
 function removeParticipant(userId) {
