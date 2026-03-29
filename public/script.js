@@ -103,6 +103,9 @@ function init() {
     roomInfo = document.getElementById("roomInfo");
     roomCodeText = document.getElementById("roomCodeText");
 
+    const input = joinBtn.querySelector("input");
+    const arrow = joinBtn.querySelector(".arrow");
+
     resizeCanvas();
     createParticles();
     animate();
@@ -140,6 +143,53 @@ function init() {
         } catch (e) {
             console.error("Copy failed", e);
         }
+    });
+
+    input.addEventListener("input", () => {
+
+        input.value = input.value.toUpperCase();
+
+        if (input.value.length === 5) {
+            arrow.classList.add("ready");
+        } else {
+            arrow.classList.remove("ready");
+        }
+    });
+
+    document.addEventListener("click", (e) => {
+
+        if (!joinBtn.classList.contains("input-mode")) return;
+
+        if (!joinBtn.contains(e.target)) {
+            joinBtn.classList.remove("input-mode");
+
+            const input = joinBtn.querySelector("input");
+            if (input) input.value = "";
+
+            const arrow = joinBtn.querySelector(".arrow");
+            if (arrow) arrow.classList.remove("ready");
+        }
+    });
+
+    arrow.addEventListener("click", async (e) => {
+
+        if (!arrow.classList.contains("ready")) return;
+
+        const code = input.value;
+
+        currentRoomCode = code;
+
+        await initMedia();
+        await connectSocket();
+
+        sendSocket({
+            type: "join-room",
+            code,
+            userId: clientId,
+            nickname: currentUsername
+        });
+
+        e.stopPropagation();
     });
 
 }
@@ -375,7 +425,7 @@ async function joinRoom() {
 
     isJoined = true;
 
-    joinBtn.textContent = "disconnect";
+    joinBtn.querySelector(".label").textContent = "disconnect";
 
     createBtn.classList.add("hidden");
 
@@ -414,7 +464,7 @@ async function leaveRoom() {
 
     isJoined = false;
 
-    joinBtn.textContent = "connect";
+    joinBtn.querySelector(".label").textContent = "connect";
 
     createBtn.classList.remove("hidden");
     controls.classList.add("hidden");
@@ -502,35 +552,33 @@ async function handleCreateClick() {
     });
 }
 
-async function handleJoinClick() {
+function handleJoinClick() {
 
-    const code = prompt("Введите код комнаты:");
-    if (!code) return;
+    if (isJoined) {
+        leaveRoom();
+        return;
+    }
 
-    currentRoomCode = code.toUpperCase();
+    joinBtn.classList.add("input-mode");
 
-    await initMedia();
-    await connectSocket();
-
-    sendSocket({
-        type: "join-room",
-        code: currentRoomCode,
-        userId: clientId,
-        nickname: currentUsername
-    });
+    const input = joinBtn.querySelector("input");
+    input.focus();
 }
 
 function enterRoomUI() {
 
     isJoined = true;
 
-    joinBtn.textContent = "disconnect";
+    joinBtn.querySelector(".label").textContent = "disconnect";
 
     createBtn.classList.add("hidden");
 
     controls.classList.remove("hidden");
 
     roomInfo.classList.remove("hidden");
+
+    joinBtn.classList.remove("input-mode");
+
     roomCodeText.textContent = `room #${currentRoomCode}`;
 
     addParticipant(clientId, currentUsername);
