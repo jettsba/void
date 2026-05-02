@@ -14,6 +14,9 @@ function connectSocket() {
 
         socket.addEventListener("open", () => {
             console.log("🟢 Connected to WebSocket");
+            if (typeof setConnectionState === "function") {
+                setConnectionState("connecting");
+            }
             resolve();
         });
 
@@ -24,6 +27,9 @@ function connectSocket() {
 
         socket.addEventListener("close", () => {
             console.log("🔴 Socket closed");
+            if (typeof setConnectionState === "function") {
+                setConnectionState("ready");
+            }
             socket = null;
         });
     });
@@ -61,6 +67,9 @@ function handleSocketMessage(data) {
 
         case "join-failed":
             alert("Комната не найдена");
+            if (typeof setConnectionState === "function") {
+                setConnectionState("error");
+            }
             break;
 
         case "audio-state":

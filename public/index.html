@@ -3,16 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Void Room</title>
+    <title>void</title>
     <link rel="stylesheet" href="styles.css">
-    <link rel="icon" href="static/favicon.ico" type="image/x-icon">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Handjet:wght@100..900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet">
+    <link rel="icon" href="static/favicon.ico" type="image/x-icon">
 </head>
-
 <body>
-
 <canvas id="background"></canvas>
 
 <audio id="ambientSound" src="static/ambient.mp3"></audio>
@@ -22,50 +20,73 @@
 
 <div class="intro" id="intro">
     <div class="intro-content">
-        <h1 class="intro-title">Что есть музыка жизни?</h1>
-        <input
-                type="text"
-                id="introInput"
-                class="intro-input"
-                autocomplete="off"
-        />
-        <div class="intro-error" id="introError">+</div>
+        <h1 class="intro-title" id="introTitle">
+            <span class="intro-title-text" id="introTitleText"></span><span class="intro-cursor" id="introCursor" aria-hidden="true">|</span>
+        </h1>
+        <div class="intro-field">
+            <input type="text" id="introInput" class="intro-input" autocomplete="off" disabled />
+            <div class="intro-error" id="introError" aria-live="polite">+</div>
+        </div>
     </div>
 </div>
 
-<div class="app hidden-start">
-    <div class="logo">
-        <img class="logo-img" src="static/logo_text_web.png" alt="Void Logo">
-        <span>private club.</span>
-    </div>
-
-    <div class="participants" id="participants">
-    </div>
-
-    <div class="action-area">
-        <button class="join-btn" id="joinBtn">
-            <span class="label">connect</span>
-            <input id="joinInput" maxlength="5" placeholder="room code" />
-            <span class="arrow">→</span>
-        </button>
-
-        <button class="join-btn" id="createBtn">
-            create space
-        </button>
-
-        <div class="controls hidden" id="controls">
-            <button class="control-btn" id="micBtn">
-                <img id="micIcon" src="static/icon_mic_on.png" alt="Mic">
-            </button>
-
-            <button class="control-btn" id="soundBtn">
-                <img id="soundIcon" src="static/icon_sound_on.png" alt="Sound">
-            </button>
+<div class="app hidden-start" id="app" data-mode="entry">
+    <header class="header">
+        <div class="brand">
+            <span class="brand-lockup">
+                <span class="logo-eclipse" aria-hidden="true"></span>
+                <span class="brand-mark">void</span>
+            </span>
         </div>
-        <div class="room-info hidden" id="roomInfo">
-            <span id="roomCodeText">room #XXXXX</span>
+    </header>
+
+    <main class="stage">
+        <div class="room is-empty" id="room">
+            <div class="room-empty-hint" id="roomHint">no one here yet</div>
+            <div class="participants" id="participants"></div>
         </div>
-    </div>
+
+        <div class="entry" id="entry">
+            <div class="entry-actions">
+                <input
+                    type="text"
+                    class="entry-code"
+                    id="codeInput"
+                    maxlength="5"
+                    placeholder="enter code"
+                    autocomplete="off"
+                    spellcheck="false"
+                />
+                <button type="button" class="btn primary" id="joinBtn">join</button>
+            </div>
+            <div class="entry-divider">or</div>
+            <button type="button" class="btn ghost" id="createBtn">open a new room →</button>
+        </div>
+
+        <div class="controls controls-bar hidden" id="controls">
+            <button type="button" class="control-btn" id="micBtn" title="mute">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg>
+            </button>
+            <button type="button" class="control-btn" id="soundBtn" title="deaf">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16 8a5 5 0 0 1 0 8"/></svg>
+            </button>
+            <button type="button" class="control-btn control-btn-stub" id="screencastBtn" title="screencast (soon)" aria-disabled="true">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="14" height="10" rx="1"/><path d="M17 9l4-2v10l-4-2"/><path d="M7 19h8"/></svg>
+            </button>
+            <button type="button" class="leave-btn" id="leaveBtn">leave</button>
+        </div>
+    </main>
+
+    <footer class="footer footer-meta">
+        <span class="conn-state">
+            <span class="conn-dot" id="connDot"></span>
+            <span id="connLabel">ready</span>
+        </span>
+        <span class="footer-divider">·</span>
+        <div class="room-info hidden" id="roomInfo" title="copy code">
+            <span id="roomCodeText">#XXXXX</span>
+        </div>
+    </footer>
 </div>
 
 <script src="webrtc.js"></script>
