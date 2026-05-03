@@ -2,35 +2,83 @@
 
 let socket = null;
 
+/** Закрыть сокет при отмене входа / ошибке (вызывается из script.js). */
+function resetSocketConnection() {
+    if (socket) {
+        try {
+            socket.close();
+        } catch (_) {}
+        socket = null;
+    }
+}
+
 function connectSocket() {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
 
         if (socket && socket.readyState === 1) {
             resolve();
             return;
         }
 
-        socket = new WebSocket(`ws://${window.location.host}`);
+        let connectionResolved = false;
+        const ws = new WebSocket(`ws://${window.location.host}`);
+        socket = ws;
 
-        socket.addEventListener("open", () => {
+        const timeoutId = setTimeout(() => {
+            if (!connectionResolved) {
+                connectionResolved = true;
+                try {
+                    ws.close();
+                } catch (_) {}
+                socket = null;
+                reject(new Error("timeout"));
+            }
+        }, 15000);
+
+        ws.addEventListener("open", () => {
+            if (connectionResolved) return;
+            connectionResolved = true;
+            clearTimeout(timeoutId);
+
             console.log("🟢 Connected to WebSocket");
             if (typeof setConnectionState === "function") {
                 setConnectionState("connecting");
             }
+
+            ws.addEventListener("message", (event) => {
+                const data = JSON.parse(event.data);
+                handleSocketMessage(data);
+            });
+
             resolve();
         });
 
-        socket.addEventListener("message", (event) => {
-            const data = JSON.parse(event.data);
-            handleSocketMessage(data);
-        });
+        ws.addEventListener("close", () => {
+            if (!connectionResolved) {
+                connectionResolved = true;
+                clearTimeout(timeoutId);
+                socket = null;
+                reject(new Error("ws-closed"));
+                return;
+            }
 
-        socket.addEventListener("close", () => {
             console.log("🔴 Socket closed");
             if (typeof setConnectionState === "function") {
                 setConnectionState("ready");
             }
             socket = null;
+        });
+
+        ws.addEventListener("error", () => {
+            if (!connectionResolved) {
+                connectionResolved = true;
+                clearTimeout(timeoutId);
+                try {
+                    ws.close();
+                } catch (_) {}
+                socket = null;
+                reject(new Error("ws-error"));
+            }
         });
     });
 }
@@ -51,7 +99,8 @@ function handleSocketMessage(data) {
                     userId: clientId,
                     nickname: currentUsername
                 });
-                enterRoomUI();
+            } else if (typeof abortJoinAttempt === "function") {
+                abortJoinAttempt(data.reason || "create-failed");
             }
             break;
 
@@ -62,13 +111,11 @@ function handleSocketMessage(data) {
                 userId: clientId,
                 nickname: currentUsername
             });
-            enterRoomUI();
             break;
 
         case "join-failed":
-            alert("Комната не найдена");
-            if (typeof setConnectionState === "function") {
-                setConnectionState("error");
+            if (typeof abortJoinAttempt === "function") {
+                abortJoinAttempt(data.reason || "room-not-found");
             }
             break;
 
@@ -93,6 +140,9 @@ function handleSocketMessage(data) {
             break;
 
         case "user-list":
+            if (!isJoined) {
+                enterRoomUI();
+            }
             data.users.forEach(user => {
                 addParticipant(user.id, user.nickname);
 

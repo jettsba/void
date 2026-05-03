@@ -33,6 +33,9 @@ Map {
 
 const rooms = new Map();
 
+/** Max simultaneous participants per room (enforced at join intent + at confirm for races). */
+const MAX_ROOM_USERS = 5;
+
 wss.on("connection", (ws) => {
     console.log("🟢 Client connected");
 
@@ -91,7 +94,8 @@ function handleCreateRoom(ws, data) {
     if (rooms.has(code)) {
         ws.send(JSON.stringify({
             type: "room-created",
-            success: false
+            success: false,
+            reason: "code-taken"
         }));
         return;
     }
@@ -99,6 +103,9 @@ function handleCreateRoom(ws, data) {
     rooms.set(code, {
         users: new Map()
     });
+
+    /** Разрешает ровно один последующий join-room-confirm на этот код с этого сокета. */
+    ws.authorizedJoinCode = code;
 
     ws.send(JSON.stringify({
         type: "room-created",
@@ -115,10 +122,22 @@ function handleJoinRoom(ws, data) {
 
     if (!rooms.has(code)) {
         ws.send(JSON.stringify({
-            type: "join-failed"
+            type: "join-failed",
+            reason: "room-not-found"
         }));
         return;
     }
+
+    const room = rooms.get(code);
+    if (room.users.size >= MAX_ROOM_USERS) {
+        ws.send(JSON.stringify({
+            type: "join-failed",
+            reason: "room-full"
+        }));
+        return;
+    }
+
+    ws.authorizedJoinCode = code;
 
     ws.send(JSON.stringify({
         type: "join-success",
@@ -129,9 +148,35 @@ function handleJoinRoom(ws, data) {
 function handleJoinConfirm(ws, data) {
 
     const { code, userId, nickname } = data;
+
+    if (ws.authorizedJoinCode !== code) {
+        ws.send(JSON.stringify({
+            type: "join-failed",
+            reason: "join-session-invalid"
+        }));
+        return;
+    }
+
+    ws.authorizedJoinCode = undefined;
+
     const room = rooms.get(code);
 
-    if (!room) return;
+    if (!room) {
+        ws.send(JSON.stringify({
+            type: "join-failed",
+            reason: "room-not-found"
+        }));
+        return;
+    }
+
+    const alreadyIn = room.users.has(userId);
+    if (!alreadyIn && room.users.size >= MAX_ROOM_USERS) {
+        ws.send(JSON.stringify({
+            type: "join-failed",
+            reason: "room-full"
+        }));
+        return;
+    }
 
     ws.roomCode = code;
     ws.userId = userId;
@@ -142,6 +187,17 @@ function handleJoinConfirm(ws, data) {
         mic: true,
         sound: true
     });
+
+    if (room.users.size > MAX_ROOM_USERS) {
+        room.users.delete(userId);
+        ws.roomCode = undefined;
+        ws.userId = undefined;
+        ws.send(JSON.stringify({
+            type: "join-failed",
+            reason: "room-full"
+        }));
+        return;
+    }
 
     const usersList = [];
 

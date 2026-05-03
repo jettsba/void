@@ -18,6 +18,19 @@ const INTRO_PAUSE_AFTER_WELCOME_MS = 520;
 const INTRO_REMEMBER_UNLOCK = true;
 const INTRO_UNLOCK_STORAGE_KEY = "passed";
 
+const ENTRY_ERROR_DISPLAY_MS = 1500;
+
+const ENTRY_ERROR_MESSAGES = {
+    "room-not-found": "комната не найдена",
+    "room-full": "комната заполнена",
+    "connection-failed": "не удалось подключиться к серверу",
+    "mic-blocked": "нет доступа к микрофону",
+    "create-failed": "не удалось создать комнату",
+    "code-taken": "код комнаты уже занят — попробуй ещё раз «open a new room»",
+    "join-session-invalid": "сессия входа недействительна — попробуй ещё раз",
+    "unknown": "что-то пошло не так"
+};
+
 const USERNAME_ADJECTIVES = [
     "Silent","Dark","Hidden","Lost","Frozen","Broken","Shadowed","Neon","Crimson","Fading",
     "Restless","Distant","Echoing","Obscure","Ghostly","Cold","Blurred","Glitched","Static","Muted",
@@ -66,10 +79,8 @@ let hasPlayedWelcome = false;
 let joinBtn;
 let createBtn;
 let codeInput;
-let entryEl;
 let leaveBtn;
 let participantsContainer;
-let roomElement;
 let connDot;
 let connLabel;
 
@@ -84,6 +95,17 @@ let clientId = null;
 
 let roomInfo;
 let roomCodeText;
+
+function formatRoomCodeLabel(code) {
+    const segment =
+        code != null && String(code).length > 0 ? String(code) : "XXXXX";
+    return `room #${segment}`;
+}
+
+let entryErrorEl;
+let entryErrorTextEl;
+let entryErrorHideTimer = null;
+let roomCopyFeedbackTimer = null;
 
 /* ========= INIT ========= */
 
@@ -114,15 +136,16 @@ function init() {
     joinBtn = document.getElementById("joinBtn");
     createBtn = document.getElementById("createBtn");
     codeInput = document.getElementById("codeInput");
-    entryEl = document.getElementById("entry");
     leaveBtn = document.getElementById("leaveBtn");
     participantsContainer = document.getElementById("participants");
-    roomElement = document.getElementById("room");
     connDot = document.getElementById("connDot");
     connLabel = document.getElementById("connLabel");
 
     roomInfo = document.getElementById("roomInfo");
     roomCodeText = document.getElementById("roomCodeText");
+
+    entryErrorEl = document.getElementById("entryError");
+    entryErrorTextEl = document.getElementById("entryErrorText");
 
     sizeCanvas();
     seedBlobs();
@@ -139,7 +162,6 @@ function init() {
 
     document.body.style.opacity = "1";
     setConnectionState("ready");
-    updateRoomState();
 
     createBtn.addEventListener("click", handleCreateClick);
     joinBtn.addEventListener("click", () => {
@@ -150,6 +172,12 @@ function init() {
     });
     codeInput.addEventListener("input", () => {
         codeInput.value = codeInput.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+        codeInput.closest(".entry-code-field")?.classList.toggle("has-value", codeInput.value.length > 0);
+        hideEntryError();
+    });
+
+    codeInput.closest(".entry-code-field")?.addEventListener("click", () => {
+        codeInput.focus();
     });
     codeInput.addEventListener("keydown", (e) => {
         if (e.key === "Enter") tryJoin();
@@ -158,10 +186,11 @@ function init() {
     roomInfo.addEventListener("click", async () => {
         try {
             await navigator.clipboard.writeText(currentRoomCode);
-            roomCodeText.textContent = "copied!";
-
-            setTimeout(() => {
-                roomCodeText.textContent = `#${currentRoomCode}`;
+            roomInfo.classList.add("room-info--copied");
+            if (roomCopyFeedbackTimer) clearTimeout(roomCopyFeedbackTimer);
+            roomCopyFeedbackTimer = setTimeout(() => {
+                roomInfo.classList.remove("room-info--copied");
+                roomCopyFeedbackTimer = null;
             }, 1000);
         } catch (e) {
             console.error("Copy failed", e);
@@ -248,6 +277,8 @@ async function runIntroWelcomeThenUnlock() {
 async function tryJoin() {
     if (isJoined) return;
 
+    hideEntryError();
+
     const code = (codeInput.value || "").trim().toUpperCase();
     if (code.length !== 5) {
         codeInput.focus();
@@ -256,8 +287,20 @@ async function tryJoin() {
 
     currentRoomCode = code;
 
-    await initMedia();
-    await connectSocket();
+    try {
+        await initMedia();
+    } catch {
+        abortJoinAttempt("mic-blocked");
+        return;
+    }
+
+    try {
+        await connectSocket();
+    } catch {
+        closeAllConnections();
+        abortJoinAttempt("connection-failed");
+        return;
+    }
 
     sendSocket({
         type: "join-room",
@@ -265,6 +308,47 @@ async function tryJoin() {
         userId: clientId,
         nickname: currentUsername
     });
+}
+
+function hideEntryError() {
+    clearTimeout(entryErrorHideTimer);
+    entryErrorHideTimer = null;
+    if (entryErrorEl) {
+        entryErrorEl.classList.remove("is-visible");
+        entryErrorEl.setAttribute("aria-hidden", "true");
+    }
+}
+
+function showEntryError(reason) {
+    const text = ENTRY_ERROR_MESSAGES[reason] || ENTRY_ERROR_MESSAGES.unknown;
+    if (!entryErrorEl || !entryErrorTextEl) return;
+
+    clearTimeout(entryErrorHideTimer);
+    entryErrorHideTimer = null;
+
+    entryErrorTextEl.textContent = text;
+    entryErrorEl.classList.remove("is-visible");
+    entryErrorEl.setAttribute("aria-hidden", "false");
+
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            entryErrorEl.classList.add("is-visible");
+        });
+    });
+
+    entryErrorHideTimer = setTimeout(() => {
+        hideEntryError();
+    }, ENTRY_ERROR_DISPLAY_MS);
+}
+
+function abortJoinAttempt(reason) {
+    closeAllConnections();
+    if (typeof resetSocketConnection === "function") {
+        resetSocketConnection();
+    }
+    currentRoomCode = null;
+    setConnectionState("ready");
+    showEntryError(reason);
 }
 
 /* ========= AMBIENT — slow drifting blobs ========= */
@@ -507,12 +591,14 @@ function removeAllParticipants() {
     const all = document.querySelectorAll(".participant");
 
     all.forEach(el => {
+        const arc = el.querySelector(".volume-arc");
+        if (arc) arc._cleanup?.();
+
         el.classList.remove("pop-in");
         el.classList.add("pop-out");
 
         el.addEventListener("animationend", () => {
             el.remove();
-            updateRoomState();
         }, { once: true });
     });
 }
@@ -533,20 +619,28 @@ async function leaveRoom() {
         if (socket) socket.close();
     }, 100);
 
+    if (roomCopyFeedbackTimer) {
+        clearTimeout(roomCopyFeedbackTimer);
+        roomCopyFeedbackTimer = null;
+    }
+    roomInfo.classList.remove("room-info--copied");
+
     roomInfo.classList.add("hidden");
 
     isJoined = false;
 
-    roomCodeText.textContent = "#XXXXX";
-    if (codeInput) codeInput.value = "";
+    roomCodeText.textContent = formatRoomCodeLabel(null);
+    if (codeInput) {
+        codeInput.value = "";
+        codeInput.closest(".entry-code-field")?.classList.remove("has-value");
+    }
 
-    createBtn.classList.remove("hidden");
-    if (entryEl) entryEl.classList.remove("hidden");
-    controls.classList.add("hidden");
+    if (app) app.dataset.mode = "entry";
+
+    hideEntryError();
 
     removeAllParticipants();
     setConnectionState("ready");
-    updateRoomState();
 }
 
 
@@ -583,8 +677,6 @@ function addParticipant(userId, nickname) {
     requestAnimationFrame(() => {
         participant.classList.add("pop-in");
     });
-
-    updateRoomState();
 
     if (userId !== clientId) {
         participant.addEventListener("click", () => {
@@ -642,10 +734,25 @@ function generateRoomCode(length = 5) {
 
 async function handleCreateClick() {
 
+    hideEntryError();
+
     currentRoomCode = generateRoomCode();
 
-    await initMedia();
-    await connectSocket();
+    try {
+        await initMedia();
+    } catch {
+        abortJoinAttempt("mic-blocked");
+        return;
+    }
+
+    try {
+        await connectSocket();
+    } catch {
+        closeAllConnections();
+        abortJoinAttempt("connection-failed");
+        return;
+    }
+
     setConnectionState("connecting");
 
     sendSocket({
@@ -683,21 +790,19 @@ function setConnectionState(state) {
 
 function enterRoomUI() {
 
+    hideEntryError();
+
     isJoined = true;
 
-    createBtn.classList.add("hidden");
-    if (entryEl) entryEl.classList.add("hidden");
-
-    controls.classList.remove("hidden");
+    if (app) app.dataset.mode = "room";
 
     roomInfo.classList.remove("hidden");
 
-    roomCodeText.textContent = `#${currentRoomCode}`;
+    roomCodeText.textContent = formatRoomCodeLabel(currentRoomCode);
 
     addParticipant(clientId, currentUsername);
     applyAudioState();
     setConnectionState("connected");
-    updateRoomState();
 
     playJoinSound();
 }
@@ -710,52 +815,196 @@ function removeParticipant(userId) {
 
     if (!el || el.classList.contains("pop-out")) return;
 
+    const arc = el.querySelector(".volume-arc");
+    if (arc) arc._cleanup?.();
+
     el.classList.remove("pop-in");
     el.classList.add("pop-out");
 
     el.addEventListener("animationend", () => {
         el.remove();
-        updateRoomState();
     }, { once: true });
+}
+
+/* ===== Arc volume control =====
+   Геометрия в координатах SVG 84×84 (совпадает с .users-area --avatar-size).
+   Арка концентрична с аватаром, радиус чуть больше — чтобы "огибала" блоб справа. */
+const VOLUME_ARC = {
+    cx: 42,
+    cy: 42,
+    r: 46,
+    startDeg: -55,
+    endDeg: 55
+};
+
+function volumeArcPolar(angleDeg) {
+    const rad = angleDeg * Math.PI / 180;
+    return {
+        x: VOLUME_ARC.cx + VOLUME_ARC.r * Math.cos(rad),
+        y: VOLUME_ARC.cy + VOLUME_ARC.r * Math.sin(rad)
+    };
+}
+
+function volumeArcPath(angleStart, angleEnd) {
+    const s = volumeArcPolar(angleStart);
+    const e = volumeArcPolar(angleEnd);
+    const large = Math.abs(angleEnd - angleStart) > 180 ? 1 : 0;
+    const sweep = angleEnd > angleStart ? 1 : 0;
+    return `M ${s.x.toFixed(3)} ${s.y.toFixed(3)} A ${VOLUME_ARC.r} ${VOLUME_ARC.r} 0 ${large} ${sweep} ${e.x.toFixed(3)} ${e.y.toFixed(3)}`;
 }
 
 function toggleVolumeControl(participant, userId) {
 
-    const existing = participant.querySelector(".volume-control");
+    const existing = participant.querySelector(".volume-arc");
     if (existing) {
-        existing.remove();
+        closeVolumeArc(existing);
         return;
     }
 
-    document.querySelectorAll(".volume-control").forEach(el => el.remove());
+    document.querySelectorAll(".volume-arc").forEach(closeVolumeArc);
+
+    const arc = createVolumeArc(participant, userId);
+    participant.appendChild(arc);
+
+    requestAnimationFrame(() => {
+        arc.classList.add("is-visible");
+    });
+}
+
+function closeVolumeArc(arcEl) {
+    if (!arcEl || arcEl.dataset.closing === "1") return;
+    arcEl.dataset.closing = "1";
+    arcEl._cleanup?.();
+
+    arcEl.classList.remove("is-visible");
+
+    const fallback = setTimeout(() => arcEl.remove(), 500);
+    arcEl.addEventListener("transitionend", () => {
+        clearTimeout(fallback);
+        arcEl.remove();
+    }, { once: true });
+}
+
+function createVolumeArc(participant, userId) {
 
     const wrapper = document.createElement("div");
-    wrapper.classList.add("volume-control");
+    wrapper.className = "volume-arc";
 
-    const slider = document.createElement("input");
-    slider.type = "range";
-    slider.min = 0;
-    slider.max = 100;
+    const SVGNS = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(SVGNS, "svg");
+    svg.setAttribute("viewBox", "0 0 84 84");
+    svg.setAttribute("aria-hidden", "true");
 
-    const saved = volumeMap.get(userId) ?? 1;
-    slider.value = saved * 100;
+    const fullPath = volumeArcPath(VOLUME_ARC.startDeg, VOLUME_ARC.endDeg);
 
-    slider.addEventListener("input", () => {
-        const value = slider.value / 100;
+    const track = document.createElementNS(SVGNS, "path");
+    track.setAttribute("class", "volume-arc-track");
+    track.setAttribute("d", fullPath);
 
-        volumeMap.set(userId, value);
+    const fill = document.createElementNS(SVGNS, "path");
+    fill.setAttribute("class", "volume-arc-fill");
+    fill.setAttribute("d", "");
 
-        const audio = audioMap.get(userId);
-        if (audio) {
-            audio.volume = value;
+    const handle = document.createElementNS(SVGNS, "circle");
+    handle.setAttribute("class", "volume-arc-handle");
+    handle.setAttribute("r", "3");
+
+    const hit = document.createElementNS(SVGNS, "path");
+    hit.setAttribute("class", "volume-arc-hit");
+    hit.setAttribute("d", fullPath);
+
+    svg.appendChild(track);
+    svg.appendChild(fill);
+    svg.appendChild(handle);
+    svg.appendChild(hit);
+    wrapper.appendChild(svg);
+
+    const applyVolume = (v) => {
+        v = Math.max(0, Math.min(1, v));
+        const angle = VOLUME_ARC.endDeg - (VOLUME_ARC.endDeg - VOLUME_ARC.startDeg) * v;
+
+        if (v > 0.001) {
+            fill.setAttribute("d", volumeArcPath(VOLUME_ARC.endDeg, angle));
+        } else {
+            fill.setAttribute("d", "");
         }
-    });
 
-    slider.addEventListener("click", (e) => e.stopPropagation());
+        const p = volumeArcPolar(angle);
+        handle.setAttribute("cx", p.x.toFixed(3));
+        handle.setAttribute("cy", p.y.toFixed(3));
+
+        volumeMap.set(userId, v);
+        const audio = audioMap.get(userId);
+        if (audio) audio.volume = v;
+    };
+
+    applyVolume(volumeMap.get(userId) ?? 1);
+
+    const pointToVolume = (clientX, clientY) => {
+        const rect = svg.getBoundingClientRect();
+        const sx = (clientX - rect.left) / rect.width * 84;
+        const sy = (clientY - rect.top) / rect.height * 84;
+        const dx = Math.max(sx - VOLUME_ARC.cx, 0.001);
+        const dy = sy - VOLUME_ARC.cy;
+        const angleDeg = Math.atan2(dy, dx) * 180 / Math.PI;
+        const clamped = Math.max(VOLUME_ARC.startDeg, Math.min(VOLUME_ARC.endDeg, angleDeg));
+        return (VOLUME_ARC.endDeg - clamped) / (VOLUME_ARC.endDeg - VOLUME_ARC.startDeg);
+    };
+
+    let dragging = false;
+    let pointerId = null;
+
+    const onMove = (e) => {
+        if (!dragging) return;
+        e.preventDefault();
+        applyVolume(pointToVolume(e.clientX, e.clientY));
+    };
+
+    const onUp = (e) => {
+        if (!dragging) return;
+        dragging = false;
+        wrapper.classList.remove("is-dragging");
+        try { hit.releasePointerCapture(pointerId); } catch {}
+        pointerId = null;
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+        window.removeEventListener("pointercancel", onUp);
+    };
+
+    const onDown = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragging = true;
+        pointerId = e.pointerId;
+        try { hit.setPointerCapture(pointerId); } catch {}
+        wrapper.classList.add("is-dragging");
+        applyVolume(pointToVolume(e.clientX, e.clientY));
+        window.addEventListener("pointermove", onMove);
+        window.addEventListener("pointerup", onUp);
+        window.addEventListener("pointercancel", onUp);
+    };
+
+    hit.addEventListener("pointerdown", onDown);
     wrapper.addEventListener("click", (e) => e.stopPropagation());
 
-    wrapper.appendChild(slider);
-    participant.appendChild(wrapper);
+    const onOutsideClick = (e) => {
+        if (dragging) return;
+        if (participant.contains(e.target)) return;
+        closeVolumeArc(wrapper);
+    };
+
+    setTimeout(() => {
+        document.addEventListener("click", onOutsideClick);
+    }, 0);
+
+    wrapper._cleanup = () => {
+        document.removeEventListener("click", onOutsideClick);
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+        window.removeEventListener("pointercancel", onUp);
+    };
+
+    return wrapper;
 }
 
 function generateClientId(length = 8) {
@@ -777,10 +1026,3 @@ window.onVolumeChange = function(userId, volume) {
 
     participant.classList.toggle("speaking", volume > 18);
 };
-
-function updateRoomState() {
-    if (!roomElement || !participantsContainer) return;
-
-    const count = participantsContainer.children.length;
-    roomElement.classList.toggle("is-empty", count === 0);
-}

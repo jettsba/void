@@ -200,6 +200,10 @@ body::after {
     grid-template-rows: 64px 1fr 64px;
 }
 
+.app > main {
+    min-height: 0;
+}
+
 .header {
     display: flex;
     align-items: center;
@@ -221,6 +225,7 @@ body::after {
     align-items: center;
     gap: 10px;
     cursor: default;
+    transform: translate(12px, 10px);
 }
 
 .logo-eclipse {
@@ -267,6 +272,10 @@ body::after {
     font-weight: 500;
     letter-spacing: var(--tracking-wide);
     text-transform: lowercase;
+    line-height: 1;
+    height: 26px;
+    display: inline-flex;
+    align-items: center;
 }
 
 .brand-tag {
@@ -299,92 +308,176 @@ body::after {
     background: var(--signal-warn);
 }
 
+/* ======================================================
+   STAGE — ровно две точки привязки:
+   A: .users-area  — центр ripple === центр аватара
+   B: .panel-area  — top одинаковый у input и у controls
+   Между ними фикс зазор. Высоты блоков НЕ меняются,
+   значит общий центр стека стабилен при join/leave.
+====================================================== */
+
 .stage {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 44px;
     padding: 0;
     min-width: 0;
+    min-height: 0;
+    height: 100%;
     width: 100%;
     box-sizing: border-box;
 }
 
-.room {
-    position: relative;
-    width: 540px;
-    max-width: 100%;
-    min-height: 190px;
+.stage-stack {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    justify-content: center;
+    width: 100%;
 }
 
-.room-empty-hint {
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* ---------- ТОЧКА A: пользователи ---------- */
+
+.users-area {
+    --avatar-size: 84px;
+
+    width: 100%;
+    height: var(--avatar-size);
+    display: grid;
+    place-items: center;
+}
+
+/* Слот фикс размером с аватар — тут оба слоя в одной точке. */
+.users-slot {
+    position: relative;
+    width: var(--avatar-size);
+    height: var(--avatar-size);
+}
+
+/* === Ripple === */
+.lobby-ripple {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    color: var(--fg-3);
+    pointer-events: none;
+    transition: opacity var(--t-med);
+}
+
+.app[data-mode="room"] .lobby-ripple {
+    opacity: 0;
+}
+
+.lobby-ripple-ring {
+    --ring-start: 14px;
+    grid-area: 1 / 1;
+    box-sizing: border-box;
+    width: var(--ring-start);
+    height: var(--ring-start);
+    border: 1px solid currentColor;
+    border-radius: 50%;
+    opacity: 0;
+    animation: lobby-ripple-wave 3.6s cubic-bezier(0.22, 0.61, 0.36, 1) infinite;
+}
+
+.lobby-ripple-ring:nth-child(2) {
+    animation-delay: -1.8s;
+}
+
+@keyframes lobby-ripple-wave {
+    0% {
+        transform: scale(0.5);
+        opacity: 0.55;
+    }
+    100% {
+        /* max диаметр ~50px (14px * 3.6) — заметно меньше аватара 84px */
+        transform: scale(3.6);
+        opacity: 0;
+    }
+}
+
+/* === Participants === */
+.participants {
     position: absolute;
     inset: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--fg-3);
-    font-size: 12px;
-    letter-spacing: var(--tracking-wide);
-    opacity: 0;
-    transition: opacity var(--t-slow);
-    pointer-events: none;
-}
-
-.room.is-empty .room-empty-hint {
-    opacity: 1;
-}
-
-.participants {
-    display: flex;
-    align-items: center;
-    justify-content: center;
     gap: 34px;
-    flex-wrap: nowrap;
+    /* контейнер занимает только высоту slot, аватары ровно в центре */
 }
 
 .participant {
-    --size: 84px;
+    --size: var(--avatar-size);
+
     position: relative;
     width: var(--size);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 14px;
+    height: var(--size);
+    flex-shrink: 0;
     opacity: 0;
-    transform: translateY(8px);
+    transform: scale(0.4);
+    transform-origin: center center;
 }
 
 .participant.pop-in {
-    animation: enter var(--t-slow) forwards;
+    animation: participant-enter 520ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
 .participant.pop-out {
-    animation: leave var(--t-med) forwards;
+    animation: participant-leave 260ms ease forwards;
 }
 
-@keyframes enter {
+@keyframes participant-enter {
     to {
         opacity: 1;
-        transform: translateY(0);
+        transform: scale(1);
     }
 }
 
-@keyframes leave {
+@keyframes participant-leave {
     to {
         opacity: 0;
-        transform: translateY(-6px);
+        transform: scale(0.4);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .lobby-ripple-ring {
+        animation: none;
+        opacity: 0.45;
+        transform: none;
+    }
+    .lobby-ripple-ring:nth-child(2) {
+        display: none;
+    }
+    .participant.pop-in {
+        animation: none;
+        opacity: 1;
+        transform: none;
+    }
+    .participant.pop-out {
+        animation: none;
+        opacity: 0;
     }
 }
 
 .participant-avatar {
     position: relative;
-    width: var(--size);
-    height: var(--size);
+    width: 100%;
+    height: 100%;
     border-radius: 50%;
     background: radial-gradient(circle at 50% 50%, rgba(230, 230, 232, 0.06) 0%, rgba(230, 230, 232, 0.02) 55%, transparent 75%);
     display: flex;
@@ -428,6 +521,11 @@ body::after {
 }
 
 .participant-name {
+    /* абсолютно под аватаром — НЕ сдвигает его центр */
+    position: absolute;
+    top: calc(100% + 14px);
+    left: 50%;
+    transform: translateX(-50%);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -473,17 +571,174 @@ body::after {
     cursor: pointer;
 }
 
-.entry {
+/* ---------- ТОЧКА B: панель ---------- */
+
+.panel-area {
+    --panel-h: calc(44px + 8px + 44px);   /* высота под controls (две строки) */
+    --panel-input-h: 44px;
+    --panel-gap-input-tail: 16px;
+    /* === Сдвиг панели ВНИЗ от ripple. Через transform — не меняет высоту стека,
+           поэтому ripple остаётся на месте, а панель уезжает ниже. === */
+    --panel-offset-y: 100px;
+
+    position: relative;
+    margin-top: 24px;       /* минимальный layout-зазор от users-area */
+    width: 100%;
+    max-width: 420px;
+    height: var(--panel-h);
+    transform: translateY(var(--panel-offset-y));
+}
+
+/* Один и тот же top — input и controls стартуют в одной точке */
+.panel-input,
+.panel-controls {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: max-content;
+}
+
+/* Tail (or + open new room) — сразу под input */
+.panel-tail {
+    position: absolute;
+    top: calc(var(--panel-input-h) + var(--panel-gap-input-tail));
+    left: 50%;
+    transform: translateX(-50%);
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 18px;
+    gap: 14px;
+    white-space: nowrap;
+}
+
+/* === Видимость по режиму === */
+.app[data-mode="entry"] .panel-controls {
+    display: none;
+}
+.app[data-mode="room"] .panel-input,
+.app[data-mode="room"] .panel-tail {
+    display: none;
+}
+
+/* === Toast ошибки над input === */
+.entry-error-toast {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: calc(100% + 10px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 0 8px;
+    color: var(--signal-warn);
+    font-size: 12px;
+    letter-spacing: var(--tracking);
+    line-height: 1.45;
+    text-transform: lowercase;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(12px);
+    transition:
+        opacity 0.38s cubic-bezier(.2, .6, .2, 1),
+        transform 0.38s cubic-bezier(.2, .6, .2, 1);
+}
+
+.entry-error-toast.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.entry-error-glyph {
+    flex-shrink: 0;
+    font-size: 14px;
+    line-height: 1;
+    opacity: 0.85;
+}
+
+.entry-error-msg {
+    text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .entry-error-toast {
+        transition-duration: 0.01ms;
+    }
 }
 
 .entry-actions {
     display: flex;
     gap: 12px;
     align-items: center;
+    justify-content: center;
+    width: fit-content;
+    max-width: 100%;
+}
+
+.entry-code-field {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.22em;
+    height: 44px;
+    width: 160px;
+    max-width: 100%;
+    padding: 0 14px;
+    box-sizing: border-box;
+    background: var(--bg-1);
+    border: 1px solid var(--fg-4);
+    border-radius: 2px;
+    cursor: text;
+    transition:
+        border-color var(--t-fast),
+        background var(--t-fast);
+}
+
+.entry-code-field:focus-within {
+    border-color: var(--fg-2);
+    background: var(--bg-2);
+}
+
+.entry-hash {
+    display: none;
+    flex-shrink: 0;
+    color: var(--fg-3);
+    font-size: 14px;
+    line-height: 1;
+    pointer-events: none;
+    user-select: none;
+}
+
+.entry-code-field.has-value .entry-hash {
+    display: block;
+}
+
+.entry-code {
+    flex: 1;
+    width: 100%;
+    min-width: 0;
+    height: 100%;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    color: var(--fg);
+    text-align: center;
+    letter-spacing: 0.35em;
+    text-transform: uppercase;
+    font-size: 14px;
+}
+
+.entry-code:focus {
+    outline: none;
+}
+
+.entry-code::placeholder {
+    color: var(--fg-3);
+    letter-spacing: var(--tracking-wide);
+    text-transform: lowercase;
+    font-size: 12px;
 }
 
 .btn {
@@ -535,52 +790,21 @@ body::after {
     color: var(--fg);
 }
 
-.entry-code {
-    height: 44px;
-    width: 220px;
-    padding: 0 16px;
-    background: var(--bg-1);
-    border: 1px solid var(--fg-4);
-    border-radius: 2px;
-    color: var(--fg);
-    text-align: center;
-    letter-spacing: 0.4em;
-    text-transform: uppercase;
-    font-size: 14px;
-    transition: border-color var(--t-fast), background var(--t-fast);
-}
-
-.entry-code:focus {
-    border-color: var(--fg-2);
-    background: var(--bg-2);
-}
-
-.entry-code::placeholder {
-    color: var(--fg-3);
-    letter-spacing: var(--tracking-wide);
-    text-transform: lowercase;
-    font-size: 12px;
-}
-
 .entry-divider {
     color: var(--fg-3);
     font-size: 11px;
     letter-spacing: var(--tracking-wide);
 }
 
-.controls-bar {
+.panel-controls {
     display: grid;
     grid-template-columns: 44px 44px 44px;
     gap: 8px;
     justify-content: center;
 }
 
-.controls-bar .leave-btn {
+.panel-controls .leave-btn {
     grid-column: 1 / -1;
-}
-
-.controls {
-    align-items: stretch;
 }
 
 .control-btn {
@@ -617,6 +841,33 @@ body::after {
 .control-btn svg * {
     fill: none;
     vector-effect: non-scaling-stroke;
+}
+
+/* === Off-state иконок: перечёркивание + скрытие "волн" === */
+.control-btn svg .strike,
+.control-btn svg .strike-bg {
+    opacity: 0;
+    transition: opacity var(--t-fast);
+}
+
+/* Толстая bg-линия "вырезает" иконку на пересечении со страйком,
+   чтобы перечёркивание не сливалось с остальными штрихами. */
+.control-btn svg .strike-bg {
+    stroke: var(--bg-1);
+    stroke-width: 3.2;
+}
+
+.control-btn.off svg .strike,
+.control-btn.off svg .strike-bg {
+    opacity: 1;
+}
+
+.control-btn svg .wave {
+    transition: opacity var(--t-fast);
+}
+
+.control-btn.off svg .wave {
+    opacity: 0;
 }
 
 .control-btn-stub {
@@ -656,14 +907,133 @@ body::after {
     color: var(--fg);
 }
 
-.volume-control {
-    position: absolute;
-    bottom: -35px;
-    width: 100px;
+.room-code-view {
+    display: inline-grid;
+    grid-template: 1fr / 1fr;
+    justify-items: start;
 }
 
-.volume-control input {
+.room-code-panel {
+    grid-area: 1 / 1;
+    transition:
+        opacity var(--t-med),
+        transform var(--t-med);
+}
+
+.room-info:not(.room-info--copied) .room-code-panel--copied {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(0.2em);
+}
+
+.room-info:not(.room-info--copied) .room-code-panel--code {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.room-info.room-info--copied .room-code-panel--code {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-0.2em);
+}
+
+.room-info.room-info--copied .room-code-panel--copied {
+    opacity: 1;
+    pointer-events: none;
+    transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .room-code-panel {
+        transition-duration: 0.01ms;
+    }
+
+    .room-info:not(.room-info--copied) .room-code-panel--copied,
+    .room-info.room-info--copied .room-code-panel--code {
+        transform: none;
+    }
+
+    .room-info.room-info--copied .room-code-panel--copied {
+        transform: none;
+    }
+}
+
+/* ===== Arc volume control =====
+   Концентрична с аватаром, радиус чуть больше радиуса аватара,
+   дуга справа ~110°. При появлении плавно "отрывается" вправо. */
+.volume-arc {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 2;
+    opacity: 0;
+    transform: translateX(0);
+    transition:
+        opacity var(--t-med),
+        transform var(--t-med);
+}
+
+.volume-arc.is-visible {
+    opacity: 1;
+    transform: translateX(7px);
+}
+
+.volume-arc svg {
+    position: absolute;
+    inset: 0;
     width: 100%;
+    height: 100%;
+    overflow: visible;
+}
+
+.volume-arc-track {
+    fill: none;
+    stroke: rgba(230, 230, 232, 0.14);
+    stroke-width: 1;
+    stroke-linecap: round;
+    vector-effect: non-scaling-stroke;
+}
+
+.volume-arc-fill {
+    fill: none;
+    stroke: rgba(230, 230, 232, 0.7);
+    stroke-width: 1.4;
+    stroke-linecap: round;
+    vector-effect: non-scaling-stroke;
+    transition: stroke var(--t-fast);
+}
+
+.volume-arc.is-dragging .volume-arc-fill {
+    stroke: var(--fg);
+}
+
+.volume-arc-handle {
+    fill: var(--fg);
+    filter: drop-shadow(0 0 4px rgba(230, 230, 232, 0.45));
+    transition: filter var(--t-fast);
+}
+
+.volume-arc.is-dragging .volume-arc-handle {
+    filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.7));
+}
+
+.volume-arc-hit {
+    fill: none;
+    stroke: transparent;
+    stroke-width: 18;
+    stroke-linecap: round;
+    pointer-events: stroke;
+    cursor: grab;
+}
+
+.volume-arc.is-dragging .volume-arc-hit {
+    cursor: grabbing;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .volume-arc {
+        transition-duration: 0.01ms;
+    }
 }
 
 .footer-meta {
@@ -707,35 +1077,16 @@ body::after {
         display: none;
     }
 
-    .stage {
-        gap: 36px;
-    }
-
-    .room {
-        min-height: 210px;
+    .users-area {
+        --avatar-size: 72px;
     }
 
     .participants {
-        gap: 18px;
-        flex-wrap: wrap;
+        gap: 22px;
     }
 
-    .participant {
-        --size: 64px;
-        gap: 10px;
-    }
-
-    .entry-actions {
-        flex-direction: column;
-        align-items: stretch;
-        width: min(280px, 100%);
-    }
-
-    .entry-code {
-        width: 100%;
-    }
-
-    #joinBtn {
-        width: 100%;
+    .panel-area {
+        --panel-offset-y: 110px;
+        margin-top: 16px;
     }
 }

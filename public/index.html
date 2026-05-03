@@ -41,39 +41,79 @@
     </header>
 
     <main class="stage">
-        <div class="room is-empty" id="room">
-            <div class="room-empty-hint" id="roomHint">no one here yet</div>
-            <div class="participants" id="participants"></div>
-        </div>
+        <div class="stage-stack">
 
-        <div class="entry" id="entry">
-            <div class="entry-actions">
-                <input
-                    type="text"
-                    class="entry-code"
-                    id="codeInput"
-                    maxlength="5"
-                    placeholder="enter code"
-                    autocomplete="off"
-                    spellcheck="false"
-                />
-                <button type="button" class="btn primary" id="joinBtn">join</button>
+            <!-- ТОЧКА A: пользователи. Ripple и аватар центрируются в одну точку. -->
+            <div class="users-area" id="room">
+                <div class="users-slot">
+                    <div class="lobby-ripple" aria-hidden="true">
+                        <span class="lobby-ripple-ring"></span>
+                        <span class="lobby-ripple-ring"></span>
+                    </div>
+                    <div class="participants" id="participants"></div>
+                    <span class="sr-only" id="roomHint" role="status" aria-live="polite">no one here yet</span>
+                </div>
             </div>
-            <div class="entry-divider">or</div>
-            <button type="button" class="btn ghost" id="createBtn">open a new room →</button>
-        </div>
 
-        <div class="controls controls-bar hidden" id="controls">
-            <button type="button" class="control-btn" id="micBtn" title="mute">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg>
-            </button>
-            <button type="button" class="control-btn" id="soundBtn" title="deaf">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16 8a5 5 0 0 1 0 8"/></svg>
-            </button>
-            <button type="button" class="control-btn control-btn-stub" id="screencastBtn" title="screencast (soon)" aria-disabled="true">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="14" height="10" rx="1"/><path d="M17 9l4-2v10l-4-2"/><path d="M7 19h8"/></svg>
-            </button>
-            <button type="button" class="leave-btn" id="leaveBtn">leave</button>
+            <!-- ТОЧКА B: панель. Фикс высоты, top:0 у обоих слоёв — input и controls на одной точке. -->
+            <div class="panel-area">
+                <div class="panel-input">
+                    <div class="entry-error-toast" id="entryError" role="status" aria-live="polite" aria-hidden="true">
+                        <span class="entry-error-glyph" aria-hidden="true">×</span>
+                        <span class="entry-error-msg" id="entryErrorText"></span>
+                    </div>
+                    <div class="entry-actions">
+                        <div class="entry-code-field">
+                            <span class="entry-hash" aria-hidden="true">#</span>
+                            <input
+                                type="text"
+                                class="entry-code"
+                                id="codeInput"
+                                maxlength="5"
+                                placeholder="enter code"
+                                autocomplete="off"
+                                spellcheck="false"
+                            />
+                        </div>
+                        <button type="button" class="btn primary" id="joinBtn">join</button>
+                    </div>
+                </div>
+
+                <div class="panel-controls" id="controls">
+                    <button type="button" class="control-btn" id="micBtn" title="mute">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <rect x="9" y="3" width="6" height="12" rx="3"/>
+                            <path d="M5 11a7 7 0 0 0 14 0"/>
+                            <path d="M12 18v3"/>
+                            <line class="strike-bg" x1="20" y1="4" x2="4" y2="20"/>
+                            <line class="strike" x1="20" y1="4" x2="4" y2="20"/>
+                        </svg>
+                    </button>
+                    <button type="button" class="control-btn" id="soundBtn" title="deaf">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M4 9v6h4l5 4V5L8 9H4z"/>
+                            <path class="wave" d="M16 8a5 5 0 0 1 0 8"/>
+                            <line class="strike-bg" x1="20" y1="4" x2="4" y2="20"/>
+                            <line class="strike" x1="20" y1="4" x2="4" y2="20"/>
+                        </svg>
+                    </button>
+                    <button type="button" class="control-btn control-btn-stub" id="screencastBtn" title="screencast (soon)" aria-disabled="true">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <rect x="3" y="4" width="18" height="13" rx="2.5"/>
+                            <path d="M10 14 L15 9"/>
+                            <path d="M11 9 H15 V13"/>
+                            <path d="M8 20 H16"/>
+                        </svg>
+                    </button>
+                    <button type="button" class="leave-btn" id="leaveBtn">leave</button>
+                </div>
+
+                <div class="panel-tail">
+                    <div class="entry-divider">or</div>
+                    <button type="button" class="btn ghost" id="createBtn">open a new room →</button>
+                </div>
+            </div>
+
         </div>
     </main>
 
@@ -84,7 +124,10 @@
         </span>
         <span class="footer-divider">·</span>
         <div class="room-info hidden" id="roomInfo" title="copy code">
-            <span id="roomCodeText">#XXXXX</span>
+            <span class="room-code-view">
+                <span id="roomCodeText" class="room-code-panel room-code-panel--code">room #XXXXX</span>
+                <span class="room-code-panel room-code-panel--copied" aria-hidden="true">copied!</span>
+            </span>
         </div>
     </footer>
 </div>
