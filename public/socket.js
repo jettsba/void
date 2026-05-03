@@ -2,14 +2,54 @@
 
 let socket = null;
 
-/** Закрыть сокет при отмене входа / ошибке (вызывается из script.js). */
+/**
+ * intentionalClose === true означает, что сокет закрывает САМ пользователь
+ * (leaveRoom, отмена входа, abortJoinAttempt). Только в этом случае мы НЕ
+ * должны пытаться реконнектиться. Любое другое закрытие — аварийное.
+ */
+let intentionalClose = false;
+
+/**
+ * Расписание попыток реконнекта в миллисекундах. Подобрано так, чтобы за ~1 минуту
+ * мы успели сделать ~8 попыток с растущими паузами между ними. Если за это время
+ * связь не восстановилась — считаем, что соединение потеряно окончательно.
+ */
+const RECONNECT_DELAYS_MS = [1000, 2000, 4000, 8000, 10000, 10000, 10000, 10000];
+
+let reconnectAttempt = 0;
+let reconnectTimer = null;
+let reconnecting = false;
+
+/** Колбэки, которые вешает script.js — сообщить ему о ходе реконнекта. */
+let onReconnectAttempt = null;     // (attempt, total) => void
+let onReconnectSuccess = null;     // () => void  -> здесь script.js перезайдёт в комнату
+let onReconnectFailed = null;      // () => void  -> здесь script.js выкидывает из комнаты
+
+function setReconnectHandlers({ onAttempt, onSuccess, onFailed }) {
+    onReconnectAttempt = onAttempt || null;
+    onReconnectSuccess = onSuccess || null;
+    onReconnectFailed = onFailed || null;
+}
+
+/** Закрыть сокет штатно (вызывается из script.js при leaveRoom / отмене). */
 function resetSocketConnection() {
+    intentionalClose = true;
+    cancelReconnect();
     if (socket) {
         try {
             socket.close();
         } catch (_) {}
         socket = null;
     }
+}
+
+function cancelReconnect() {
+    if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+    }
+    reconnecting = false;
+    reconnectAttempt = 0;
 }
 
 function connectSocket() {
@@ -20,8 +60,13 @@ function connectSocket() {
             return;
         }
 
+        intentionalClose = false;
+
         let connectionResolved = false;
-        const ws = new WebSocket(`ws://${window.location.host}`);
+        // wss:// на HTTPS-странице, ws:// на http://localhost для разработки.
+        // Браузер запрещает mixed content (https + ws), поэтому схема обязана совпадать.
+        const wsScheme = window.location.protocol === "https:" ? "wss" : "ws";
+        const ws = new WebSocket(`${wsScheme}://${window.location.host}`);
         socket = ws;
 
         const timeoutId = setTimeout(() => {
@@ -63,10 +108,15 @@ function connectSocket() {
             }
 
             console.log("🔴 Socket closed");
-            if (typeof setConnectionState === "function") {
+            socket = null;
+
+            // Аварийное закрытие во время активной комнаты — пробуем восстановиться.
+            // Если пользователь сам нажал leave / мы вне комнаты — просто молчим.
+            if (!intentionalClose && typeof isJoined !== "undefined" && isJoined) {
+                scheduleReconnect();
+            } else if (typeof setConnectionState === "function") {
                 setConnectionState("ready");
             }
-            socket = null;
         });
 
         ws.addEventListener("error", () => {
@@ -79,7 +129,86 @@ function connectSocket() {
                 socket = null;
                 reject(new Error("ws-error"));
             }
+            // Если уже подключены — реальную обработку сделает 'close', который придёт следом.
         });
+    });
+}
+
+/**
+ * Поставить следующую попытку реконнекта. Если попытки кончились — финальный фейл.
+ * Вызывает onReconnectAttempt перед самой попыткой и onReconnectSuccess/Failed по результату.
+ */
+function scheduleReconnect() {
+    if (intentionalClose) return;
+
+    reconnecting = true;
+
+    if (reconnectAttempt >= RECONNECT_DELAYS_MS.length) {
+        console.warn("🛑 Reconnect attempts exhausted");
+        cancelReconnect();
+        if (typeof onReconnectFailed === "function") {
+            onReconnectFailed();
+        }
+        return;
+    }
+
+    const delay = RECONNECT_DELAYS_MS[reconnectAttempt];
+    reconnectAttempt += 1;
+    const total = RECONNECT_DELAYS_MS.length;
+
+    if (typeof setConnectionState === "function") {
+        setConnectionState("reconnecting", { attempt: reconnectAttempt, total });
+    }
+    if (typeof onReconnectAttempt === "function") {
+        onReconnectAttempt(reconnectAttempt, total);
+    }
+
+    console.log(`↻ Reconnect attempt ${reconnectAttempt}/${total} in ${delay}ms`);
+
+    reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        attemptReconnect();
+    }, delay);
+}
+
+async function attemptReconnect() {
+    if (intentionalClose) return;
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+        // Сети нет — не тратим попытку, ждём события 'online'.
+        console.log("📵 Offline, deferring reconnect until online");
+        return;
+    }
+
+    try {
+        await connectSocket();
+        console.log("✅ Reconnected");
+        cancelReconnect();
+        if (typeof onReconnectSuccess === "function") {
+            onReconnectSuccess();
+        }
+    } catch (err) {
+        console.warn("⚠️ Reconnect attempt failed:", err.message);
+        scheduleReconnect();
+    }
+}
+
+/**
+ * Браузерные события сети — мгновенный сигнал что инет вернулся / пропал.
+ * При возврате — если мы в режиме реконнекта, не ждём backoff-таймер, пробуем сразу.
+ * При пропаже — отменяем активный таймер чтобы не тратить попытку впустую.
+ */
+if (typeof window !== "undefined") {
+    window.addEventListener("online", () => {
+        if (reconnecting && !reconnectTimer && !intentionalClose) {
+            console.log("🌐 Back online — retrying immediately");
+            attemptReconnect();
+        }
+    });
+    window.addEventListener("offline", () => {
+        if (reconnectTimer) {
+            clearTimeout(reconnectTimer);
+            reconnectTimer = null;
+        }
     });
 }
 
@@ -99,6 +228,10 @@ function handleSocketMessage(data) {
                     userId: clientId,
                     nickname: currentUsername
                 });
+            } else if (data.reason === "code-taken"
+                && typeof retryCreateRoomAfterCollision === "function") {
+                // Молча пробуем ещё раз с новым кодом. Пользователь даже не узнает.
+                retryCreateRoomAfterCollision();
             } else if (typeof abortJoinAttempt === "function") {
                 abortJoinAttempt(data.reason || "create-failed");
             }
@@ -125,13 +258,8 @@ function handleSocketMessage(data) {
 
         case "participant-left":
             removeParticipant(data.userId);
-
-            const peer = peers.get(data.userId);
-            if (peer) {
-                peer.close();
-                peers.delete(data.userId);
-            }
-
+            // Закрываем peer + audio + analyser + health timer.
+            cleanupPeerSlot(data.userId);
             break;
 
         case "new-participant":
@@ -142,6 +270,11 @@ function handleSocketMessage(data) {
         case "user-list":
             if (!isJoined) {
                 enterRoomUI();
+            } else if (typeof setConnectionState === "function") {
+                // Реконнект-сценарий: enterRoomUI уже отработал ранее, нам нужно
+                // только вернуть индикатор в "connected" — mesh пересоберётся
+                // через приходящие следом new-participant / offer / answer.
+                setConnectionState("connected");
             }
             data.users.forEach(user => {
                 addParticipant(user.id, user.nickname);

@@ -1,0 +1,47 @@
+# ============================================================================
+# Caddyfile — reverse-proxy с автоматическим HTTPS для void
+# ============================================================================
+#
+# Этот файл нужен ТОЛЬКО на боевом сервере (VPS), на локалке его трогать не надо.
+# На локалке ты запускаешь node как обычно, открываешь http://localhost:3000 — всё работает.
+#
+# ----------------------------------------------------------------------------
+# КАК ИСПОЛЬЗОВАТЬ НА ПРОДЕ (пошагово, с нуля):
+# ----------------------------------------------------------------------------
+#
+# 1. Купи домен (например, void.ru / voidchat.app — что нравится).
+#
+# 2. В админке регистратора домена создай A-запись, указывающую на IP твоего VPS.
+#    Подожди 5-30 минут пока DNS обновится. Проверить можно так:
+#       ping void.example.com   (должен резолвиться в IP твоего сервера)
+#
+# 3. На VPS установи Caddy. Одна команда (для Ubuntu/Debian):
+#       sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https curl
+#       curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+#       curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
+#       sudo apt update && sudo apt install caddy
+#    (актуальная инструкция: https://caddyserver.com/docs/install)
+#
+# 4. На VPS запусти свой node-сервер как обычно (он должен слушать localhost:3000):
+#       node server.js
+#    (в проде лучше через pm2 / systemd, но для MVP сойдёт и просто node)
+#
+# 5. Открой /etc/caddy/Caddyfile на сервере и положи туда содержимое ЭТОГО файла,
+#    заменив `void.example.com` ниже на свой реальный домен.
+#
+# 6. Перезагрузи Caddy:
+#       sudo systemctl reload caddy
+#
+# Всё. Caddy автоматически:
+#   - сходит за бесплатным TLS-сертификатом от Let's Encrypt
+#   - будет его продлевать раз в 60 дней без твоего участия
+#   - будет проксировать HTTPS → твой node на localhost:3000
+#   - корректно проксирует WebSocket (никакой ручной настройки upgrade-headers не нужно,
+#     в отличие от nginx)
+#
+# Откроешь https://void.example.com — всё работает, микрофон разрешён, wss поднимается.
+# ============================================================================
+
+void.example.com {
+    reverse_proxy localhost:3000
+}

@@ -26,8 +26,9 @@ const ENTRY_ERROR_MESSAGES = {
     "connection-failed": "не удалось подключиться к серверу",
     "mic-blocked": "нет доступа к микрофону",
     "create-failed": "не удалось создать комнату",
-    "code-taken": "код комнаты уже занят — попробуй ещё раз «open a new room»",
-    "join-session-invalid": "сессия входа недействительна — попробуй ещё раз",
+    "code-taken": "не удалось подобрать свободный код — попробуй ещё раз",
+    "join-session-invalid": "сессия недействительна — попробуйте ещё раз",
+    "connection-lost": "соединение потеряно",
     "unknown": "что-то пошло не так"
 };
 
@@ -177,6 +178,13 @@ function init() {
     paint();
     generateAndAssignUsername();
     clientId = generateClientId();
+
+    if (typeof setReconnectHandlers === "function") {
+        setReconnectHandlers({
+            onSuccess: handleSocketReconnected,
+            onFailed: handleConnectionLost
+        });
+    }
 
     window.addEventListener("resize", sizeCanvas);
     introInput.addEventListener("keydown", handleKeyPress);
@@ -367,13 +375,118 @@ function showEntryError(reason) {
 }
 
 function abortJoinAttempt(reason) {
+    // Если уже сидим в комнате (например, при реконнекте сервер ответил join-failed) —
+    // надо полностью вернуться в entry-режим, не только закрыть пиров.
+    if (isJoined) {
+        tearDownRoomState();
+    } else {
+        closeAllConnections();
+        if (typeof resetSocketConnection === "function") {
+            resetSocketConnection();
+        }
+        currentRoomCode = null;
+        setConnectionState("ready");
+    }
+    showEntryError(reason);
+}
+
+/**
+ * Полный сброс UI и сетевого состояния комнаты. Используется и при штатном leave,
+ * и при потере соединения. НЕ отправляет ничего на сервер — это ответственность
+ * вызывающего (leaveRoom отсылает leave-room до вызова, handleConnectionLost не отсылает).
+ */
+function tearDownRoomState() {
+    closePingPanel();
+    nicknameMap.clear();
     closeAllConnections();
+
     if (typeof resetSocketConnection === "function") {
         resetSocketConnection();
     }
+
+    isJoined = false;
     currentRoomCode = null;
+
+    if (roomCopyFeedbackTimer) {
+        clearTimeout(roomCopyFeedbackTimer);
+        roomCopyFeedbackTimer = null;
+    }
+    if (roomInfo) {
+        roomInfo.classList.remove("room-info--copied");
+        roomInfo.classList.add("hidden");
+    }
+
+    if (roomCodeText) {
+        roomCodeText.textContent = formatRoomCodeLabel(null);
+    }
+    if (codeInput) {
+        codeInput.value = "";
+        codeInput.closest(".entry-code-field")?.classList.remove("has-value");
+    }
+
+    if (app) app.dataset.mode = "entry";
+
+    hideEntryError();
+    removeAllParticipants();
     setConnectionState("ready");
-    showEntryError(reason);
+}
+
+/**
+ * Вызывается из socket.js после успешного восстановления WebSocket-соединения.
+ * Сервер нас в комнате уже не помнит — старые WebRTC-пиры мертвы по ICE-таймауту.
+ * Сносим mesh (но НЕ микрофон), чистим UI участников и заново входим в комнату
+ * под тем же clientId. Сервер пришлёт user-list → mesh пересоберётся автоматически.
+ */
+function handleSocketReconnected() {
+    if (!isJoined || !currentRoomCode) return;
+
+    console.log("↻ Socket reconnected, rejoining room", currentRoomCode);
+
+    if (typeof closeRemotePeerConnections === "function") {
+        closeRemotePeerConnections();
+    }
+
+    // Убираем всех участников из UI кроме себя — они переедут заново через user-list.
+    document.querySelectorAll(".participant").forEach(el => {
+        if (el.dataset.userId === clientId) return;
+        if (el.classList.contains("pop-out")) return;
+
+        const arc = el.querySelector(".volume-arc");
+        if (arc) arc._cleanup?.();
+
+        el.classList.remove("pop-in");
+        el.classList.add("pop-out");
+        el.addEventListener("animationend", () => el.remove(), { once: true });
+    });
+
+    // nicknameMap чистим, но себя оставляем — нужен для ping-панели и т.п.
+    nicknameMap.clear();
+    if (currentUsername) {
+        nicknameMap.set(clientId, currentUsername);
+    }
+
+    setConnectionState("connecting");
+
+    sendSocket({
+        type: "join-room",
+        code: currentRoomCode,
+        userId: clientId,
+        nickname: currentUsername
+    });
+}
+
+/**
+ * Вызывается из socket.js когда все попытки реконнекта исчерпаны.
+ * Выкидываем пользователя из комнаты с тостом, не дёргая сервер (его всё равно нет).
+ */
+function handleConnectionLost() {
+    if (!isJoined) return;
+
+    console.log("🛑 Connection lost permanently, leaving room");
+
+    playLeaveSound();
+    tearDownRoomState();
+    showEntryError("connection-lost");
 }
 
 /* ========= AMBIENT — slow drifting blobs ========= */
@@ -630,45 +743,20 @@ function removeAllParticipants() {
 
 async function leaveRoom() {
 
-    closePingPanel();
-    nicknameMap.clear();
-
     playLeaveSound();
 
-    closeAllConnections();
-
+    // Сначала шлём leave-room (даём серверу шанс уведомить остальных),
+    // потом ждём 100мс и сносим всё через общий helper. resetSocketConnection
+    // внутри tearDownRoomState закроет сокет — повторный socket.close() не нужен.
     sendSocket({
         type: "leave-room",
         userId: clientId,
         room: currentRoomCode
     });
 
-    setTimeout(() => {
-        if (socket) socket.close();
-    }, 100);
+    await new Promise(r => setTimeout(r, 100));
 
-    if (roomCopyFeedbackTimer) {
-        clearTimeout(roomCopyFeedbackTimer);
-        roomCopyFeedbackTimer = null;
-    }
-    roomInfo.classList.remove("room-info--copied");
-
-    roomInfo.classList.add("hidden");
-
-    isJoined = false;
-
-    roomCodeText.textContent = formatRoomCodeLabel(null);
-    if (codeInput) {
-        codeInput.value = "";
-        codeInput.closest(".entry-code-field")?.classList.remove("has-value");
-    }
-
-    if (app) app.dataset.mode = "entry";
-
-    hideEntryError();
-
-    removeAllParticipants();
-    setConnectionState("ready");
+    tearDownRoomState();
 }
 
 
@@ -762,11 +850,17 @@ function generateRoomCode(length = 5) {
     return result;
 }
 
+/**
+ * Сколько раз молча перегенерировать код при коллизии (server вернёт code-taken).
+ * 5 попыток с алфавитом 32^5 ≈ 33M кодов — вероятность исчерпать ничтожна,
+ * это просто страховка от вечного цикла на случай бага сервера.
+ */
+const CREATE_ROOM_MAX_RETRIES = 5;
+let createRoomRetryCount = 0;
+
 async function handleCreateClick() {
 
     hideEntryError();
-
-    currentRoomCode = generateRoomCode();
 
     try {
         await initMedia();
@@ -784,7 +878,14 @@ async function handleCreateClick() {
     }
 
     setConnectionState("connecting");
+    createRoomRetryCount = 0;
+    sendCreateRoomAttempt();
+}
 
+/** Сгенерировать новый код и отправить create-room. Используется и при первой
+ *  попытке, и при коллизии (room-created с reason="code-taken"). */
+function sendCreateRoomAttempt() {
+    currentRoomCode = generateRoomCode();
     sendSocket({
         type: "create-room",
         code: currentRoomCode,
@@ -793,14 +894,37 @@ async function handleCreateClick() {
     });
 }
 
-function setConnectionState(state) {
+/** Вызывается из socket.js когда сервер ответил code-taken. Молча пробуем
+ *  ещё раз с новым кодом. Если попытки исчерпаны — показываем ошибку. */
+function retryCreateRoomAfterCollision() {
+    createRoomRetryCount += 1;
+    if (createRoomRetryCount >= CREATE_ROOM_MAX_RETRIES) {
+        console.warn(`Create-room: ${CREATE_ROOM_MAX_RETRIES} коллизий подряд, сдаёмся`);
+        abortJoinAttempt("create-failed");
+        return;
+    }
+    console.log(`↻ Create-room collision, retry ${createRoomRetryCount}/${CREATE_ROOM_MAX_RETRIES}`);
+    sendCreateRoomAttempt();
+}
+
+function setConnectionState(state, opts = {}) {
     if (!connDot || !connLabel) return;
 
-    connDot.classList.remove("live", "warn");
+    connDot.classList.remove("live", "warn", "pulse");
 
     if (state === "connected") {
         connDot.classList.add("live");
         connLabel.textContent = "connected";
+        return;
+    }
+
+    if (state === "reconnecting") {
+        connDot.classList.add("warn", "pulse");
+        if (opts.attempt && opts.total) {
+            connLabel.textContent = `reconnecting ${opts.attempt}/${opts.total}`;
+        } else {
+            connLabel.textContent = "reconnecting";
+        }
         return;
     }
 
