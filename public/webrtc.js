@@ -184,3 +184,33 @@ function monitorVolume(userId, analyser) {
 
     checkVolume();
 }
+
+/**
+ * RTT до пира в миллисекундах. Использует данные, которые WebRTC уже считает
+ * по STUN keepalive / RTCP — никаких дополнительных пакетов и нагрузки на сервер.
+ * Возвращает null если пир ещё не соединён или статистика недоступна.
+ */
+async function getPeerPing(userId) {
+    const peer = peers.get(userId);
+    if (!peer) return null;
+
+    try {
+        const stats = await peer.getStats();
+        let nominated = null;
+        let fallback = null;
+
+        stats.forEach(report => {
+            if (report.type !== "candidate-pair") return;
+            if (report.state !== "succeeded") return;
+            if (typeof report.currentRoundTripTime !== "number") return;
+
+            const ms = Math.round(report.currentRoundTripTime * 1000);
+            if (report.nominated) nominated = ms;
+            else if (fallback == null) fallback = ms;
+        });
+
+        return nominated ?? fallback;
+    } catch {
+        return null;
+    }
+}

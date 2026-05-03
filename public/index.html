@@ -118,9 +118,12 @@
     </main>
 
     <footer class="footer footer-meta">
-        <span class="conn-state">
+        <span class="conn-state" id="connState" role="button" tabindex="0">
             <span class="conn-dot" id="connDot"></span>
             <span id="connLabel">ready</span>
+            <div class="ping-panel" id="pingPanel" aria-hidden="true">
+                <div class="ping-panel-list" id="pingPanelList"></div>
+            </div>
         </span>
         <span class="footer-divider">·</span>
         <div class="room-info hidden" id="roomInfo" title="copy code">
