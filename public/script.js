@@ -65,10 +65,17 @@ let introAuthBusy = false;
 
 let micBtn;
 let soundBtn;
+let screencastBtn;
 
 let controls;
 let isMicOn = true;
 let isSoundOn = true;
+let isScreencasting = false;
+let roomScreencasterId = null;
+
+let scModal, scNextBtn;
+let screenOverlay, screenOverlayVideo, roomToastEl;
+let _toastTimer = null;
 
 let ambientSound;
 let welcomeSound;
@@ -116,6 +123,28 @@ let pingPollTimer = null;
 let pingPanelOutsideHandler = null;
 const nicknameMap = new Map();
 
+/** Синхронизируем data-peers на #room под ужим логики «ровно в один ряд» при пятерых. */
+let participantsMutationObserver = null;
+let syncPeersAttrQueued = false;
+
+function syncRoomPeersDataAttr() {
+    const roomEl = document.getElementById("room");
+    if (!roomEl || !participantsContainer) return;
+
+    const n = [...participantsContainer.querySelectorAll(".participant:not(.pop-out)")].length;
+    if (n === 0) delete roomEl.dataset.peers;
+    else roomEl.dataset.peers = String(n);
+}
+
+function queueSyncRoomPeersDataAttr() {
+    if (syncPeersAttrQueued || !participantsContainer) return;
+    syncPeersAttrQueued = true;
+    requestAnimationFrame(() => {
+        syncPeersAttrQueued = false;
+        syncRoomPeersDataAttr();
+    });
+}
+
 /* ========= INIT ========= */
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -136,6 +165,14 @@ function init() {
     controls = document.getElementById("controls");
     micBtn = document.getElementById("micBtn");
     soundBtn = document.getElementById("soundBtn");
+    screencastBtn = document.getElementById("screencastBtn");
+
+    scModal = document.getElementById("scModal");
+    scNextBtn = document.getElementById("scNextBtn");
+
+    screenOverlay = document.getElementById("screenOverlay");
+    screenOverlayVideo = document.getElementById("screenOverlayVideo");
+    roomToastEl = document.getElementById("roomToast");
 
     ambientSound = document.getElementById("ambientSound");
     welcomeSound = document.getElementById("welcomeSound");
@@ -149,6 +186,17 @@ function init() {
     participantsContainer = document.getElementById("participants");
     connDot = document.getElementById("connDot");
     connLabel = document.getElementById("connLabel");
+
+    if (typeof MutationObserver !== "undefined" && participantsContainer) {
+        participantsMutationObserver = new MutationObserver(queueSyncRoomPeersDataAttr);
+        participantsMutationObserver.observe(participantsContainer, {
+            childList: true,
+            subtree: false,
+            attributes: true,
+            attributeFilter: ["class"]
+        });
+    }
+    queueSyncRoomPeersDataAttr();
 
     roomInfo = document.getElementById("roomInfo");
     roomCodeText = document.getElementById("roomCodeText");
@@ -192,6 +240,46 @@ function init() {
 
     micBtn.addEventListener("click", toggleMic);
     soundBtn.addEventListener("click", toggleSound);
+    screencastBtn.addEventListener("click", handleScreencastBtnClick);
+
+    scModal.querySelectorAll(".sc-tiles").forEach(group => {
+        group.addEventListener("click", e => {
+            const tile = e.target.closest(".sc-tile");
+            if (!tile) return;
+            group.querySelectorAll(".sc-tile").forEach(t => t.classList.remove("sc-tile--active"));
+            tile.classList.add("sc-tile--active");
+        });
+    });
+
+    scModal.querySelector(".sc-modal-backdrop").addEventListener("click", closeScModal);
+
+    scNextBtn.addEventListener("click", async () => {
+        const res = parseInt(scModal.querySelector("#scRes .sc-tile--active")?.dataset.val ?? "1080");
+        const fps = parseInt(scModal.querySelector("#scFps .sc-tile--active")?.dataset.val ?? "30");
+        const captureAudio = document.getElementById("scAudio")?.checked ?? false;
+        closeScModal();
+        try {
+            await startScreenShare(res, fps, captureAudio);
+            isScreencasting = true;
+            broadcastScreencastState(true);
+            updateScreencastButton(true);
+            updateParticipantScreenState(clientId, true);
+        } catch (e) {
+            console.log("Screen share cancelled", e);
+        }
+    });
+
+    document.getElementById("screenOverlayClose").addEventListener("click", closeScreenOverlay);
+
+    document.getElementById("screenOverlayFullscreen").addEventListener("click", () => {
+        // Fullscreen the overlay container (not the video) to avoid native video controls
+        if (screenOverlay.requestFullscreen) screenOverlay.requestFullscreen();
+        else if (screenOverlay.webkitRequestFullscreen) screenOverlay.webkitRequestFullscreen();
+    });
+
+    document.addEventListener("keydown", e => {
+        if (e.key === "Escape" && screenOverlay.classList.contains("is-visible")) closeScreenOverlay();
+    });
 
     document.body.style.opacity = "1";
     setConnectionState("ready");
@@ -229,6 +317,10 @@ function init() {
             console.error("Copy failed", e);
         }
     });
+
+    if (typeof initChat === "function") {
+        initChat();
+    }
 
     if (!INTRO_ENABLED) {
         skipIntroAndShowApp();
@@ -397,6 +489,21 @@ function abortJoinAttempt(reason) {
  */
 function tearDownRoomState() {
     closePingPanel();
+    if (typeof resetChatOnLeave === "function") {
+        resetChatOnLeave();
+    }
+
+    if (isScreencasting) {
+        stopScreenShare();
+        isScreencasting = false;
+    }
+    roomScreencasterId = null;
+    closeScreenOverlay();
+    updateScreencastButton(false);
+    screencastBtn.classList.add("control-btn-stub");
+    screencastBtn.setAttribute("aria-disabled", "true");
+    screencastBtn.title = "screencast (soon)";
+
     nicknameMap.clear();
     closeAllConnections();
 
@@ -787,8 +894,13 @@ function addParticipant(userId, nickname) {
     name.appendChild(line1);
     name.appendChild(line2);
 
+    const watchBtn = document.createElement("div");
+    watchBtn.className = "watch-screen-btn";
+    watchBtn.innerHTML = '<span>watch</span><span>screen</span>';
+
     participant.appendChild(avatar);
     participant.appendChild(name);
+    participant.appendChild(watchBtn);
 
     participantsContainer.appendChild(participant);
 
@@ -797,7 +909,11 @@ function addParticipant(userId, nickname) {
     });
 
     if (userId !== clientId) {
-        participant.addEventListener("click", () => {
+        participant.addEventListener("click", e => {
+            if (e.target.closest(".watch-screen-btn")) {
+                openScreenOverlay(userId);
+                return;
+            }
             toggleVolumeControl(participant, userId);
         });
     }
@@ -958,6 +1074,10 @@ function enterRoomUI() {
     applyAudioState();
     setConnectionState("connected");
 
+    screencastBtn.classList.remove("control-btn-stub");
+    screencastBtn.title = "share screen";
+    syncScreencastBtnBlocked();
+
     playJoinSound();
 }
 
@@ -1013,11 +1133,15 @@ function toggleVolumeControl(participant, userId) {
 
     const existing = participant.querySelector(".volume-arc");
     if (existing) {
+        // closeVolumeArc removes .blob-active via the hook above
         closeVolumeArc(existing);
         return;
     }
 
+    // Close any other active blobs first (removes their .blob-active too)
     document.querySelectorAll(".volume-arc").forEach(closeVolumeArc);
+
+    participant.classList.add("blob-active");
 
     const arc = createVolumeArc(participant, userId);
     participant.appendChild(arc);
@@ -1031,6 +1155,9 @@ function closeVolumeArc(arcEl) {
     if (!arcEl || arcEl.dataset.closing === "1") return;
     arcEl.dataset.closing = "1";
     arcEl._cleanup?.();
+
+    // Sync: closing the arc always deactivates the parent blob
+    arcEl.closest(".participant")?.classList.remove("blob-active");
 
     arcEl.classList.remove("is-visible");
 
@@ -1297,4 +1424,118 @@ function escapeAttr(s) {
     return String(s).replace(/[&<>"']/g, c => ({
         "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;"
     }[c]));
+}
+
+/* ========= SCREENCAST ========= */
+
+function handleScreencastBtnClick() {
+    if (roomScreencasterId && roomScreencasterId !== clientId) {
+        showRoomToast("Screen share is already active in this room");
+        return;
+    }
+    if (isScreencasting) {
+        stopScreenShare();
+        broadcastScreencastState(false);
+        updateScreencastButton(false);
+        return;
+    }
+    openScModal();
+}
+
+function openScModal() {
+    scModal.setAttribute("aria-hidden", "false");
+    scModal.classList.add("is-visible");
+}
+
+function closeScModal() {
+    scModal.setAttribute("aria-hidden", "true");
+    scModal.classList.remove("is-visible");
+}
+
+function broadcastScreencastState(isOn) {
+    sendSocket({ type: "screencast-state", room: currentRoomCode, userId: clientId, screen: isOn });
+    if (!isOn) {
+        isScreencasting = false;
+        roomScreencasterId = null;
+        updateParticipantScreenState(clientId, false);
+    } else {
+        roomScreencasterId = clientId;
+    }
+    syncScreencastBtnBlocked();
+}
+
+function updateScreencastButton(isOn) {
+    screencastBtn.classList.toggle("active", isOn);
+    screencastBtn.classList.toggle("sc-btn-blocked", !isOn && !!roomScreencasterId && roomScreencasterId !== clientId);
+    if (!screencastBtn.classList.contains("control-btn-stub")) {
+        screencastBtn.title = isOn ? "stop sharing" : "share screen";
+    }
+}
+
+function updateParticipantScreenState(userId, isSharing) {
+    const el = document.querySelector(`.participant[data-user-id="${userId}"]`);
+    if (!el) return;
+    el.classList.toggle("screensharing", isSharing);
+    if (!isSharing && el.classList.contains("blob-active")) {
+        const arc = el.querySelector(".volume-arc");
+        if (arc) closeVolumeArc(arc); // also removes .blob-active via hook
+    }
+}
+
+function handleScreencastStateMsg(data) {
+    const { userId, screen } = data;
+    if (screen) {
+        roomScreencasterId = userId;
+    } else if (roomScreencasterId === userId) {
+        roomScreencasterId = null;
+        closeScreenOverlay();
+    }
+    updateParticipantScreenState(userId, screen);
+    syncScreencastBtnBlocked();
+}
+
+function syncScreencastBtnBlocked() {
+    const blocked = !!roomScreencasterId && roomScreencasterId !== clientId;
+    screencastBtn.classList.toggle("sc-btn-blocked", blocked);
+    // Hard-disable: prevent any click when someone else is sharing
+    if (blocked) {
+        screencastBtn.setAttribute("aria-disabled", "true");
+        screencastBtn.disabled = true;
+    } else if (!screencastBtn.classList.contains("control-btn-stub")) {
+        screencastBtn.removeAttribute("aria-disabled");
+        screencastBtn.disabled = false;
+    }
+}
+
+function openScreenOverlay(userId) {
+    const videoEl = videoMap.get(userId);
+    if (!videoEl?.srcObject) return;
+    screenOverlayVideo.srcObject = videoEl.srcObject;
+    screenOverlay.setAttribute("aria-hidden", "false");
+    screenOverlay.classList.add("is-visible");
+}
+
+function closeScreenOverlay() {
+    if (!screenOverlay) return;
+    screenOverlay.classList.remove("is-visible");
+    screenOverlay.setAttribute("aria-hidden", "true");
+    if (screenOverlayVideo) screenOverlayVideo.srcObject = null;
+}
+
+function handleScreencastRejected() {
+    if (isScreencasting) {
+        stopScreenShare();
+        isScreencasting = false;
+        updateScreencastButton(false);
+        updateParticipantScreenState(clientId, false);
+    }
+    showRoomToast("Screen share is already active in this room");
+}
+
+function showRoomToast(text) {
+    if (!roomToastEl) return;
+    roomToastEl.textContent = text;
+    roomToastEl.classList.add("is-visible");
+    clearTimeout(_toastTimer);
+    _toastTimer = setTimeout(() => roomToastEl.classList.remove("is-visible"), 3000);
 }

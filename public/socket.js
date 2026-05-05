@@ -256,6 +256,18 @@ function handleSocketMessage(data) {
             updateParticipantAudioState(data.userId, data.mic, data.sound);
             break;
 
+        case "screencast-state":
+            if (typeof handleScreencastStateMsg === "function") {
+                handleScreencastStateMsg(data);
+            }
+            break;
+
+        case "screencast-rejected":
+            if (typeof handleScreencastRejected === "function") {
+                handleScreencastRejected();
+            }
+            break;
+
         case "participant-left":
             removeParticipant(data.userId);
             // Закрываем peer + audio + analyser + health timer.
@@ -278,12 +290,10 @@ function handleSocketMessage(data) {
             }
             data.users.forEach(user => {
                 addParticipant(user.id, user.nickname);
-
-                updateParticipantAudioState(
-                    user.id,
-                    user.mic,
-                    user.sound
-                );
+                updateParticipantAudioState(user.id, user.mic, user.sound);
+                if (user.screen && typeof handleScreencastStateMsg === "function") {
+                    handleScreencastStateMsg({ userId: user.id, screen: true });
+                }
             });
             break;
 

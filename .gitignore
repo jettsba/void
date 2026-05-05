@@ -1,5 +1,6 @@
 .idea
-.devsources
+.rules
+.claude
 node_modules
 
 package-lock.json

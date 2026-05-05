@@ -7,6 +7,10 @@ let analyserMap = new Map();
 let audioMap = new Map();
 let volumeMap = new Map();
 
+let screenStream = null;
+const videoMap = new Map();
+const screenSenders = new Map();
+
 /**
  * Таймеры health-check для каждого пира.
  * Ключ — userId, значение — id таймера. Используется чтобы при следующем
@@ -75,6 +79,15 @@ function createPeer(userId, isInitiator) {
         peer.addTrack(track, localStream);
     });
 
+    if (screenStream?.active) {
+        const senders = [];
+        const vt = screenStream.getVideoTracks()[0];
+        if (vt) senders.push(peer.addTrack(vt, screenStream));
+        const at = screenStream.getAudioTracks()[0];
+        if (at) senders.push(peer.addTrack(at, screenStream));
+        if (senders.length) screenSenders.set(userId, senders);
+    }
+
     peer.onicecandidate = (event) => {
         if (event.candidate) {
             sendSocket({
@@ -86,6 +99,28 @@ function createPeer(userId, isInitiator) {
     };
 
     peer.ontrack = (event) => {
+        if (event.track.kind === 'video') {
+            let videoEl = videoMap.get(userId);
+            if (!videoEl) {
+                videoEl = document.createElement('video');
+                videoEl.autoplay = true;
+                videoEl.playsInline = true;
+                videoMap.set(userId, videoEl);
+            }
+            videoEl.srcObject = event.streams[0];
+            event.track.onended = () => {
+                videoMap.delete(userId);
+                if (typeof closeScreenOverlay === 'function') {
+                    closeScreenOverlay();
+                }
+            };
+            return;
+        }
+
+        // Screen audio arrives in the same stream as the screen video track.
+        // The <video> element already plays that stream — skip creating a mic audio el.
+        if (event.streams[0]?.getVideoTracks().length > 0) return;
+
         // Если это ICE restart на существующем peer — у нас уже может быть audio
         // элемент для этого юзера. Переиспользуем его, просто меняем srcObject.
         // Это избегает короткого "пропадания" звука и лишних DOM-узлов.
@@ -111,6 +146,24 @@ function createPeer(userId, isInitiator) {
     peer.onconnectionstatechange = () => {
         handlePeerConnectionStateChange(userId);
     };
+
+    peer.onnegotiationneeded = async () => {
+        if (!peer._isInitiator) return;
+        if (peer.signalingState !== 'stable') return;
+        try {
+            const offer = await peer.createOffer();
+            await peer.setLocalDescription(offer);
+            sendSocket({ type: 'offer', to: peer._userId, offer: peer.localDescription });
+        } catch (e) {
+            console.error('Renegotiation failed:', e);
+        }
+    };
+
+    // Чат поверх WebRTC: DataChannel создаёт инициатор, второй слушает datachannel.
+    // Делается ДО setLocalDescription — иначе SDP не будет содержать m=application.
+    if (typeof setupChatChannelForPeer === "function") {
+        setupChatChannelForPeer(peer, userId, !!isInitiator);
+    }
 
     peers.set(userId, peer);
 
@@ -319,6 +372,10 @@ function cleanupPeerSlot(userId) {
         analyserMap.delete(userId);
     }
 
+    if (typeof detachChatChannelForUser === "function") {
+        detachChatChannelForUser(userId);
+    }
+
     clearPeerHealthTimer(userId);
 }
 
@@ -403,6 +460,45 @@ function monitorVolume(userId, analyser) {
     }
 
     checkVolume();
+}
+
+/* ========= SCREEN SHARING ========= */
+
+async function startScreenShare(height = 1080, fps = 30, captureAudio = false) {
+    const width = height === 480 ? 854 : height === 720 ? 1280 : 1920;
+    screenStream = await navigator.mediaDevices.getDisplayMedia({
+        video: {
+            width: { ideal: width },
+            height: { ideal: height },
+            frameRate: { ideal: fps }
+        },
+        audio: captureAudio
+    });
+    const videoTrack = screenStream.getVideoTracks()[0];
+    const audioTrack = screenStream.getAudioTracks()[0];
+    for (const [userId, peer] of peers) {
+        const senders = [];
+        if (videoTrack) senders.push(peer.addTrack(videoTrack, screenStream));
+        if (audioTrack) senders.push(peer.addTrack(audioTrack, screenStream));
+        screenSenders.set(userId, senders);
+    }
+    videoTrack.onended = () => {
+        stopScreenShare();
+        if (typeof broadcastScreencastState === 'function') broadcastScreencastState(false);
+        if (typeof updateScreencastButton === 'function') updateScreencastButton(false);
+    };
+}
+
+function stopScreenShare() {
+    for (const [userId, senders] of screenSenders) {
+        const peer = peers.get(userId);
+        if (peer) {
+            for (const sender of senders) peer.removeTrack(sender);
+        }
+    }
+    screenSenders.clear();
+    screenStream?.getTracks().forEach(t => t.stop());
+    screenStream = null;
 }
 
 /**

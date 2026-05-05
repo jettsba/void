@@ -65,6 +65,10 @@ wss.on("connection", (ws) => {
                     handleAudioState(ws, data);
                     break;
 
+                case "screencast-state":
+                    handleScreencastState(ws, data);
+                    break;
+
                 case "offer":
                 case "answer":
                 case "ice":
@@ -185,7 +189,8 @@ function handleJoinConfirm(ws, data) {
         ws,
         nickname,
         mic: true,
-        sound: true
+        sound: true,
+        screen: false
     });
 
     if (room.users.size > MAX_ROOM_USERS) {
@@ -207,7 +212,8 @@ function handleJoinConfirm(ws, data) {
                 id,
                 nickname: user.nickname,
                 mic: user.mic,
-                sound: user.sound
+                sound: user.sound,
+                screen: user.screen
             });
         }
     });
@@ -223,12 +229,43 @@ function handleJoinConfirm(ws, data) {
             user.ws.send(JSON.stringify({
                 type: "new-participant",
                 userId,
-                nickname
+                nickname,
+                screen: false
             }));
         }
     });
 
     console.log(`👤 ${nickname} (${userId}) joined room ${code}`);
+}
+
+function handleScreencastState(ws, data) {
+    const room = rooms.get(ws.roomCode);
+    if (!room) return;
+
+    const user = room.users.get(ws.userId);
+    if (!user) return;
+
+    // Enforce single sharer: reject if another user is already sharing
+    if (data.screen) {
+        for (const [id, u] of room.users) {
+            if (id !== ws.userId && u.screen) {
+                ws.send(JSON.stringify({ type: "screencast-rejected" }));
+                return;
+            }
+        }
+    }
+
+    user.screen = data.screen;
+
+    room.users.forEach((u, id) => {
+        if (id !== ws.userId && u.ws.readyState === 1) {
+            u.ws.send(JSON.stringify({
+                type: "screencast-state",
+                userId: ws.userId,
+                screen: data.screen
+            }));
+        }
+    });
 }
 
 function handleAudioState(ws, data) {
