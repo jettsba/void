@@ -13,7 +13,7 @@
 #
 # 2. В админке регистратора домена создай A-запись, указывающую на IP твоего VPS.
 #    Подожди 5-30 минут пока DNS обновится. Проверить можно так:
-#       ping void.example.com   (должен резолвиться в IP твоего сервера)
+#       ping void-room.space   (должен резолвиться в IP твоего сервера)
 #
 # 3. На VPS установи Caddy. Одна команда (для Ubuntu/Debian):
 #       sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https curl
@@ -27,7 +27,7 @@
 #    (в проде лучше через pm2 / systemd, но для MVP сойдёт и просто node)
 #
 # 5. Открой /etc/caddy/Caddyfile на сервере и положи туда содержимое ЭТОГО файла,
-#    заменив `void.example.com` ниже на свой реальный домен.
+#    заменив домен ниже при необходимости (сейчас: void-room.space).
 #
 # 6. Перезагрузи Caddy:
 #       sudo systemctl reload caddy
@@ -39,9 +39,9 @@
 #   - корректно проксирует WebSocket (никакой ручной настройки upgrade-headers не нужно,
 #     в отличие от nginx)
 #
-# Откроешь https://void.example.com — всё работает, микрофон разрешён, wss поднимается.
+# Откроешь https://void-room.space — всё работает, микрофон разрешён, wss поднимается.
 # ============================================================================
 
-void.example.com {
+void-room.space, www.void-room.space {
     reverse_proxy localhost:3000
 }

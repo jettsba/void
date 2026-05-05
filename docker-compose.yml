@@ -1,0 +1,8 @@
+services:
+  void:
+    build: .
+    container_name: void-room
+    restart: unless-stopped
+    ports:
+      # Только localhost: снаружи доступ через Caddy (80/443).
+      - "127.0.0.1:3000:3000"
