@@ -321,8 +321,8 @@ body.chat-open .footer.footer-meta {
 }
 
 .conn-dot {
-    width: 4px;
-    height: 6px;
+    width: 5px;
+    height: 5px;
     border-radius: 50%;
     background: var(--fg-3);
     transition: background var(--t-med);
@@ -1304,8 +1304,8 @@ body.chat-open .footer.footer-meta {
     position: absolute;
     top: -3px;
     right: -3px;
-    width: 4px;
-    height: 6px;
+    width: 5px;
+    height: 5px;
     border-radius: 50%;
     background: var(--signal);
     box-shadow: 0 0 6px rgba(200, 200, 204, 0.55);
