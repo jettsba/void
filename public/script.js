@@ -239,6 +239,13 @@ function init() {
     introInput.addEventListener("input", tryStartAudio);
     document.getElementById("introSubmitBtn")?.addEventListener("click", checkPassword);
 
+    const markFocus = () => document.body.classList.add("input-focused");
+    const clearFocus = () => document.body.classList.remove("input-focused");
+    introInput.addEventListener("focus", markFocus);
+    introInput.addEventListener("blur", clearFocus);
+    codeInput?.addEventListener("focus", markFocus);
+    codeInput?.addEventListener("blur", clearFocus);
+
     micBtn.addEventListener("click", toggleMic);
     soundBtn.addEventListener("click", toggleSound);
     screencastBtn.addEventListener("click", handleScreencastBtnClick);

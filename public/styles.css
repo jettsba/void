@@ -2596,7 +2596,7 @@ body.chat-open .footer.footer-meta {
     }
 
     .users-area {
-        --avatar-size: 72px;
+        --avatar-size: 88px;
     }
 
     .participants {
@@ -2604,12 +2604,12 @@ body.chat-open .footer.footer-meta {
     }
 
     #room[data-peers="5"].users-area {
-        --blob-cap: 72px;
+        --blob-cap: 80px;
     }
 
     .panel-area {
-        --panel-offset-y: 110px;
-        margin-top: 16px;
+        --panel-offset-y: 160px;
+        margin-top: 24px;
     }
 }
 
@@ -2617,77 +2617,63 @@ body.chat-open .footer.footer-meta {
    MOBILE — touch fixes
 =================================================== */
 
-/* dvh: correct height accounting for browser chrome */
+/* dvh: correct viewport height accounting for browser chrome */
 .app {
     height: 100vh;
     height: 100dvh;
 }
 
-html {
-    overflow: hidden;
-    max-width: 100%;
-}
-
 body {
-    overflow: hidden;
     overscroll-behavior: none;
     -webkit-tap-highlight-color: transparent;
-    max-width: 100%;
 }
 
-/* Prevent horizontal overflow from inner containers */
-.stage,
-.stage-stack {
-    overflow-x: hidden;
+/* При фокусе на инпутах прячем фоновую анимацию,
+   чтобы iOS-сдвиг визуального вьюпорта не показывал
+   светлые артефакты canvas снизу. */
+body.input-focused #background {
+    opacity: 0;
+    transition: opacity 260ms ease;
 }
 
-.intro {
-    overflow: hidden;
-}
-
-/* Intro input wrapper: flex row to hold input + mobile submit btn */
-.intro-input-wrap {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-}
-
-/* Mobile submit button (↵) — hidden on desktop, shown on touch devices */
+/* Mobile submit button: простая SVG-стрелка под инпутом, без обводки */
 .intro-submit-btn {
     display: none;
     align-items: center;
     justify-content: center;
     width: 40px;
     height: 40px;
+    margin: 0 auto;
     background: transparent;
-    border: 1px solid var(--fg-3);
-    border-radius: 2px;
+    border: none;
     color: var(--fg-2);
-    font-family: var(--font);
-    font-size: 18px;
-    line-height: 1;
     cursor: pointer;
-    flex-shrink: 0;
-    transition: border-color var(--t-fast), color var(--t-fast);
+    transition: color var(--t-fast), transform var(--t-fast);
+}
+
+.intro-submit-btn svg {
+    width: 22px;
+    height: 22px;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
 }
 
 .intro-submit-btn:active {
-    border-color: var(--fg-2);
     color: var(--fg);
+    transform: translateX(2px);
 }
 
 @media (hover: none) and (pointer: coarse) {
-    /* Show submit button on touch devices */
+    /* Submit button shown only on touch devices */
     .intro-submit-btn {
         display: inline-flex;
     }
 
-    /* Prevent iOS viewport zoom on input focus (requires font-size >= 16px) */
-    .intro-input {
-        font-size: 16px;
-    }
-
+    /* iOS auto-zooms inputs with font-size < 16px on focus */
+    .intro-input,
     .entry-code {
         font-size: 16px;
     }
