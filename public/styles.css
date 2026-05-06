@@ -25,7 +25,8 @@
     box-sizing: border-box;
 }
 
-html, body {
+html,
+body {
     height: 100%;
     background: var(--bg-0);
     color: var(--fg);
@@ -36,7 +37,8 @@ html, body {
     overflow: hidden;
 }
 
-button, input {
+button,
+input {
     font-family: inherit;
     font-size: inherit;
     color: inherit;
@@ -136,8 +138,16 @@ body::after {
 }
 
 @keyframes intro-cursor-blink {
-    0%, 49% { opacity: 1; }
-    50%, 100% { opacity: 0; }
+
+    0%,
+    49% {
+        opacity: 1;
+    }
+
+    50%,
+    100% {
+        opacity: 0;
+    }
 }
 
 .intro-input {
@@ -218,7 +228,7 @@ body.chat-open .footer.footer-meta {
     transition: padding-right var(--t-med);
 }
 
-.app > main {
+.app>main {
     min-height: 0;
 }
 
@@ -342,10 +352,13 @@ body.chat-open .footer.footer-meta {
 }
 
 @keyframes conn-dot-pulse {
-    0%, 100% {
+
+    0%,
+    100% {
         opacity: 1;
         box-shadow: 0 0 0 0 rgba(184, 122, 90, 0.5);
     }
+
     50% {
         opacity: 0.5;
         box-shadow: 0 0 8px 2px rgba(184, 122, 90, 0.25);
@@ -449,6 +462,7 @@ body.chat-open .footer.footer-meta {
         transform: scale(0.5);
         opacity: 0.55;
     }
+
     100% {
         /* max диаметр ~50px (14px * 3.6) — заметно меньше аватара 84px */
         transform: scale(3.6);
@@ -519,14 +533,17 @@ body.chat-open .footer.footer-meta {
         opacity: 0.45;
         transform: none;
     }
+
     .lobby-ripple-ring:nth-child(2) {
         display: none;
     }
+
     .participant.pop-in {
         animation: none;
         opacity: 1;
         transform: none;
     }
+
     .participant.pop-out {
         animation: none;
         opacity: 0;
@@ -633,7 +650,8 @@ body.chat-open .footer.footer-meta {
 /* ---------- ТОЧКА B: панель ---------- */
 
 .panel-area {
-    --panel-h: calc(44px + 8px + 44px);   /* высота под controls (две строки) */
+    --panel-h: calc(44px + 8px + 44px);
+    /* высота под controls (две строки) */
     --panel-input-h: 44px;
     --panel-gap-input-tail: 16px;
     /* === Сдвиг панели ВНИЗ от ripple. Через transform — не меняет высоту стека,
@@ -641,7 +659,8 @@ body.chat-open .footer.footer-meta {
     --panel-offset-y: 100px;
 
     position: relative;
-    margin-top: 24px;       /* минимальный layout-зазор от users-area */
+    margin-top: 24px;
+    /* минимальный layout-зазор от users-area */
     width: 100%;
     max-width: 420px;
     height: var(--panel-h);
@@ -675,6 +694,7 @@ body.chat-open .footer.footer-meta {
 .app[data-mode="entry"] .panel-controls {
     display: none;
 }
+
 .app[data-mode="room"] .panel-input,
 .app[data-mode="room"] .panel-tail {
     display: none;
@@ -1170,16 +1190,27 @@ body.chat-open .footer.footer-meta {
     font-variant-numeric: tabular-nums;
 }
 
-.ping-good { color: var(--fg-2); }
-.ping-mid  { color: var(--fg-3); }
-.ping-bad  { color: var(--signal-warn); }
-.ping-na   { color: var(--fg-4); }
+.ping-good {
+    color: var(--fg-2);
+}
+
+.ping-mid {
+    color: var(--fg-3);
+}
+
+.ping-bad {
+    color: var(--signal-warn);
+}
+
+.ping-na {
+    color: var(--fg-4);
+}
 
 .footer-divider {
     color: var(--fg-4);
 }
 
-.footer-meta > .footer-divider:has(+ .room-info.hidden) {
+.footer-meta>.footer-divider:has(+ .room-info.hidden) {
     display: none;
 }
 
@@ -1518,8 +1549,15 @@ body.chat-open .footer.footer-meta {
 }
 
 @keyframes chat-msg-in {
-    from { opacity: 0; transform: translateY(6px); }
-    to { opacity: 1; transform: none; }
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+
+    to {
+        opacity: 1;
+        transform: none;
+    }
 }
 
 .chat-msg-head {
@@ -1681,18 +1719,21 @@ body.chat-open .footer.footer-meta {
    Никаких процентов: всё равно прогресс по каналам, не по байтам. */
 .chat-msg-self .chat-attach:not(.is-ready) .chat-attach-progress-bar {
     width: 35%;
-    background: linear-gradient(
-        90deg,
-        transparent,
-        var(--fg-2) 50%,
-        transparent
-    );
+    background: linear-gradient(90deg,
+            transparent,
+            var(--fg-2) 50%,
+            transparent);
     animation: chat-sending-shimmer 1.4s linear infinite;
 }
 
 @keyframes chat-sending-shimmer {
-    from { transform: translateX(-100%); }
-    to   { transform: translateX(380%); }
+    from {
+        transform: translateX(-100%);
+    }
+
+    to {
+        transform: translateX(380%);
+    }
 }
 
 .chat-pending {
@@ -2033,6 +2074,7 @@ body.chat-open .footer.footer-meta {
 }
 
 @media (prefers-reduced-motion: reduce) {
+
     .chat-panel,
     .app,
     .stage,
@@ -2046,6 +2088,7 @@ body.chat-open .footer.footer-meta {
         transition-duration: 0.01ms;
         transition-delay: 0s;
     }
+
     .chat-msg,
     .chat-msg-self .chat-attach:not(.is-ready) .chat-attach-progress-bar {
         animation: none;
@@ -2076,10 +2119,8 @@ body.chat-open .footer.footer-meta {
     }
 
     body.chat-open .stage {
-        padding-bottom: min(
-            var(--chat-sheet-h),
-            calc(100dvh - var(--hdr-h) - var(--footer-row-h))
-        );
+        padding-bottom: min(var(--chat-sheet-h),
+                calc(100dvh - var(--hdr-h) - var(--footer-row-h)));
     }
 
     body.chat-open .app[data-mode="room"] .panel-area {
@@ -2212,8 +2253,13 @@ body.chat-open .footer.footer-meta {
     vector-effect: non-scaling-stroke;
 }
 
-#screencastBtn:not(.active) .sc-btn-icon--stop { display: none; }
-#screencastBtn.active .sc-btn-icon--idle { display: none; }
+#screencastBtn:not(.active) .sc-btn-icon--stop {
+    display: none;
+}
+
+#screencastBtn.active .sc-btn-icon--idle {
+    display: none;
+}
 
 #screencastBtn.active {
     color: var(--screen);
@@ -2398,12 +2444,12 @@ body.chat-open .footer.footer-meta {
     transition: transform 0.18s, background 0.18s;
 }
 
-.sc-switch input:checked + .sc-switch-track {
+.sc-switch input:checked+.sc-switch-track {
     border-color: var(--screen);
     background: rgba(95, 170, 122, 0.12);
 }
 
-.sc-switch input:checked + .sc-switch-track::after {
+.sc-switch input:checked+.sc-switch-track::after {
     transform: translateX(16px);
     background: var(--screen);
 }
