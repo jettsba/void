@@ -163,6 +163,11 @@ function createPeer(userId, isInitiator) {
                     closeScreenOverlay();
                 }
             };
+            /* Если пользователь успел кликнуть «watch screen» до того,
+               как трек приехал — открыть оверлей сейчас. */
+            if (typeof notifyScreenVideoReady === 'function') {
+                notifyScreenVideoReady(userId);
+            }
             return;
         }
 

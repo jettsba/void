@@ -239,12 +239,18 @@ function init() {
     introInput.addEventListener("input", tryStartAudio);
     document.getElementById("introSubmitBtn")?.addEventListener("click", checkPassword);
 
-    const markFocus = () => document.body.classList.add("input-focused");
-    const clearFocus = () => document.body.classList.remove("input-focused");
-    introInput.addEventListener("focus", markFocus);
-    introInput.addEventListener("blur", clearFocus);
-    codeInput?.addEventListener("focus", markFocus);
-    codeInput?.addEventListener("blur", clearFocus);
+    /* Скрытие фоновой анимации при фокусе нужно только на тач-устройствах
+       (iOS-артефакты при сдвиге визуального вьюпорта). На десктопе focus
+       у codeInput автоматический после skipIntroAndShowApp — класс срабатывал
+       бы и сферы пропадали до первого клика. */
+    if (matchMedia("(hover: none) and (pointer: coarse)").matches) {
+        const markFocus = () => document.body.classList.add("input-focused");
+        const clearFocus = () => document.body.classList.remove("input-focused");
+        introInput.addEventListener("focus", markFocus);
+        introInput.addEventListener("blur", clearFocus);
+        codeInput?.addEventListener("focus", markFocus);
+        codeInput?.addEventListener("blur", clearFocus);
+    }
 
     micBtn.addEventListener("click", toggleMic);
     soundBtn.addEventListener("click", toggleSound);
@@ -1324,16 +1330,16 @@ function createVolumeArc(participant, userId) {
     hit.addEventListener("pointerdown", onDown);
     wrapper.addEventListener("click", (e) => e.stopPropagation());
 
-    /* Колесо мыши: ±5% за «щелчок». В Firefox deltaMode=DOM_DELTA_LINE
-       (значение в строках, обычно ±3), в Chrome — DOM_DELTA_PIXEL (~±100px).
-       Нормализуем по знаку, шаг фиксированный. */
+    /* Колесо мыши: ±5% за «щелчок». Слушаем на всём блобе (participant),
+       а не только на арке — так регулировка работает и при наведении на
+       аватар. Нормализуем по знаку deltaY (deltaMode разный в FF/Chrome). */
     const onWheel = (e) => {
         e.preventDefault();
         const dir = e.deltaY < 0 ? 1 : -1;
         const current = volumeMap.get(userId) ?? 1;
         applyVolume(current + dir * 0.05);
     };
-    wrapper.addEventListener("wheel", onWheel, { passive: false });
+    participant.addEventListener("wheel", onWheel, { passive: false });
 
     const onOutsideClick = (e) => {
         if (dragging) return;
@@ -1350,7 +1356,7 @@ function createVolumeArc(participant, userId) {
         window.removeEventListener("pointermove", onMove);
         window.removeEventListener("pointerup", onUp);
         window.removeEventListener("pointercancel", onUp);
-        wrapper.removeEventListener("wheel", onWheel);
+        participant.removeEventListener("wheel", onWheel);
     };
 
     return wrapper;
@@ -1575,10 +1581,41 @@ function syncScreencastBtnBlocked() {
 
 let screenOverlayUserId = null;
 let screenOverlayTrackCleanup = null;
+let pendingScreenOverlayUserId = null;
+let pendingScreenOverlayTimer = null;
+
+/**
+ * Вызывается из webrtc.js peer.ontrack после того, как видео-трек экрана
+ * приехал и привязан к videoEl. Если пользователь уже кликнул «watch screen»
+ * до прибытия трека — открываем оверлей сейчас.
+ */
+function notifyScreenVideoReady(userId) {
+    if (pendingScreenOverlayUserId === userId) {
+        pendingScreenOverlayUserId = null;
+        clearTimeout(pendingScreenOverlayTimer);
+        pendingScreenOverlayTimer = null;
+        openScreenOverlay(userId);
+    }
+}
 
 function openScreenOverlay(userId) {
     const videoEl = videoMap.get(userId);
-    if (!videoEl?.srcObject) return;
+    if (!videoEl?.srcObject) {
+        /* Race: socket «started sharing» прилетел, а WebRTC-трек ещё нет.
+           Запоминаем намерение и ждём сигнала из ontrack. Таймаут 5 сек —
+           если трек не приедет, чистим pending. */
+        pendingScreenOverlayUserId = userId;
+        clearTimeout(pendingScreenOverlayTimer);
+        pendingScreenOverlayTimer = setTimeout(() => {
+            pendingScreenOverlayUserId = null;
+            pendingScreenOverlayTimer = null;
+        }, 5000);
+        return;
+    }
+    pendingScreenOverlayUserId = null;
+    clearTimeout(pendingScreenOverlayTimer);
+    pendingScreenOverlayTimer = null;
+
     const stream = videoEl.srcObject;
 
     screenOverlayUserId = userId;

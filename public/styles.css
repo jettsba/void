@@ -2507,11 +2507,15 @@ body.chat-open .footer.footer-meta {
     height: 100%;
     object-fit: contain;
     background: #000;
+    /* Кликов по самому видео нет (нативных controls не показываем) — пропускаем
+       сквозь, чтобы close/fullscreen-кнопки гарантированно ловили pointer. */
+    pointer-events: none;
 }
 
 .screen-overlay-close,
 .screen-overlay-fullscreen {
     position: absolute;
+    z-index: 2;
     background: rgba(16, 16, 18, 0.6);
     border: 1px solid var(--fg-4);
     color: var(--fg-2);
@@ -2643,12 +2647,15 @@ body {
     -webkit-tap-highlight-color: transparent;
 }
 
-/* При фокусе на инпутах прячем фоновую анимацию,
-   чтобы iOS-сдвиг визуального вьюпорта не показывал
-   светлые артефакты canvas снизу. */
-body.input-focused #background {
-    opacity: 0;
-    transition: opacity 260ms ease;
+/* При фокусе на инпутах прячем фоновую анимацию ТОЛЬКО на тач-устройствах:
+   там iOS сдвигает визуальный вьюпорт и снизу проступают светлые артефакты canvas.
+   На десктопе focus у codeInput после авто-focus в skipIntroAndShowApp прятал бы
+   фон до первого клика — не нужно. */
+@media (hover: none) and (pointer: coarse) {
+    body.input-focused #background {
+        opacity: 0;
+        transition: opacity 260ms ease;
+    }
 }
 
 /* Mobile submit button: простая SVG-стрелка под инпутом, без обводки */
