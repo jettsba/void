@@ -237,6 +237,7 @@ function init() {
     window.addEventListener("resize", sizeCanvas);
     introInput.addEventListener("keydown", handleKeyPress);
     introInput.addEventListener("input", tryStartAudio);
+    document.getElementById("introSubmitBtn")?.addEventListener("click", checkPassword);
 
     micBtn.addEventListener("click", toggleMic);
     soundBtn.addEventListener("click", toggleSound);

@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>void</title>
     <link rel="stylesheet" href="styles.css?v=11">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -34,7 +34,10 @@
                     aria-hidden="true">|</span>
             </h1>
             <div class="intro-field">
-                <input type="text" id="introInput" class="intro-input" autocomplete="off" disabled />
+                <div class="intro-input-wrap">
+                    <input type="text" id="introInput" class="intro-input" autocomplete="off" disabled />
+                    <button type="button" class="intro-submit-btn" id="introSubmitBtn" aria-label="submit">↵</button>
+                </div>
                 <div class="intro-error" id="introError" aria-live="polite">+</div>
             </div>
         </div>
