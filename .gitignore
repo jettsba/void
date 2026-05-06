@@ -1,5 +1,6 @@
 .idea
 .rules
-rules
 .claude
+.tasks
+CLAUDE.md
 node_modules
