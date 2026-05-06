@@ -279,11 +279,14 @@ function init() {
 
     document.getElementById("screenOverlayClose").addEventListener("click", closeScreenOverlay);
 
-    document.getElementById("screenOverlayFullscreen").addEventListener("click", () => {
-        // Fullscreen the overlay container (not the video) to avoid native video controls
-        if (screenOverlay.requestFullscreen) screenOverlay.requestFullscreen();
-        else if (screenOverlay.webkitRequestFullscreen) screenOverlay.webkitRequestFullscreen();
-    });
+    document.getElementById("screenOverlayFullscreen").addEventListener("click", toggleScreenFullscreen);
+
+    const syncFullscreenClass = () => {
+        const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+        screenOverlay.classList.toggle("is-fullscreen", fsEl === screenOverlay);
+    };
+    document.addEventListener("fullscreenchange", syncFullscreenClass);
+    document.addEventListener("webkitfullscreenchange", syncFullscreenClass);
 
     document.addEventListener("keydown", e => {
         if (e.key === "Escape" && screenOverlay.classList.contains("is-visible")) closeScreenOverlay();
@@ -1102,12 +1105,55 @@ function removeParticipant(userId) {
     const arc = el.querySelector(".volume-arc");
     if (arc) arc._cleanup?.();
 
+    /* FLIP: запоминаем «First» позиции остальных блобов до того, как
+       уходящий начнёт схлопываться. Блобы пересядут после удаления
+       уходящего из flex-потока — мы доинвертируем разницу transform'ом. */
+    const siblings = [...participantsContainer.querySelectorAll(".participant")]
+        .filter(p => p !== el);
+    const firstRects = new Map(siblings.map(p => [p, p.getBoundingClientRect()]));
+
     el.classList.remove("pop-in");
     el.classList.add("pop-out");
 
     el.addEventListener("animationend", () => {
         el.remove();
+        animateLayoutFlip(siblings, firstRects);
     }, { once: true });
+}
+
+/**
+ * FLIP-перекладка: для каждого блока считаем дельту между прошлыми и текущими
+ * координатами, ставим обратный transform без анимации, потом снимаем его в
+ * следующем кадре с transition — браузер плавно «доезжает» до новой позиции.
+ */
+function animateLayoutFlip(elements, firstRects) {
+    const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduced) return;
+
+    for (const node of elements) {
+        if (!node.isConnected) continue;
+        const first = firstRects.get(node);
+        const last = node.getBoundingClientRect();
+        const dx = first.left - last.left;
+        const dy = first.top - last.top;
+        if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) continue;
+
+        node.style.transition = "none";
+        node.style.transform = `translate(${dx.toFixed(2)}px, ${dy.toFixed(2)}px)`;
+        node.classList.add("flip-active");
+
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                node.style.transition = "";
+                node.style.transform = "";
+                const cleanup = () => {
+                    node.classList.remove("flip-active");
+                    node.removeEventListener("transitionend", cleanup);
+                };
+                node.addEventListener("transitionend", cleanup);
+            });
+        });
+    }
 }
 
 /* ===== Arc volume control =====
@@ -1278,6 +1324,17 @@ function createVolumeArc(participant, userId) {
     hit.addEventListener("pointerdown", onDown);
     wrapper.addEventListener("click", (e) => e.stopPropagation());
 
+    /* Колесо мыши: ±5% за «щелчок». В Firefox deltaMode=DOM_DELTA_LINE
+       (значение в строках, обычно ±3), в Chrome — DOM_DELTA_PIXEL (~±100px).
+       Нормализуем по знаку, шаг фиксированный. */
+    const onWheel = (e) => {
+        e.preventDefault();
+        const dir = e.deltaY < 0 ? 1 : -1;
+        const current = volumeMap.get(userId) ?? 1;
+        applyVolume(current + dir * 0.05);
+    };
+    wrapper.addEventListener("wheel", onWheel, { passive: false });
+
     const onOutsideClick = (e) => {
         if (dragging) return;
         if (participant.contains(e.target)) return;
@@ -1293,6 +1350,7 @@ function createVolumeArc(participant, userId) {
         window.removeEventListener("pointermove", onMove);
         window.removeEventListener("pointerup", onUp);
         window.removeEventListener("pointercancel", onUp);
+        wrapper.removeEventListener("wheel", onWheel);
     };
 
     return wrapper;
@@ -1515,19 +1573,53 @@ function syncScreencastBtnBlocked() {
     }
 }
 
+let screenOverlayUserId = null;
+let screenOverlayTrackCleanup = null;
+
 function openScreenOverlay(userId) {
     const videoEl = videoMap.get(userId);
     if (!videoEl?.srcObject) return;
-    screenOverlayVideo.srcObject = videoEl.srcObject;
+    const stream = videoEl.srcObject;
+
+    screenOverlayUserId = userId;
+    screenOverlayVideo.srcObject = stream;
     screenOverlay.setAttribute("aria-hidden", "false");
     screenOverlay.classList.add("is-visible");
+
+    screenOverlayTrackCleanup?.();
+    const videoTrack = stream.getVideoTracks?.()[0];
+    const onEnded = () => closeScreenOverlay();
+    const onRemoveTrack = e => { if (e.track?.kind === "video") closeScreenOverlay(); };
+    videoTrack?.addEventListener("ended", onEnded);
+    stream.addEventListener?.("removetrack", onRemoveTrack);
+    screenOverlayTrackCleanup = () => {
+        videoTrack?.removeEventListener("ended", onEnded);
+        stream.removeEventListener?.("removetrack", onRemoveTrack);
+    };
 }
 
 function closeScreenOverlay() {
     if (!screenOverlay) return;
+    if (document.fullscreenElement === screenOverlay) {
+        document.exitFullscreen?.();
+    } else if (document.webkitFullscreenElement === screenOverlay) {
+        document.webkitExitFullscreen?.();
+    }
     screenOverlay.classList.remove("is-visible");
     screenOverlay.setAttribute("aria-hidden", "true");
     if (screenOverlayVideo) screenOverlayVideo.srcObject = null;
+    screenOverlayTrackCleanup?.();
+    screenOverlayTrackCleanup = null;
+    screenOverlayUserId = null;
+}
+
+function toggleScreenFullscreen() {
+    const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+    if (fsEl) {
+        (document.exitFullscreen || document.webkitExitFullscreen)?.call(document);
+    } else {
+        (screenOverlay.requestFullscreen || screenOverlay.webkitRequestFullscreen)?.call(screenOverlay);
+    }
 }
 
 function handleScreencastRejected() {

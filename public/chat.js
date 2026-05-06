@@ -63,6 +63,7 @@ let chatToastTimer = null;
 let chatHasMessages = false;
 let dragCounter = 0;
 let lightboxState = null; // {sourceImg, escHandler}
+let lightboxCloseTimer = null;
 
 /* ========= INIT ========= */
 
@@ -848,6 +849,18 @@ function openLightbox(sourceImg) {
     if (!chatLightbox || !chatLightboxImg) return;
     if (!sourceImg.src) return;
 
+    /* Если предыдущий close ещё доигрывает свой 380ms-таймер — отменяем его
+       и выполняем cleanup сразу. Иначе stale-timer стрельнёт после того, как
+       мы уже выставили новый src/onload, и обнулит их → блюр без картинки. */
+    if (lightboxCloseTimer) {
+        clearTimeout(lightboxCloseTimer);
+        lightboxCloseTimer = null;
+        chatLightbox.classList.remove("is-closing");
+        chatLightboxImg.style.transition = "none";
+        chatLightboxImg.style.transform = "";
+        chatLightboxImg.onload = null;
+    }
+
     // Сразу резервируем state — на случай если пользователь успеет нажать Esc
     // ещё до того, как изображение загрузится.
     lightboxState = { sourceImg, ready: false };
@@ -945,7 +958,8 @@ function closeLightbox() {
     chatLightbox.classList.add("is-closing");
     chatLightbox.classList.remove("is-visible");
 
-    setTimeout(() => {
+    lightboxCloseTimer = setTimeout(() => {
+        lightboxCloseTimer = null;
         chatLightbox.classList.remove("is-closing");
         chatLightbox.setAttribute("aria-hidden", "true");
         chatLightboxImg.style.transition = "none";

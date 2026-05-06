@@ -1,6 +1,7 @@
 /* ========= WEBRTC ========= */
 
 let localStream = null;
+let processedStream = null;
 let peers = new Map();
 let audioContext = null;
 let analyserMap = new Map();
@@ -36,11 +37,58 @@ async function initMedia() {
             echoCancellation: true,
             noiseSuppression: true,
             autoGainControl: true,
+            channelCount: 1,
         },
         video: false
     });
+
+    /* Web Audio пайплайн поверх браузерного NS:
+       - highpass 85Hz душит гул вентиляторов и низкочастотный rumble;
+       - lowpass 8kHz режет верх, где живут «клики» мыши и удары клавиш;
+       - compressor выравнивает динамику, чтобы тихая речь не тонула
+         на фоне громких транзиентов.
+       Анализатор «speaking» по-прежнему сидит на сыром localStream —
+       UI отзывается на реальный голос пользователя, а не на отфильтрованный. */
+    processedStream = applyAudioProcessing(localStream);
+
     createVolumeAnalyser(localStream, clientId);
     console.log("🎤 Microphone access granted");
+}
+
+function applyAudioProcessing(rawStream) {
+    if (!audioContext) {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return rawStream;
+        audioContext = new Ctx();
+    }
+
+    const source = audioContext.createMediaStreamSource(rawStream);
+
+    const highpass = audioContext.createBiquadFilter();
+    highpass.type = "highpass";
+    highpass.frequency.value = 85;
+    highpass.Q.value = 0.7;
+
+    const lowpass = audioContext.createBiquadFilter();
+    lowpass.type = "lowpass";
+    lowpass.frequency.value = 8000;
+    lowpass.Q.value = 0.7;
+
+    const compressor = audioContext.createDynamicsCompressor();
+    compressor.threshold.value = -28;
+    compressor.knee.value = 12;
+    compressor.ratio.value = 4;
+    compressor.attack.value = 0.005;
+    compressor.release.value = 0.12;
+
+    const destination = audioContext.createMediaStreamDestination();
+
+    source.connect(highpass);
+    highpass.connect(lowpass);
+    lowpass.connect(compressor);
+    compressor.connect(destination);
+
+    return destination.stream;
 }
 
 /**
@@ -75,8 +123,9 @@ function createPeer(userId, isInitiator) {
     peer._isInitiator = !!isInitiator;
     peer._userId = userId;
 
-    localStream.getTracks().forEach(track => {
-        peer.addTrack(track, localStream);
+    const outboundStream = processedStream || localStream;
+    outboundStream.getTracks().forEach(track => {
+        peer.addTrack(track, outboundStream);
     });
 
     if (screenStream?.active) {
@@ -392,6 +441,11 @@ function closeAllConnections() {
             track.stop();
         });
         localStream = null;
+    }
+
+    if (processedStream) {
+        processedStream.getTracks().forEach(track => track.stop());
+        processedStream = null;
     }
 
     // Self-анализатор тоже больше не актуален — стрим остановлен.
