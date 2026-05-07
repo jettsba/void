@@ -191,13 +191,44 @@ function consumeToken(ws) {
     return true;
 }
 
+/**
+ * Heartbeat. Без него мёртвый TCP-коннект (закрытая вкладка без FIN, спящий ноут,
+ * сетевой обрыв) висит у нас в `room.users` десятки секунд, ломая reconnect
+ * клиента: тот пытается войти со своим userId, мы видим "live" старый ws,
+ * отдаём id-collision, юзер не может вернуться. Пингуем каждый HEARTBEAT_MS;
+ * если за следующий цикл не пришёл pong — terminate, чем поднимаем `close`,
+ * а тот уже зовёт handleDisconnect и чистит запись.
+ */
+const HEARTBEAT_INTERVAL_MS = 15 * 1000;
+
+const heartbeatTimer = setInterval(() => {
+    wss.clients.forEach((ws) => {
+        if (ws._isAlive === false) {
+            ws.terminate();
+            return;
+        }
+        ws._isAlive = false;
+        try { ws.ping(); } catch (_) {}
+    });
+}, HEARTBEAT_INTERVAL_MS);
+heartbeatTimer.unref?.();
+
+wss.on("close", () => clearInterval(heartbeatTimer));
+
 wss.on("connection", (ws, req) => {
     const ip = getClientIp(req);
     ws._ip = ip;
+    ws._isAlive = true;
     ws._bucket = { tokens: MSG_BUCKET_CAPACITY, lastRefill: Date.now() };
     ipConnections.set(ip, (ipConnections.get(ip) || 0) + 1);
 
     console.log(`🟢 Client connected (${ip})`);
+
+    ws.on("pong", () => { ws._isAlive = true; });
+
+    ws.on("error", (err) => {
+        console.error(`⚠️  WS error (${ip}):`, err.message);
+    });
 
     ws.on("message", (rawMessage) => {
         // Token bucket: при превышении молча дропаем; легитимный клиент даже близко
@@ -248,10 +279,16 @@ wss.on("connection", (ws, req) => {
         }
     });
 
-    ws.on("close", () => {
+    ws.on("close", (code, reasonBuf) => {
         const cur = ipConnections.get(ip) || 0;
         if (cur <= 1) ipConnections.delete(ip);
         else ipConnections.set(ip, cur - 1);
+        // 1000 = normal, 1001 = going away (refresh/tab close). Всё остальное —
+        // подозрительно, логируем чтобы не теряться при будущих регрессиях.
+        if (code !== 1000 && code !== 1001) {
+            const reason = reasonBuf?.toString?.() || "";
+            console.log(`🔴 WS closed (${ip}) code=${code}${reason ? " reason=" + reason : ""}`);
+        }
         handleDisconnect(ws);
     });
 });

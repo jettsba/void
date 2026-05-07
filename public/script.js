@@ -31,7 +31,7 @@ function _t(key, vars) {
 const ENTRY_ERROR_KEYS = new Set([
     "room-not-found", "room-full", "connection-failed", "mic-blocked",
     "create-failed", "code-taken", "join-session-invalid", "connection-lost",
-    "rate-limited", "unknown"
+    "rate-limited", "id-collision", "unknown"
 ]);
 
 const USERNAME_ADJECTIVES = [

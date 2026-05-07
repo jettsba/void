@@ -75,6 +75,7 @@
             "errors.join-session-invalid": "сессия недействительна — попробуй ещё раз",
             "errors.connection-lost": "соединение потеряно",
             "errors.rate-limited": "слишком много попыток — подожди немного",
+            "errors.id-collision": "сессия с этим id уже активна — обнови страницу",
             "errors.unknown": "что-то пошло не так",
             "errors.screencast.busy": "демонстрация уже идёт в этой комнате",
 
@@ -156,6 +157,7 @@
             "errors.join-session-invalid": "session invalid — try again",
             "errors.connection-lost": "connection lost",
             "errors.rate-limited": "too many attempts — wait a bit",
+            "errors.id-collision": "session id is already active — refresh the page",
             "errors.unknown": "something went wrong",
             "errors.screencast.busy": "screen share is already active in this room",
 
