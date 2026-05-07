@@ -3,7 +3,7 @@
 const INTRO_ENABLED = true;
 /* Пароль остаётся завязан на «тишину» — это часть лора. Принимаем оба
    варианта (русский и английский эквивалент), даже если интерфейс переключили. */
-const INTRO_ACCESS_PASSWORD = ["тишина", "тишина, брат мой", "silence", "silence, my brother"];
+const INTRO_ACCESS_PASSWORD = ["тишина", "тишина, брат", "тишина, брат мой", "silence", "silence, brother", "silence, my brother"];
 const INTRO_QUESTION_TYPE_MS = 95;
 const INTRO_WELCOME_TYPE_MS = 75;
 const INTRO_ERASE_MS = 5;
@@ -30,7 +30,8 @@ function _t(key, vars) {
 
 const ENTRY_ERROR_KEYS = new Set([
     "room-not-found", "room-full", "connection-failed", "mic-blocked",
-    "create-failed", "code-taken", "join-session-invalid", "connection-lost", "unknown"
+    "create-failed", "code-taken", "join-session-invalid", "connection-lost",
+    "rate-limited", "unknown"
 ]);
 
 const USERNAME_ADJECTIVES = [

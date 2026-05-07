@@ -8,7 +8,7 @@
     "use strict";
 
     const STORAGE_KEY = "void:settings";
-    const DEFAULTS = { lang: "ru", streamer: false };
+    const DEFAULTS = { lang: "en", streamer: false };
 
     const DICTIONARY = {
         ru: {
@@ -74,6 +74,7 @@
             "errors.code-taken": "не удалось подобрать свободный код — попробуй ещё раз",
             "errors.join-session-invalid": "сессия недействительна — попробуй ещё раз",
             "errors.connection-lost": "соединение потеряно",
+            "errors.rate-limited": "слишком много попыток — подожди немного",
             "errors.unknown": "что-то пошло не так",
             "errors.screencast.busy": "демонстрация уже идёт в этой комнате",
 
@@ -154,6 +155,7 @@
             "errors.code-taken": "could not pick a free code — try again",
             "errors.join-session-invalid": "session invalid — try again",
             "errors.connection-lost": "connection lost",
+            "errors.rate-limited": "too many attempts — wait a bit",
             "errors.unknown": "something went wrong",
             "errors.screencast.busy": "screen share is already active in this room",
 
