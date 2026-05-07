@@ -28,8 +28,12 @@ const stats = {
     participantSeconds: 0,
     peakConcurrentRooms: 0,
     peakConcurrentUsers: 0,
+    /** Дневные срезы. Ключ — "YYYY-MM-DD" в UTC. */
+    daily: {},
     updatedAt: Date.now()
 };
+
+const DAY_KEY_RX = /^\d{4}-\d{2}-\d{2}$/;
 
 try {
     const loaded = JSON.parse(fs.readFileSync(STATS_FILE, "utf8"));
@@ -40,9 +44,48 @@ try {
     if (typeof loaded.participantSeconds === "number") stats.participantSeconds = loaded.participantSeconds;
     if (typeof loaded.peakConcurrentRooms === "number") stats.peakConcurrentRooms = loaded.peakConcurrentRooms;
     if (typeof loaded.peakConcurrentUsers === "number") stats.peakConcurrentUsers = loaded.peakConcurrentUsers;
+    if (loaded.daily && typeof loaded.daily === "object") {
+        for (const [k, v] of Object.entries(loaded.daily)) {
+            if (!DAY_KEY_RX.test(k) || !v || typeof v !== "object") continue;
+            stats.daily[k] = {
+                roomsCreated: +v.roomsCreated || 0,
+                userSessions: +v.userSessions || 0,
+                participantSeconds: +v.participantSeconds || 0,
+                peakConcurrentRooms: +v.peakConcurrentRooms || 0,
+                peakConcurrentUsers: +v.peakConcurrentUsers || 0
+            };
+        }
+    }
     console.log(`📊 Stats loaded from ${STATS_FILE}`);
 } catch (_) {
     console.log(`📊 Stats: starting fresh (no ${STATS_FILE} yet)`);
+}
+
+function dayKey(ms) {
+    return new Date(ms).toISOString().slice(0, 10);
+}
+
+function ensureDayBucket(key) {
+    if (!stats.daily[key]) {
+        stats.daily[key] = {
+            roomsCreated: 0,
+            userSessions: 0,
+            participantSeconds: 0,
+            peakConcurrentRooms: 0,
+            peakConcurrentUsers: 0
+        };
+    }
+    return stats.daily[key];
+}
+
+function bumpDaily(field, amount = 1, ms = Date.now()) {
+    const b = ensureDayBucket(dayKey(ms));
+    b[field] += amount;
+}
+
+function maxDaily(field, value) {
+    const b = ensureDayBucket(dayKey(Date.now()));
+    if (value > b[field]) b[field] = value;
 }
 
 let statsWriteTimer = null;
@@ -80,12 +123,20 @@ function updatePeaks() {
         stats.peakConcurrentUsers = totalUsers;
         dirty = true;
     }
+    // Дневные пики ведём всегда — даже если lifetime-пик не побит,
+    // у конкретного дня может быть свой максимум.
+    maxDaily("peakConcurrentRooms", rooms.size);
+    maxDaily("peakConcurrentUsers", totalUsers);
     if (dirty) scheduleStatsWrite();
 }
 
 function captureSessionDuration(ws) {
     if (!ws._joinedAt) return;
-    stats.participantSeconds += Math.max(0, (Date.now() - ws._joinedAt) / 1000);
+    const seconds = Math.max(0, (Date.now() - ws._joinedAt) / 1000);
+    stats.participantSeconds += seconds;
+    // Время присутствия записываем тому дню, когда сессия НАЧАЛАСЬ — иначе
+    // ночной разговор «утекал бы» в следующий день и графики прыгали.
+    bumpDaily("participantSeconds", seconds, ws._joinedAt);
     ws._joinedAt = null;
     scheduleStatsWrite();
 }
@@ -131,10 +182,18 @@ app.get("/adminstats", (req, res) => {
         return;
     }
     res.set("Cache-Control", "no-store");
-    res.type("text/html; charset=utf-8").send(renderStatsHtml());
+    res.type("text/html; charset=utf-8").send(renderStatsHtml(req.query));
 });
 
-function renderStatsHtml() {
+const VALID_PERIODS = new Set(["7", "14", "30", "90", "all"]);
+
+function renderStatsHtml(query = {}) {
+    /* ---- разбираем query ---- */
+    const today = dayKey(Date.now());
+    const day = (typeof query.day === "string" && DAY_KEY_RX.test(query.day)) ? query.day : today;
+    const period = VALID_PERIODS.has(query.period) ? query.period : "7";
+
+    /* ---- live-снапшот ---- */
     let liveUsers = 0;
     let activeSeconds = 0;
     const now = Date.now();
@@ -145,47 +204,425 @@ function renderStatsHtml() {
         }
     }
     const liveRooms = rooms.size;
-    const totalMinutes = Math.floor((stats.participantSeconds + activeSeconds) / 60);
 
+    /* ---- daily-срез выбранного дня ---- */
+    const dayBucket = stats.daily[day] || {
+        roomsCreated: 0, userSessions: 0, participantSeconds: 0,
+        peakConcurrentRooms: 0, peakConcurrentUsers: 0
+    };
+
+    /* ---- сегодняшний день: добавляем накопленное активное время для честного отображения ---- */
+    let dayPresenceSeconds = dayBucket.participantSeconds;
+    if (day === today) dayPresenceSeconds += activeSeconds;
+
+    /* ---- соседние дни для кнопок prev/next (только среди тех, где реально есть данные) ---- */
+    const allDays = Object.keys(stats.daily).sort();
+    if (!allDays.includes(today)) allDays.push(today);
+    allDays.sort();
+    const dayIdx = allDays.indexOf(day);
+    const prevDay = dayIdx > 0 ? allDays[dayIdx - 1] : null;
+    const nextDay = (dayIdx >= 0 && dayIdx < allDays.length - 1) ? allDays[dayIdx + 1] : null;
+
+    /* ---- данные для графика ---- */
+    const chartDays = (() => {
+        if (period === "all") return allDays.slice();
+        const n = parseInt(period, 10);
+        const arr = [];
+        for (let i = n - 1; i >= 0; i--) {
+            arr.push(dayKey(now - i * 86400000));
+        }
+        return arr;
+    })();
+
+    const chartData = chartDays.map(d => {
+        const b = stats.daily[d];
+        return {
+            day: d,
+            sessions: b ? b.userSessions : 0,
+            rooms: b ? b.roomsCreated : 0
+        };
+    });
+
+    /* ---- lifetime totals (с поправкой на текущие активные сессии) ---- */
+    const totalPresenceMinutes = Math.floor((stats.participantSeconds + activeSeconds) / 60);
+
+    /* ---- helpers ---- */
     function fmtDate(ms) {
         return new Date(ms).toISOString().replace("T", " ").slice(0, 19) + " UTC";
     }
     function fmtN(n) { return Number(n).toLocaleString("en-US"); }
+    function fmtDuration(seconds) {
+        const total = Math.floor(seconds);
+        const d = Math.floor(total / 86400);
+        const h = Math.floor((total % 86400) / 3600);
+        const m = Math.floor((total % 3600) / 60);
+        if (d > 0) return `${d}d ${h}h ${m}m`;
+        if (h > 0) return `${h}h ${m}m`;
+        return `${m}m`;
+    }
+    function pluralRooms(n) { return n === 1 ? "room" : "rooms"; }
 
+    /* ---- SVG chart (sessions per day, тонкие столбцы + линия rooms) ---- */
+    const chartHtml = renderChart(chartData);
+
+    /* ---- селекторы (как ссылки, без JS) ---- */
+    const periodBtns = ["7", "14", "30", "90", "all"].map(p => {
+        const active = p === period ? " is-active" : "";
+        const label = p === "all" ? "all" : (p + "d");
+        return `<a class="seg${active}" href="?day=${day}&period=${p}">${label}</a>`;
+    }).join("");
+
+    const prevHref = prevDay ? `?day=${prevDay}&period=${period}` : null;
+    const nextHref = nextDay ? `?day=${nextDay}&period=${period}` : null;
+    const todayHref = `?day=${today}&period=${period}`;
+
+    /* ---- разметка ---- */
     return `<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8">
 <meta http-equiv="refresh" content="15">
 <meta name="robots" content="noindex,nofollow">
-<title>void · adminstats</title>
+<title>void :: nav console</title>
 <style>
 *{box-sizing:border-box}
-body{font:14px/1.5 ui-monospace,Menlo,Consolas,monospace;background:#0a0a0b;color:#e6e6e8;margin:0;padding:32px}
-h1{font-size:13px;font-weight:400;letter-spacing:.16em;margin:0 0 24px;text-transform:lowercase;color:#8a8a8e}
-.grid{display:grid;gap:14px;max-width:680px;grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}
-.card{padding:16px 18px;border:1px solid #25252a;border-radius:3px;background:#111114}
-.label{font-size:10px;letter-spacing:.18em;text-transform:lowercase;color:#7a7a7e;margin-bottom:10px}
-.value{font-size:24px;font-weight:400;color:#fafafc;letter-spacing:.02em}
-.unit{font-size:11px;color:#7a7a7e;margin-left:4px;letter-spacing:.1em}
-.meta{margin-top:32px;font-size:11px;color:#5e5e62;letter-spacing:.05em;max-width:680px}
-.meta div+div{margin-top:4px}
+:root{
+    --bg:#06060a;
+    --bg-1:#0c0c12;
+    --bg-2:#10101a;
+    --line:#1d1d2a;
+    --line-2:#262636;
+    --fg:#e6e6ec;
+    --fg-2:#a8a8b6;
+    --fg-3:#6c6c7a;
+    --fg-4:#3a3a48;
+    --accent:#7ed6e6;
+    --accent-dim:#3a8290;
+    --warn:#e6b07e;
+}
+html,body{margin:0;padding:0}
+body{
+    font:13px/1.5 ui-monospace,"DotGothic16",Menlo,Consolas,monospace;
+    background:var(--bg);
+    color:var(--fg);
+    min-height:100vh;
+    /* Холодные хабровские «звёзды» в фоне — тонкие точки на градиенте */
+    background-image:
+        radial-gradient(ellipse 80% 50% at 50% 0%, rgba(126,214,230,0.04), transparent 70%),
+        radial-gradient(ellipse 60% 40% at 80% 100%, rgba(126,214,230,0.03), transparent 70%);
+    background-attachment:fixed;
+    letter-spacing:.02em;
+}
+::selection{background:var(--accent-dim);color:#fff}
+
+.console{
+    max-width:920px;
+    margin:0 auto;
+    padding:28px 32px 64px;
+    position:relative;
+}
+
+/* ── HEADER ── */
+.hud-header{
+    display:flex;align-items:center;justify-content:space-between;
+    border-bottom:1px solid var(--line);
+    padding:0 0 14px;
+    margin-bottom:28px;
+    font-size:11px;
+    letter-spacing:.22em;
+    text-transform:uppercase;
+    color:var(--fg-2);
+}
+.hud-header .brand{color:var(--fg)}
+.hud-header .brand-tag{color:var(--fg-3);margin-left:10px}
+.hud-header .ts{color:var(--fg-3);font-variant-numeric:tabular-nums}
+.live-dot{
+    display:inline-block;width:6px;height:6px;border-radius:50%;
+    background:var(--accent);
+    box-shadow:0 0 8px var(--accent);
+    margin-right:6px;
+    animation:pulse 1.6s ease-in-out infinite;
+    vertical-align:middle;
+}
+@keyframes pulse{
+    0%,100%{opacity:.4;transform:scale(.85)}
+    50%{opacity:1;transform:scale(1.15)}
+}
+
+/* ── SECTION HEADER ── */
+.sec{margin:0 0 36px}
+.sec-head{
+    display:flex;align-items:center;gap:14px;
+    font-size:10px;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--fg-3);
+    margin:0 0 16px;
+}
+.sec-head::after{
+    content:"";flex:1;height:1px;background:var(--line);
+}
+.sec-head .pill{
+    color:var(--accent);
+    border:1px solid var(--accent-dim);
+    padding:2px 8px;
+    border-radius:2px;
+    background:rgba(126,214,230,0.04);
+}
+.sec-head .controls{display:flex;align-items:center;gap:6px;color:var(--fg-2)}
+.sec-head .controls a{
+    color:var(--fg-2);text-decoration:none;
+    border:1px solid var(--line-2);
+    padding:2px 8px;border-radius:2px;
+    transition:all .12s ease;
+    font-size:10px;letter-spacing:.18em;
+}
+.sec-head .controls a:hover{border-color:var(--accent-dim);color:var(--fg)}
+.sec-head .controls a.is-active{
+    color:var(--accent);
+    border-color:var(--accent-dim);
+    background:rgba(126,214,230,0.06);
+}
+.sec-head .controls a.disabled{opacity:.3;pointer-events:none}
+.sec-head .controls .day-cur{color:var(--fg);font-variant-numeric:tabular-nums;letter-spacing:.1em}
+
+/* ── READOUTS ── */
+.readouts{
+    display:grid;gap:1px;
+    background:var(--line);
+    border:1px solid var(--line);
+    grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+}
+.readout{
+    background:var(--bg-1);
+    padding:18px 20px;
+    position:relative;
+}
+.readout-label{
+    font-size:9px;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--fg-3);margin-bottom:10px;
+}
+.readout-value{
+    font-size:26px;color:var(--fg);font-variant-numeric:tabular-nums;
+    letter-spacing:.04em;line-height:1;
+}
+.readout-unit{
+    font-size:11px;color:var(--fg-3);margin-left:6px;letter-spacing:.1em;
+}
+.readout.is-live .readout-value{color:var(--accent)}
+.readout.is-peak .readout-value{color:var(--warn)}
+
+/* ── CHART ── */
+.chart-frame{
+    margin-top:18px;
+    border:1px solid var(--line);
+    background:linear-gradient(180deg, var(--bg-1), var(--bg-2));
+    padding:14px 16px 4px;
+}
+.chart-meta{
+    display:flex;align-items:center;justify-content:space-between;
+    font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:var(--fg-3);
+    margin-bottom:8px;
+}
+.legend-dot{display:inline-block;width:8px;height:8px;border-radius:50%;vertical-align:middle;margin-right:5px}
+.chart-svg{display:block;width:100%;height:auto}
+
+/* ── FOOTER ── */
+.hud-footer{
+    border-top:1px solid var(--line);
+    margin-top:32px;padding-top:14px;
+    font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:var(--fg-3);
+    display:flex;flex-wrap:wrap;gap:16px;
+}
+.hud-footer span{color:var(--fg-2);font-variant-numeric:tabular-nums}
+
+/* ── RESPONSIVE ── */
+@media (max-width:600px){
+    .console{padding:18px 16px 40px}
+    .hud-header{flex-direction:column;align-items:flex-start;gap:6px}
+    .sec-head{flex-wrap:wrap}
+    .readouts{grid-template-columns:repeat(2,1fr)}
+    .readout-value{font-size:22px}
+}
 </style>
-</head><body>
-<h1>void · adminstats</h1>
-<div class="grid">
-<div class="card"><div class="label">rooms created</div><div class="value">${fmtN(stats.roomsCreated)}</div></div>
-<div class="card"><div class="label">user sessions</div><div class="value">${fmtN(stats.userSessions)}</div></div>
-<div class="card"><div class="label">presence time</div><div class="value">${fmtN(totalMinutes)}<span class="unit">min</span></div></div>
-<div class="card"><div class="label">peak rooms</div><div class="value">${stats.peakConcurrentRooms}</div></div>
-<div class="card"><div class="label">peak users</div><div class="value">${stats.peakConcurrentUsers}</div></div>
-<div class="card"><div class="label">live now</div><div class="value">${liveUsers}<span class="unit">in ${liveRooms} room${liveRooms === 1 ? "" : "s"}</span></div></div>
+</head>
+<body>
+<div class="console">
+
+<div class="hud-header">
+    <div>
+        <span class="brand">void</span>
+        <span class="brand-tag">:: nav console</span>
+    </div>
+    <div class="ts"><span class="live-dot"></span>${fmtDate(now).replace(" UTC","")} · UTC</div>
 </div>
-<div class="meta">
-<div>since &nbsp;${fmtDate(stats.since)}</div>
-<div>updated&nbsp;${fmtDate(stats.updatedAt)} · auto-refresh 15s</div>
-<div>presence time = сумма (user_left − user_joined) по всем сессиям; voice-трафик идёт P2P, сервер байты не видит</div>
+
+<!-- ── LIVE ── -->
+<section class="sec">
+    <h2 class="sec-head"><span class="pill">// live</span></h2>
+    <div class="readouts">
+        <div class="readout is-live">
+            <div class="readout-label">active rooms</div>
+            <div class="readout-value">${liveRooms}</div>
+        </div>
+        <div class="readout is-live">
+            <div class="readout-label">active users</div>
+            <div class="readout-value">${liveUsers}</div>
+        </div>
+        <div class="readout is-live">
+            <div class="readout-label">live presence</div>
+            <div class="readout-value">${fmtDuration(activeSeconds)}</div>
+        </div>
+    </div>
+</section>
+
+<!-- ── DAILY ── -->
+<section class="sec">
+    <h2 class="sec-head">
+        <span>// daily</span>
+        <span class="controls">
+            <a href="${prevHref || '#'}" class="${prevHref ? '' : 'disabled'}">‹ prev</a>
+            <span class="day-cur">${day}</span>
+            <a href="${nextHref || '#'}" class="${nextHref ? '' : 'disabled'}">next ›</a>
+            <a href="${todayHref}">today</a>
+        </span>
+    </h2>
+    <div class="readouts">
+        <div class="readout">
+            <div class="readout-label">rooms created</div>
+            <div class="readout-value">${fmtN(dayBucket.roomsCreated)}</div>
+        </div>
+        <div class="readout">
+            <div class="readout-label">user sessions</div>
+            <div class="readout-value">${fmtN(dayBucket.userSessions)}</div>
+        </div>
+        <div class="readout">
+            <div class="readout-label">presence time</div>
+            <div class="readout-value">${fmtDuration(dayPresenceSeconds)}</div>
+        </div>
+        <div class="readout is-peak">
+            <div class="readout-label">peak rooms</div>
+            <div class="readout-value">${dayBucket.peakConcurrentRooms}</div>
+        </div>
+        <div class="readout is-peak">
+            <div class="readout-label">peak users</div>
+            <div class="readout-value">${dayBucket.peakConcurrentUsers}</div>
+        </div>
+    </div>
+</section>
+
+<!-- ── LIFETIME ── -->
+<section class="sec">
+    <h2 class="sec-head">
+        <span>// lifetime</span>
+        <span class="controls">${periodBtns}</span>
+    </h2>
+    <div class="readouts">
+        <div class="readout">
+            <div class="readout-label">rooms created</div>
+            <div class="readout-value">${fmtN(stats.roomsCreated)}</div>
+        </div>
+        <div class="readout">
+            <div class="readout-label">user sessions</div>
+            <div class="readout-value">${fmtN(stats.userSessions)}</div>
+        </div>
+        <div class="readout">
+            <div class="readout-label">presence time</div>
+            <div class="readout-value">${fmtDuration(stats.participantSeconds + activeSeconds)}</div>
+        </div>
+        <div class="readout is-peak">
+            <div class="readout-label">peak rooms</div>
+            <div class="readout-value">${stats.peakConcurrentRooms}</div>
+        </div>
+        <div class="readout is-peak">
+            <div class="readout-label">peak users</div>
+            <div class="readout-value">${stats.peakConcurrentUsers}</div>
+        </div>
+    </div>
+
+    <div class="chart-frame">
+        <div class="chart-meta">
+            <span>// growth · ${period === "all" ? "all time" : period + " days"}</span>
+            <span>
+                <span class="legend-dot" style="background:var(--accent)"></span>sessions
+                &nbsp;&nbsp;
+                <span class="legend-dot" style="background:var(--warn)"></span>rooms
+            </span>
+        </div>
+        ${chartHtml}
+    </div>
+</section>
+
+<div class="hud-footer">
+    <div>since <span>${fmtDate(stats.since)}</span></div>
+    <div>updated <span>${fmtDate(stats.updatedAt)}</span></div>
+    <div>auto-refresh <span>15s</span></div>
+</div>
+
 </div>
 </body></html>`;
+}
+
+/**
+ * Простенький SVG-график. Никакого JS, никаких внешних библиотек.
+ * Для каждого дня рисуем два тонких столбца: sessions (cyan) и rooms (amber)
+ * рядом друг с другом. Высота относительно максимума по обеим метрикам.
+ * При наведении на день браузер покажет нативный tooltip из <title>.
+ */
+function renderChart(data) {
+    if (data.length === 0) {
+        return `<div style="padding:32px;text-align:center;color:var(--fg-3);font-size:11px;letter-spacing:.16em">no data yet</div>`;
+    }
+
+    const W = 880;
+    const H = 180;
+    const padL = 36, padR = 12, padT = 10, padB = 28;
+    const innerW = W - padL - padR;
+    const innerH = H - padT - padB;
+
+    const maxVal = Math.max(1, ...data.flatMap(d => [d.sessions, d.rooms]));
+    const xStep = innerW / data.length;
+    const barGroupW = Math.min(xStep * 0.7, 48);
+    const barW = barGroupW / 2 - 1;
+
+    // округляем maxVal до приятного числа для сетки
+    const niceMax = (() => {
+        const exp = Math.pow(10, Math.floor(Math.log10(maxVal)));
+        for (const m of [1, 2, 5, 10]) {
+            if (m * exp >= maxVal) return m * exp;
+        }
+        return maxVal;
+    })();
+
+    function y(v) { return padT + innerH - (v / niceMax) * innerH; }
+    function x(i) { return padL + xStep * i + xStep / 2; }
+
+    // ось Y — три отметки
+    const yTicks = [0, niceMax / 2, niceMax];
+    const yLines = yTicks.map(t => {
+        const yy = y(t);
+        return `<line x1="${padL}" y1="${yy}" x2="${W - padR}" y2="${yy}" stroke="var(--line)" stroke-dasharray="${t === 0 ? '' : '2,4'}"/>
+                <text x="${padL - 6}" y="${yy + 3}" text-anchor="end" font-size="9" fill="var(--fg-3)" font-family="ui-monospace,monospace">${Math.round(t)}</text>`;
+    }).join("");
+
+    // решаем сколько меток на оси X показать (чтобы не слипались)
+    const labelEvery = data.length <= 7 ? 1 : data.length <= 14 ? 2 : data.length <= 30 ? 5 : Math.ceil(data.length / 8);
+
+    const bars = data.map((d, i) => {
+        const cx = x(i);
+        const sessH = (d.sessions / niceMax) * innerH;
+        const roomsH = (d.rooms / niceMax) * innerH;
+        const showLabel = i % labelEvery === 0 || i === data.length - 1;
+        const dayShort = d.day.slice(5); // MM-DD
+        return `<g>
+            <title>${d.day} · sessions: ${d.sessions} · rooms: ${d.rooms}</title>
+            <rect x="${cx - barW - 0.5}" y="${padT + innerH - sessH}" width="${barW}" height="${sessH}" fill="var(--accent)" opacity="0.85"/>
+            <rect x="${cx + 0.5}" y="${padT + innerH - roomsH}" width="${barW}" height="${roomsH}" fill="var(--warn)" opacity="0.7"/>
+            ${showLabel ? `<text x="${cx}" y="${H - 8}" text-anchor="middle" font-size="9" fill="var(--fg-3)" font-family="ui-monospace,monospace" letter-spacing=".05em">${dayShort}</text>` : ""}
+        </g>`;
+    }).join("");
+
+    return `<svg class="chart-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+        ${yLines}
+        ${bars}
+    </svg>`;
 }
 
 /* ========= STATIC FILES ========= */
@@ -517,6 +954,7 @@ function handleCreateRoom(ws, data) {
     });
 
     stats.roomsCreated += 1;
+    bumpDaily("roomsCreated");
     updatePeaks();
     scheduleStatsWrite();
 
@@ -716,6 +1154,7 @@ function handleJoinConfirm(ws, data) {
     // для подсчёта длительности присутствия.
     ws._joinedAt = Date.now();
     stats.userSessions += 1;
+    bumpDaily("userSessions");
     updatePeaks();
     scheduleStatsWrite();
 
