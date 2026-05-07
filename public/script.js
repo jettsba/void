@@ -103,6 +103,33 @@ let currentRoomCode = null;
 
 let clientId = null;
 
+/**
+ * Один раз на загрузку вкладки шлём серверу "hello" — это считается как
+ * "регистрация" (лимит-метрика "users" в админ-статистике). Reconnect/повторные
+ * входы в комнату не считаются. Сокет в лобби держим открытым, чтобы сервер
+ * видел, сколько людей сейчас вообще на сайте — даже если они ещё не зашли
+ * ни в одну комнату.
+ */
+let _helloSent = false;
+
+async function enterLobby() {
+    if (typeof connectSocket !== "function") return;
+    try {
+        await connectSocket();
+    } catch (_) {
+        // Если коннекта нет — не страшно, повторим при попытке join/create.
+        return;
+    }
+    if (!_helloSent) {
+        sendSocket({
+            type: "hello",
+            userId: clientId,
+            nickname: currentUsername
+        });
+        _helloSent = true;
+    }
+}
+
 let roomInfo;
 let roomCodeText;
 
@@ -398,6 +425,7 @@ function skipIntroAndShowApp() {
     hasPlayedWelcome = true;
     introQuestionDone = true;
     setTimeout(() => codeInput?.focus(), 120);
+    enterLobby();
 }
 
 function sleep(ms) {
@@ -577,6 +605,10 @@ function tearDownRoomState() {
     hideEntryError();
     removeAllParticipants();
     setConnectionState("ready");
+
+    // После выхода из комнаты пересобираем lobby-коннект, чтобы юзер снова
+    // считался "active" в live-статистике пока он сидит в лобби.
+    enterLobby();
 }
 
 /**
@@ -753,6 +785,7 @@ function unlockApp() {
     intro.addEventListener("transitionend", () => {
         intro.style.display = "none";
         app.classList.add("visible");
+        enterLobby();
     }, { once: true });
 }
 
