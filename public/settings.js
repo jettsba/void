@@ -8,7 +8,7 @@
     "use strict";
 
     const STORAGE_KEY = "void:settings";
-    const DEFAULTS = { lang: "en", streamer: false };
+    const DEFAULTS = { lang: "ru", streamer: false };
 
     const DICTIONARY = {
         ru: {

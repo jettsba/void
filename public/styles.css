@@ -2685,7 +2685,7 @@ body.chat-open .footer.footer-meta {
     }
 
     .panel-area {
-        --panel-offset-y: 160px;
+        --panel-offset-y: 110px;
         margin-top: 24px;
     }
 }
