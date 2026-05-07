@@ -256,15 +256,31 @@ body.chat-open .footer.footer-meta {
     display: inline-flex;
     align-items: center;
     gap: 10px;
-    cursor: default;
+    cursor: pointer;
     transform: translateX(12px);
+    background: transparent;
+    border: 0;
+    padding: 0;
+    color: inherit;
+    font: inherit;
+    letter-spacing: inherit;
+    outline: none;
+}
+
+.brand-logo {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    flex-shrink: 0;
 }
 
 .logo-eclipse {
+    position: absolute;
+    inset: 0;
     display: block;
-    flex-shrink: 0;
-    width: 26px;
-    height: 26px;
     border-radius: 50%;
     box-sizing: border-box;
     border: 1.5px solid rgba(230, 230, 232, 0.92);
@@ -274,13 +290,41 @@ body.chat-open .footer.footer-meta {
         0 0 18px rgba(245, 245, 247, 0.35),
         0 0 40px rgba(210, 210, 216, 0.22),
         0 0 72px rgba(170, 170, 182, 0.14);
+    opacity: 1;
+    transform: scale(1);
     transition:
         box-shadow var(--t-med),
         transform var(--t-med),
-        border-color var(--t-med);
+        border-color var(--t-med),
+        opacity var(--t-med);
 }
 
-.brand-lockup:hover .logo-eclipse {
+/* Шестерёнка живёт ВНУТРИ эклипса: центрируется flex-ом обёртки, занимает ~65%
+   диаметра кольца, так что между ней и бортиком остаётся «дыхание». Эклипс
+   виден всегда — на hover просто проявляем шестерёнку с поворотом и зумом. */
+.brand-gear {
+    position: relative;
+    width: 65%;
+    height: 65%;
+    display: block;
+    fill: none;
+    stroke: rgba(245, 245, 247, 0.96);
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+    opacity: 0;
+    transform: rotate(-90deg) scale(0.4);
+    transform-origin: 50% 50%;
+    filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.55));
+    transition:
+        opacity var(--t-med),
+        transform var(--t-med);
+    pointer-events: none;
+}
+
+.brand-lockup:hover .logo-eclipse,
+.brand-lockup:focus-visible .logo-eclipse,
+.brand-lockup[aria-expanded="true"] .logo-eclipse {
     border-color: rgba(255, 255, 255, 1);
     box-shadow:
         0 0 10px rgba(255, 255, 255, 0.75),
@@ -289,12 +333,20 @@ body.chat-open .footer.footer-meta {
         0 0 100px rgba(200, 200, 210, 0.28);
 }
 
-@media (prefers-reduced-motion: reduce) {
-    .logo-eclipse {
-        transition: box-shadow var(--t-fast), border-color var(--t-fast);
-    }
+.brand-lockup:hover .brand-gear,
+.brand-lockup:focus-visible .brand-gear,
+.brand-lockup[aria-expanded="true"] .brand-gear {
+    opacity: 1;
+    transform: rotate(0deg) scale(1);
+}
 
-    .brand-lockup:hover .logo-eclipse {
+@media (prefers-reduced-motion: reduce) {
+    .brand-gear {
+        transition: opacity var(--t-fast);
+    }
+    .brand-lockup:hover .brand-gear,
+    .brand-lockup:focus-visible .brand-gear,
+    .brand-lockup[aria-expanded="true"] .brand-gear {
         transform: none;
     }
 }
@@ -1002,6 +1054,12 @@ body.chat-open .footer.footer-meta {
     transition:
         opacity var(--t-med),
         transform var(--t-med);
+}
+
+/* Сам код комнаты — капсом, чтобы не падал в lowercase футера. */
+.room-code-id {
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
 }
 
 .room-info:not(.room-info--copied) .room-code-panel--copied {
@@ -2747,7 +2805,7 @@ body {
         font-size: 14px;
     }
 
-    .logo-eclipse {
+    .brand-logo {
         width: 32px;
         height: 32px;
     }
@@ -2874,7 +2932,7 @@ body {
         font-size: 18px;
     }
 
-    .logo-eclipse {
+    .brand-logo {
         width: 44px;
         height: 44px;
     }
@@ -2980,5 +3038,229 @@ body {
         font-size: 24px;
         height: 60px;
         width: 380px;
+    }
+}
+
+/* ========= SETTINGS PANEL ========= */
+
+.settings-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    background: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--t-med);
+}
+
+.settings-scrim.is-open {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.settings-panel {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 61;
+    width: min(360px, 88vw);
+    background: rgba(16, 16, 18, 0.96);
+    border-right: 1px solid rgba(255, 255, 255, 0.06);
+    box-shadow: 0 0 60px rgba(0, 0, 0, 0.65);
+    transform: translateX(-105%);
+    transition: transform var(--t-med);
+    display: flex;
+    flex-direction: column;
+}
+
+.settings-panel.is-open {
+    transform: translateX(0);
+}
+
+.settings-panel-inner {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 24px 22px;
+    gap: 22px;
+    overflow-y: auto;
+}
+
+.settings-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.settings-title {
+    color: var(--fg);
+    text-transform: lowercase;
+    letter-spacing: var(--tracking-wide);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.settings-close {
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+    color: var(--fg-2);
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    transition: color var(--t-fast), background var(--t-fast);
+}
+
+.settings-close:hover {
+    color: var(--fg);
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.settings-close svg {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+}
+
+.settings-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 4px 2px;
+}
+
+.settings-row-text {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.settings-row-label {
+    color: var(--fg);
+    font-size: 13px;
+    text-transform: lowercase;
+    letter-spacing: var(--tracking);
+}
+
+.settings-row-hint {
+    color: var(--fg-3);
+    font-size: 11px;
+    text-transform: lowercase;
+}
+
+.settings-seg {
+    display: inline-flex;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.settings-seg-btn {
+    background: transparent;
+    border: 0;
+    padding: 7px 14px;
+    color: var(--fg-2);
+    cursor: pointer;
+    letter-spacing: var(--tracking-wide);
+    font-size: 11px;
+    text-transform: uppercase;
+    transition: color var(--t-fast), background var(--t-fast);
+}
+
+.settings-seg-btn + .settings-seg-btn {
+    border-left: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.settings-seg-btn:hover {
+    color: var(--fg);
+}
+
+.settings-seg-btn.is-active {
+    color: var(--fg);
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.settings-switch {
+    --sw-w: 36px;
+    --sw-h: 20px;
+    position: relative;
+    display: inline-block;
+    width: var(--sw-w);
+    height: var(--sw-h);
+    flex-shrink: 0;
+    cursor: pointer;
+}
+
+.settings-switch input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.settings-switch-track {
+    position: absolute;
+    inset: 0;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    transition: background var(--t-fast), border-color var(--t-fast);
+}
+
+.settings-switch-track::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 2px;
+    width: calc(var(--sw-h) - 6px);
+    height: calc(var(--sw-h) - 6px);
+    border-radius: 50%;
+    background: var(--fg-2);
+    transform: translateY(-50%);
+    transition: transform var(--t-fast), background var(--t-fast);
+}
+
+.settings-switch input:checked + .settings-switch-track {
+    background: rgba(255, 255, 255, 0.18);
+    border-color: rgba(255, 255, 255, 0.22);
+}
+
+.settings-switch input:checked + .settings-switch-track::after {
+    background: var(--fg);
+    transform: translateY(-50%) translateX(calc(var(--sw-w) - var(--sw-h)));
+}
+
+.settings-switch input:focus-visible + .settings-switch-track {
+    outline: 1px solid rgba(255, 255, 255, 0.35);
+    outline-offset: 2px;
+}
+
+/* ========= STREAMER MODE ========= */
+
+/* В стримерском режиме код комнаты в футере не показываем — текст
+   подставляет JS через formatRoomCodeLabel(). Сам класс ничего не прячет,
+   стиль остаётся прежний; здесь только лёгкий визуальный hint. */
+.app[data-streamer="on"] .room-info {
+    color: var(--fg-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .settings-scrim,
+    .settings-panel {
+        transition: none;
     }
 }

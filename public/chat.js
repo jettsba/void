@@ -128,11 +128,23 @@ function initChat() {
 
     setupGlobalDragAndDrop();
     syncChatToggleLabel();
+
+    document.addEventListener("void:locale-changed", () => {
+        /* applyI18n уже прошёлся по DOM (и по data-i18n="chat.you" в истории
+           сообщений), здесь добиваем динамику, не обвязанную атрибутами. */
+        syncChatToggleLabel();
+    });
+}
+
+function _ct(key, vars) {
+    return (typeof window !== "undefined" && window.VoidI18n)
+        ? window.VoidI18n.t(key, vars)
+        : key;
 }
 
 function syncChatToggleLabel() {
     if (!chatToggleBtn) return;
-    chatToggleBtn.title = chatOpen ? "close chat" : "show chat";
+    chatToggleBtn.title = chatOpen ? _ct("header.chat.close") : _ct("header.chat.show");
     chatToggleBtn.setAttribute("aria-expanded", chatOpen ? "true" : "false");
 }
 
@@ -302,7 +314,7 @@ function sendChatFromInput() {
                     await sendChatAttachment(item.file, item.kind);
                 } catch (err) {
                     console.warn("chat: send attachment failed", err);
-                    showChatToast("не удалось отправить файл");
+                    showChatToast(_ct("chat.send.failed"));
                 }
                 if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
             }
@@ -507,7 +519,12 @@ function appendMessage(msg, isSelf, attachState = null) {
 
     const nick = document.createElement("span");
     nick.className = "chat-msg-nick";
-    nick.textContent = isSelf ? "you" : (msg.nick || "—");
+    if (isSelf) {
+        nick.dataset.i18n = "chat.you";
+        nick.textContent = _ct("chat.you");
+    } else {
+        nick.textContent = msg.nick || "—";
+    }
 
     const time = document.createElement("span");
     time.className = "chat-msg-time";
@@ -615,7 +632,7 @@ function renderAttachment(msg, isSelf, attachState) {
         const dl = document.createElement("a");
         dl.className = "chat-attach-file-dl";
         dl.textContent = "↓";
-        dl.title = "download";
+        dl.title = _ct("chat.download");
         dl.download = msg.name || "file";
         if (attachState && attachState.url) dl.href = attachState.url;
 
@@ -704,7 +721,9 @@ function autoKindForFile(file) {
 function addPendingAttachment(file, kind) {
     const cap = (kind === "image" ? CHAT_MAX_IMAGE_MB : CHAT_MAX_FILE_MB) * 1024 * 1024;
     if (file.size > cap) {
-        showChatToast(`файл больше ${kind === "image" ? CHAT_MAX_IMAGE_MB : CHAT_MAX_FILE_MB} мб`);
+        showChatToast(_ct("chat.file.tooBig", {
+            mb: kind === "image" ? CHAT_MAX_IMAGE_MB : CHAT_MAX_FILE_MB
+        }));
         return;
     }
 
@@ -764,8 +783,8 @@ function renderPendingAttachments() {
         rm.type = "button";
         rm.className = "chat-pending-remove";
         rm.textContent = "×";
-        rm.title = "remove";
-        rm.setAttribute("aria-label", "remove attachment");
+        rm.title = _ct("chat.remove");
+        rm.setAttribute("aria-label", _ct("chat.remove"));
         rm.addEventListener("click", () => removePendingAttachment(p.id));
         item.appendChild(rm);
 

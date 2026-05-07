@@ -1,9 +1,9 @@
 /* ========= CONFIG ========= */
 
 const INTRO_ENABLED = true;
-const INTRO_QUESTION = "что есть музыка жизни?";
-const INTRO_ACCESS_PASSWORD = ["тишина", "тишина, брат мой"];
-const INTRO_WELCOME = "добро пожаловать!";
+/* Пароль остаётся завязан на «тишину» — это часть лора. Принимаем оба
+   варианта (русский и английский эквивалент), даже если интерфейс переключили. */
+const INTRO_ACCESS_PASSWORD = ["тишина", "тишина, брат мой", "silence", "silence, my brother"];
 const INTRO_QUESTION_TYPE_MS = 95;
 const INTRO_WELCOME_TYPE_MS = 75;
 const INTRO_ERASE_MS = 5;
@@ -20,17 +20,18 @@ const INTRO_UNLOCK_STORAGE_KEY = "passed";
 
 const ENTRY_ERROR_DISPLAY_MS = 1500;
 
-const ENTRY_ERROR_MESSAGES = {
-    "room-not-found": "комната не найдена",
-    "room-full": "комната заполнена",
-    "connection-failed": "не удалось подключиться к серверу",
-    "mic-blocked": "нет доступа к микрофону",
-    "create-failed": "не удалось создать комнату",
-    "code-taken": "не удалось подобрать свободный код — попробуй ещё раз",
-    "join-session-invalid": "сессия недействительна — попробуйте ещё раз",
-    "connection-lost": "соединение потеряно",
-    "unknown": "что-то пошло не так"
-};
+/* Тонкая обёртка над t(): если settings.js по какой-то причине не загрузился,
+   возвращаем сам ключ — не падаем на проде. */
+function _t(key, vars) {
+    return (typeof window !== "undefined" && window.VoidI18n)
+        ? window.VoidI18n.t(key, vars)
+        : key;
+}
+
+const ENTRY_ERROR_KEYS = new Set([
+    "room-not-found", "room-full", "connection-failed", "mic-blocked",
+    "create-failed", "code-taken", "join-session-invalid", "connection-lost", "unknown"
+]);
 
 const USERNAME_ADJECTIVES = [
     "Silent","Dark","Hidden","Lost","Frozen","Broken","Shadowed","Neon","Crimson","Fading",
@@ -104,11 +105,41 @@ let clientId = null;
 let roomInfo;
 let roomCodeText;
 
-function formatRoomCodeLabel(code) {
+/**
+ * Рисует лейбл кода комнаты в #roomCodeText. Префикс «комната »/«room »
+ * остаётся в lowercase-стилистике футера, сам код заворачивается в .room-code-id
+ * чтобы его поднять в uppercase через CSS — без буллшита со склейкой строк.
+ */
+function renderRoomCodeLabel(code) {
+    if (!roomCodeText) return;
+
+    if (window.VoidSettings?.getStreamer?.()) {
+        roomCodeText.textContent = _t("footer.copy.streamer");
+        return;
+    }
+
     const segment =
         code != null && String(code).length > 0 ? String(code) : "XXXXX";
-    return `room #${segment}`;
+
+    /* Шаблон в словаре: «комната #{code}». Подставляем сентинел, чтобы найти
+       границу префикс/суффикс — это даёт переводимость без отдельных ключей. */
+    const SENTINEL = "";
+    const filled = _t("footer.roomCode", { code: SENTINEL });
+    const i = filled.indexOf(SENTINEL);
+    const prefix = i === -1 ? filled : filled.slice(0, i);
+    const suffix = i === -1 ? "" : filled.slice(i + SENTINEL.length);
+
+    roomCodeText.textContent = "";
+    if (prefix) roomCodeText.append(document.createTextNode(prefix));
+    const codeSpan = document.createElement("span");
+    codeSpan.className = "room-code-id";
+    codeSpan.textContent = segment;
+    roomCodeText.append(codeSpan);
+    if (suffix) roomCodeText.append(document.createTextNode(suffix));
 }
+
+let _lastConnState = "ready";
+let _lastConnOpts = {};
 
 let entryErrorEl;
 let entryErrorTextEl;
@@ -400,7 +431,7 @@ async function runIntroQuestionTyping() {
     introCursor.classList.remove("hidden");
     introTitleText.textContent = "";
     await sleep(INTRO_PAUSE_BEFORE_QUESTION_MS);
-    await typeWriter(introTitleText, INTRO_QUESTION, INTRO_QUESTION_TYPE_MS);
+    await typeWriter(introTitleText, _t("intro.question"), INTRO_QUESTION_TYPE_MS);
     introCursor.classList.add("hidden");
     introInput.disabled = false;
     introQuestionDone = true;
@@ -409,7 +440,7 @@ async function runIntroQuestionTyping() {
 
 async function runIntroWelcomeThenUnlock() {
     introCursor.classList.remove("hidden");
-    await typeWriter(introTitleText, INTRO_WELCOME, INTRO_WELCOME_TYPE_MS);
+    await typeWriter(introTitleText, _t("intro.welcome"), INTRO_WELCOME_TYPE_MS);
     introCursor.classList.add("hidden");
     playWelcomeSound();
     await sleep(INTRO_PAUSE_AFTER_WELCOME_MS);
@@ -462,7 +493,8 @@ function hideEntryError() {
 }
 
 function showEntryError(reason) {
-    const text = ENTRY_ERROR_MESSAGES[reason] || ENTRY_ERROR_MESSAGES.unknown;
+    const key = ENTRY_ERROR_KEYS.has(reason) ? reason : "unknown";
+    const text = _t("errors." + key);
     if (!entryErrorEl || !entryErrorTextEl) return;
 
     clearTimeout(entryErrorHideTimer);
@@ -519,7 +551,7 @@ function tearDownRoomState() {
     updateScreencastButton(false);
     screencastBtn.classList.add("control-btn-stub");
     screencastBtn.setAttribute("aria-disabled", "true");
-    screencastBtn.title = "screencast (soon)";
+    screencastBtn.title = _t("controls.screencast.soon");
 
     nicknameMap.clear();
     closeAllConnections();
@@ -540,9 +572,7 @@ function tearDownRoomState() {
         roomInfo.classList.add("hidden");
     }
 
-    if (roomCodeText) {
-        roomCodeText.textContent = formatRoomCodeLabel(null);
-    }
+    renderRoomCodeLabel(null);
     if (codeInput) {
         codeInput.value = "";
         codeInput.closest(".entry-code-field")?.classList.remove("has-value");
@@ -913,7 +943,10 @@ function addParticipant(userId, nickname) {
 
     const watchBtn = document.createElement("div");
     watchBtn.className = "watch-screen-btn";
-    watchBtn.innerHTML = '<span>watch</span><span>screen</span>';
+    /* Двустрочная кнопка — обе строки переводимые. */
+    watchBtn.innerHTML =
+        '<span data-i18n="screencast.watch">' + _t("screencast.watch") + '</span>' +
+        '<span data-i18n="screencast.screen">' + _t("screencast.screen") + '</span>';
 
     participant.appendChild(avatar);
     participant.appendChild(name);
@@ -1041,38 +1074,42 @@ function retryCreateRoomAfterCollision() {
 }
 
 function setConnectionState(state, opts = {}) {
+    _lastConnState = state;
+    _lastConnOpts = opts || {};
     if (!connDot || !connLabel) return;
 
     connDot.classList.remove("live", "warn", "pulse");
 
     if (state === "connected") {
         connDot.classList.add("live");
-        connLabel.textContent = "connected";
+        connLabel.textContent = _t("footer.connected");
         return;
     }
 
     if (state === "reconnecting") {
         connDot.classList.add("warn", "pulse");
         if (opts.attempt && opts.total) {
-            connLabel.textContent = `reconnecting ${opts.attempt}/${opts.total}`;
+            connLabel.textContent = _t("footer.reconnecting.attempt", {
+                attempt: opts.attempt, total: opts.total
+            });
         } else {
-            connLabel.textContent = "reconnecting";
+            connLabel.textContent = _t("footer.reconnecting");
         }
         return;
     }
 
     if (state === "error") {
         connDot.classList.add("warn");
-        connLabel.textContent = "error";
+        connLabel.textContent = _t("footer.error");
         return;
     }
 
     if (state === "connecting") {
-        connLabel.textContent = "connecting";
+        connLabel.textContent = _t("footer.connecting");
         return;
     }
 
-    connLabel.textContent = "ready";
+    connLabel.textContent = _t("footer.ready");
 }
 
 function enterRoomUI() {
@@ -1085,14 +1122,14 @@ function enterRoomUI() {
 
     roomInfo.classList.remove("hidden");
 
-    roomCodeText.textContent = formatRoomCodeLabel(currentRoomCode);
+    renderRoomCodeLabel(currentRoomCode);
 
     addParticipant(clientId, currentUsername);
     applyAudioState();
     setConnectionState("connected");
 
     screencastBtn.classList.remove("control-btn-stub");
-    screencastBtn.title = "share screen";
+    screencastBtn.title = _t("controls.screencast.share");
     syncScreencastBtnBlocked();
 
     playJoinSound();
@@ -1432,7 +1469,7 @@ function renderPingPanelSkeleton() {
     if (!pingPanelList) return;
 
     if (typeof peers === "undefined" || peers.size === 0) {
-        pingPanelList.innerHTML = `<div class="ping-row ping-row-empty">no peers</div>`;
+        pingPanelList.innerHTML = `<div class="ping-row ping-row-empty">${escapeHtml(_t("ping.empty"))}</div>`;
         return;
     }
 
@@ -1451,7 +1488,7 @@ async function refreshPingPanel() {
     if (!pingPanelOpen || !pingPanelList) return;
 
     if (typeof peers === "undefined" || peers.size === 0) {
-        pingPanelList.innerHTML = `<div class="ping-row ping-row-empty">no peers</div>`;
+        pingPanelList.innerHTML = `<div class="ping-row ping-row-empty">${escapeHtml(_t("ping.empty"))}</div>`;
         return;
     }
 
@@ -1502,7 +1539,7 @@ function escapeAttr(s) {
 
 function handleScreencastBtnClick() {
     if (roomScreencasterId && roomScreencasterId !== clientId) {
-        showRoomToast("Screen share is already active in this room");
+        showRoomToast(_t("errors.screencast.busy"));
         return;
     }
     if (isScreencasting) {
@@ -1540,7 +1577,7 @@ function updateScreencastButton(isOn) {
     screencastBtn.classList.toggle("active", isOn);
     screencastBtn.classList.toggle("sc-btn-blocked", !isOn && !!roomScreencasterId && roomScreencasterId !== clientId);
     if (!screencastBtn.classList.contains("control-btn-stub")) {
-        screencastBtn.title = isOn ? "stop sharing" : "share screen";
+        screencastBtn.title = isOn ? _t("controls.screencast.stop") : _t("controls.screencast.share");
     }
 }
 
@@ -1666,7 +1703,7 @@ function handleScreencastRejected() {
         updateScreencastButton(false);
         updateParticipantScreenState(clientId, false);
     }
-    showRoomToast("Screen share is already active in this room");
+    showRoomToast(_t("errors.screencast.busy"));
 }
 
 function showRoomToast(text) {
@@ -1676,3 +1713,25 @@ function showRoomToast(text) {
     clearTimeout(_toastTimer);
     _toastTimer = setTimeout(() => roomToastEl.classList.remove("is-visible"), 3000);
 }
+
+/* ========= LOCALE / STREAMER REACT =========
+   После смены языка перерисовываем те куски UI, чьё содержимое не выражено
+   через data-i18n: динамические надписи коннекта, код комнаты, title кнопки
+   скринкаста, а также текстовое содержимое уже отрисованных watch-кнопок. */
+document.addEventListener("void:locale-changed", () => {
+    setConnectionState(_lastConnState, _lastConnOpts);
+    renderRoomCodeLabel(currentRoomCode);
+
+    if (screencastBtn) {
+        if (screencastBtn.classList.contains("control-btn-stub")) {
+            screencastBtn.title = _t("controls.screencast.soon");
+        } else {
+            const isOn = screencastBtn.classList.contains("active");
+            screencastBtn.title = isOn ? _t("controls.screencast.stop") : _t("controls.screencast.share");
+        }
+    }
+});
+
+document.addEventListener("void:streamer-changed", () => {
+    renderRoomCodeLabel(currentRoomCode);
+});
