@@ -169,6 +169,11 @@ function toggleChat() {
 function setChatOpen(open) {
     chatOpen = !!open;
     chatPanel.classList.toggle("is-open", chatOpen);
+    // inert: браузер сам уводит фокус наружу + блокирует клики/таб. Парный
+    // aria-hidden оставляем для старых ассистивных технологий, которые ещё
+    // не научились читать inert (без inert получаем варнинг "aria-hidden on
+    // an element with focused descendant").
+    chatPanel.toggleAttribute("inert", !chatOpen);
     chatPanel.setAttribute("aria-hidden", chatOpen ? "false" : "true");
     chatToggleBtn.classList.toggle("is-open", chatOpen);
     chatToggleBtn.setAttribute("aria-pressed", chatOpen ? "true" : "false");
@@ -225,7 +230,7 @@ function setupChatChannelForPeer(peer, userId, isInitiator) {
             const channel = peer.createDataChannel("chat", { ordered: true });
             bindChatChannel(channel, userId);
         } catch (err) {
-            console.warn("chat: createDataChannel failed", err);
+            log.warn("chat", "createDataChannel failed", { err: err?.message || String(err) });
         }
     } else {
         peer.addEventListener("datachannel", (e) => {
@@ -242,7 +247,7 @@ function bindChatChannel(channel, userId) {
     channel.bufferedAmountLowThreshold = CHAT_LOW_WATER;
 
     channel.onopen = () => {
-        console.log(`💬 chat channel open ← ${userId}`);
+        log.debug("chat", "channel open", { userId });
     };
     channel.onclose = () => {
         if (chatChannels.get(userId) === channel) {
@@ -256,7 +261,7 @@ function bindChatChannel(channel, userId) {
         }
     };
     channel.onerror = (e) => {
-        console.warn(`💬 chat channel error ← ${userId}`, e);
+        log.warn("chat", "channel error", { userId, err: e?.error?.message || e?.message });
     };
     channel.onmessage = (e) => handleIncoming(e.data, userId);
 }
@@ -284,7 +289,7 @@ function detachChatChannelForUser(userId) {
 function enqueueSend(userId, work) {
     const prev = channelSendQueues.get(userId) || Promise.resolve();
     const next = prev.then(work).catch(err => {
-        console.warn("chat: send work failed", userId, err);
+        log.warn("chat", "send work failed", { userId, err: err?.message || String(err) });
     });
     channelSendQueues.set(userId, next);
     return next;
@@ -313,7 +318,7 @@ function sendChatFromInput() {
                 try {
                     await sendChatAttachment(item.file, item.kind);
                 } catch (err) {
-                    console.warn("chat: send attachment failed", err);
+                    log.warn("chat", "send attachment failed", { err: err?.message || String(err) });
                     showChatToast(_ct("chat.send.failed"));
                 }
                 if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
@@ -338,7 +343,7 @@ function sendChatText(text) {
         enqueueSend(uid, async () => {
             if (channel.readyState !== "open") return;
             try { channel.send(json); }
-            catch (err) { console.warn("chat: text send failed", uid, err); }
+            catch (err) { log.warn("chat", "text send failed", { userId: uid, err: err?.message || String(err) }); }
         });
     });
 }
@@ -357,7 +362,7 @@ async function sendChatAttachment(file, kind) {
                 displayName = displayName.replace(/\.[^.]+$/, "") + ".jpg";
             }
         } catch (err) {
-            console.warn("chat: downscale failed, sending original", err);
+            log.warn("chat", "image downscale failed, sending original", { err: err?.message || String(err) });
             payloadBytes = await file.arrayBuffer();
         }
     } else {
@@ -394,7 +399,7 @@ async function sendChatAttachment(file, kind) {
         tasks.push(enqueueSend(uid, async () => {
             if (channel.readyState !== "open") return;
             try { channel.send(json); }
-            catch (err) { console.warn("chat: meta send failed", uid, err); return; }
+            catch (err) { log.warn("chat", "meta send failed", { userId: uid, err: err?.message || String(err) }); return; }
             await sendChunksToChannel(channel, payloadBytes, totalChunks);
         }));
     });
@@ -421,7 +426,7 @@ async function sendChunksToChannel(channel, buffer, totalChunks) {
         try {
             channel.send(slice);
         } catch (err) {
-            console.warn("chat: chunk send failed", err);
+            log.warn("chat", "chunk send failed", { err: err?.message || String(err) });
             return;
         }
     }
@@ -454,7 +459,7 @@ function handleIncoming(data, userId) {
             // sanity
             const cap = (json.mediaKind === "image" ? CHAT_MAX_IMAGE_MB : CHAT_MAX_FILE_MB) * 1024 * 1024;
             if (typeof json.size !== "number" || json.size <= 0 || json.size > cap * 1.5) {
-                console.warn("chat: rejected oversized attachment from", userId, json.size);
+                log.warn("chat", "rejected oversized attachment", { userId, size: json.size });
                 return;
             }
             if (typeof json.totalChunks !== "number" || json.totalChunks <= 0 || json.totalChunks > 200000) {
@@ -479,7 +484,7 @@ function handleIncoming(data, userId) {
     if (data instanceof ArrayBuffer) {
         const inbox = channelInbox.get(userId);
         if (!inbox) {
-            console.warn("chat: unexpected binary chunk (no inbox) from", userId);
+            log.warn("chat", "unexpected binary chunk (no inbox)", { userId });
             return;
         }
         inbox.chunks.push(data);
@@ -487,7 +492,7 @@ function handleIncoming(data, userId) {
         inbox.totalBytes += data.byteLength;
 
         if (inbox.totalBytes > inbox.meta.size + CHAT_CHUNK_BYTES) {
-            console.warn("chat: transfer overflow, aborting", inbox.meta.msgId);
+            log.warn("chat", "transfer overflow, aborting", { msgId: inbox.meta.msgId });
             failPendingMessage(inbox.meta.msgId);
             channelInbox.delete(userId);
             return;

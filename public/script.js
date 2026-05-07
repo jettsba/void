@@ -120,6 +120,12 @@ async function enterLobby() {
         // Если коннекта нет — не страшно, повторим при попытке join/create.
         return;
     }
+    // socket.js на open ставит "connecting" — это правильно когда юзер реально
+    // присоединяется к комнате. В лобби это вводит в заблуждение: индикатор
+    // должен быть "ready". Возвращаем сами.
+    if (!isJoined && typeof setConnectionState === "function") {
+        setConnectionState("ready");
+    }
     if (!_helloSent) {
         sendSocket({
             type: "hello",
@@ -331,7 +337,7 @@ function init() {
             updateScreencastButton(true);
             updateParticipantScreenState(clientId, true);
         } catch (e) {
-            console.log("Screen share cancelled", e);
+            log.debug("rtc", "screen share cancelled", { err: e?.message || String(e) });
         }
     });
 
@@ -383,7 +389,7 @@ function init() {
                 roomCopyFeedbackTimer = null;
             }, 1000);
         } catch (e) {
-            console.error("Copy failed", e);
+            log.warn("ui", "copy to clipboard failed", { err: e?.message || String(e) });
         }
     });
 
@@ -620,7 +626,7 @@ function tearDownRoomState() {
 function handleSocketReconnected() {
     if (!isJoined || !currentRoomCode) return;
 
-    console.log("↻ Socket reconnected, rejoining room", currentRoomCode);
+    log.info("ws", "rejoining after reconnect", { code: currentRoomCode });
 
     if (typeof closeRemotePeerConnections === "function") {
         closeRemotePeerConnections();
@@ -662,7 +668,7 @@ function handleSocketReconnected() {
 function handleConnectionLost() {
     if (!isJoined) return;
 
-    console.log("🛑 Connection lost permanently, leaving room");
+    log.warn("ws", "connection lost permanently, leaving room");
 
     playLeaveSound();
     tearDownRoomState();
@@ -1092,11 +1098,11 @@ function sendCreateRoomAttempt() {
 function retryCreateRoomAfterCollision() {
     createRoomRetryCount += 1;
     if (createRoomRetryCount >= CREATE_ROOM_MAX_RETRIES) {
-        console.warn(`Create-room: ${CREATE_ROOM_MAX_RETRIES} коллизий подряд, сдаёмся`);
+        log.error("room", "create collision retries exhausted", { max: CREATE_ROOM_MAX_RETRIES });
         abortJoinAttempt("create-failed");
         return;
     }
-    console.log(`↻ Create-room collision, retry ${createRoomRetryCount}/${CREATE_ROOM_MAX_RETRIES}`);
+    log.debug("room", "create collision, retry", { count: createRoomRetryCount, max: CREATE_ROOM_MAX_RETRIES });
     sendCreateRoomAttempt();
 }
 

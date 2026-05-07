@@ -7,6 +7,50 @@ import path from "node:path";
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+/* ========= LOGGER =========
+ * Тонкая обёртка над console.* с уровнями и тегами.
+ *
+ * Уровень задаётся через env LOG_LEVEL: error | warn | info | debug
+ * Дефолт — info. На проде имеет смысл оставить info (это и есть «нормальный
+ * шум» — комнаты, рестарты, security-события). debug — когда ловишь баг.
+ *
+ * Использование:
+ *   log.info("room", "created", { code, ip });
+ *   log.warn("security", "origin rejected", { origin });
+ *   log.error("stats", "write failed", { err: e.message });
+ *
+ * Формат строки в логах:
+ *   2026-05-07 21:34:11 INFO  [room] created code=MNXH2 ip=172.20.0.1
+ */
+const LOG_LEVELS = { error: 0, warn: 1, info: 2, debug: 3 };
+const _logActive = LOG_LEVELS[(process.env.LOG_LEVEL || "info").toLowerCase()] ?? LOG_LEVELS.info;
+
+function _logEmit(level, tag, msg, fields) {
+    if (LOG_LEVELS[level] > _logActive) return;
+    const ts = new Date().toISOString().replace("T", " ").slice(0, 19);
+    let line = `${ts} ${level.toUpperCase().padEnd(5)} [${tag}] ${msg}`;
+    if (fields) {
+        const parts = [];
+        for (const k of Object.keys(fields)) {
+            const v = fields[k];
+            if (v === undefined || v === null || v === "") continue;
+            const s = typeof v === "string" && /\s/.test(v) ? JSON.stringify(v) : String(v);
+            parts.push(`${k}=${s}`);
+        }
+        if (parts.length) line += " " + parts.join(" ");
+    }
+    if (level === "error") console.error(line);
+    else if (level === "warn") console.warn(line);
+    else console.log(line);
+}
+
+const log = {
+    error: (tag, msg, fields) => _logEmit("error", tag, msg, fields),
+    warn:  (tag, msg, fields) => _logEmit("warn",  tag, msg, fields),
+    info:  (tag, msg, fields) => _logEmit("info",  tag, msg, fields),
+    debug: (tag, msg, fields) => _logEmit("debug", tag, msg, fields),
+};
+
 /* ========= ADMIN STATS ========= */
 
 /**
@@ -66,9 +110,9 @@ try {
             };
         }
     }
-    console.log(`📊 Stats loaded from ${STATS_FILE}`);
+    log.info("stats", "loaded", { file: STATS_FILE });
 } catch (_) {
-    console.log(`📊 Stats: starting fresh (no ${STATS_FILE} yet)`);
+    log.info("stats", "starting fresh", { file: STATS_FILE });
 }
 
 function dayKey(ms) {
@@ -117,7 +161,7 @@ function flushStats() {
         fs.writeFileSync(tmp, JSON.stringify(stats, null, 2));
         fs.renameSync(tmp, STATS_FILE);
     } catch (e) {
-        console.error("❌ Stats write failed:", e.message);
+        log.error("stats", "write failed", { err: e.message });
     }
 }
 
@@ -152,7 +196,7 @@ function captureSessionDuration(ws) {
 }
 
 function shutdownGracefully(signal) {
-    console.log(`\n${signal} received — flushing stats`);
+    log.info("boot", "shutdown signal, flushing stats", { signal });
     // На активные сессии — добавляем накопленное время, чтобы не потерять.
     const now = Date.now();
     for (const room of rooms.values()) {
@@ -647,7 +691,7 @@ app.use(express.static("public"));
 const server = http.createServer(app);
 
 server.listen(PORT, "0.0.0.0", () => {
-    console.log(`🚀 Server running on http://localhost:${PORT}`);
+    log.info("boot", "server running", { port: PORT });
 });
 
 /* ========= LIMITS / VALIDATION ========= */
@@ -742,8 +786,13 @@ function noteFailedJoin(ip) {
         ipFailedJoins.set(ip, entry);
     }
     entry.count += 1;
-    if (entry.count >= FAILED_JOIN_LIMIT) {
+    if (entry.count >= FAILED_JOIN_LIMIT && !entry.blockedUntil) {
         entry.blockedUntil = now + FAILED_JOIN_BLOCK_MS;
+        log.warn("security", "brute-force block", {
+            ip,
+            failedJoins: entry.count,
+            blockMs: FAILED_JOIN_BLOCK_MS
+        });
     }
 }
 
@@ -781,12 +830,14 @@ const wss = new WebSocketServer({
     verifyClient: ({ req }, cb) => {
         const origin = req.headers.origin;
         if (!isOriginAllowed(origin)) {
+            log.warn("security", "origin rejected", { origin, ip: getClientIp(req) });
             cb(false, 403, "Forbidden origin");
             return;
         }
         const ip = getClientIp(req);
         const count = ipConnections.get(ip) || 0;
         if (count >= MAX_CONNECTIONS_PER_IP) {
+            log.warn("security", "ip connection cap hit", { ip, cap: MAX_CONNECTIONS_PER_IP });
             cb(false, 429, "Too many connections");
             return;
         }
@@ -830,19 +881,25 @@ function consumeToken(ws) {
  * Heartbeat. Без него мёртвый TCP-коннект (закрытая вкладка без FIN, спящий ноут,
  * сетевой обрыв) висит у нас в `room.users` десятки секунд, ломая reconnect
  * клиента: тот пытается войти со своим userId, мы видим "live" старый ws,
- * отдаём id-collision, юзер не может вернуться. Пингуем каждый HEARTBEAT_MS;
- * если за следующий цикл не пришёл pong — terminate, чем поднимаем `close`,
- * а тот уже зовёт handleDisconnect и чистит запись.
+ * отдаём id-collision, юзер не может вернуться.
+ *
+ * Поэтому раз в HEARTBEAT_INTERVAL_MS шлём ping всем подключённым. На каждый
+ * ping без pong увеличиваем `_missedPongs`. Когда счётчик >= MAX_MISSED — режем.
+ * 30s × 2 = клиент имеет до 60 секунд тишины, прежде чем сервер посчитает
+ * его мёртвым. Этого достаточно, чтобы пережить короткие фризы вкладки
+ * (Chrome троттлит фоновые tabs, DevTools breakpoint, мобильный сон), но
+ * по-настоящему мёртвые сокеты всё равно чистятся.
  */
-const HEARTBEAT_INTERVAL_MS = 15 * 1000;
+const HEARTBEAT_INTERVAL_MS = 30 * 1000;
+const HEARTBEAT_MAX_MISSED = 2;
 
 const heartbeatTimer = setInterval(() => {
     wss.clients.forEach((ws) => {
-        if (ws._isAlive === false) {
+        if ((ws._missedPongs || 0) >= HEARTBEAT_MAX_MISSED) {
             ws.terminate();
             return;
         }
-        ws._isAlive = false;
+        ws._missedPongs = (ws._missedPongs || 0) + 1;
         try { ws.ping(); } catch (_) {}
     });
 }, HEARTBEAT_INTERVAL_MS);
@@ -853,16 +910,16 @@ wss.on("close", () => clearInterval(heartbeatTimer));
 wss.on("connection", (ws, req) => {
     const ip = getClientIp(req);
     ws._ip = ip;
-    ws._isAlive = true;
+    ws._missedPongs = 0;
     ws._bucket = { tokens: MSG_BUCKET_CAPACITY, lastRefill: Date.now() };
     ipConnections.set(ip, (ipConnections.get(ip) || 0) + 1);
 
-    console.log(`🟢 Client connected (${ip})`);
+    log.debug("ws", "client connected", { ip });
 
-    ws.on("pong", () => { ws._isAlive = true; });
+    ws.on("pong", () => { ws._missedPongs = 0; });
 
     ws.on("error", (err) => {
-        console.error(`⚠️  WS error (${ip}):`, err.message);
+        log.warn("ws", "error", { ip, err: err.message });
     });
 
     ws.on("message", (rawMessage) => {
@@ -910,11 +967,11 @@ wss.on("connection", (ws, req) => {
                     break;
 
                 default:
-                    console.log("Unknown message type:", data.type);
+                    log.warn("ws", "unknown message type", { type: data.type, ip });
             }
 
         } catch (err) {
-            console.error("❌ Invalid message:", err);
+            log.warn("ws", "invalid message", { ip, err: err.message });
         }
     });
 
@@ -922,11 +979,13 @@ wss.on("connection", (ws, req) => {
         const cur = ipConnections.get(ip) || 0;
         if (cur <= 1) ipConnections.delete(ip);
         else ipConnections.set(ip, cur - 1);
-        // 1000 = normal, 1001 = going away (refresh/tab close). Всё остальное —
+        // 1000 = normal, 1001 = going away (refresh/tab close), 1005 = no status
+        // received (тоже типичное закрытие из браузера). Всё остальное —
         // подозрительно, логируем чтобы не теряться при будущих регрессиях.
-        if (code !== 1000 && code !== 1001) {
+        // 1006 = abnormal close — heartbeat прибил мёртвый сокет, бывает.
+        if (code !== 1000 && code !== 1001 && code !== 1005) {
             const reason = reasonBuf?.toString?.() || "";
-            console.log(`🔴 WS closed (${ip}) code=${code}${reason ? " reason=" + reason : ""}`);
+            log.warn("ws", "abnormal close", { ip, code, reason });
         }
         handleDisconnect(ws);
     });
@@ -977,7 +1036,7 @@ function handleCreateRoom(ws, data) {
         const r = rooms.get(code);
         if (r && r.users.size === 0) {
             rooms.delete(code);
-            console.log(`🧹 Empty room expired: ${code}`);
+            log.info("room", "expired empty", { code });
         }
     }, EMPTY_ROOM_TTL_MS);
     cleanupTimer.unref?.();
@@ -1001,7 +1060,7 @@ function handleCreateRoom(ws, data) {
         code
     }));
 
-    console.log(`✅ Room created: ${code}`);
+    log.info("room", "created", { code, ip: ws._ip });
 }
 
 function handleJoinRoom(ws, data) {
@@ -1191,7 +1250,7 @@ function handleJoinConfirm(ws, data) {
     updatePeaks();
     scheduleStatsWrite();
 
-    console.log(`👤 ${cleanNick} (${userId}) joined room ${code}`);
+    log.info("room", "joined", { code, userId, nick: cleanNick });
 }
 
 function handleScreencastState(ws, data) {
@@ -1279,7 +1338,7 @@ function handleLeaveRoom(ws) {
             roomData.cleanupTimer = null;
         }
         rooms.delete(code);
-        console.log(`🧹 Room deleted: ${code}`);
+        log.info("room", "deleted", { code });
     }
 }
 
@@ -1315,7 +1374,7 @@ function handleDisconnect(ws) {
         rooms.delete(ws.roomCode);
     }
 
-    console.log("🔴 Client disconnected");
+    log.debug("ws", "client disconnected", { ip: ws._ip });
 }
 
 function handleSignal(ws, data) {

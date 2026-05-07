@@ -52,7 +52,7 @@ async function initMedia() {
     processedStream = applyAudioProcessing(localStream);
 
     createVolumeAnalyser(localStream, clientId);
-    console.log("🎤 Microphone access granted");
+    log.debug("rtc", "mic granted");
 }
 
 function applyAudioProcessing(rawStream) {
@@ -209,7 +209,15 @@ function createPeer(userId, isInitiator) {
             await peer.setLocalDescription(offer);
             sendSocket({ type: 'offer', to: peer._userId, offer: peer.localDescription });
         } catch (e) {
-            console.error('Renegotiation failed:', e);
+            // m-line drift: после быстрого add/remove track новый offer не
+            // совпадает по порядку медиа-секций со старым. Браузер откатывает
+            // изменение, существующая связь продолжает работать на прошлом SDP.
+            // Полное решение — perfect-negotiation pattern (см. B6 в аудите).
+            if (e?.name === 'InvalidAccessError') {
+                log.warn("rtc", "renegotiation skipped (m-line drift)", { err: e.message });
+            } else {
+                log.error("rtc", "renegotiation failed", { err: e?.message || String(e) });
+            }
         }
     };
 
@@ -304,7 +312,7 @@ async function handleIce(data) {
     try {
         await peer.addIceCandidate(data.candidate);
     } catch (e) {
-        console.error("ICE error", e);
+        log.warn("rtc", "ice error", { err: e?.message || String(e) });
     }
 }
 
@@ -321,7 +329,7 @@ function handlePeerConnectionStateChange(userId) {
     if (!peer) return;
 
     const state = peer.connectionState;
-    console.log(`peer ${userId}: ${state}`);
+    log.debug("rtc", "peer state", { userId, state });
 
     if (state === "connected") {
         clearPeerHealthTimer(userId);
@@ -359,10 +367,10 @@ async function attemptPeerRecovery(userId) {
 
     if (peer._isInitiator) {
         try {
-            console.log(`↻ ICE restart → ${userId}`);
+            log.info("rtc", "ice restart", { userId });
             await callUser(userId, { iceRestart: true });
         } catch (err) {
-            console.error("ICE restart failed:", err);
+            log.warn("rtc", "ice restart failed", { err: err?.message || String(err) });
             rebuildPeer(userId);
             return;
         }
@@ -371,17 +379,17 @@ async function attemptPeerRecovery(userId) {
             const p = peers.get(userId);
             if (!p) return;
             if (p.connectionState === "connected") return;
-            console.log(`↻ ICE restart didn't help, rebuilding peer ${userId}`);
+            log.warn("rtc", "ice restart didn't help, rebuilding", { userId });
             rebuildPeer(userId);
         }, PEER_ICE_RESTART_TIMEOUT_MS);
         peerHealthTimers.set(userId, t);
     } else {
-        console.log(`peer ${userId} broken, waiting ${PEER_PASSIVE_REBUILD_TIMEOUT_MS}ms for initiator`);
+        log.debug("rtc", "peer broken, waiting for initiator", { userId, ms: PEER_PASSIVE_REBUILD_TIMEOUT_MS });
         const t = setTimeout(() => {
             const p = peers.get(userId);
             if (!p) return;
             if (p.connectionState === "connected") return;
-            console.log(`initiator didn't fix peer ${userId}, taking over with rebuild`);
+            log.warn("rtc", "initiator didn't fix peer, taking over rebuild", { userId });
             rebuildPeer(userId);
         }, PEER_PASSIVE_REBUILD_TIMEOUT_MS);
         peerHealthTimers.set(userId, t);
@@ -391,7 +399,7 @@ async function attemptPeerRecovery(userId) {
 /** Пересоздать peer полностью (закрыть старый, новый offer с rebuild:true). */
 function rebuildPeer(userId) {
     callUser(userId, { rebuild: true }).catch(err => {
-        console.error("Peer rebuild failed:", err);
+        log.error("rtc", "peer rebuild failed", { err: err?.message || String(err) });
     });
 }
 
@@ -456,7 +464,7 @@ function closeAllConnections() {
     // Self-анализатор тоже больше не актуален — стрим остановлен.
     analyserMap.delete(clientId);
 
-    console.log("🔴 WebRTC stopped");
+    log.debug("rtc", "stopped");
 }
 
 /**
@@ -470,7 +478,7 @@ function closeRemotePeerConnections() {
         cleanupPeerSlot(userId);
     });
 
-    console.log("↻ Remote peers torn down (local mic preserved)");
+    log.debug("rtc", "peers torn down (local mic preserved)");
 }
 
 /* ========= VOLUME ANALYSIS ========= */

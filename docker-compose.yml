@@ -10,6 +10,10 @@ services:
       # Пароль для GET /adminstats. Если не задан — endpoint вернёт 503
       # «disabled», панель останется недоступной даже без файрвола.
       - ADMIN_STATS_PASSWORD=${ADMIN_STATS_PASSWORD:-}
+      # Уровень логов: error | warn | info | debug (дефолт info).
+      # На проде info — это нормальная плотность (комнаты + security-события).
+      # debug — когда отлаживаешь баг и нужно видеть все коннекты/дисконнекты.
+      - LOG_LEVEL=${LOG_LEVEL:-info}
     volumes:
       # Персистентная статистика beta-теста: stats.json лежит на хосте
       # и переживает docker compose up --build / restart. Папка ./data

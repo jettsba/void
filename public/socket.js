@@ -85,7 +85,7 @@ function connectSocket() {
             connectionResolved = true;
             clearTimeout(timeoutId);
 
-            console.log("🟢 Connected to WebSocket");
+            log.debug("ws", "connected");
             if (typeof setConnectionState === "function") {
                 setConnectionState("connecting");
             }
@@ -107,7 +107,7 @@ function connectSocket() {
                 return;
             }
 
-            console.log("🔴 Socket closed");
+            log.debug("ws", "socket closed");
             socket = null;
 
             // Аварийное закрытие во время активной комнаты — пробуем восстановиться.
@@ -144,7 +144,7 @@ function scheduleReconnect() {
     reconnecting = true;
 
     if (reconnectAttempt >= RECONNECT_DELAYS_MS.length) {
-        console.warn("🛑 Reconnect attempts exhausted");
+        log.warn("ws", "reconnect attempts exhausted");
         cancelReconnect();
         if (typeof onReconnectFailed === "function") {
             onReconnectFailed();
@@ -163,7 +163,7 @@ function scheduleReconnect() {
         onReconnectAttempt(reconnectAttempt, total);
     }
 
-    console.log(`↻ Reconnect attempt ${reconnectAttempt}/${total} in ${delay}ms`);
+    log.debug("ws", "reconnect attempt", { attempt: reconnectAttempt, total, delayMs: delay });
 
     reconnectTimer = setTimeout(() => {
         reconnectTimer = null;
@@ -175,19 +175,19 @@ async function attemptReconnect() {
     if (intentionalClose) return;
     if (typeof navigator !== "undefined" && navigator.onLine === false) {
         // Сети нет — не тратим попытку, ждём события 'online'.
-        console.log("📵 Offline, deferring reconnect until online");
+        log.debug("ws", "offline, defer reconnect");
         return;
     }
 
     try {
         await connectSocket();
-        console.log("✅ Reconnected");
+        log.info("ws", "reconnected");
         cancelReconnect();
         if (typeof onReconnectSuccess === "function") {
             onReconnectSuccess();
         }
     } catch (err) {
-        console.warn("⚠️ Reconnect attempt failed:", err.message);
+        log.debug("ws", "reconnect attempt failed", { err: err.message });
         scheduleReconnect();
     }
 }
@@ -200,7 +200,7 @@ async function attemptReconnect() {
 if (typeof window !== "undefined") {
     window.addEventListener("online", () => {
         if (reconnecting && !reconnectTimer && !intentionalClose) {
-            console.log("🌐 Back online — retrying immediately");
+            log.info("ws", "back online, retrying immediately");
             attemptReconnect();
         }
     });
