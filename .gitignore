@@ -4,3 +4,6 @@ rules
 tasks
 CLAUDE.md
 node_modules
+data
+.env
+.env.*

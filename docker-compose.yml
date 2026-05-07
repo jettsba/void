@@ -6,3 +6,12 @@ services:
     ports:
       # Только localhost: снаружи доступ через Caddy (80/443).
       - "127.0.0.1:3000:3000"
+    environment:
+      # Пароль для GET /adminstats. Если не задан — endpoint вернёт 503
+      # «disabled», панель останется недоступной даже без файрвола.
+      - ADMIN_STATS_PASSWORD=${ADMIN_STATS_PASSWORD:-}
+    volumes:
+      # Персистентная статистика beta-теста: stats.json лежит на хосте
+      # и переживает docker compose up --build / restart. Папка ./data
+      # создаётся автоматически на первом запуске.
+      - ./data:/app/data

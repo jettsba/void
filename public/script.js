@@ -253,9 +253,13 @@ function init() {
         }
     });
 
-    sizeCanvas();
-    seedBlobs();
-    paint();
+    /* На тач-устройствах canvas скрыт (см. styles.css «MOBILE — touch fixes»).
+       rAF-цикл там бесполезен и сжирает батарею — пропускаем инициализацию. */
+    if (!matchMedia("(hover: none) and (pointer: coarse)").matches) {
+        sizeCanvas();
+        seedBlobs();
+        paint();
+    }
     generateAndAssignUsername();
     clientId = generateClientId();
 
@@ -266,23 +270,12 @@ function init() {
         });
     }
 
-    window.addEventListener("resize", sizeCanvas);
+    if (!matchMedia("(hover: none) and (pointer: coarse)").matches) {
+        window.addEventListener("resize", sizeCanvas);
+    }
     introInput.addEventListener("keydown", handleKeyPress);
     introInput.addEventListener("input", tryStartAudio);
     document.getElementById("introSubmitBtn")?.addEventListener("click", checkPassword);
-
-    /* Скрытие фоновой анимации при фокусе нужно только на тач-устройствах
-       (iOS-артефакты при сдвиге визуального вьюпорта). На десктопе focus
-       у codeInput автоматический после skipIntroAndShowApp — класс срабатывал
-       бы и сферы пропадали до первого клика. */
-    if (matchMedia("(hover: none) and (pointer: coarse)").matches) {
-        const markFocus = () => document.body.classList.add("input-focused");
-        const clearFocus = () => document.body.classList.remove("input-focused");
-        introInput.addEventListener("focus", markFocus);
-        introInput.addEventListener("blur", clearFocus);
-        codeInput?.addEventListener("focus", markFocus);
-        codeInput?.addEventListener("blur", clearFocus);
-    }
 
     micBtn.addEventListener("click", toggleMic);
     soundBtn.addEventListener("click", toggleSound);

@@ -534,16 +534,8 @@ body.chat-open .footer.footer-meta {
     /* контейнер занимает только высоту slot, аватары ровно в центре */
 }
 
-/* Строго 5 в один ряд: чуть уже ради помещения, без второй строки. */
-#room[data-peers="5"] .participants {
-    gap: 12px;
-}
-
-#room[data-peers="5"].users-area {
-    --dense-gap: 12px;
-    --blob-cap: 84px;
-    --avatar-size: min(var(--blob-cap), calc((100vw - 48px - 4 * var(--dense-gap)) / 5));
-}
+/* Densification при 5 участниках только на мобиле — на десктопе пять блобов
+   с обычным gap'ом помещаются в один ряд без танцев с бубнами. См. mobile-блок ниже. */
 
 .participant {
     --size: var(--avatar-size);
@@ -2680,8 +2672,16 @@ body.chat-open .footer.footer-meta {
         gap: 22px;
     }
 
+    /* Пять блобов в один ряд: ужать gap и cap'нуть размер аватара —
+       иначе на 375px-экране они вылезают за вьюпорт. */
+    #room[data-peers="5"] .participants {
+        gap: 12px;
+    }
+
     #room[data-peers="5"].users-area {
+        --dense-gap: 12px;
         --blob-cap: 80px;
+        --avatar-size: min(var(--blob-cap), calc((100vw - 48px - 4 * var(--dense-gap)) / 5));
     }
 
     .panel-area {
@@ -2705,14 +2705,26 @@ body {
     -webkit-tap-highlight-color: transparent;
 }
 
-/* При фокусе на инпутах прячем фоновую анимацию ТОЛЬКО на тач-устройствах:
-   там iOS сдвигает визуальный вьюпорт и снизу проступают светлые артефакты canvas.
-   На десктопе focus у codeInput после авто-focus в skipIntroAndShowApp прятал бы
-   фон до первого клика — не нужно. */
+/* На тач-устройствах фоновые блобы вообще убираем:
+   - на iOS canvas под `position:fixed` рендерится с артефактами при сдвиге
+     visualViewport (фокус инпута → системный зум → светлые куски за пределами
+     canvas);
+   - даже если бы рисовался корректно — постоянная rAF-анимация съедает
+     батарею телефона.
+   В JS на этих же media-условиях rAF-цикл вообще не стартует. */
 @media (hover: none) and (pointer: coarse) {
-    body.input-focused #background {
-        opacity: 0;
-        transition: opacity 260ms ease;
+    #background {
+        display: none;
+    }
+
+    /* iOS зумит инпут при focus, если у него font-size < 16px, и обратно НЕ
+       откатывает, оставляя верстку «уехавшей» вбок. Поднимаем шрифт на инпутах
+       до 16px только на тач-устройствах — UX-стилистика на десктопе сохранена. */
+    .chat-input,
+    .entry-code,
+    .intro-input,
+    #chatInput {
+        font-size: 16px;
     }
 }
 
