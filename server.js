@@ -628,7 +628,11 @@ function handleSignal(ws, data) {
     /**
      * Whitelist полей. Раньше тут был spread `...data` после `from: ws.userId`,
      * из-за чего payload-овский `from` ПЕРЕТИРАЛ серверный — атакующий мог
-     * подделать источник signaling (S-C3).
+     * подделать источник signaling (S-C3). Теперь явно перечисляем ровно те
+     * поля, которые ожидает клиент (`public/webrtc.js`):
+     *  - offer:  { offer, rebuild? }
+     *  - answer: { answer }
+     *  - ice:    { candidate }
      */
     const out = {
         type: data.type,
@@ -636,10 +640,13 @@ function handleSignal(ws, data) {
         to: data.to
     };
 
-    if (data.type === "ice") {
+    if (data.type === "offer") {
+        if (data.offer !== undefined) out.offer = data.offer;
+        if (data.rebuild === true) out.rebuild = true;
+    } else if (data.type === "answer") {
+        if (data.answer !== undefined) out.answer = data.answer;
+    } else if (data.type === "ice") {
         if (data.candidate !== undefined) out.candidate = data.candidate;
-    } else {
-        if (data.sdp !== undefined) out.sdp = data.sdp;
     }
 
     targetUser.ws.send(JSON.stringify(out));
