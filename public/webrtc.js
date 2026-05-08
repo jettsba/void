@@ -27,8 +27,9 @@ const PEER_DISCONNECT_GRACE_MS = 5000;
 /** Сколько ждём результата ICE restart, прежде чем переходить к полному rebuild. */
 const PEER_ICE_RESTART_TIMEOUT_MS = 8000;
 
-/** Сколько НЕ-инициатор ждёт прежде чем взять recovery в свои руки.
- *  Больше чем grace + ICE restart timeout инициатора — даём ему шанс починить первым. */
+/** Сколько polite-сторона ждёт прежде чем взять recovery в свои руки.
+ *  Больше чем grace + ICE restart timeout impolite-стороны — даём ей шанс
+ *  починить первой и не плодить встречные restart'ы. */
 const PEER_PASSIVE_REBUILD_TIMEOUT_MS = 15000;
 
 async function initMedia() {
@@ -110,33 +111,47 @@ const ICE_SERVERS = [
 
 /**
  * Создать peer-соединение с пиром.
- * isInitiator — true, если ОФФЕР исходит от нас (мы зовём callUser).
- * Это важно для health-check: только инициатор делает ICE restart, чтобы
- * избежать одновременных встречных restart'ов (glare).
+ *
+ * Перфектная негоциация (https://w3c.github.io/webrtc-pc/#perfect-negotiation-example):
+ * каждой паре пиров присваиваем стабильную «вежливую» сторону через сравнение
+ * `clientId vs userId` — у двух пиров оценка симметрична, ровно один окажется
+ * polite, второй impolite. Polite уступает при glare (откатывает свой offer и
+ * принимает встречный), impolite давит. Это полностью убирает m-line drift и
+ * гонки на встречных setLocalDescription, которые раньше ломали и
+ * renegotiation, и ICE restart.
+ *
+ * `isChatInitiator` — это уже про другую ось: один из пары должен звать
+ * `createDataChannel("chat")`, другой слушать `ondatachannel`. Маппится на
+ * порядок вступления в комнату (тот, кто уже сидел и зовёт нового — он же
+ * открывает чат-канал).
  */
-function createPeer(userId, isInitiator) {
+function createPeer(userId, isChatInitiator) {
 
     const peer = new RTCPeerConnection({
         iceServers: ICE_SERVERS
     });
 
-    peer._isInitiator = !!isInitiator;
     peer._userId = userId;
+    /* polite/impolite — детерминированно для пары. Сравнение строк стабильно
+       и симметрично: одна сторона видит clientId>userId, другая — наоборот.
+       На случай теоретического equals-кейса (не может произойти при валидных
+       userId серверной проверки) обе будут impolite — в худшем случае offer
+       один раз отклонится и пересогласуется. */
+    peer._polite = String(clientId) > String(userId);
+    peer._makingOffer = false;
+    peer._isSettingRemoteAnswerPending = false;
+    /* ICE-кандидаты, прилетевшие раньше setRemoteDescription (например на
+       rebuild, когда сторона ещё не получила первый offer): копим тут и
+       проливаем сразу после setRemoteDescription. */
+    peer._pendingIceCandidates = [];
+    /* Помечаем что СЛЕДУЮЩИЙ исходящий offer должен нести rebuild:true —
+       сигнал той стороне закрыть свой старый peer и создать новый.
+       Используется только в `rebuildPeer`. */
+    peer._signalRebuildOnNextOffer = false;
 
-    const outboundStream = processedStream || localStream;
-    outboundStream.getTracks().forEach(track => {
-        peer.addTrack(track, outboundStream);
-    });
-
-    if (screenStream?.active) {
-        const senders = [];
-        const vt = screenStream.getVideoTracks()[0];
-        if (vt) senders.push(peer.addTrack(vt, screenStream));
-        const at = screenStream.getAudioTracks()[0];
-        if (at) senders.push(peer.addTrack(at, screenStream));
-        if (senders.length) screenSenders.set(userId, senders);
-    }
-
+    /* Хендлеры вешаем ДО addTrack: addTrack синхронно ставит negotiation-needed
+       во флаг, который потом превратится в событие в следующем microtask.
+       К этому моменту onnegotiationneeded уже должен быть на месте. */
     peer.onicecandidate = (event) => {
         if (event.candidate) {
             sendSocket({
@@ -201,30 +216,60 @@ function createPeer(userId, isInitiator) {
         handlePeerConnectionStateChange(userId);
     };
 
+    /* Канон perfect negotiation. Никаких guard'ов на signalingState или роль —
+       glare разрешается на стороне получателя через polite/impolite в handleOffer.
+       setLocalDescription() без аргументов сам создаёт offer/answer в зависимости
+       от текущего signalingState (modern API, поддерживается всеми evergreen
+       браузерами начиная с Chrome 80 / FF 75 / Safari 14.1). */
     peer.onnegotiationneeded = async () => {
-        if (!peer._isInitiator) return;
-        if (peer.signalingState !== 'stable') return;
         try {
-            const offer = await peer.createOffer();
-            await peer.setLocalDescription(offer);
-            sendSocket({ type: 'offer', to: peer._userId, offer: peer.localDescription });
-        } catch (e) {
-            // m-line drift: после быстрого add/remove track новый offer не
-            // совпадает по порядку медиа-секций со старым. Браузер откатывает
-            // изменение, существующая связь продолжает работать на прошлом SDP.
-            // Полное решение — perfect-negotiation pattern (см. B6 в аудите).
-            if (e?.name === 'InvalidAccessError') {
-                log.warn("rtc", "renegotiation skipped (m-line drift)", { err: e.message });
-            } else {
-                log.error("rtc", "renegotiation failed", { err: e?.message || String(e) });
+            peer._makingOffer = true;
+            await peer.setLocalDescription();
+            const desc = peer.localDescription;
+            // setLocalDescription может в редком случае дать answer, если до
+            // того, как наш task пришёл, мы успели получить и применить чужой
+            // offer (signalingState уехал в have-remote-offer). Такое бывает
+            // на стартовом mesh-handshake: addTrack планирует neg-needed,
+            // параллельно прилетает встречный offer и handleOffer его
+            // отрабатывает раньше нас. Тогда тут уже создан answer — и
+            // отправлять его нужно как answer, не как offer.
+            const msg = { to: peer._userId, type: desc.type };
+            if (desc.type === "offer") msg.offer = desc;
+            else msg.answer = desc;
+            if (desc.type === "offer" && peer._signalRebuildOnNextOffer) {
+                msg.rebuild = true;
+                peer._signalRebuildOnNextOffer = false;
             }
+            sendSocket(msg);
+        } catch (err) {
+            log.error("rtc", "negotiation failed", { err: err?.message || String(err) });
+        } finally {
+            peer._makingOffer = false;
         }
     };
 
     // Чат поверх WebRTC: DataChannel создаёт инициатор, второй слушает datachannel.
-    // Делается ДО setLocalDescription — иначе SDP не будет содержать m=application.
+    // Делается ДО первого addTrack/setLocalDescription — иначе первый SDP не
+    // будет содержать m=application и позже придётся ренеготировать.
     if (typeof setupChatChannelForPeer === "function") {
-        setupChatChannelForPeer(peer, userId, !!isInitiator);
+        setupChatChannelForPeer(peer, userId, !!isChatInitiator);
+    }
+
+    /* Tracks добавляем ПОСЛЕ всех хендлеров (особенно onnegotiationneeded).
+       addTrack синхронно ставит negotiation-needed во флаг, событие отдаётся
+       в следующий microtask — к этому моменту хендлер уже на месте. */
+    const outboundStream = processedStream || localStream;
+    outboundStream.getTracks().forEach(track => {
+        peer.addTrack(track, outboundStream);
+    });
+
+    if (screenStream?.active) {
+        const senders = [];
+        const vt = screenStream.getVideoTracks()[0];
+        if (vt) senders.push(peer.addTrack(vt, screenStream));
+        const at = screenStream.getAudioTracks()[0];
+        if (at) senders.push(peer.addTrack(at, screenStream));
+        if (senders.length) screenSenders.set(userId, senders);
     }
 
     peers.set(userId, peer);
@@ -233,65 +278,64 @@ function createPeer(userId, isInitiator) {
 }
 
 /**
- * Инициировать соединение с пиром (или перезапустить существующее).
- * opts.iceRestart — поверх существующего peer пересобрать ICE-кандидаты
- *                   (быстрая попытка восстановления, без сброса DTLS).
- * opts.rebuild   — снести существующий peer и создать заново
- *                  (тяжёлая попытка, если ICE restart не помог).
- * Без opts — обычный первый звонок новому участнику.
+ * Открыть соединение с новым участником. Создаёт peer, добавляет треки —
+ * дальше движок сам сгенерит negotiation-needed → offer уйдёт через
+ * onnegotiationneeded.
+ *
+ * Этот вызов используется ТОЛЬКО для первичного знакомства (получили
+ * `new-participant` от сервера). Восстановление существующего peer'а —
+ * через `restartPeerIce` или `rebuildPeer`.
  */
-async function callUser(userId, opts = {}) {
-
-    const { iceRestart = false, rebuild = false } = opts;
-
-    if (rebuild) {
-        cleanupPeerSlot(userId);
+function callUser(userId) {
+    if (!peers.has(userId)) {
+        // isChatInitiator=true — мы уже в комнате, новый юзер только пришёл,
+        // значит наш peer открывает чат-канал.
+        createPeer(userId, true);
     }
-
-    let peer = peers.get(userId);
-    if (!peer) {
-        peer = createPeer(userId, true);
-    }
-
-    const offer = await peer.createOffer({ iceRestart });
-    await peer.setLocalDescription(offer);
-
-    const message = {
-        type: "offer",
-        to: userId,
-        offer
-    };
-    if (rebuild) message.rebuild = true;
-
-    sendSocket(message);
+    // Никакого ручного createOffer: addTrack внутри createPeer уже
+    // запланировал negotiation-needed.
 }
 
 async function handleOffer(data) {
 
-    // Если другая сторона делает rebuild, она присылает rebuild:true — закрываем
-    // свой старый peer и создаём новый. Без этого setRemoteDescription упал бы
-    // из-за несоответствия DTLS fingerprint'ов.
+    // Сторона решила сделать full rebuild и прислала rebuild:true. Закрываем
+    // свой старый peer (если был) — иначе setRemoteDescription упадёт на
+    // несовпадении DTLS fingerprint'ов.
     if (data.rebuild) {
         cleanupPeerSlot(data.from);
     }
 
     let peer = peers.get(data.from);
     if (!peer) {
+        // Получили offer первыми → мы chat-receiver, не chat-initiator.
         peer = createPeer(data.from, false);
     }
 
-    await peer.setRemoteDescription(
-        new RTCSessionDescription(data.offer)
-    );
+    /* Glare detection. Если мы СЕЙЧАС сами генерируем offer (или ждём
+       rollback со старого pendingLocalOffer), и пришёл встречный — это
+       collision. Polite сторона уступает (сама сделает implicit rollback
+       внутри setRemoteDescription({type:"offer"}) в новом API), impolite
+       игнорит входящий, продолжая свой. */
+    const offerCollision =
+        peer.signalingState !== "stable" && !peer._isSettingRemoteAnswerPending;
+    const ignoreOffer = !peer._polite && offerCollision;
+    if (ignoreOffer) {
+        log.debug("rtc", "ignoring colliding offer (impolite)", { from: data.from });
+        return;
+    }
 
-    const answer = await peer.createAnswer();
-    await peer.setLocalDescription(answer);
-
-    sendSocket({
-        type: "answer",
-        to: data.from,
-        answer
-    });
+    try {
+        await peer.setRemoteDescription(new RTCSessionDescription(data.offer));
+        await drainPendingIce(peer);
+        await peer.setLocalDescription();
+        sendSocket({
+            type: "answer",
+            to: data.from,
+            answer: peer.localDescription
+        });
+    } catch (err) {
+        log.warn("rtc", "handleOffer failed", { err: err?.message || String(err) });
+    }
 }
 
 async function handleAnswer(data) {
@@ -299,9 +343,16 @@ async function handleAnswer(data) {
     const peer = peers.get(data.from);
     if (!peer) return;
 
-    await peer.setRemoteDescription(
-        new RTCSessionDescription(data.answer)
-    );
+    try {
+        peer._isSettingRemoteAnswerPending = true;
+        await peer.setRemoteDescription(new RTCSessionDescription(data.answer));
+    } catch (err) {
+        log.warn("rtc", "handleAnswer failed", { err: err?.message || String(err) });
+        return;
+    } finally {
+        peer._isSettingRemoteAnswerPending = false;
+    }
+    await drainPendingIce(peer);
 }
 
 async function handleIce(data) {
@@ -309,10 +360,36 @@ async function handleIce(data) {
     const peer = peers.get(data.from);
     if (!peer) return;
 
+    /* Сетевой пакет с кандидатом мог обогнать соответствующий offer/answer
+       (типичная гонка на rebuild и медленных каналах). addIceCandidate в
+       таком случае бросает «remote description has not been set» —
+       кандидат теряется. Поэтому копим в очередь, проливаем сразу
+       после setRemoteDescription. */
+    if (!peer.remoteDescription) {
+        peer._pendingIceCandidates.push(data.candidate);
+        return;
+    }
+
     try {
         await peer.addIceCandidate(data.candidate);
-    } catch (e) {
-        log.warn("rtc", "ice error", { err: e?.message || String(e) });
+    } catch (err) {
+        // В момент glare-rollback попытка добавить кандидат шумит зря.
+        if (!peer._isSettingRemoteAnswerPending) {
+            log.warn("rtc", "ice error", { err: err?.message || String(err) });
+        }
+    }
+}
+
+async function drainPendingIce(peer) {
+    if (!peer._pendingIceCandidates || peer._pendingIceCandidates.length === 0) return;
+    const queue = peer._pendingIceCandidates;
+    peer._pendingIceCandidates = [];
+    for (const c of queue) {
+        try {
+            await peer.addIceCandidate(c);
+        } catch (err) {
+            log.warn("rtc", "pending ice add failed", { err: err?.message || String(err) });
+        }
     }
 }
 
@@ -357,18 +434,22 @@ function handlePeerConnectionStateChange(userId) {
 
 /**
  * Запустить процедуру восстановления peer-соединения.
- * - Инициатор: ICE restart → если за PEER_ICE_RESTART_TIMEOUT_MS не помогло, full rebuild.
- * - Не-инициатор: ждём PEER_PASSIVE_REBUILD_TIMEOUT_MS пока инициатор сам починит,
- *   потом сами делаем rebuild (становимся новым инициатором).
+ * Активная роль = impolite-сторона (детерминированно одна на пару) — она же
+ * делает ICE restart. Polite-сторона ждёт окно и затем делает full rebuild,
+ * если impolite за это время не починил.
+ *
+ * Это нужно чтобы избежать одновременных встречных restart'ов: с perfect
+ * negotiation glare уже не ломает SDP, но лишняя работа всё равно ни к чему.
  */
-async function attemptPeerRecovery(userId) {
+function attemptPeerRecovery(userId) {
     const peer = peers.get(userId);
     if (!peer) return;
 
-    if (peer._isInitiator) {
+    if (!peer._polite) {
+        // Impolite — активная сторона.
+        log.info("rtc", "ice restart", { userId });
         try {
-            log.info("rtc", "ice restart", { userId });
-            await callUser(userId, { iceRestart: true });
+            peer.restartIce();
         } catch (err) {
             log.warn("rtc", "ice restart failed", { err: err?.message || String(err) });
             rebuildPeer(userId);
@@ -384,23 +465,30 @@ async function attemptPeerRecovery(userId) {
         }, PEER_ICE_RESTART_TIMEOUT_MS);
         peerHealthTimers.set(userId, t);
     } else {
-        log.debug("rtc", "peer broken, waiting for initiator", { userId, ms: PEER_PASSIVE_REBUILD_TIMEOUT_MS });
+        // Polite — пассивная сторона. Даём impolite шанс починить.
+        log.debug("rtc", "peer broken, waiting for impolite", { userId, ms: PEER_PASSIVE_REBUILD_TIMEOUT_MS });
         const t = setTimeout(() => {
             const p = peers.get(userId);
             if (!p) return;
             if (p.connectionState === "connected") return;
-            log.warn("rtc", "initiator didn't fix peer, taking over rebuild", { userId });
+            log.warn("rtc", "impolite didn't fix peer, taking over rebuild", { userId });
             rebuildPeer(userId);
         }, PEER_PASSIVE_REBUILD_TIMEOUT_MS);
         peerHealthTimers.set(userId, t);
     }
 }
 
-/** Пересоздать peer полностью (закрыть старый, новый offer с rebuild:true). */
+/**
+ * Пересоздать peer полностью: закрыть старый, создать новый, пометить что
+ * первый исходящий offer должен нести rebuild:true (сигнал той стороне тоже
+ * пересоздать свой peer — иначе DTLS fingerprint не сойдётся).
+ */
 function rebuildPeer(userId) {
-    callUser(userId, { rebuild: true }).catch(err => {
-        log.error("rtc", "peer rebuild failed", { err: err?.message || String(err) });
-    });
+    cleanupPeerSlot(userId);
+    const peer = createPeer(userId, true);
+    peer._signalRebuildOnNextOffer = true;
+    // addTrack внутри createPeer уже запланировал negotiation-needed —
+    // offer уйдёт сам, флаг rebuild подхватится в onnegotiationneeded.
 }
 
 function clearPeerHealthTimer(userId) {

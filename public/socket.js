@@ -20,6 +20,21 @@ let reconnectAttempt = 0;
 let reconnectTimer = null;
 let reconnecting = false;
 
+/**
+ * Поднимаем на ~10s после успешного реконнекта. Используется чтобы отличить
+ * «свежий пользователь нажал join» от «WS только что мигнул, мы сами
+ * перезаходим». Отличие важно для id-collision: сервер ещё не успел
+ * отработать close старого ws (heartbeat 30s × 2), поэтому видит наш
+ * `userId` живым и отдаёт `id-collision`. В этом окне такая ошибка —
+ * не настоящий конфликт, а гонка реконнекта; молча ждём и пробуем ещё.
+ */
+let _wasReconnect = false;
+let _wasReconnectClearTimer = null;
+let _reconnectRejoinRetries = 0;
+const _RECONNECT_REJOIN_MAX_RETRIES = 3;
+const _RECONNECT_REJOIN_RETRY_DELAY_MS = 2500;
+const _WAS_RECONNECT_WINDOW_MS = 10000;
+
 /** Колбэки, которые вешает script.js — сообщить ему о ходе реконнекта. */
 let onReconnectAttempt = null;     // (attempt, total) => void
 let onReconnectSuccess = null;     // () => void  -> здесь script.js перезайдёт в комнату
@@ -182,6 +197,12 @@ async function attemptReconnect() {
     try {
         await connectSocket();
         log.info("ws", "reconnected");
+        _wasReconnect = true;
+        if (_wasReconnectClearTimer) clearTimeout(_wasReconnectClearTimer);
+        _wasReconnectClearTimer = setTimeout(() => {
+            _wasReconnect = false;
+            _wasReconnectClearTimer = null;
+        }, _WAS_RECONNECT_WINDOW_MS);
         cancelReconnect();
         if (typeof onReconnectSuccess === "function") {
             onReconnectSuccess();
@@ -247,6 +268,33 @@ function handleSocketMessage(data) {
             break;
 
         case "join-failed":
+            // id-collision сразу после WS-реконнекта — не настоящая ошибка, а
+            // гонка с серверным heartbeat'ом: сервер ещё видит наш старый ws
+            // как «живой», потому что close-фрейм с прошлого сокета не дошёл
+            // (VPN-смена, RST вместо FIN). Не выкидываем юзера — ждём и
+            // пересылаем join-room ещё раз; сервер прибьёт старый ws по
+            // missed-pong в течение HEARTBEAT_INTERVAL_MS и пропустит нас.
+            if (data.reason === "id-collision"
+                && _wasReconnect
+                && _reconnectRejoinRetries < _RECONNECT_REJOIN_MAX_RETRIES) {
+                _reconnectRejoinRetries += 1;
+                log.debug("ws", "id-collision on reconnect rejoin, retrying", {
+                    attempt: _reconnectRejoinRetries,
+                    max: _RECONNECT_REJOIN_MAX_RETRIES
+                });
+                setTimeout(() => {
+                    if (typeof isJoined !== "undefined" && isJoined && currentRoomCode) {
+                        sendSocket({
+                            type: "join-room",
+                            code: currentRoomCode,
+                            userId: clientId,
+                            nickname: currentUsername
+                        });
+                    }
+                }, _RECONNECT_REJOIN_RETRY_DELAY_MS);
+                return;
+            }
+            _reconnectRejoinRetries = 0;
             if (typeof abortJoinAttempt === "function") {
                 abortJoinAttempt(data.reason || "room-not-found");
             }
@@ -280,6 +328,9 @@ function handleSocketMessage(data) {
             break;
 
         case "user-list":
+            // Любой user-list — это успешное вхождение. Сбрасываем счётчик
+            // повторных попыток после reconnect-collision.
+            _reconnectRejoinRetries = 0;
             if (!isJoined) {
                 enterRoomUI();
             } else if (typeof setConnectionState === "function") {
