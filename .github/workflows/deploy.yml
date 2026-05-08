@@ -1,28 +1,50 @@
-name: Deploy Frontend
+name: Deploy
+
+# Триггер: пуш в main. Деплоит всю кодовую базу на VPS через docker-compose.
+# Старая рассинка фронта на timeweb убрана — продакшн давно на VPS + Caddy.
+#
+# Требуемые secrets (Repo Settings → Secrets and variables → Actions):
+#   DEPLOY_SSH_KEY  — приватный ключ от dedicated deploy-юзера (см. tasks/todo.md)
+#   DEPLOY_HOST     — IP/host VPS (например 5.129.220.29)
+#   DEPLOY_USER     — пользователь для SSH (например root)
 
 on:
   push:
     branches:
       - main
+  # Кнопка «Run workflow» в UI на случай ручного передеплоя без коммита.
+  workflow_dispatch:
+
+# Запрещаем параллельные деплои: если пуш прилетел во время прошлого деплоя,
+# новый встаёт в очередь и отменяет предыдущий — на сервере не должно быть
+# двух конкурентных `docker compose up --build` подряд.
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: true
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
       - name: Setup SSH
-        uses: webfactory/ssh-agent@v0.8.0
+        uses: webfactory/ssh-agent@v0.9.0
         with:
-          ssh-private-key: ${{ secrets.FRONTEND_SSH_KEY }}
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
 
-      - name: Add server to known_hosts
+      - name: Trust server host key
+        # ssh-keyscan на лету — простой вариант. Если нужна защита от MITM
+        # на первом запуске — заменить на статический fingerprint в secret.
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -H vh456.timeweb.ru >> ~/.ssh/known_hosts
+          ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
 
-      - name: Deploy via rsync
+      - name: Pull and rebuild on VPS
         run: |
-          rsync -avz --delete public/ ci578655@vh456.timeweb.ru:/home/c/ci578655/void/public_html/
+          ssh "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
+            'set -euo pipefail
+             cd ~/void
+             git pull --ff-only
+             docker compose up -d --build
+             docker image prune -f'
