@@ -261,7 +261,16 @@ function bindChatChannel(channel, userId) {
         }
     };
     channel.onerror = (e) => {
-        log.warn("chat", "channel error", { userId, err: e?.error?.message || e?.message });
+        const err = e?.error;
+        const msg = err?.message || e?.message || "";
+        /* SCTP "User-Initiated Abort" (cause code 12) — это штатное закрытие
+           канала нашей же стороной (peer.close() в cleanupPeerSlot, либо явный
+           channel.close() в detachChatChannelForUser). Не ошибка, не логируем.
+           Чекаем и структурно (errorDetail/sctpCauseCode), и по тексту —
+           структурные поля есть не во всех браузерах. */
+        if (err?.errorDetail === "sctp-failure" && err?.sctpCauseCode === 12) return;
+        if (/User-Initiated Abort.*Close called/i.test(msg)) return;
+        log.warn("chat", "channel error", { userId, err: msg });
     };
     channel.onmessage = (e) => handleIncoming(e.data, userId);
 }
