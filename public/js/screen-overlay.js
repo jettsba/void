@@ -120,6 +120,10 @@ function openScreenOverlay(userId) {
 
     screenOverlayUserId = userId;
     screenOverlayVideo.srcObject = stream;
+    // inert + aria-hidden — пара по тому же паттерну, что chatPanel: inert
+    // умеет современный браузер (auto-уводит фокус, блокирует клики/таб),
+    // aria-hidden остаётся для старых ассистивных технологий.
+    screenOverlay.removeAttribute("inert");
     screenOverlay.setAttribute("aria-hidden", "false");
     screenOverlay.classList.add("is-visible");
 
@@ -143,6 +147,10 @@ function closeScreenOverlay() {
         document.webkitExitFullscreen?.();
     }
     screenOverlay.classList.remove("is-visible");
+    // inert ставим ДО aria-hidden: браузер сам уберёт фокус с потомков —
+    // иначе варн «Blocked aria-hidden on element with focused descendant»
+    // когда оверлей закрывается кликом по своей же кнопке.
+    screenOverlay.setAttribute("inert", "");
     screenOverlay.setAttribute("aria-hidden", "true");
     if (screenOverlayVideo) screenOverlayVideo.srcObject = null;
     screenOverlayTrackCleanup?.();
