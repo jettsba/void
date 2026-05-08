@@ -1,0 +1,408 @@
+@media (max-width: 640px) {
+    .app {
+        --hdr-h: 64px;
+        --footer-row-h: 56px;
+        grid-template-rows: var(--hdr-h) 1fr var(--footer-row-h);
+    }
+
+    .header {
+        padding: 0 16px;
+    }
+
+    .footer-meta {
+        padding: 0 16px;
+        box-sizing: border-box;
+    }
+
+    .brand-tag {
+        display: none;
+    }
+
+    .users-area {
+        --avatar-size: 88px;
+    }
+
+    .participants {
+        gap: 22px;
+    }
+
+    /* Пять блобов в один ряд: ужать gap и cap'нуть размер аватара —
+       иначе на 375px-экране они вылезают за вьюпорт. */
+    #room[data-peers="5"] .participants {
+        gap: 12px;
+    }
+
+    #room[data-peers="5"].users-area {
+        --dense-gap: 12px;
+        --blob-cap: 80px;
+        --avatar-size: min(var(--blob-cap), calc((100vw - 48px - 4 * var(--dense-gap)) / 5));
+    }
+
+    .panel-area {
+        --panel-offset-y: 110px;
+        margin-top: 24px;
+    }
+}
+
+/* ===================================================
+   MOBILE — touch fixes
+=================================================== */
+
+/* dvh: correct viewport height accounting for browser chrome */
+.app {
+    height: 100vh;
+    height: 100dvh;
+}
+
+body {
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* На тач-устройствах фоновые блобы вообще убираем:
+   - на iOS canvas под `position:fixed` рендерится с артефактами при сдвиге
+     visualViewport (фокус инпута → системный зум → светлые куски за пределами
+     canvas);
+   - даже если бы рисовался корректно — постоянная rAF-анимация съедает
+     батарею телефона.
+   В JS на этих же media-условиях rAF-цикл вообще не стартует. */
+@media (hover: none) and (pointer: coarse) {
+    #background {
+        display: none;
+    }
+
+    /* iOS зумит инпут при focus, если у него font-size < 16px, и обратно НЕ
+       откатывает, оставляя верстку «уехавшей» вбок. Поднимаем шрифт на инпутах
+       до 16px только на тач-устройствах — UX-стилистика на десктопе сохранена. */
+    .chat-input,
+    .entry-code,
+    .intro-input,
+    #chatInput {
+        font-size: 16px;
+    }
+}
+
+/* Mobile submit button: простая SVG-стрелка под инпутом, без обводки */
+.intro-submit-btn {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    margin: 0 auto;
+    background: transparent;
+    border: none;
+    color: var(--fg-2);
+    cursor: pointer;
+    transition: color var(--t-fast), transform var(--t-fast);
+}
+
+.intro-submit-btn svg {
+    width: 22px;
+    height: 22px;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+}
+
+.intro-submit-btn:active {
+    color: var(--fg);
+    transform: translateX(2px);
+}
+
+@media (hover: none) and (pointer: coarse) {
+    /* Submit button shown only on touch devices */
+    .intro-submit-btn {
+        display: inline-flex;
+    }
+
+    /* iOS auto-zooms inputs with font-size < 16px on focus */
+    .intro-input,
+    .entry-code {
+        font-size: 16px;
+    }
+
+    .entry-code::placeholder {
+        font-size: 13px;
+    }
+
+    /* Hide screencast button — not applicable on mobile */
+    #screencastBtn {
+        display: none;
+    }
+
+    /* Controls: 2-column grid without screencast */
+    .panel-controls {
+        grid-template-columns: 44px 44px;
+    }
+
+    /* panel-tail: allow wrapping to prevent horizontal overflow */
+    .panel-tail {
+        white-space: normal;
+        text-align: center;
+    }
+
+    /* Touch targets: comfortable size */
+    .control-btn,
+    .leave-btn,
+    .btn {
+        min-height: 44px;
+    }
+}
+
+/* ===================================================
+   2K SCREENS (2560px+)
+=================================================== */
+
+@media (min-width: 2560px) {
+    html, body {
+        font-size: 17px;
+    }
+
+    .app {
+        --hdr-h: 90px;
+        --footer-row-h: 78px;
+    }
+
+    .header {
+        padding: 0 36px;
+        font-size: 14px;
+    }
+
+    .brand-logo {
+        width: 32px;
+        height: 32px;
+    }
+
+    .brand-lockup {
+        gap: 14px;
+    }
+
+    .brand-mark {
+        height: 32px;
+        font-size: 15px;
+    }
+
+    .footer-meta {
+        font-size: 13px;
+        gap: 18px;
+    }
+
+    .conn-state {
+        font-size: 13px;
+    }
+
+    .room-info {
+        font-size: 13px;
+    }
+
+    .users-area {
+        --avatar-size: 108px;
+    }
+
+    .panel-area {
+        --panel-offset-y: 128px;
+        --panel-input-h: 54px;
+        --panel-h: calc(54px + 10px + 54px);
+        max-width: 540px;
+        margin-top: 30px;
+    }
+
+    .panel-controls {
+        grid-template-columns: 54px 54px 54px;
+        gap: 10px;
+    }
+
+    .control-btn {
+        width: 54px;
+        height: 54px;
+    }
+
+    .control-btn svg {
+        width: 22px;
+        height: 22px;
+    }
+
+    .leave-btn {
+        height: 54px;
+        font-size: 13px;
+    }
+
+    .btn {
+        height: 54px;
+        font-size: 13px;
+    }
+
+    .entry-code-field {
+        height: 54px;
+        width: 190px;
+    }
+
+    .entry-code {
+        font-size: 16px;
+    }
+
+    .entry-code::placeholder {
+        font-size: 13px;
+    }
+
+    .entry-divider {
+        font-size: 13px;
+    }
+
+    .chat-toggle {
+        height: 38px;
+        font-size: 12px;
+        min-width: 110px;
+    }
+
+    .ping-panel {
+        min-width: 240px;
+        max-width: 300px;
+        font-size: 13px;
+    }
+
+    .ping-row {
+        font-size: 13px;
+    }
+
+    .intro-content {
+        gap: 36px;
+    }
+
+    .intro-input {
+        font-size: 18px;
+        height: 48px;
+        width: 300px;
+    }
+}
+
+/* ===================================================
+   4K SCREENS (3840px+)
+=================================================== */
+
+@media (min-width: 3840px) {
+    html, body {
+        font-size: 22px;
+    }
+
+    .app {
+        --hdr-h: 120px;
+        --footer-row-h: 104px;
+    }
+
+    .header {
+        padding: 0 56px;
+        font-size: 18px;
+    }
+
+    .brand-logo {
+        width: 44px;
+        height: 44px;
+    }
+
+    .brand-lockup {
+        gap: 18px;
+    }
+
+    .brand-mark {
+        height: 44px;
+        font-size: 20px;
+    }
+
+    .footer-meta {
+        font-size: 17px;
+        gap: 24px;
+    }
+
+    .conn-state {
+        font-size: 17px;
+    }
+
+    .room-info {
+        font-size: 17px;
+    }
+
+    .users-area {
+        --avatar-size: 144px;
+    }
+
+    .panel-area {
+        --panel-offset-y: 172px;
+        --panel-input-h: 70px;
+        --panel-h: calc(70px + 12px + 70px);
+        max-width: 720px;
+        margin-top: 40px;
+    }
+
+    .panel-controls {
+        grid-template-columns: 70px 70px 70px;
+        gap: 14px;
+    }
+
+    .control-btn {
+        width: 70px;
+        height: 70px;
+    }
+
+    .control-btn svg {
+        width: 28px;
+        height: 28px;
+    }
+
+    .leave-btn {
+        height: 70px;
+        font-size: 17px;
+    }
+
+    .btn {
+        height: 70px;
+        font-size: 17px;
+    }
+
+    .entry-code-field {
+        height: 70px;
+        width: 250px;
+    }
+
+    .entry-code {
+        font-size: 22px;
+        letter-spacing: 0.4em;
+    }
+
+    .entry-code::placeholder {
+        font-size: 16px;
+    }
+
+    .entry-divider {
+        font-size: 17px;
+    }
+
+    .chat-toggle {
+        height: 52px;
+        min-width: 150px;
+        font-size: 16px;
+    }
+
+    .ping-panel {
+        min-width: 300px;
+        max-width: 400px;
+        font-size: 17px;
+    }
+
+    .ping-row {
+        font-size: 17px;
+    }
+
+    .intro-content {
+        gap: 48px;
+    }
+
+    .intro-input {
+        font-size: 24px;
+        height: 60px;
+        width: 380px;
+    }
+}

@@ -1,0 +1,90 @@
+/* ===== Ping panel (всплывает над .conn-state) ===== */
+.ping-panel {
+    position: absolute;
+    bottom: calc(100% + 12px);
+    left: 50%;
+    transform: translateX(-50%) translateY(6px);
+    min-width: 200px;
+    max-width: 260px;
+    padding: 8px 10px;
+    background: var(--bg-1);
+    border: 1px solid var(--fg-4);
+    border-radius: 3px;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 5;
+    text-align: left;
+    text-transform: none;
+    letter-spacing: var(--tracking);
+    transition:
+        opacity var(--t-med),
+        transform var(--t-med);
+}
+
+.ping-panel.is-visible {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+    pointer-events: auto;
+}
+
+.ping-panel-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.ping-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    color: var(--fg-2);
+    font-size: 11px;
+    line-height: 1.4;
+    white-space: nowrap;
+}
+
+.ping-row-empty {
+    justify-content: center;
+    color: var(--fg-3);
+}
+
+.ping-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+    min-width: 0;
+}
+
+.ping-value {
+    flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
+}
+
+.ping-good {
+    color: var(--fg-2);
+}
+
+.ping-mid {
+    color: var(--fg-3);
+}
+
+.ping-bad {
+    color: var(--signal-warn);
+}
+
+.ping-na {
+    color: var(--fg-4);
+}
+
+.footer-divider {
+    color: var(--fg-4);
+}
+
+.footer-meta>.footer-divider:has(+ .room-info.hidden) {
+    display: none;
+}
+
+.hidden {
+    display: none !important;
+}

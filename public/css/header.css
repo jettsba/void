@@ -1,0 +1,184 @@
+.header {
+    position: relative;
+    height: 84px;
+    z-index: 52;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 0 24px;
+    color: var(--fg-3);
+    font-size: 12px;
+    text-transform: lowercase;
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.brand-lockup {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    transform: translateX(12px);
+    background: transparent;
+    border: 0;
+    padding: 0;
+    color: inherit;
+    font: inherit;
+    letter-spacing: inherit;
+    outline: none;
+}
+
+.brand-logo {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    flex-shrink: 0;
+}
+
+.logo-eclipse {
+    position: absolute;
+    inset: 0;
+    display: block;
+    border-radius: 50%;
+    box-sizing: border-box;
+    border: 1.5px solid rgba(230, 230, 232, 0.92);
+    background: transparent;
+    box-shadow:
+        0 0 6px rgba(255, 255, 255, 0.45),
+        0 0 18px rgba(245, 245, 247, 0.35),
+        0 0 40px rgba(210, 210, 216, 0.22),
+        0 0 72px rgba(170, 170, 182, 0.14);
+    opacity: 1;
+    transform: scale(1);
+    transition:
+        box-shadow var(--t-med),
+        transform var(--t-med),
+        border-color var(--t-med),
+        opacity var(--t-med);
+}
+
+/* Шестерёнка живёт ВНУТРИ эклипса: центрируется flex-ом обёртки, занимает ~65%
+   диаметра кольца, так что между ней и бортиком остаётся «дыхание». Эклипс
+   виден всегда — на hover просто проявляем шестерёнку с поворотом и зумом. */
+.brand-gear {
+    position: relative;
+    width: 65%;
+    height: 65%;
+    display: block;
+    fill: none;
+    stroke: rgba(245, 245, 247, 0.96);
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+    opacity: 0;
+    transform: rotate(-90deg) scale(0.4);
+    transform-origin: 50% 50%;
+    filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.55));
+    transition:
+        opacity var(--t-med),
+        transform var(--t-med);
+    pointer-events: none;
+}
+
+.brand-lockup:hover .logo-eclipse,
+.brand-lockup:focus-visible .logo-eclipse,
+.brand-lockup[aria-expanded="true"] .logo-eclipse {
+    border-color: rgba(255, 255, 255, 1);
+    box-shadow:
+        0 0 10px rgba(255, 255, 255, 0.75),
+        0 0 26px rgba(255, 255, 255, 0.48),
+        0 0 56px rgba(235, 235, 240, 0.38),
+        0 0 100px rgba(200, 200, 210, 0.28);
+}
+
+.brand-lockup:hover .brand-gear,
+.brand-lockup:focus-visible .brand-gear,
+.brand-lockup[aria-expanded="true"] .brand-gear {
+    opacity: 1;
+    transform: rotate(0deg) scale(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .brand-gear {
+        transition: opacity var(--t-fast);
+    }
+    .brand-lockup:hover .brand-gear,
+    .brand-lockup:focus-visible .brand-gear,
+    .brand-lockup[aria-expanded="true"] .brand-gear {
+        transform: none;
+    }
+}
+
+.brand-mark {
+    color: var(--fg);
+    font-weight: 500;
+    letter-spacing: var(--tracking-wide);
+    text-transform: lowercase;
+    line-height: 1;
+    height: 26px;
+    display: inline-flex;
+    align-items: center;
+}
+
+.brand-tag {
+    color: var(--fg-3);
+    letter-spacing: var(--tracking-wide);
+    font-size: 11px;
+}
+
+.conn-state {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--fg-2);
+    cursor: default;
+    outline: none;
+}
+
+.app[data-mode="room"] .conn-state {
+    cursor: pointer;
+}
+
+.conn-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--fg-3);
+    transition: background var(--t-med);
+}
+
+.conn-dot.live {
+    background: var(--signal);
+    box-shadow: 0 0 8px rgba(200, 200, 204, 0.4);
+}
+
+.conn-dot.warn {
+    background: var(--signal-warn);
+}
+
+.conn-dot.pulse {
+    animation: conn-dot-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes conn-dot-pulse {
+
+    0%,
+    100% {
+        opacity: 1;
+        box-shadow: 0 0 0 0 rgba(184, 122, 90, 0.5);
+    }
+
+    50% {
+        opacity: 0.5;
+        box-shadow: 0 0 8px 2px rgba(184, 122, 90, 0.25);
+    }
+}

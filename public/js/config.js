@@ -1,0 +1,51 @@
+/* ========= CONFIG ========= */
+
+const INTRO_ENABLED = true;
+/* Пароль остаётся завязан на «тишину» — это часть лора. Принимаем оба
+   варианта (русский и английский эквивалент), даже если интерфейс переключили. */
+const INTRO_ACCESS_PASSWORD = ["тишина", "тишина, брат", "тишина, брат мой", "silence", "silence, brother", "silence, my brother"];
+const INTRO_QUESTION_TYPE_MS = 95;
+const INTRO_WELCOME_TYPE_MS = 75;
+const INTRO_ERASE_MS = 5;
+const INTRO_SELECT_HOLD_MS = 800;
+const INTRO_PAUSE_BEFORE_QUESTION_MS = 800;
+const INTRO_PAUSE_AFTER_WELCOME_MS = 520;
+/**
+ * После первого верного пароля не показывать интро снова в этом браузере.
+ * Пишем только localStorage (без сервера, без пароля): значение "1" — флаг «уже проходил».
+ * Инкогнито / другой браузер / очистка данных — интро снова.
+ */
+const INTRO_REMEMBER_UNLOCK = true;
+const INTRO_UNLOCK_STORAGE_KEY = "passed";
+
+const ENTRY_ERROR_DISPLAY_MS = 1500;
+
+/* Тонкая обёртка над t(): если settings.js по какой-то причине не загрузился,
+   возвращаем сам ключ — не падаем на проде. */
+function _t(key, vars) {
+    return (typeof window !== "undefined" && window.VoidI18n)
+        ? window.VoidI18n.t(key, vars)
+        : key;
+}
+
+const ENTRY_ERROR_KEYS = new Set([
+    "room-not-found", "room-full", "connection-failed", "mic-blocked",
+    "create-failed", "code-taken", "join-session-invalid", "connection-lost",
+    "rate-limited", "id-collision", "unknown"
+]);
+
+const USERNAME_ADJECTIVES = [
+    "Silent","Dark","Hidden","Lost","Frozen","Broken","Shadowed","Neon","Crimson","Fading",
+    "Restless","Distant","Echoing","Obscure","Ghostly","Cold","Blurred","Glitched","Static","Muted",
+    "Hollow","Twisted","Shattered","Unknown","Ancient","Binary","Digital","Quantum","Parallel","Midnight",
+    "Dusty","Fragmented","Encrypted","Corrupted","Drifting","Endless","Dim","Invisible","Flickering","Dead",
+    "Remote","Subtle","Abstract","Lonely","Shifting","Chaotic","Null","Cosmic","Spectral","Cursed"
+];
+
+const USERNAME_NOUNS = [
+    "Nova","Orbit","Pulse","Storm","Signal","Drift","Flare","Wave","Abyss","Core",
+    "Matrix","Cluster","Sector","Portal","Fragment","Archive","Node","Protocol","Cipher","Spectrum",
+    "Server","Module","Vector","Terminal","Resonance","Pixel","Zero","Commit","Process","Channel",
+    "Flux","Noise","Loop","Packet","Dimension","Radius","Interface","Kernel","Sequence","Trace",
+    "Frame","Shard","Horizon","Code","Anomaly","Beacon","Circuit","Entity","Voidline","Nexus"
+];

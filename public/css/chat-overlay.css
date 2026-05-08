@@ -1,0 +1,248 @@
+/* ===== Drop overlay — DnD файлов в любом месте окна ===== */
+.chat-drop-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(10, 10, 11, 0.55);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--t-med);
+}
+
+.chat-drop-overlay.is-active {
+    opacity: 1;
+}
+
+.chat-drop-overlay-inner {
+    width: min(560px, 80vw);
+    height: min(320px, 60vh);
+    border: 1.5px dashed var(--fg-2);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--fg);
+    letter-spacing: var(--tracking-wide);
+    text-transform: lowercase;
+    font-size: 13px;
+}
+
+.chat-drop-overlay-text {
+    opacity: 0.85;
+}
+
+/* ===== Lightbox для изображений ===== */
+.chat-lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(10, 10, 11, 0);
+    backdrop-filter: blur(0px);
+    -webkit-backdrop-filter: blur(0px);
+    opacity: 0;
+    pointer-events: none;
+    cursor: zoom-out;
+    transition:
+        opacity var(--t-med),
+        background var(--t-med),
+        backdrop-filter var(--t-med),
+        -webkit-backdrop-filter var(--t-med);
+}
+
+.chat-lightbox.is-visible {
+    opacity: 1;
+    pointer-events: auto;
+    background: rgba(12, 12, 14, 0.42);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+
+.chat-lightbox-img {
+    display: block;
+    max-width: min(94vw, 1600px);
+    max-height: 92vh;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    border-radius: 6px;
+    box-shadow: 0 32px 96px rgba(0, 0, 0, 0.55);
+    cursor: default;
+    will-change: transform, opacity;
+    transform-origin: center center;
+    transition: transform 360ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Пока src ещё не выставлен — img не должен «болтаться» в кадре. */
+.chat-lightbox:not(.is-visible):not(.is-closing) .chat-lightbox-img:not([src]) {
+    visibility: hidden;
+}
+
+.chat-lightbox-close {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    z-index: 2;
+    width: 44px;
+    height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    color: rgba(230, 230, 232, 0.92);
+    border: 1px solid var(--fg-4);
+    border-radius: 2px;
+    cursor: pointer;
+    opacity: 0;
+    transform: scale(0.85);
+    transition:
+        opacity var(--t-med),
+        transform var(--t-med),
+        border-color var(--t-fast),
+        color var(--t-fast),
+        background var(--t-fast);
+}
+
+.chat-lightbox.is-visible .chat-lightbox-close {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.chat-lightbox-close:hover {
+    border-color: var(--fg-2);
+    color: var(--fg);
+    background: var(--bg-1);
+}
+
+.chat-lightbox-close svg {
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
+    stroke-width: 1.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+    .chat-panel,
+    .app,
+    .stage,
+    .footer.footer-meta,
+    .chat-toggle,
+    #room.users-area,
+    .chat-lightbox,
+    .chat-lightbox-img,
+    .chat-lightbox-close,
+    .chat-drop-overlay {
+        transition-duration: 0.01ms;
+        transition-delay: 0s;
+    }
+
+    .chat-msg,
+    .chat-msg-self .chat-attach:not(.is-ready) .chat-attach-progress-bar {
+        animation: none;
+    }
+}
+
+@media (max-width: 740px) {
+    body {
+        --chat-sheet-motion-dur: 0.58s;
+        --chat-sheet-motion-ease: cubic-bezier(0.33, 0.93, 0.32, 1);
+    }
+
+    /*
+     * ВАЖНО: один и тот же transition у .stage в открытом и закрытом состоянии.
+     * Если переход задан разными селекторами (body.chat-open / body:not),
+     * браузер рвёт интерполяцию padding — выглядит как прыжок без анимации.
+     */
+    .stage {
+        transition:
+            padding-right var(--t-med) ease,
+            padding-top var(--chat-sheet-motion-dur) var(--chat-sheet-motion-ease),
+            padding-bottom var(--chat-sheet-motion-dur) var(--chat-sheet-motion-ease);
+    }
+
+    body.chat-open .app {
+        --chat-rail: 0px;
+        --chat-sheet-h: min(780px, calc(68dvh + env(safe-area-inset-bottom, 0px)));
+    }
+
+    body.chat-open .stage {
+        padding-bottom: min(var(--chat-sheet-h),
+                calc(100dvh - var(--hdr-h) - var(--footer-row-h)));
+    }
+
+    body.chat-open .app[data-mode="room"] .panel-area {
+        display: none;
+    }
+
+    .chat-toggle {
+        margin: 0;
+    }
+
+    .chat-panel {
+        top: auto;
+        bottom: 0;
+        left: 0;
+        right: 0;
+
+        height: var(--chat-sheet-h);
+        max-height: none;
+        width: 100%;
+        max-width: none;
+
+        padding-top: 0;
+        padding-bottom: 0;
+        margin: 0;
+
+        z-index: 46;
+
+        opacity: 1;
+        visibility: visible;
+        pointer-events: none;
+
+        transform: translate3d(0, calc(100% + 36px), 0);
+        will-change: transform;
+        transition:
+            transform var(--chat-sheet-motion-dur) var(--chat-sheet-motion-ease);
+
+        border-radius: 0;
+
+        overscroll-behavior: contain;
+    }
+
+    .chat-panel.is-open {
+        pointer-events: auto;
+        transform: translate3d(0, 0, 0);
+
+        transition:
+            transform var(--chat-sheet-motion-dur) var(--chat-sheet-motion-ease);
+    }
+
+    .chat-panel-inner {
+        height: 100%;
+        border-radius: 14px 14px 0 0;
+        box-shadow:
+            0 -12px 40px rgba(0, 0, 0, 0.52),
+            0 -1px 0 rgba(230, 230, 232, 0.04) inset;
+    }
+
+    .chat-input-row {
+        padding-bottom: max(10px, calc(10px + env(safe-area-inset-bottom, 0px)));
+    }
+
+    .chat-jump-bottom {
+        bottom: calc(78px + env(safe-area-inset-bottom, 0px));
+    }
+}

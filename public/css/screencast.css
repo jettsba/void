@@ -1,0 +1,401 @@
+/* ========= SCREENCAST ========= */
+
+.participant.screensharing .participant-avatar {
+    box-shadow: 0 0 0 0.7px var(--screen), 0 0 14px rgba(95, 170, 122, 0.14);
+}
+
+.watch-screen-btn {
+    position: absolute;
+    top: calc(100% + 14px);
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    color: var(--screen);
+    font-size: 11px;
+    letter-spacing: var(--tracking-wide);
+    text-transform: lowercase;
+    text-align: center;
+    cursor: pointer;
+    pointer-events: none;
+    opacity: 0;
+    user-select: none;
+    transition: opacity 0.2s ease;
+    white-space: nowrap;
+}
+
+.watch-screen-btn span {
+    display: block;
+    line-height: 1.25;
+}
+
+.participant-name {
+    transition: opacity 0.2s ease;
+}
+
+.participant.screensharing.blob-active .participant-name {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.participant.screensharing.blob-active .watch-screen-btn {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.sc-btn-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sc-btn-icon svg {
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
+    stroke-width: 1.4;
+    fill: none;
+}
+
+.sc-btn-icon svg * {
+    fill: none;
+    vector-effect: non-scaling-stroke;
+}
+
+#screencastBtn:not(.active) .sc-btn-icon--stop {
+    display: none;
+}
+
+#screencastBtn.active .sc-btn-icon--idle {
+    display: none;
+}
+
+#screencastBtn.active {
+    color: var(--screen);
+    border-color: var(--screen);
+}
+
+#screencastBtn.sc-btn-blocked {
+    opacity: 0.28;
+    pointer-events: none;
+}
+
+
+.sc-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 88;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.22s ease;
+}
+
+.sc-modal.is-visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.sc-modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+
+.sc-modal-content {
+    position: relative;
+    background: var(--bg-1);
+    border: 1px solid rgba(230, 230, 232, 0.07);
+    border-radius: 14px;
+    padding: 28px 28px 24px;
+    width: 360px;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.03) inset,
+        0 32px 80px rgba(0, 0, 0, 0.7);
+    transform: translateY(6px) scale(0.97);
+    transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.sc-modal.is-visible .sc-modal-content {
+    transform: translateY(0) scale(1);
+}
+
+.sc-modal-title {
+    font-size: 11px;
+    letter-spacing: var(--tracking-wide);
+    text-transform: lowercase;
+    color: var(--fg-3);
+}
+
+.sc-section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.sc-section-label {
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: lowercase;
+    color: var(--fg-4);
+}
+
+.sc-tiles {
+    display: flex;
+    gap: 8px;
+}
+
+.sc-tile {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 16px 10px 14px;
+    border: 1px solid var(--fg-4);
+    border-radius: 10px;
+    background: var(--bg-2);
+    cursor: pointer;
+    font-family: inherit;
+    transition:
+        border-color 0.14s ease,
+        background 0.14s ease,
+        box-shadow 0.14s ease;
+}
+
+.sc-tile:hover {
+    border-color: var(--fg-3);
+    background: rgba(230, 230, 232, 0.03);
+}
+
+.sc-tile--active {
+    border-color: var(--fg-2);
+    background: rgba(230, 230, 232, 0.05);
+}
+
+.sc-tile-num {
+    font-size: 26px;
+    font-weight: 300;
+    letter-spacing: -0.03em;
+    line-height: 1;
+    color: var(--fg-3);
+    transition: color 0.14s ease;
+}
+
+.sc-tile--active .sc-tile-num {
+    color: var(--fg);
+}
+
+.sc-tile-sub {
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: lowercase;
+    color: var(--fg-4);
+    transition: color 0.14s ease;
+}
+
+.sc-tile--active .sc-tile-sub {
+    color: var(--fg-3);
+}
+
+.sc-section--row {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.sc-section--row .sc-section-label {
+    margin-bottom: 0;
+}
+
+.sc-switch {
+    position: relative;
+    display: inline-block;
+    width: 34px;
+    height: 18px;
+    flex-shrink: 0;
+    cursor: pointer;
+}
+
+.sc-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+    position: absolute;
+}
+
+.sc-switch-track {
+    position: absolute;
+    inset: 0;
+    border-radius: 9px;
+    border: 1px solid var(--fg-4);
+    background: transparent;
+    transition: border-color 0.18s, background 0.18s;
+}
+
+.sc-switch-track::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--fg-4);
+    transition: transform 0.18s, background 0.18s;
+}
+
+.sc-switch input:checked+.sc-switch-track {
+    border-color: var(--screen);
+    background: rgba(95, 170, 122, 0.12);
+}
+
+.sc-switch input:checked+.sc-switch-track::after {
+    transform: translateX(16px);
+    background: var(--screen);
+}
+
+.sc-next-btn {
+    width: 100%;
+    padding: 12px;
+    margin-top: 2px;
+    border-radius: 8px;
+    border: 1px solid rgba(95, 170, 122, 0.4);
+    background: rgba(95, 170, 122, 0.06);
+    color: var(--screen);
+    font-size: 12px;
+    font-family: inherit;
+    letter-spacing: 0.14em;
+    text-transform: lowercase;
+    cursor: pointer;
+    transition:
+        background 0.14s ease,
+        border-color 0.14s ease,
+        box-shadow 0.14s ease;
+}
+
+.sc-next-btn:hover {
+    background: rgba(95, 170, 122, 0.12);
+    border-color: var(--screen);
+    box-shadow: 0 0 24px rgba(95, 170, 122, 0.1);
+}
+
+.screen-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    background: rgba(0, 0, 0, 0.92);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+}
+
+.screen-overlay.is-visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.screen-overlay-video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #000;
+    /* Кликов по самому видео нет (нативных controls не показываем) — пропускаем
+       сквозь, чтобы close/fullscreen-кнопки гарантированно ловили pointer. */
+    pointer-events: none;
+}
+
+.screen-overlay-close,
+.screen-overlay-fullscreen {
+    position: absolute;
+    z-index: 2;
+    background: rgba(16, 16, 18, 0.6);
+    border: 1px solid var(--fg-4);
+    color: var(--fg-2);
+    cursor: pointer;
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+    backdrop-filter: blur(4px);
+}
+
+.screen-overlay-close:hover,
+.screen-overlay-fullscreen:hover {
+    color: var(--fg);
+    border-color: var(--fg-2);
+    background: rgba(16, 16, 18, 0.88);
+}
+
+.screen-overlay-close {
+    top: 16px;
+    right: 20px;
+    width: 36px;
+    height: 36px;
+    font-size: 1rem;
+}
+
+.screen-overlay-fullscreen {
+    bottom: 20px;
+    right: 20px;
+    width: 36px;
+    height: 36px;
+}
+
+.screen-overlay-fullscreen svg {
+    width: 16px;
+    height: 16px;
+    stroke: currentColor;
+    stroke-width: 1.5;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    vector-effect: non-scaling-stroke;
+}
+
+.screen-overlay-fullscreen .icon-collapse,
+.screen-overlay.is-fullscreen .icon-expand {
+    display: none;
+}
+
+.screen-overlay.is-fullscreen .icon-collapse {
+    display: inline-block;
+}
+
+.room-toast {
+    position: fixed;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg-2);
+    border: 1px solid var(--fg-4);
+    color: var(--fg-2);
+    font-size: 0.8rem;
+    font-family: inherit;
+    letter-spacing: var(--tracking);
+    padding: 8px 16px;
+    border-radius: 8px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+    z-index: 95;
+    white-space: nowrap;
+}
+
+.room-toast.is-visible {
+    opacity: 1;
+}

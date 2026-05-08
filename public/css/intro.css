@@ -1,0 +1,130 @@
+.intro {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 1;
+    transition: opacity 1.2s ease;
+    background: transparent;
+}
+
+.intro-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 28px;
+    max-width: min(920px, 96vw);
+    margin: 0 auto;
+}
+
+.intro-field {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.intro-title {
+    display: inline-flex;
+    align-items: baseline;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0;
+    width: 100%;
+    margin: 0;
+    font-family: "DotGothic16", ui-monospace, monospace;
+    font-size: clamp(24px, 3.2vw, 40px);
+    font-weight: 400;
+    color: var(--fg-2);
+    letter-spacing: 0.04em;
+    line-height: 1.35;
+}
+
+.intro-title-text {
+    display: inline;
+    color: inherit;
+    transition: background var(--t-fast), color var(--t-fast);
+}
+
+.intro-title-text.is-selected {
+    background: rgba(110, 140, 190, 0.42);
+    color: var(--fg);
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+}
+
+.intro-cursor {
+    display: inline-block;
+    margin-left: 1px;
+    font-weight: 300;
+    color: var(--fg-2);
+    animation: intro-cursor-blink 1s steps(1, end) infinite;
+}
+
+.intro-cursor.hidden {
+    display: none;
+    animation: none;
+}
+
+@keyframes intro-cursor-blink {
+
+    0%,
+    49% {
+        opacity: 1;
+    }
+
+    50%,
+    100% {
+        opacity: 0;
+    }
+}
+
+.intro-input {
+    width: 250px;
+    max-width: 72vw;
+    height: 40px;
+    border: none;
+    background: transparent;
+    text-align: center;
+    text-transform: lowercase;
+    font-family: "DotGothic16", ui-monospace, monospace;
+    font-size: 15px;
+    letter-spacing: 0.06em;
+    color: var(--fg-2);
+    caret-color: var(--fg-2);
+    outline: none;
+}
+
+.intro-input:disabled {
+    opacity: 0.35;
+    pointer-events: none;
+}
+
+.intro-error {
+    margin-top: 0;
+    color: var(--fg-2);
+    font-size: 22px;
+    line-height: 1;
+    font-weight: 300;
+    opacity: 0;
+    transition: opacity var(--t-fast), transform var(--t-fast);
+    transform: translateY(4px) rotate(45deg);
+}
+
+.intro-error.visible {
+    opacity: 1;
+    transform: translateY(0) rotate(45deg);
+}
+
+.intro.fade-out {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.hidden-start {
+    opacity: 0;
+    transition: opacity 1.3s ease;
+}

@@ -1,0 +1,67 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500&display=swap');
+
+:root {
+    --bg-0: #0a0a0b;
+    --bg-1: #101012;
+    --bg-2: #16161a;
+    --fg: #e6e6e8;
+    --fg-2: #8a8a90;
+    --fg-3: #4d4d54;
+    --fg-4: #2a2a2f;
+    --signal: #c8c8cc;
+    --signal-warn: #b87a5a;
+    --screen: #5faa7a;
+    --font: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+    --tracking: 0.02em;
+    --tracking-wide: 0.18em;
+    --t-fast: 120ms cubic-bezier(.2, .6, .2, 1);
+    --t-med: 320ms cubic-bezier(.2, .6, .2, 1);
+    --t-slow: 800ms cubic-bezier(.2, .6, .2, 1);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html,
+body {
+    height: 100%;
+    background: var(--bg-0);
+    color: var(--fg);
+    font-family: var(--font);
+    font-size: 14px;
+    letter-spacing: var(--tracking);
+    line-height: 1.5;
+    overflow: hidden;
+}
+
+button,
+input {
+    font-family: inherit;
+    font-size: inherit;
+    color: inherit;
+    letter-spacing: inherit;
+}
+
+body {
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+#background {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+}
+
+body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1;
+    background: radial-gradient(120% 80% at 50% 50%, transparent 55%, rgba(0, 0, 0, 0.55) 100%);
+}

@@ -1,0 +1,395 @@
+/* ---------- ТОЧКА B: панель ---------- */
+
+.panel-area {
+    --panel-h: calc(44px + 8px + 44px);
+    /* высота под controls (две строки) */
+    --panel-input-h: 44px;
+    --panel-gap-input-tail: 16px;
+    /* === Сдвиг панели ВНИЗ от ripple. Через transform — не меняет высоту стека,
+           поэтому ripple остаётся на месте, а панель уезжает ниже. === */
+    --panel-offset-y: 100px;
+
+    position: relative;
+    margin-top: 24px;
+    /* минимальный layout-зазор от users-area */
+    width: 100%;
+    max-width: 420px;
+    height: var(--panel-h);
+    transform: translateY(var(--panel-offset-y));
+}
+
+/* Один и тот же top — input и controls стартуют в одной точке */
+.panel-input,
+.panel-controls {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: max-content;
+}
+
+/* Tail (or + open new room) — сразу под input */
+.panel-tail {
+    position: absolute;
+    top: calc(var(--panel-input-h) + var(--panel-gap-input-tail));
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    white-space: nowrap;
+}
+
+/* === Видимость по режиму === */
+.app[data-mode="entry"] .panel-controls {
+    display: none;
+}
+
+.app[data-mode="room"] .panel-input,
+.app[data-mode="room"] .panel-tail {
+    display: none;
+}
+
+/* === Toast ошибки над input === */
+.entry-error-toast {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: calc(100% + 10px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 0 8px;
+    color: var(--signal-warn);
+    font-size: 12px;
+    letter-spacing: var(--tracking);
+    line-height: 1.45;
+    text-transform: lowercase;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(12px);
+    transition:
+        opacity 0.38s cubic-bezier(.2, .6, .2, 1),
+        transform 0.38s cubic-bezier(.2, .6, .2, 1);
+}
+
+.entry-error-toast.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.entry-error-glyph {
+    flex-shrink: 0;
+    font-size: 14px;
+    line-height: 1;
+    opacity: 0.85;
+}
+
+.entry-error-msg {
+    text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .entry-error-toast {
+        transition-duration: 0.01ms;
+    }
+}
+
+.entry-actions {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    justify-content: center;
+    width: fit-content;
+    max-width: 100%;
+}
+
+.entry-code-field {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.22em;
+    height: 44px;
+    width: 160px;
+    max-width: 100%;
+    padding: 0 14px;
+    box-sizing: border-box;
+    background: var(--bg-1);
+    border: 1px solid var(--fg-4);
+    border-radius: 2px;
+    cursor: text;
+    transition:
+        border-color var(--t-fast),
+        background var(--t-fast);
+}
+
+.entry-code-field:focus-within {
+    border-color: var(--fg-2);
+    background: var(--bg-2);
+}
+
+.entry-hash {
+    display: none;
+    flex-shrink: 0;
+    color: var(--fg-3);
+    font-size: 14px;
+    line-height: 1;
+    pointer-events: none;
+    user-select: none;
+}
+
+.entry-code-field.has-value .entry-hash {
+    display: block;
+}
+
+.entry-code {
+    flex: 1;
+    width: 100%;
+    min-width: 0;
+    height: 100%;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    color: var(--fg);
+    text-align: center;
+    letter-spacing: 0.35em;
+    text-transform: uppercase;
+    font-size: 14px;
+}
+
+.entry-code:focus {
+    outline: none;
+}
+
+.entry-code::placeholder {
+    color: var(--fg-3);
+    letter-spacing: var(--tracking-wide);
+    text-transform: lowercase;
+    font-size: 12px;
+}
+
+.btn {
+    height: 44px;
+    padding: 0 22px;
+    background: transparent;
+    color: var(--fg);
+    border: 1px solid var(--fg-4);
+    border-radius: 2px;
+    letter-spacing: var(--tracking-wide);
+    text-transform: lowercase;
+    font-size: 12px;
+    transition:
+        border-color var(--t-fast),
+        color var(--t-fast),
+        background var(--t-fast);
+}
+
+.btn:hover {
+    border-color: var(--fg-2);
+    color: var(--fg);
+}
+
+.btn:active {
+    background: var(--bg-1);
+}
+
+.btn.primary {
+    background: var(--fg);
+    color: var(--bg-0);
+    border-color: var(--fg);
+}
+
+.btn.primary:hover {
+    background: #fff;
+    border-color: #fff;
+}
+
+.btn.primary:active {
+    background: var(--fg-2);
+}
+
+.btn.ghost {
+    border-color: transparent;
+    color: var(--fg-2);
+}
+
+.btn.ghost:hover {
+    color: var(--fg);
+}
+
+.entry-divider {
+    color: var(--fg-3);
+    font-size: 11px;
+    letter-spacing: var(--tracking-wide);
+}
+
+.panel-controls {
+    display: grid;
+    grid-template-columns: 44px 44px 44px;
+    gap: 8px;
+    justify-content: center;
+}
+
+.panel-controls .leave-btn {
+    grid-column: 1 / -1;
+}
+
+.control-btn {
+    width: 44px;
+    height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--fg-4);
+    border-radius: 2px;
+    background: transparent;
+    color: rgba(230, 230, 232, 0.92);
+    transition: border-color var(--t-fast), color var(--t-fast), background var(--t-fast);
+}
+
+.control-btn:hover {
+    border-color: var(--fg-2);
+    color: var(--fg);
+}
+
+.control-btn.off {
+    color: var(--fg-3);
+    background: var(--bg-1);
+}
+
+.control-btn svg {
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
+    stroke-width: 1.4;
+    fill: none;
+}
+
+.control-btn svg * {
+    fill: none;
+    vector-effect: non-scaling-stroke;
+}
+
+/* === Off-state иконок: перечёркивание + скрытие "волн" === */
+.control-btn svg .strike,
+.control-btn svg .strike-bg {
+    opacity: 0;
+    transition: opacity var(--t-fast);
+}
+
+/* Толстая bg-линия "вырезает" иконку на пересечении со страйком,
+   чтобы перечёркивание не сливалось с остальными штрихами. */
+.control-btn svg .strike-bg {
+    stroke: var(--bg-1);
+    stroke-width: 3.2;
+}
+
+.control-btn.off svg .strike,
+.control-btn.off svg .strike-bg {
+    opacity: 1;
+}
+
+.control-btn svg .wave {
+    transition: opacity var(--t-fast);
+}
+
+.control-btn.off svg .wave {
+    opacity: 0;
+}
+
+.control-btn-stub {
+    opacity: 0.42;
+    cursor: default;
+    pointer-events: none;
+}
+
+.leave-btn {
+    height: 44px;
+    padding: 0 18px;
+    border: 1px solid var(--fg-4);
+    border-radius: 2px;
+    color: var(--fg-2);
+    letter-spacing: var(--tracking-wide);
+    text-transform: lowercase;
+    font-size: 12px;
+    background: transparent;
+    cursor: pointer;
+    transition: border-color var(--t-fast), color var(--t-fast);
+}
+
+.leave-btn:hover {
+    border-color: var(--signal-warn);
+    color: var(--signal-warn);
+}
+
+.room-info {
+    color: var(--fg-2);
+    cursor: pointer;
+    transition: color var(--t-fast);
+    text-transform: lowercase;
+    font-size: 12px;
+}
+
+.room-info:hover {
+    color: var(--fg);
+}
+
+.room-code-view {
+    display: inline-grid;
+    grid-template: 1fr / 1fr;
+    justify-items: start;
+}
+
+.room-code-panel {
+    grid-area: 1 / 1;
+    transition:
+        opacity var(--t-med),
+        transform var(--t-med);
+}
+
+/* Сам код комнаты — капсом, чтобы не падал в lowercase футера. */
+.room-code-id {
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.room-info:not(.room-info--copied) .room-code-panel--copied {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(0.2em);
+}
+
+.room-info:not(.room-info--copied) .room-code-panel--code {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.room-info.room-info--copied .room-code-panel--code {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-0.2em);
+}
+
+.room-info.room-info--copied .room-code-panel--copied {
+    opacity: 1;
+    pointer-events: none;
+    transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .room-code-panel {
+        transition-duration: 0.01ms;
+    }
+
+    .room-info:not(.room-info--copied) .room-code-panel--copied,
+    .room-info.room-info--copied .room-code-panel--code {
+        transform: none;
+    }
+
+    .room-info.room-info--copied .room-code-panel--copied {
+        transform: none;
+    }
+}

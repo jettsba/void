@@ -1,0 +1,278 @@
+/* ======================================================
+   STAGE — ровно две точки привязки:
+   A: .users-area  — центр ripple === центр аватара
+   B: .panel-area  — top одинаковый у input и у controls
+   Между ними фикс зазор. Высоты блоков НЕ меняются,
+   значит общий центр стека стабилен при join/leave.
+====================================================== */
+
+.stage {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
+    width: 100%;
+    box-sizing: border-box;
+    transition:
+        padding-right var(--t-med),
+        padding-bottom 0.44s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.stage-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+}
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* ---------- ТОЧКА A: пользователи ---------- */
+
+.users-area {
+    --avatar-size: 84px;
+
+    width: 100%;
+    height: var(--avatar-size);
+    display: grid;
+    place-items: center;
+}
+
+/* Слот фикс размером с аватар — тут оба слоя в одной точке. */
+.users-slot {
+    position: relative;
+    width: var(--avatar-size);
+    height: var(--avatar-size);
+}
+
+/* === Ripple === */
+.lobby-ripple {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    color: var(--fg-3);
+    pointer-events: none;
+    transition: opacity var(--t-med);
+}
+
+.app[data-mode="room"] .lobby-ripple {
+    opacity: 0;
+}
+
+.lobby-ripple-ring {
+    --ring-start: 14px;
+    grid-area: 1 / 1;
+    box-sizing: border-box;
+    width: var(--ring-start);
+    height: var(--ring-start);
+    border: 1px solid currentColor;
+    border-radius: 50%;
+    opacity: 0;
+    animation: lobby-ripple-wave 3.6s cubic-bezier(0.22, 0.61, 0.36, 1) infinite;
+}
+
+.lobby-ripple-ring:nth-child(2) {
+    animation-delay: -1.8s;
+}
+
+@keyframes lobby-ripple-wave {
+    0% {
+        transform: scale(0.5);
+        opacity: 0.55;
+    }
+
+    100% {
+        /* max диаметр ~50px (14px * 3.6) — заметно меньше аватара 84px */
+        transform: scale(3.6);
+        opacity: 0;
+    }
+}
+
+/* === Participants === */
+.participants {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: center;
+    gap: 34px;
+    /* контейнер занимает только высоту slot, аватары ровно в центре */
+}
+
+/* Densification при 5 участниках только на мобиле — на десктопе пять блобов
+   с обычным gap'ом помещаются в один ряд без танцев с бубнами. См. mobile-блок ниже. */
+
+.participant {
+    --size: var(--avatar-size);
+
+    position: relative;
+    width: var(--size);
+    height: var(--size);
+    flex-shrink: 0;
+    opacity: 0;
+    transform: scale(0.4);
+    transform-origin: center center;
+}
+
+.participant.pop-in {
+    animation: participant-enter 520ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.participant.pop-out {
+    animation: participant-leave 260ms ease forwards;
+}
+
+/* Класс ставится только во время FLIP-перекладки оставшихся блобов. */
+.participant.flip-active {
+    transition: transform 360ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes participant-enter {
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes participant-leave {
+    to {
+        opacity: 0;
+        transform: scale(0.4);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .lobby-ripple-ring {
+        animation: none;
+        opacity: 0.45;
+        transform: none;
+    }
+
+    .lobby-ripple-ring:nth-child(2) {
+        display: none;
+    }
+
+    .participant.pop-in {
+        animation: none;
+        opacity: 1;
+        transform: none;
+    }
+
+    .participant.pop-out {
+        animation: none;
+        opacity: 0;
+    }
+}
+
+.participant-avatar {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: radial-gradient(circle at 50% 50%, rgba(230, 230, 232, 0.06) 0%, rgba(230, 230, 232, 0.02) 55%, transparent 75%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.participant-avatar::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 10px;
+    height: 10px;
+    margin: 0;
+    border-radius: 50%;
+    background: var(--fg-2);
+    transform: translate(-50%, -50%);
+    transition: transform var(--t-fast), background var(--t-fast), box-shadow var(--t-med);
+}
+
+.participant-avatar::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 1px solid rgba(230, 230, 232, 0);
+    transform: scale(0.7);
+    transition: border-color var(--t-fast), transform var(--t-med);
+}
+
+.participant.speaking:not(.muted):not(.deaf) .participant-avatar::before {
+    transform: translate(-50%, -50%) scale(1.4);
+    background: var(--signal);
+    box-shadow: 0 0 24px rgba(230, 230, 232, 0.45);
+}
+
+.participant.speaking:not(.muted):not(.deaf) .participant-avatar::after {
+    border-color: rgba(230, 230, 232, 0.18);
+    transform: scale(1);
+}
+
+.participant-name {
+    /* абсолютно под аватаром — НЕ сдвигает его центр */
+    position: absolute;
+    top: calc(100% + 14px);
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    color: var(--fg-2);
+    font-size: 11px;
+    letter-spacing: var(--tracking-wide);
+    text-transform: lowercase;
+    text-align: center;
+    max-width: 140px;
+}
+
+.participant-name-line {
+    display: block;
+    line-height: 1.25;
+    white-space: nowrap;
+}
+
+.participant.self .participant-avatar {
+    box-shadow: inset 0 0 0 1px rgba(230, 230, 232, 0.2);
+}
+
+.participant.muted .participant-name,
+.participant.deaf .participant-name {
+    color: var(--fg-4);
+}
+
+.participant.muted .participant-avatar::before,
+.participant.deaf .participant-avatar::before {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0);
+    box-shadow: none;
+    pointer-events: none;
+}
+
+.participant.deaf .participant-avatar::after {
+    border-color: rgba(138, 138, 144, 0.42);
+    border-style: dashed;
+    transform: scale(1);
+}
+
+.participant:not(.self) {
+    cursor: pointer;
+}

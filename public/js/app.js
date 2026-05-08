@@ -1,0 +1,196 @@
+/* ========= INIT ========= */
+
+document.addEventListener("DOMContentLoaded", () => {
+    init();
+});
+
+function init() {
+    canvas = document.getElementById("background");
+    ctx = canvas.getContext("2d");
+
+    intro = document.getElementById("intro");
+    introTitleText = document.getElementById("introTitleText");
+    introCursor = document.getElementById("introCursor");
+    introInput = document.getElementById("introInput");
+    introError = document.getElementById("introError");
+    app = document.querySelector(".app");
+
+    controls = document.getElementById("controls");
+    micBtn = document.getElementById("micBtn");
+    soundBtn = document.getElementById("soundBtn");
+    screencastBtn = document.getElementById("screencastBtn");
+
+    scModal = document.getElementById("scModal");
+    scNextBtn = document.getElementById("scNextBtn");
+
+    screenOverlay = document.getElementById("screenOverlay");
+    screenOverlayVideo = document.getElementById("screenOverlayVideo");
+    roomToastEl = document.getElementById("roomToast");
+
+    ambientSound = document.getElementById("ambientSound");
+    welcomeSound = document.getElementById("welcomeSound");
+    joinSound = document.getElementById("joinSound");
+    leaveSound = document.getElementById("leaveSound");
+
+    joinBtn = document.getElementById("joinBtn");
+    createBtn = document.getElementById("createBtn");
+    codeInput = document.getElementById("codeInput");
+    leaveBtn = document.getElementById("leaveBtn");
+    participantsContainer = document.getElementById("participants");
+    connDot = document.getElementById("connDot");
+    connLabel = document.getElementById("connLabel");
+
+    if (typeof MutationObserver !== "undefined" && participantsContainer) {
+        participantsMutationObserver = new MutationObserver(queueSyncRoomPeersDataAttr);
+        participantsMutationObserver.observe(participantsContainer, {
+            childList: true,
+            subtree: false,
+            attributes: true,
+            attributeFilter: ["class"]
+        });
+    }
+    queueSyncRoomPeersDataAttr();
+
+    roomInfo = document.getElementById("roomInfo");
+    roomCodeText = document.getElementById("roomCodeText");
+
+    entryErrorEl = document.getElementById("entryError");
+    entryErrorTextEl = document.getElementById("entryErrorText");
+
+    connState = document.getElementById("connState");
+    pingPanel = document.getElementById("pingPanel");
+    pingPanelList = document.getElementById("pingPanelList");
+
+    connState.addEventListener("click", (e) => {
+        if (!isJoined) return;
+        e.stopPropagation();
+        togglePingPanel();
+    });
+    connState.addEventListener("keydown", (e) => {
+        if (!isJoined) return;
+        if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            togglePingPanel();
+        }
+    });
+
+    /* На тач-устройствах canvas скрыт (см. styles.css «MOBILE — touch fixes»).
+       rAF-цикл там бесполезен и сжирает батарею — пропускаем инициализацию. */
+    if (!matchMedia("(hover: none) and (pointer: coarse)").matches) {
+        sizeCanvas();
+        seedBlobs();
+        paint();
+    }
+    generateAndAssignUsername();
+    clientId = generateClientId();
+
+    if (typeof setReconnectHandlers === "function") {
+        setReconnectHandlers({
+            onSuccess: handleSocketReconnected,
+            onFailed: handleConnectionLost
+        });
+    }
+
+    if (!matchMedia("(hover: none) and (pointer: coarse)").matches) {
+        window.addEventListener("resize", sizeCanvas);
+    }
+    introInput.addEventListener("keydown", handleKeyPress);
+    introInput.addEventListener("input", tryStartAudio);
+    document.getElementById("introSubmitBtn")?.addEventListener("click", checkPassword);
+
+    micBtn.addEventListener("click", toggleMic);
+    soundBtn.addEventListener("click", toggleSound);
+    screencastBtn.addEventListener("click", handleScreencastBtnClick);
+
+    scModal.querySelectorAll(".sc-tiles").forEach(group => {
+        group.addEventListener("click", e => {
+            const tile = e.target.closest(".sc-tile");
+            if (!tile) return;
+            group.querySelectorAll(".sc-tile").forEach(t => t.classList.remove("sc-tile--active"));
+            tile.classList.add("sc-tile--active");
+        });
+    });
+
+    scModal.querySelector(".sc-modal-backdrop").addEventListener("click", closeScModal);
+
+    scNextBtn.addEventListener("click", async () => {
+        const res = parseInt(scModal.querySelector("#scRes .sc-tile--active")?.dataset.val ?? "1080");
+        const fps = parseInt(scModal.querySelector("#scFps .sc-tile--active")?.dataset.val ?? "30");
+        const captureAudio = document.getElementById("scAudio")?.checked ?? false;
+        closeScModal();
+        try {
+            await startScreenShare(res, fps, captureAudio);
+            isScreencasting = true;
+            broadcastScreencastState(true);
+            updateScreencastButton(true);
+            updateParticipantScreenState(clientId, true);
+        } catch (e) {
+            log.debug("rtc", "screen share cancelled", { err: e?.message || String(e) });
+        }
+    });
+
+    document.getElementById("screenOverlayClose").addEventListener("click", closeScreenOverlay);
+
+    document.getElementById("screenOverlayFullscreen").addEventListener("click", toggleScreenFullscreen);
+
+    const syncFullscreenClass = () => {
+        const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+        screenOverlay.classList.toggle("is-fullscreen", fsEl === screenOverlay);
+    };
+    document.addEventListener("fullscreenchange", syncFullscreenClass);
+    document.addEventListener("webkitfullscreenchange", syncFullscreenClass);
+
+    document.addEventListener("keydown", e => {
+        if (e.key === "Escape" && screenOverlay.classList.contains("is-visible")) closeScreenOverlay();
+    });
+
+    document.body.style.opacity = "1";
+    setConnectionState("ready");
+
+    createBtn.addEventListener("click", handleCreateClick);
+    joinBtn.addEventListener("click", () => {
+        if (!isJoined) tryJoin();
+    });
+    leaveBtn.addEventListener("click", () => {
+        if (isJoined) leaveRoom();
+    });
+    codeInput.addEventListener("input", () => {
+        codeInput.value = codeInput.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+        codeInput.closest(".entry-code-field")?.classList.toggle("has-value", codeInput.value.length > 0);
+        hideEntryError();
+    });
+
+    codeInput.closest(".entry-code-field")?.addEventListener("click", () => {
+        codeInput.focus();
+    });
+    codeInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") tryJoin();
+    });
+
+    roomInfo.addEventListener("click", async () => {
+        try {
+            await navigator.clipboard.writeText(currentRoomCode);
+            roomInfo.classList.add("room-info--copied");
+            if (roomCopyFeedbackTimer) clearTimeout(roomCopyFeedbackTimer);
+            roomCopyFeedbackTimer = setTimeout(() => {
+                roomInfo.classList.remove("room-info--copied");
+                roomCopyFeedbackTimer = null;
+            }, 1000);
+        } catch (e) {
+            log.warn("ui", "copy to clipboard failed", { err: e?.message || String(e) });
+        }
+    });
+
+    if (typeof initChat === "function") {
+        initChat();
+    }
+
+    if (!INTRO_ENABLED) {
+        skipIntroAndShowApp();
+    } else if (isIntroUnlockedInBrowser()) {
+        skipIntroAndShowApp();
+    } else {
+        introInput.disabled = true;
+        runIntroQuestionTyping();
+    }
+}

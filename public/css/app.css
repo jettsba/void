@@ -1,0 +1,34 @@
+.app.visible {
+    opacity: 1;
+}
+
+.app {
+    --hdr-h: 72px;
+    --footer-row-h: 64px;
+    --chat-panel-w: min(400px, calc(100vw - 32px));
+    --chat-rail: 0px;
+    --chat-sheet-h: min(780px, calc(66.667vh + env(safe-area-inset-bottom, 0px)));
+    --chat-v-inset: 12px;
+    position: relative;
+    z-index: 2;
+    height: 100vh;
+    width: 100%;
+    min-width: 0;
+    display: grid;
+    grid-template-rows: var(--hdr-h) 1fr var(--footer-row-h);
+}
+
+body.chat-open .app {
+    --chat-rail: calc(var(--chat-panel-w) + 16px);
+}
+
+/* Комнату смещаем влево, шапку — никогда: toggle остаётся в углу экрана. */
+body.chat-open .stage,
+body.chat-open .footer.footer-meta {
+    padding-right: var(--chat-rail);
+    transition: padding-right var(--t-med);
+}
+
+.app>main {
+    min-height: 0;
+}
