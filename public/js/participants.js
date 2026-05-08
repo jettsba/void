@@ -19,6 +19,22 @@ function addParticipant(userId, nickname) {
 
     nicknameMap.set(userId, nickname);
 
+    /* Идемпотентность. Если participant с таким userId уже в DOM и не уходит
+       pop-out'ом — это повторный addParticipant (новый user-list после
+       реконнекта или редкая серверная гонка). Дубль не плодим: обновляем
+       ник на месте и возвращаемся. На сервере userId валидируется по
+       `[A-Za-z0-9_-]{1,64}`, спецсимволов в селекторе быть не может. */
+    const exists = participantsContainer?.querySelector(
+        `.participant[data-user-id="${userId}"]:not(.pop-out)`
+    );
+    if (exists) {
+        const lines = exists.querySelectorAll(".participant-name-line");
+        const [w1, w2] = splitNicknameLines(nickname);
+        if (lines[0]) lines[0].textContent = w1;
+        if (lines[1]) lines[1].textContent = w2 || " ";
+        return;
+    }
+
     const participant = document.createElement("div");
     participant.classList.add("participant");
     participant.dataset.userId = userId;

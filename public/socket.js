@@ -333,11 +333,26 @@ function handleSocketMessage(data) {
             _reconnectRejoinRetries = 0;
             if (!isJoined) {
                 enterRoomUI();
-            } else if (typeof setConnectionState === "function") {
-                // Реконнект-сценарий: enterRoomUI уже отработал ранее, нам нужно
-                // только вернуть индикатор в "connected" — mesh пересоберётся
-                // через приходящие следом new-participant / offer / answer.
-                setConnectionState("connected");
+            } else {
+                if (typeof setConnectionState === "function") {
+                    // Реконнект-сценарий: enterRoomUI уже отработал ранее, нам
+                    // нужно только вернуть индикатор в "connected" — mesh
+                    // пересоберётся через приходящие следом new-participant /
+                    // offer / answer.
+                    setConnectionState("connected");
+                }
+                // Сервер при handleJoinConfirm сбрасывает наш `screen`, `mic`,
+                // `sound` к дефолтам (true/true/false). Если до реконнекта мы
+                // вещали или были в нестандартном audio-state — пере-анонсируем,
+                // иначе у соседей UI-индикаторы (halo вокруг скринкастера,
+                // muted/deaf-классы) не восстановятся.
+                if (typeof applyAudioState === "function") {
+                    applyAudioState();
+                }
+                if (typeof isScreencasting !== "undefined" && isScreencasting
+                    && typeof broadcastScreencastState === "function") {
+                    broadcastScreencastState(true);
+                }
             }
             data.users.forEach(user => {
                 addParticipant(user.id, user.nickname);
