@@ -15,11 +15,19 @@ function handleScreencastBtnClick() {
 }
 
 function openScModal() {
+    // inert + aria-hidden — пара по тому же паттерну, что chatPanel и
+    // screenOverlay: inert уводит фокус и блокирует интеракцию, aria-hidden
+    // остаётся для старых ассистивных технологий.
+    scModal.removeAttribute("inert");
     scModal.setAttribute("aria-hidden", "false");
     scModal.classList.add("is-visible");
 }
 
 function closeScModal() {
+    // inert ставим ДО aria-hidden: браузер сам уберёт фокус с потомков —
+    // иначе варн «Blocked aria-hidden on element with focused descendant»
+    // когда модалку закрывает клик по своей же кнопке (scNextBtn).
+    scModal.setAttribute("inert", "");
     scModal.setAttribute("aria-hidden", "true");
     scModal.classList.remove("is-visible");
 }
