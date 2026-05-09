@@ -7,6 +7,8 @@
 (function () {
     "use strict";
 
+    const APP_VERSION = "0.1.0";
+
     const STORAGE_KEY = "void:settings";
     const DEFAULTS = { lang: "ru", streamer: false };
 
@@ -333,6 +335,14 @@
                         <span class="settings-switch-track"></span>
                     </label>
                 </div>
+
+                <footer class="settings-footer">
+                    <span class="settings-footer-pill">void v${APP_VERSION}</span>
+                    <a class="settings-footer-author"
+                       href="https://t.me/mtbibltww"
+                       target="_blank"
+                       rel="noopener noreferrer">by @casheaterr</a>
+                </footer>
             </div>
         `;
 

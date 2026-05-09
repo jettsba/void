@@ -41,7 +41,7 @@
     display: flex;
     flex-direction: column;
     height: 100%;
-    padding: 24px 22px;
+    padding: 24px 22px 0 22px;
     gap: 22px;
     overflow-y: auto;
 }
@@ -206,6 +206,48 @@
     outline-offset: 2px;
 }
 
+/* ========= FOOTER ========= */
+
+.settings-footer {
+    margin-top: auto;
+    padding: 10px 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-height: 32px;
+    font-size: 11px;
+    line-height: 1;
+    text-transform: lowercase;
+    letter-spacing: var(--tracking);
+    color: var(--fg-3);
+    user-select: none;
+}
+
+.settings-footer-pill {
+    color: var(--fg-2);
+    font-variant-numeric: tabular-nums;
+    padding: 2px 8px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 5px;
+    background: rgba(255, 255, 255, 0.02);
+    letter-spacing: var(--tracking-wide);
+    line-height: 1.4;
+}
+
+.settings-footer-author {
+    color: var(--fg-3);
+    text-decoration: none;
+    transition: color var(--t-fast);
+}
+
+.settings-footer-author:hover,
+.settings-footer-author:focus-visible {
+    color: var(--fg);
+    outline: none;
+}
+
 /* ========= STREAMER MODE ========= */
 
 /* В стримерском режиме код комнаты в футере не показываем — текст
@@ -220,3 +262,4 @@
     .settings-panel {
         transition: none;
     }
+}
