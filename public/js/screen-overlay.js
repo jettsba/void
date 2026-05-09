@@ -1,5 +1,56 @@
 /* ========= SCREENCAST ========= */
 
+/**
+ * Скрыть оверлейный элемент (модалку или fullscreen-видео-оверлей).
+ * Перед `inert + aria-hidden` явно блюрим сфокусированного потомка: в Chrome
+ * inert делает это сам синхронно, но Яндекс-браузер (и некоторые версии
+ * других Chromium-форков) фокус сбрасывает асинхронно — варн
+ * "Blocked aria-hidden on element with focused descendant" успевает
+ * выстрелить.
+ */
+function hideOverlayElement(el) {
+    if (el.contains(document.activeElement) && document.activeElement !== document.body) {
+        document.activeElement.blur();
+    }
+    el.setAttribute("inert", "");
+    el.setAttribute("aria-hidden", "true");
+}
+
+/**
+ * Tab/Shift+Tab внутри `el` циклится по interactive-элементам, не вылетает
+ * наружу. Esc вызывает `onEscape`. Возвращает функцию-cleanup для unbind'а
+ * на закрытии модалки.
+ *
+ * Слушатель висит на `el`, поэтому работает только когда фокус ВНУТРИ
+ * элемента — поэтому модалка должна на open'е сама поставить фокус на
+ * что-то внутри (иначе trap не подхватит Tab из «снаружи»).
+ */
+function trapFocusWithin(el, onEscape) {
+    const sel = 'button:not([disabled]), [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+    const onKey = (e) => {
+        if (e.key === "Escape") {
+            e.preventDefault();
+            onEscape?.();
+            return;
+        }
+        if (e.key !== "Tab") return;
+        const items = Array.from(el.querySelectorAll(sel))
+            .filter(n => !n.hasAttribute("disabled") && n.offsetParent !== null);
+        if (items.length === 0) return;
+        const first = items[0];
+        const last = items[items.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+        }
+    };
+    el.addEventListener("keydown", onKey);
+    return () => el.removeEventListener("keydown", onKey);
+}
+
 function handleScreencastBtnClick() {
     if (roomScreencasterId && roomScreencasterId !== clientId) {
         showRoomToast(_t("errors.screencast.busy"));
@@ -14,22 +65,28 @@ function handleScreencastBtnClick() {
     openScModal();
 }
 
+let _scModalTrapCleanup = null;
+
 function openScModal() {
-    // inert + aria-hidden — пара по тому же паттерну, что chatPanel и
-    // screenOverlay: inert уводит фокус и блокирует интеракцию, aria-hidden
-    // остаётся для старых ассистивных технологий.
     scModal.removeAttribute("inert");
     scModal.setAttribute("aria-hidden", "false");
     scModal.classList.add("is-visible");
+    _scModalTrapCleanup = trapFocusWithin(scModal, closeScModal);
+    /* Кладём фокус внутрь модалки, иначе Tab из «снаружи» вылетит мимо
+       trap'а. Делаем это после rAF — ждём окончания CSS-перехода открытия,
+       чтобы браузер не споткнулся о display:none. preventScroll: лента
+       страницы под модалкой не должна дёргаться, если кнопка вне viewport. */
+    requestAnimationFrame(() => {
+        if (!scModal.classList.contains("is-visible")) return;
+        scNextBtn?.focus({ preventScroll: true });
+    });
 }
 
 function closeScModal() {
-    // inert ставим ДО aria-hidden: браузер сам уберёт фокус с потомков —
-    // иначе варн «Blocked aria-hidden on element with focused descendant»
-    // когда модалку закрывает клик по своей же кнопке (scNextBtn).
-    scModal.setAttribute("inert", "");
-    scModal.setAttribute("aria-hidden", "true");
+    _scModalTrapCleanup?.();
+    _scModalTrapCleanup = null;
     scModal.classList.remove("is-visible");
+    hideOverlayElement(scModal);
 }
 
 function broadcastScreencastState(isOn) {
@@ -128,9 +185,6 @@ function openScreenOverlay(userId) {
 
     screenOverlayUserId = userId;
     screenOverlayVideo.srcObject = stream;
-    // inert + aria-hidden — пара по тому же паттерну, что chatPanel: inert
-    // умеет современный браузер (auto-уводит фокус, блокирует клики/таб),
-    // aria-hidden остаётся для старых ассистивных технологий.
     screenOverlay.removeAttribute("inert");
     screenOverlay.setAttribute("aria-hidden", "false");
     screenOverlay.classList.add("is-visible");
@@ -155,11 +209,7 @@ function closeScreenOverlay() {
         document.webkitExitFullscreen?.();
     }
     screenOverlay.classList.remove("is-visible");
-    // inert ставим ДО aria-hidden: браузер сам уберёт фокус с потомков —
-    // иначе варн «Blocked aria-hidden on element with focused descendant»
-    // когда оверлей закрывается кликом по своей же кнопке.
-    screenOverlay.setAttribute("inert", "");
-    screenOverlay.setAttribute("aria-hidden", "true");
+    hideOverlayElement(screenOverlay);
     if (screenOverlayVideo) screenOverlayVideo.srcObject = null;
     screenOverlayTrackCleanup?.();
     screenOverlayTrackCleanup = null;
