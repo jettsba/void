@@ -27,7 +27,7 @@ const CHAT_HIGH_WATER    = 4 * 1024 * 1024;    // 4 MB — свыше — ждё
 const CHAT_LOW_WATER     = 1 * 1024 * 1024;
 
 const CHAT_MAX_IMAGE_MB  = 10;                 // исходник; даунскейлим до отправки
-const CHAT_MAX_FILE_MB   = 25;                 // raw, без обработки
+const CHAT_MAX_FILE_MB   = 100;                 // raw, без обработки
 const CHAT_IMAGE_MAX_DIM = 1920;
 const CHAT_IMAGE_QUALITY = 0.85;
 const CHAT_TOAST_MS      = 2400;
