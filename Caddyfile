@@ -42,6 +42,6 @@
 # Откроешь https://void-room.space — всё работает, микрофон разрешён, wss поднимается.
 # ============================================================================
 
-void-room.space, www.void-room.space {
+void-room.space, www.void-room.space, app.void-room.space {
     reverse_proxy localhost:3000
 }
