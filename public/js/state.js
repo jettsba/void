@@ -27,6 +27,9 @@ let scModal, scNextBtn;
 let screenOverlay, screenOverlayVideo, roomToastEl;
 let _toastTimer = null;
 
+let micBlockedModal, micBlockedCloseBtn, micBlockedBackdrop;
+let _micBlockedEscHandler = null;
+
 let ambientSound;
 let welcomeSound;
 let joinSound;

@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "0.1.0";
+    const APP_VERSION = "0.2.0";
 
     const STORAGE_KEY = "void:settings";
     const DEFAULTS = { lang: "ru", streamer: false };
@@ -72,6 +72,9 @@
             "errors.room-full": "комната заполнена",
             "errors.connection-failed": "не удалось подключиться к серверу",
             "errors.mic-blocked": "нет доступа к микрофону",
+            "errors.mic-blocked.title": "микрофон заблокирован",
+            "errors.mic-blocked.body": "в адресной строке слева нажми на иконку микрофона и разреши доступ. потом обнови страницу.",
+            "errors.mic-blocked.cta": "понятно",
             "errors.create-failed": "не удалось создать комнату",
             "errors.code-taken": "не удалось подобрать свободный код — попробуй ещё раз",
             "errors.join-session-invalid": "сессия недействительна — попробуй ещё раз",
@@ -154,6 +157,9 @@
             "errors.room-full": "room is full",
             "errors.connection-failed": "could not connect to server",
             "errors.mic-blocked": "microphone blocked",
+            "errors.mic-blocked.title": "microphone is blocked",
+            "errors.mic-blocked.body": "click the mic icon in the address bar and allow access, then reload the page.",
+            "errors.mic-blocked.cta": "got it",
             "errors.create-failed": "could not create room",
             "errors.code-taken": "could not pick a free code — try again",
             "errors.join-session-invalid": "session invalid — try again",

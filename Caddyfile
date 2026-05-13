@@ -28,6 +28,8 @@
 #
 # 5. Открой /etc/caddy/Caddyfile на сервере и положи туда содержимое ЭТОГО файла,
 #    заменив домен ниже при необходимости (сейчас: void-room.space).
+#    В блоке @trusted ниже подставь свой домашний / офисный IP — иначе админка
+#    закроется от всех (включая тебя).
 #
 # 6. Перезагрузи Caddy:
 #       sudo systemctl reload caddy
@@ -43,5 +45,40 @@
 # ============================================================================
 
 void-room.space, www.void-room.space, app.void-room.space {
+    encode zstd gzip
+
+    # ---- Security headers ----
+    # CSP заметки:
+    # - script-src 'self' — никаких inline <script>, eval. В коде их нет (проверено).
+    # - style-src 'self' 'unsafe-inline' — JS массово ставит el.style.x = ... для
+    #   FLIP-анимаций, drag арки громкости, лайтбокса. CSP-3 без 'unsafe-inline'
+    #   блокирует это в Firefox и (нестрого) в Chrome. unsafe-inline для style
+    #   безопасен: XSS-гейт держит script-src.
+    # - connect-src перечисляет wss явно — браузерное ограничение, Caddy всё равно
+    #   проксирует.
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options    "nosniff"
+        X-Frame-Options           "DENY"
+        Referrer-Policy           "strict-origin-when-cross-origin"
+        Permissions-Policy        "microphone=(self), camera=(), geolocation=(), display-capture=(self), interest-cohort=()"
+        Content-Security-Policy   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' wss://void-room.space wss://www.void-room.space wss://app.void-room.space; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+        # Прячем «Server: Caddy» — стандартный hardening, не упрощаем рекогносцировку.
+        -Server
+    }
+
+    # ---- /adminstats: IP-fence ----
+    # Без этого блока пароль (даже с timing-safe сравнением) виден миру и его
+    # можно перебирать. Список trusted-сетей подставь свой: твой домашний IP,
+    # офисный, VPN-выход — что угодно, откуда планируешь заходить.
+    @adminstats path /adminstats /adminstats/*
+    handle @adminstats {
+        @trusted client_ip 127.0.0.1/32 ::1/128 1.2.3.4/32
+        handle @trusted {
+            reverse_proxy localhost:3000
+        }
+        respond "forbidden" 403
+    }
+
     reverse_proxy localhost:3000
 }

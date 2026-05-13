@@ -3,6 +3,9 @@ services:
     build: .
     container_name: void-room
     restart: unless-stopped
+    # init:true — корректный signal handler под PID 1: SIGTERM из docker
+    # доходит до node-процесса, graceful shutdown отрабатывает.
+    init: true
     ports:
       # Только localhost: снаружи доступ через Caddy (80/443).
       - "127.0.0.1:3000:3000"
@@ -14,8 +17,42 @@ services:
       # На проде info — это нормальная плотность (комнаты + security-события).
       # debug — когда отлаживаешь баг и нужно видеть все коннекты/дисконнекты.
       - LOG_LEVEL=${LOG_LEVEL:-info}
+      # Список разрешённых origin'ов через запятую. Пустое = дефолт
+      # из lib/security.js (void-room.space). Меняешь домен — меняешь сюда,
+      # код не трогаешь.
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-https://void-room.space,https://www.void-room.space,https://app.void-room.space}
+      # В контейнере слушаем все интерфейсы (Caddy ходит по localhost моста).
+      # Вне контейнера дефолт — 127.0.0.1, чтобы случайный `node server.js`
+      # на VPS не выставлял голый node наружу.
+      - BIND_HOST=0.0.0.0
+      # Лимит участников в комнате.
+      - MAX_ROOM_USERS=${MAX_ROOM_USERS:-5}
     volumes:
       # Персистентная статистика beta-теста: stats.json лежит на хосте
       # и переживает docker compose up --build / restart. Папка ./data
       # создаётся автоматически на первом запуске.
       - ./data:/app/data
+    # read_only + tmpfs:/tmp — рантайм неизменяем, что отрезает целый класс
+    # post-exploitation атак (нельзя дропнуть бинарь в /, нельзя залить веб-шелл).
+    # /app/data остаётся writable через volume выше.
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    # Лимиты, чтобы один процесс не съел всю VPS. 512M с запасом на пики —
+    # сервер сигналинговый, в норме держится в 50-100M.
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+        reservations:
+          memory: 128M
+    # Ротация логов — без неё `docker logs` растёт неограниченно, а при
+    # перезапуске обнуляется. 10MB × 5 файлов = 50MB на контейнер.
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"

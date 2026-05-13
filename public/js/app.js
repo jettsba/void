@@ -27,6 +27,12 @@ function init() {
     screenOverlayVideo = document.getElementById("screenOverlayVideo");
     roomToastEl = document.getElementById("roomToast");
 
+    micBlockedModal      = document.getElementById("micBlockedModal");
+    micBlockedCloseBtn   = document.getElementById("micBlockedClose");
+    micBlockedBackdrop   = document.getElementById("micBlockedBackdrop");
+    micBlockedCloseBtn?.addEventListener("click", closeMicBlockedModal);
+    micBlockedBackdrop?.addEventListener("click", closeMicBlockedModal);
+
     ambientSound = document.getElementById("ambientSound");
     welcomeSound = document.getElementById("welcomeSound");
     joinSound = document.getElementById("joinSound");

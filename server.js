@@ -34,15 +34,28 @@ import {
     handleSignal,
 } from "./lib/handlers.js";
 
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 const app = express();
 const PORT = process.env.PORT || 3000;
+/**
+ * BIND_HOST — какой интерфейс слушать. По умолчанию 127.0.0.1, чтобы случайный
+ * `node server.js` на VPS без TLS не выставлял сервер наружу. В docker-compose
+ * этот параметр явно выставляется в 0.0.0.0 (Caddy ходит по localhost моста).
+ */
+const HOST = process.env.BIND_HOST || "127.0.0.1";
 
-app.use(express.static("public"));
+// Абсолютный путь — `public` не зависит от cwd, при `node /any/path/server.js`
+// статика отдастся корректно. (До этого был относительный `"public"`.)
+app.use(express.static(path.join(__dirname, "public")));
 
 const server = http.createServer(app);
 
-server.listen(PORT, "0.0.0.0", () => {
-    log.info("boot", "server running", { port: PORT });
+server.listen(PORT, HOST, () => {
+    log.info("boot", "server running", { host: HOST, port: PORT });
 });
 
 /* ========= WEBSOCKET ========= */

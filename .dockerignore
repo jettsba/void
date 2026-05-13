@@ -6,3 +6,16 @@ node_modules
 .env.*
 data
 tasks
+
+# Редакторские и инструментальные мусорные файлы — не нужны в образе.
+.vscode
+.idea
+.claude
+*.log
+*.swp
+.DS_Store
+Thumbs.db
+coverage
+.nyc_output
+playwright-report
+test-results

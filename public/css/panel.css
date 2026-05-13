@@ -97,6 +97,98 @@
     }
 }
 
+/* === Sticky mic-blocked dialog (U1) ===
+   Открывается когда getUserMedia упал. Tasks/audit.md: пользователь должен
+   понимать ЧТО произошло и КАК это починить — короткого тоста на 1.5с
+   недостаточно. Не закрывается само — только кнопкой/Esc/backdrop. */
+.mic-blocked-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--t-med);
+}
+.mic-blocked-modal.is-open {
+    opacity: 1;
+    pointer-events: auto;
+}
+.mic-blocked-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.72);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+.mic-blocked-card {
+    position: relative;
+    background: var(--bg-1);
+    border: 1px solid var(--fg-4);
+    padding: 28px 28px 22px;
+    max-width: 380px;
+    width: calc(100% - 32px);
+    text-align: center;
+    transform: translateY(8px) scale(0.98);
+    transition: transform var(--t-med);
+}
+.mic-blocked-modal.is-open .mic-blocked-card {
+    transform: translateY(0) scale(1);
+}
+.mic-blocked-glyph {
+    width: 44px;
+    height: 44px;
+    margin: 0 auto 14px;
+    color: var(--signal-warn);
+}
+.mic-blocked-glyph svg {
+    width: 100%;
+    height: 100%;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.mic-blocked-glyph .strike-bg { stroke: var(--bg-1); stroke-width: 4; }
+.mic-blocked-glyph .strike    { stroke: currentColor; stroke-width: 1.6; }
+.mic-blocked-title {
+    font-size: 13px;
+    letter-spacing: var(--tracking-wide);
+    text-transform: lowercase;
+    color: var(--fg);
+    margin-bottom: 10px;
+    font-weight: 500;
+}
+.mic-blocked-body {
+    font-size: 12px;
+    letter-spacing: var(--tracking);
+    line-height: 1.55;
+    color: var(--fg-2);
+    text-transform: lowercase;
+    margin-bottom: 20px;
+}
+.mic-blocked-cta {
+    display: inline-block;
+    padding: 8px 22px;
+    background: transparent;
+    border: 1px solid var(--fg-3);
+    color: var(--fg);
+    font-size: 12px;
+    letter-spacing: var(--tracking-wide);
+    text-transform: lowercase;
+    cursor: pointer;
+    transition: border-color var(--t-fast), color var(--t-fast);
+}
+.mic-blocked-cta:hover,
+.mic-blocked-cta:focus-visible {
+    border-color: var(--fg-2);
+    color: var(--fg);
+    outline: none;
+}
+
 .entry-actions {
     display: flex;
     gap: 12px;

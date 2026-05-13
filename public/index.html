@@ -5,23 +5,42 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>void</title>
-    <link rel="stylesheet" href="css/base.css?v=16">
-    <link rel="stylesheet" href="css/intro.css?v=16">
-    <link rel="stylesheet" href="css/app.css?v=16">
-    <link rel="stylesheet" href="css/header.css?v=16">
-    <link rel="stylesheet" href="css/stage.css?v=16">
-    <link rel="stylesheet" href="css/panel.css?v=16">
-    <link rel="stylesheet" href="css/volume-arc.css?v=16">
-    <link rel="stylesheet" href="css/ping.css?v=16">
-    <link rel="stylesheet" href="css/chat.css?v=16">
-    <link rel="stylesheet" href="css/chat-attach.css?v=16">
-    <link rel="stylesheet" href="css/chat-overlay.css?v=16">
-    <link rel="stylesheet" href="css/screencast.css?v=16">
-    <link rel="stylesheet" href="css/responsive.css?v=16">
-    <link rel="stylesheet" href="css/settings.css?v=16">
+    <meta name="description" content="void — ephemeral voice rooms. P2P, без аккаунтов, без истории.">
+    <meta name="theme-color" content="#0a0a0b">
+    <meta name="robots" content="index,follow">
+
+    <meta property="og:type"        content="website">
+    <meta property="og:site_name"   content="void">
+    <meta property="og:title"       content="void — voice rooms">
+    <meta property="og:description" content="ephemeral voice spaces. no accounts. no history. P2P.">
+    <meta property="og:url"         content="https://void-room.space">
+    <meta property="og:image"       content="https://void-room.space/static/favicon/web-app-manifest-512x512.png">
+
+    <meta name="twitter:card"        content="summary">
+    <meta name="twitter:title"       content="void — voice rooms">
+    <meta name="twitter:description" content="ephemeral voice spaces. no accounts. no history. P2P.">
+    <meta name="twitter:image"       content="https://void-room.space/static/favicon/web-app-manifest-512x512.png">
+
+    <link rel="stylesheet" href="css/base.css?v=17">
+    <link rel="stylesheet" href="css/intro.css?v=17">
+    <link rel="stylesheet" href="css/app.css?v=17">
+    <link rel="stylesheet" href="css/header.css?v=17">
+    <link rel="stylesheet" href="css/stage.css?v=17">
+    <link rel="stylesheet" href="css/panel.css?v=17">
+    <link rel="stylesheet" href="css/volume-arc.css?v=17">
+    <link rel="stylesheet" href="css/ping.css?v=17">
+    <link rel="stylesheet" href="css/chat.css?v=17">
+    <link rel="stylesheet" href="css/chat-attach.css?v=17">
+    <link rel="stylesheet" href="css/chat-overlay.css?v=17">
+    <link rel="stylesheet" href="css/screencast.css?v=17">
+    <link rel="stylesheet" href="css/responsive.css?v=17">
+    <link rel="stylesheet" href="css/settings.css?v=17">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet">
+    <!-- Один запрос на оба шрифта. До этого JetBrains Mono подтягивался через
+         @import внутри base.css — это блокирующий второй CSS-round-trip,
+         к тому же мешает CSP. Слили в один <link>. -->
+    <link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 
     <link rel="icon" type="image/png" href="/static/favicon/favicon-96x96.png" sizes="96x96" />
     <link rel="icon" type="image/svg+xml" href="/static/favicon/favicon.svg" />
@@ -274,6 +293,27 @@
     </div>
 
     <div class="room-toast" id="roomToast" aria-live="polite" aria-atomic="true"></div>
+
+    <!-- Микрофон заблокирован: sticky-диалог с инструкцией. Закрывается
+         кнопкой / Esc / кликом по backdrop. См. U1 в tasks/audit.md. -->
+    <div class="mic-blocked-modal" id="micBlockedModal" aria-hidden="true" inert role="dialog"
+        aria-labelledby="micBlockedTitle">
+        <div class="mic-blocked-backdrop" id="micBlockedBackdrop"></div>
+        <div class="mic-blocked-card">
+            <div class="mic-blocked-glyph" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                    <rect x="9" y="3" width="6" height="12" rx="3" />
+                    <path d="M5 11a7 7 0 0 0 14 0" />
+                    <path d="M12 18v3" />
+                    <line class="strike-bg" x1="20" y1="4" x2="4" y2="20" />
+                    <line class="strike" x1="20" y1="4" x2="4" y2="20" />
+                </svg>
+            </div>
+            <h2 class="mic-blocked-title" id="micBlockedTitle" data-i18n="errors.mic-blocked.title">микрофон заблокирован</h2>
+            <p class="mic-blocked-body" data-i18n="errors.mic-blocked.body">нажми на иконку микрофона в адресной строке и разреши доступ. потом обнови страницу.</p>
+            <button type="button" class="mic-blocked-cta" id="micBlockedClose" data-i18n="errors.mic-blocked.cta">понятно</button>
+        </div>
+    </div>
 
     <div class="sc-modal" id="scModal" aria-hidden="true" inert role="dialog" aria-label="screen sharing settings"
         data-i18n-attr="aria-label:screencast.title">

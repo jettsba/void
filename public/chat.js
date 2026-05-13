@@ -33,12 +33,26 @@ const CHAT_IMAGE_QUALITY = 0.85;
 const CHAT_TOAST_MS      = 2400;
 const CHAT_JUMP_THRESHOLD_PX = 96;
 
+/** Cap на длину принимаемого text-сообщения. Локально <textarea maxlength=2000>;
+ *  принимаем с запасом ×2 — для будущих локалей с длинными словами или
+ *  расширений (markdown). Всё, что больше — peer ведёт себя нечестно. */
+const CHAT_MAX_TEXT_LEN = 4000;
+
+/** LRU-кап на «живые» blob-URL'ы в чате. Раньше освобождались только
+ *  при `resetChatOnLeave` — за долгую сессию с сотней картинок копится
+ *  сотни МБ. Когда переполняем, прибиваем самый старый URL. */
+const CHAT_MAX_LIVE_BLOB_URLS = 30;
+
 /* ========= STATE ========= */
 
 const chatChannels       = new Map(); // userId → RTCDataChannel
 const channelSendQueues  = new Map(); // userId → Promise (последовательная очередь send'ов)
 const channelInbox       = new Map(); // userId → {meta, chunks:[], received, totalBytes}
 const objectUrlsToRevoke = new Set(); // URL.createObjectURL — чистим при выходе
+
+/** LRU для blob-URL'ов: Map сохраняет порядок вставки, переставляем
+ *  через delete + set когда URL переиспользуется. */
+const liveBlobUrls = new Map(); // url → addedAt
 
 let chatPendingAttachments = []; // [{id, file, kind, previewUrl}]
 
@@ -203,17 +217,22 @@ function resetChatOnLeave() {
 
     chatInputEl.value = "";
     autoResizeInput();
+
+    /* M10: сначала revoke, потом стираем DOM. Иначе между двумя строками
+       порядок «GC уже забрал blob» не гарантирован, и img.src=blob:... может
+       тянуть мёртвую ссылку. */
+    objectUrlsToRevoke.forEach(url => {
+        try { URL.revokeObjectURL(url); } catch (_) {}
+    });
+    objectUrlsToRevoke.clear();
+    liveBlobUrls.clear();
+
     chatMessagesEl.innerHTML = "";
     chatHasMessages = false;
     chatPanel.classList.remove("has-messages");
 
     channelInbox.clear();
     channelSendQueues.clear();
-
-    objectUrlsToRevoke.forEach(url => {
-        try { URL.revokeObjectURL(url); } catch (_) {}
-    });
-    objectUrlsToRevoke.clear();
 
     if (lightboxState) closeLightbox();
 
@@ -397,7 +416,7 @@ async function sendChatAttachment(file, kind) {
     // Локально показываем сразу. Если в комнате никого — сразу ready.
     const localBlob = new Blob([payloadBytes], { type: displayMime });
     const localUrl = URL.createObjectURL(localBlob);
-    objectUrlsToRevoke.add(localUrl);
+    trackBlobUrl(localUrl);
     appendMessage(meta, true, { url: localUrl, ready: chatChannels.size === 0 });
 
     if (chatChannels.size === 0) return;
@@ -459,7 +478,25 @@ function handleIncoming(data, userId) {
         try { json = JSON.parse(data); } catch { return; }
         if (json.type !== "msg") return;
 
+        /* B1: anti-spoof. Канал был открыт под конкретный userId — это и есть
+           логический отправитель. Если peer прислал свой json с чужим `from`,
+           отбрасываем: иначе UI припишет сообщение жертве и ломается атрибуция
+           в групповом чате. nick оставляем как пришло (это display name, не
+           идентичность), но `from` жёстко переписываем на владельца канала. */
+        if (json.from && json.from !== userId) {
+            log.warn("chat", "from-spoof rejected", { channel: userId, claimed: json.from });
+            return;
+        }
+        json.from = userId;
+
         if (json.kind === "text") {
+            /* B2: cap длины. Локально <textarea maxlength="2000">, но peer
+               может прислать любой размер. Без cap'а можно положить layout
+               5-мегабайтным текстом. */
+            if (typeof json.text !== "string" || json.text.length > CHAT_MAX_TEXT_LEN) {
+                log.warn("chat", "rejected oversized text", { userId, len: json.text?.length });
+                return;
+            }
             appendMessage(json, false);
             return;
         }
@@ -514,7 +551,7 @@ function handleIncoming(data, userId) {
                 type: inbox.meta.mime || "application/octet-stream"
             });
             const url = URL.createObjectURL(blob);
-            objectUrlsToRevoke.add(url);
+            trackBlobUrl(url);
             finalizeMessageAttachment(inbox.meta.msgId, url, inbox.meta);
             channelInbox.delete(userId);
         }
@@ -1094,6 +1131,27 @@ function loadImage(src) {
 
 function newMsgId() {
     return Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
+}
+
+/**
+ * Регистрация blob-URL'а в LRU-кеше. При переполнении сбрасываем самый старый
+ * URL — освобождается память, картинка/файл перестаёт быть кликабельным
+ * (для пользователя это «выпал из истории», что и должно случиться).
+ * Дублирующая запись в `objectUrlsToRevoke` нужна, чтобы при выходе из
+ * комнаты ОБЕ коллекции (LRU + leave-cleanup) вычистили всё, что было.
+ */
+function trackBlobUrl(url) {
+    if (!url) return;
+    objectUrlsToRevoke.add(url);
+    if (liveBlobUrls.has(url)) liveBlobUrls.delete(url);
+    liveBlobUrls.set(url, Date.now());
+    while (liveBlobUrls.size > CHAT_MAX_LIVE_BLOB_URLS) {
+        const oldest = liveBlobUrls.keys().next().value;
+        if (oldest == null) break;
+        liveBlobUrls.delete(oldest);
+        objectUrlsToRevoke.delete(oldest);
+        try { URL.revokeObjectURL(oldest); } catch (_) {}
+    }
 }
 
 function getSelfId() {

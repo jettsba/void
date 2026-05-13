@@ -79,7 +79,44 @@ function abortJoinAttempt(reason) {
         currentRoomCode = null;
         setConnectionState("ready");
     }
+
+    /* mic-blocked — особый кейс: пользователь не понимает что произошло
+       и что делать. Короткий тост ему не объяснит. Открываем sticky-диалог
+       с инструкцией; короткий тост в entryError тоже оставляем (как
+       подложку, если модалку не получится открыть). */
+    if (reason === "mic-blocked") {
+        openMicBlockedModal();
+    }
     showEntryError(reason);
+}
+
+function openMicBlockedModal() {
+    if (!micBlockedModal) return;
+    micBlockedModal.classList.add("is-open");
+    micBlockedModal.removeAttribute("inert");
+    micBlockedModal.setAttribute("aria-hidden", "false");
+    setTimeout(() => micBlockedCloseBtn?.focus(), 60);
+
+    // Esc — закрыть. Глобальный слушатель, чтобы не зависеть от фокуса
+    // внутри модалки. Снимается в closeMicBlockedModal.
+    _micBlockedEscHandler = (e) => {
+        if (e.key === "Escape") {
+            e.preventDefault();
+            closeMicBlockedModal();
+        }
+    };
+    document.addEventListener("keydown", _micBlockedEscHandler);
+}
+
+function closeMicBlockedModal() {
+    if (!micBlockedModal) return;
+    micBlockedModal.classList.remove("is-open");
+    micBlockedModal.setAttribute("inert", "");
+    micBlockedModal.setAttribute("aria-hidden", "true");
+    if (_micBlockedEscHandler) {
+        document.removeEventListener("keydown", _micBlockedEscHandler);
+        _micBlockedEscHandler = null;
+    }
 }
 
 /**

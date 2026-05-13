@@ -8,6 +8,15 @@ let analyserMap = new Map();
 let audioMap = new Map();
 let volumeMap = new Map();
 
+/**
+ * Граф обработки локального микрофона: source → highpass → lowpass →
+ * compressor → destination. Ссылки нужны, чтобы при teardown пройтись по
+ * всем нодам и вызвать `disconnect()`. Без этого WebAudio удерживает
+ * MediaStreamSource живым, AudioContext не закрывается, на долгих сессиях
+ * течёт RAM. См. B14 / M1 / M2 в audit.md.
+ */
+let audioGraph = null;
+
 let screenStream = null;
 const videoMap = new Map();
 const screenSenders = new Map();
@@ -89,7 +98,24 @@ function applyAudioProcessing(rawStream) {
     lowpass.connect(compressor);
     compressor.connect(destination);
 
+    // Сохраняем ссылки для teardownAudioGraph(). Без этого ноды висят
+    // подключёнными к контексту → утечка на каждый join/leave.
+    audioGraph = { source, highpass, lowpass, compressor, destination };
+
     return destination.stream;
+}
+
+/**
+ * Разрывает граф обработки микрофона. Зовётся в `closeAllConnections` перед
+ * закрытием AudioContext'а — чтобы WebAudio отпустил MediaStreamSource и
+ * связанные с ним audioWorkletNode'ы.
+ */
+function teardownAudioGraph() {
+    if (!audioGraph) return;
+    for (const node of Object.values(audioGraph)) {
+        try { node.disconnect(); } catch (_) {}
+    }
+    audioGraph = null;
 }
 
 /**
@@ -551,6 +577,15 @@ function closeAllConnections() {
 
     // Self-анализатор тоже больше не актуален — стрим остановлен.
     analyserMap.delete(clientId);
+    analyserMap.clear();
+
+    // Web Audio teardown: рвём граф, закрываем контекст. Без этого RAM
+    // течёт на каждый цикл join/leave (B14, M1, M2 из audit.md).
+    teardownAudioGraph();
+    if (audioContext) {
+        try { audioContext.close(); } catch (_) {}
+        audioContext = null;
+    }
 
     log.debug("rtc", "stopped");
 }
