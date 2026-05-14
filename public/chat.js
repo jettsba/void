@@ -508,7 +508,14 @@ function handleIncoming(data, userId) {
                 log.warn("chat", "rejected oversized attachment", { userId, size: json.size });
                 return;
             }
-            if (typeof json.totalChunks !== "number" || json.totalChunks <= 0 || json.totalChunks > 200000) {
+            /* B3: totalChunks привязываем к реальному лимиту файла, а не к
+               абстрактным 200000 (× 60 КБ ≈ 12 ГБ — в 1000× больше cap'а).
+               +5% запаса покрывает округление и meta-overhead. */
+            const expectedMaxChunks = Math.ceil(cap * 1.05 / CHAT_CHUNK_BYTES);
+            if (typeof json.totalChunks !== "number"
+                || json.totalChunks <= 0
+                || json.totalChunks > expectedMaxChunks) {
+                log.warn("chat", "rejected attachment with bad chunk count", { userId, totalChunks: json.totalChunks });
                 return;
             }
             // Если предыдущий приём не завершился — закрываем его как failed.

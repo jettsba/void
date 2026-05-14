@@ -22,6 +22,11 @@ const INTRO_UNLOCK_STORAGE_KEY_LEGACY = "passed";
 
 const ENTRY_ERROR_DISPLAY_MS = 1500;
 
+/* Формат кода комнаты — синхронизирован с серверным `ROOM_CODE_REGEX`
+   в lib/security.js (`^[A-Z0-9]{4,8}$`). Генератор делает 5 символов,
+   но сервер принимает 4-8 — клиент не должен хардкодить длину 5 (B16). */
+const ROOM_CODE_RX = /^[A-Z0-9]{4,8}$/;
+
 /* Тонкая обёртка над t(): если settings.js по какой-то причине не загрузился,
    возвращаем сам ключ — не падаем на проде. */
 function _t(key, vars) {

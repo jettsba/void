@@ -78,11 +78,10 @@ async function enterLobby() {
         setConnectionState("ready");
     }
     if (!_helloSent) {
-        sendSocket({
-            type: "hello",
-            userId: clientId,
-            nickname: currentUsername
-        });
+        /* B17: `hello` — это просто «вкладка открылась» сигнал для метрики
+           usersRegistered. Сервер (handleHello) не читает ни одного поля
+           payload'а, поэтому userId/nickname слать незачем. */
+        sendSocket({ type: "hello" });
         _helloSent = true;
     }
 }

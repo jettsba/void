@@ -106,7 +106,16 @@ function connectSocket() {
             }
 
             ws.addEventListener("message", (event) => {
-                const data = JSON.parse(event.data);
+                /* B8: битый JSON (поломанный промежуточным proxy фрейм, баг
+                   сервера) не должен прокидывать throw в global error —
+                   просто логируем и игнорируем сообщение. */
+                let data;
+                try {
+                    data = JSON.parse(event.data);
+                } catch (err) {
+                    log.warn("ws", "invalid message", { err: err?.message || String(err) });
+                    return;
+                }
                 handleSocketMessage(data);
             });
 
@@ -317,6 +326,14 @@ function handleSocketMessage(data) {
             break;
 
         case "participant-left":
+            /* B15: если ушедший участник был активным скринкастером — сбрасываем
+               roomScreencasterId, иначе у остальных кнопка screencast навсегда
+               остаётся «sc-btn-blocked» (лечилось только реджойном). */
+            if (typeof roomScreencasterId !== "undefined" && roomScreencasterId === data.userId) {
+                roomScreencasterId = null;
+                if (typeof syncScreencastBtnBlocked === "function") syncScreencastBtnBlocked();
+                if (typeof closeScreenOverlay === "function") closeScreenOverlay();
+            }
             removeParticipant(data.userId);
             // Закрываем peer + audio + analyser + health timer.
             cleanupPeerSlot(data.userId);

@@ -4,7 +4,10 @@ async function tryJoin() {
     hideEntryError();
 
     const code = (codeInput.value || "").trim().toUpperCase();
-    if (code.length !== 5) {
+    /* B16: проверяем по серверному формату (4-8 символов A-Z0-9), а не
+       хардкодом length === 5. Иначе при смене длины в generateRoomCode
+       клиент молча отказывал бы вводить валидный код. */
+    if (!ROOM_CODE_RX.test(code)) {
         codeInput.focus();
         return;
     }

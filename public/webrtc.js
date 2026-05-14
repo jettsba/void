@@ -72,12 +72,22 @@ async function initMedia() {
     log.debug("rtc", "mic granted");
 }
 
+/**
+ * Единая точка создания AudioContext с webkit-fallback. Раньше
+ * `applyAudioProcessing` делал fallback, а `createVolumeAnalyser` — голый
+ * `new AudioContext()`, и старый Safari падал на self-стриме (B11).
+ * Возвращает null, если Web Audio не поддерживается вообще.
+ */
+function getOrCreateAudioContext() {
+    if (audioContext) return audioContext;
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return null;
+    audioContext = new Ctx();
+    return audioContext;
+}
+
 function applyAudioProcessing(rawStream) {
-    if (!audioContext) {
-        const Ctx = window.AudioContext || window.webkitAudioContext;
-        if (!Ctx) return rawStream;
-        audioContext = new Ctx();
-    }
+    if (!getOrCreateAudioContext()) return rawStream;
 
     const source = audioContext.createMediaStreamSource(rawStream);
 
@@ -640,8 +650,8 @@ function clearPeerHealthTimer(userId) {
 
 /**
  * Полностью убрать всё, что связано с пиром: peer-соединение, audio-элемент,
- * анализатор громкости, health-timer. Используется и для штатного выхода
- * участника, и для rebuild peer-а.
+ * video-элемент, screen-senders, анализатор громкости, health-timer.
+ * Используется и для штатного выхода участника, и для rebuild peer-а.
  * Локальный микрофон и self-анализатор НЕ трогаются.
  */
 function cleanupPeerSlot(userId) {
@@ -656,6 +666,22 @@ function cleanupPeerSlot(userId) {
         audio.remove();
         audioMap.delete(userId);
     }
+
+    /* B5: videoMap чистился только в `event.track.onended`. При network drop /
+       kill -9 / закрытии вкладки `onended` может не прийти — <video> с мёртвым
+       stream'ом висит в map'е, а у наблюдателя остаётся открытый оверлей с
+       замороженной картинкой. Чистим явно здесь. */
+    const videoEl = videoMap.get(userId);
+    if (videoEl) {
+        videoEl.srcObject = null;
+        videoMap.delete(userId);
+        if (typeof closeScreenOverlay === "function") closeScreenOverlay();
+    }
+
+    /* B4: screenSenders не очищался — после rebuild пира запись оставалась,
+       и `stopScreenShare` потом дёргал removeTrack на закрытом peer'е (не
+       падает, но мусор). */
+    screenSenders.delete(userId);
 
     if (userId !== clientId) {
         analyserMap.delete(userId);
@@ -721,9 +747,10 @@ function closeRemotePeerConnections() {
 
 function createVolumeAnalyser(stream, userId) {
 
-    if (!audioContext) {
-        audioContext = new AudioContext();
-    }
+    /* B11: через общий хелпер с webkit-fallback. Голый `new AudioContext()`
+       ронял старый Safari на self-стриме. Если Web Audio нет вообще —
+       тихо пропускаем визуализацию громкости (не критичная фича). */
+    if (!getOrCreateAudioContext()) return;
 
     const analyser = audioContext.createAnalyser();
     analyser.fftSize = 256;
