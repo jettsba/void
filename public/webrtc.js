@@ -291,6 +291,11 @@ function createPeer(userId, isChatInitiator) {
        сигнал той стороне закрыть свой старый peer и создать новый.
        Используется только в `rebuildPeer`. */
     peer._signalRebuildOnNextOffer = false;
+    /* Один отчёт о связности на peer-объект: чем собралось соединение
+       (direct/relay) либо что оно провалилось (failed). Уходит в админ-статистику,
+       чтобы по реальным данным понять — нужен ли TURN. rebuild создаёт новый
+       peer-объект с чистым флагом → считается новой попыткой, так и задумано. */
+    peer._iceReported = false;
 
     /* Хендлеры вешаем ДО addTrack: addTrack синхронно ставит negotiation-needed
        во флаг, который потом превратится в событие в следующем microtask.
@@ -559,7 +564,15 @@ function handlePeerConnectionStateChange(userId) {
 
     if (state === "connected") {
         clearPeerHealthTimer(userId);
+        reportConnectivity(peer);
         return;
+    }
+
+    if (state === "failed" && !peer._iceReported) {
+        // Терминальный провал, до connected так и не дошли — это и есть тот
+        // случай, где помог бы TURN-релей. Считаем отдельно.
+        peer._iceReported = true;
+        sendSocket({ type: "ice-report", result: "failed" });
     }
 
     if (state === "disconnected") {
@@ -859,4 +872,54 @@ async function getPeerPing(userId) {
     } catch {
         return null;
     }
+}
+
+/* ========= CONNECTIVITY REPORT =========
+ *
+ * Сообщаем серверу, КАК собралось peer-соединение — напрямую (host/srflx/prflx)
+ * или через relay (TURN). Сервер копит счётчики, админка показывает воронку
+ * direct/relay/failed. По этим реальным цифрам потом и решается вопрос — стоит
+ * ли вообще поднимать TURN. Никаких лишних пакетов: читаем ту же статистику,
+ * что WebRTC уже считает по STUN/RTCP.
+ */
+
+/**
+ * Определить тип установленного соединения по активной паре кандидатов.
+ * Возвращает "relay" если ХОТЯ БЫ одна сторона (локальная или удалённая)
+ * сидит на TURN, "direct" если обе пробились напрямую, null — если статистику
+ * прочитать не удалось (тогда отчёт не шлём, чтобы не врать в цифрах).
+ */
+async function classifyConnection(peer) {
+    try {
+        const stats = await peer.getStats();
+        let pair = null;
+        stats.forEach(report => {
+            if (report.type !== "candidate-pair") return;
+            if (report.state !== "succeeded") return;
+            if (report.nominated && !pair) pair = report;
+        });
+        if (!pair) return null;
+
+        const local = stats.get(pair.localCandidateId);
+        const remote = stats.get(pair.remoteCandidateId);
+        if (!local && !remote) return null;
+
+        const isRelay = c => c && c.candidateType === "relay";
+        return (isRelay(local) || isRelay(remote)) ? "relay" : "direct";
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Один раз на peer-объект отправить отчёт об успешной связности.
+ * Зовётся при переходе peer в "connected".
+ */
+async function reportConnectivity(peer) {
+    if (peer._iceReported) return;
+    const result = await classifyConnection(peer);
+    if (!result) return;          // статистика недоступна — лучше промолчать
+    if (peer._iceReported) return; // мог измениться, пока ждали getStats
+    peer._iceReported = true;
+    sendSocket({ type: "ice-report", result });
 }

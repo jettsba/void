@@ -32,6 +32,7 @@ import {
     handleLeaveRoom,
     handleDisconnect,
     handleSignal,
+    handleIceReport,
 } from "./lib/handlers.js";
 
 import path from "node:path";
@@ -213,6 +214,10 @@ wss.on("connection", (ws, req) => {
                 case "answer":
                 case "ice":
                     handleSignal(ws, data);
+                    break;
+
+                case "ice-report":
+                    handleIceReport(ws, data);
                     break;
 
                 default:
