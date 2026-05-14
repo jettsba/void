@@ -705,6 +705,7 @@ function cleanupPeerSlot(userId) {
     }
 
     clearPeerHealthTimer(userId);
+    _pingCache.delete(userId);
 }
 
 /* ========= TEARDOWN ========= */
@@ -779,30 +780,33 @@ function createVolumeAnalyser(stream, userId) {
 function monitorVolume(userId, analyser) {
 
     const dataArray = new Uint8Array(analyser.frequencyBinCount);
+    let lastTick = 0;
 
-    function checkVolume() {
+    function checkVolume(t) {
 
         // Self-stop: если в analyserMap уже не наш analyser (ICE restart, rebuild,
         // cleanup) — выходим из rAF-цикла, не плодим зомби-loop'ы.
         if (analyserMap.get(userId) !== analyser) return;
 
-        analyser.getByteFrequencyData(dataArray);
+        if (t - lastTick > 33) { // ~30 Hz вместо 60
+            lastTick = t;
 
-        let sum = 0;
-        for (let i = 0; i < dataArray.length; i++) {
-            sum += dataArray[i];
-        }
+            analyser.getByteFrequencyData(dataArray);
 
-        const average = sum / dataArray.length;
+            let sum = 0;
+            for (let i = 0; i < dataArray.length; i++) {
+                sum += dataArray[i];
+            }
 
-        if (window.onVolumeChange) {
-            window.onVolumeChange(userId, average);
+            if (window.onVolumeChange) {
+                window.onVolumeChange(userId, sum / dataArray.length);
+            }
         }
 
         requestAnimationFrame(checkVolume);
     }
 
-    checkVolume();
+    requestAnimationFrame(checkVolume);
 }
 
 /* ========= SCREEN SHARING ========= */
@@ -849,9 +853,15 @@ function stopScreenShare() {
  * по STUN keepalive / RTCP — никаких дополнительных пакетов и нагрузки на сервер.
  * Возвращает null если пир ещё не соединён или статистика недоступна.
  */
+const _pingCache = new Map(); // userId → { value, ts }
+const _PING_CACHE_TTL = 1500;
+
 async function getPeerPing(userId) {
     const peer = peers.get(userId);
     if (!peer) return null;
+
+    const cached = _pingCache.get(userId);
+    if (cached && Date.now() - cached.ts < _PING_CACHE_TTL) return cached.value;
 
     try {
         const stats = await peer.getStats();
@@ -868,7 +878,9 @@ async function getPeerPing(userId) {
             else if (fallback == null) fallback = ms;
         });
 
-        return nominated ?? fallback;
+        const value = nominated ?? fallback;
+        _pingCache.set(userId, { value, ts: Date.now() });
+        return value;
     } catch {
         return null;
     }

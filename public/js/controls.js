@@ -76,9 +76,8 @@ function applyAudioState() {
 
 function updateParticipantAudioState(userId, mic, sound) {
 
-    const el = document.querySelector(
-        `.participant[data-user-id="${userId}"]`
-    );
+    const el = participantElements?.get(userId) ||
+        document.querySelector(`.participant[data-user-id="${userId}"]`);
 
     if (!el) return;
 

@@ -1,5 +1,7 @@
 /* ========= AMBIENT — slow drifting blobs ========= */
 
+let _canvasPaused = false;
+
 function sizeCanvas() {
     const dpr = Math.max(1, window.devicePixelRatio || 1);
     canvas.width = window.innerWidth * dpr;
@@ -25,6 +27,11 @@ function seedBlobs() {
 }
 
 function paint() {
+    if (_canvasPaused) {
+        setTimeout(() => requestAnimationFrame(paint), 200);
+        return;
+    }
+
     const w = window.innerWidth;
     const h = window.innerHeight;
     ctx.clearRect(0, 0, w, h);

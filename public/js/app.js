@@ -86,6 +86,9 @@ function init() {
         sizeCanvas();
         seedBlobs();
         paint();
+        document.addEventListener("visibilitychange", () => {
+            _canvasPaused = document.hidden;
+        });
     }
     generateAndAssignUsername();
     /* Экспортируем «активный» ник в window, чтобы панель настроек могла

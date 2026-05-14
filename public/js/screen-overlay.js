@@ -110,7 +110,8 @@ function updateScreencastButton(isOn) {
 }
 
 function updateParticipantScreenState(userId, isSharing) {
-    const el = document.querySelector(`.participant[data-user-id="${userId}"]`);
+    const el = participantElements?.get(userId) ||
+        document.querySelector(`.participant[data-user-id="${userId}"]`);
     if (!el) return;
     el.classList.toggle("screensharing", isSharing);
     if (!isSharing && el.classList.contains("blob-active")) {

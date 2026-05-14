@@ -1,3 +1,7 @@
+/* Кэш ссылок на DOM-элементы участников — чтобы не ходить в querySelector
+   на каждое обновление громкости/аудио-состояния/скринкаста. */
+const participantElements = new Map(); // userId → .participant element
+
 /* ===== Invite hint ===== */
 
 let _inviteHintEl = null;
@@ -47,6 +51,7 @@ function resetInviteHint() {
 
 function removeAllParticipants() {
 
+    participantElements.clear();
     const all = document.querySelectorAll(".participant");
 
     all.forEach(el => {
@@ -117,6 +122,7 @@ function addParticipant(userId, nickname) {
     participant.appendChild(watchBtn);
 
     participantsContainer.appendChild(participant);
+    participantElements.set(userId, participant);
 
     requestAnimationFrame(() => {
         participant.classList.add("pop-in");
@@ -138,9 +144,8 @@ function removeParticipant(userId) {
 
     nicknameMap.delete(userId);
 
-    const el = document.querySelector(
-        `.participant[data-user-id="${userId}"]`
-    );
+    const el = participantElements.get(userId) ||
+        document.querySelector(`.participant[data-user-id="${userId}"]`);
 
     if (!el || el.classList.contains("pop-out")) return;
 
@@ -156,6 +161,7 @@ function removeParticipant(userId) {
 
     el.classList.remove("pop-in");
     el.classList.add("pop-out");
+    participantElements.delete(userId);
 
     el.addEventListener("animationend", () => {
         el.remove();

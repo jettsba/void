@@ -12,8 +12,7 @@ function openPingPanel() {
     pingPanel.setAttribute("aria-hidden", "false");
 
     renderPingPanelSkeleton();
-    refreshPingPanel();
-    pingPollTimer = setInterval(refreshPingPanel, 1000);
+    schedulePingPoll();
 
     pingPanelOutsideHandler = (e) => {
         if (connState && connState.contains(e.target)) return;
@@ -22,6 +21,15 @@ function openPingPanel() {
     setTimeout(() => {
         document.addEventListener("click", pingPanelOutsideHandler);
     }, 0);
+}
+
+function schedulePingPoll() {
+    if (!pingPanelOpen) return;
+    refreshPingPanel().finally(() => {
+        if (!pingPanelOpen) return;
+        const hasPeers = typeof peers !== "undefined" && peers.size > 0;
+        pingPollTimer = setTimeout(schedulePingPoll, hasPeers ? 1000 : 5000);
+    });
 }
 
 function closePingPanel() {
@@ -34,7 +42,7 @@ function closePingPanel() {
     }
 
     if (pingPollTimer) {
-        clearInterval(pingPollTimer);
+        clearTimeout(pingPollTimer);
         pingPollTimer = null;
     }
 
@@ -71,28 +79,16 @@ async function refreshPingPanel() {
         return;
     }
 
-    const entries = [];
     for (const userId of peers.keys()) {
         const ping = await getPeerPing(userId);
-        entries.push({
-            userId,
-            nickname: nicknameMap.get(userId) || "—",
-            ping
-        });
+        if (!pingPanelOpen) return;
+        const row = pingPanelList.querySelector(`[data-uid="${escapeAttr(userId)}"]`);
+        if (!row) continue;
+        const valEl = row.querySelector(".ping-value");
+        if (!valEl) continue;
+        valEl.className = "ping-value " + pingClass(ping);
+        valEl.textContent = ping == null ? "—" : `${ping} ms`;
     }
-
-    if (!pingPanelOpen) return;
-
-    entries.sort((a, b) => a.nickname.localeCompare(b.nickname));
-
-    pingPanelList.innerHTML = entries.map(e => {
-        const cls = pingClass(e.ping);
-        const val = e.ping == null ? "—" : `${e.ping} ms`;
-        return `<div class="ping-row" data-uid="${escapeAttr(e.userId)}">
-            <span class="ping-name">${escapeHtml(e.nickname)}</span>
-            <span class="ping-value ${cls}">${val}</span>
-        </div>`;
-    }).join("");
 }
 
 function pingClass(ms) {
@@ -110,7 +106,8 @@ async function refreshPeerConnQuality() {
     if (!isJoined || typeof peers === "undefined") return;
     for (const userId of peers.keys()) {
         const ms = await getPeerPing(userId);
-        const el = document.querySelector(`.participant[data-user-id="${userId}"]`);
+        const el = participantElements?.get(userId) ||
+            document.querySelector(`.participant[data-user-id="${userId}"]`);
         if (!el) continue;
         if (ms == null || ms > 180) el.dataset.conn = "poor";
         else delete el.dataset.conn;

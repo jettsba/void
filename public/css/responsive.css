@@ -150,6 +150,19 @@ body {
     .btn {
         min-height: 44px;
     }
+
+    /* Убираем дорогой blur — на мобиле он тормозит и съедает батарею.
+       Достаточно полупрозрачного фона, который задан в каждом из этих элементов. */
+    .settings-scrim,
+    .chat-drop-overlay,
+    .chat-lightbox,
+    .chat-lightbox.is-visible,
+    .chat-panel-inner,
+    .mic-blocked-modal,
+    .sc-modal-backdrop {
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+    }
 }
 
 /* ===================================================

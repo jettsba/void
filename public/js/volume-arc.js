@@ -205,7 +205,8 @@ function createVolumeArc(participant, userId) {
 }
 
 window.onVolumeChange = function(userId, volume) {
-    const participant = document.querySelector(`.participant[data-user-id="${userId}"]`);
+    const participant = participantElements?.get(userId) ||
+        document.querySelector(`.participant[data-user-id="${userId}"]`);
     if (!participant) return;
 
     participant.classList.toggle("speaking", volume > 18);
