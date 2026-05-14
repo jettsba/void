@@ -42,13 +42,20 @@ const PEER_ICE_RESTART_TIMEOUT_MS = 8000;
 const PEER_PASSIVE_REBUILD_TIMEOUT_MS = 15000;
 
 async function initMedia() {
+    /* Если в настройках выбран конкретный микрофон — просим именно его.
+       Иначе — системный default. Пустую строку в deviceId передавать
+       нельзя, поэтому ветвим. */
+    const audioConstraints = {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+        channelCount: 1,
+    };
+    const savedMicId = window.VoidSettings?.getAudioInId?.() || "";
+    if (savedMicId) audioConstraints.deviceId = { exact: savedMicId };
+
     localStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-            channelCount: 1,
-        },
+        audio: audioConstraints,
         video: false
     });
 
@@ -91,16 +98,25 @@ function applyAudioProcessing(rawStream) {
     compressor.attack.value = 0.005;
     compressor.release.value = 0.12;
 
+    /* GainNode в конце цепи — управляется ползунком «усиление» из настроек.
+       1.0 = unity (нет изменений), <1 = тише, >1 = бустим. Меняется в
+       реалтайме без renegotiation — peer.addTrack привязан к выходному
+       destination.stream, дальше всё внутри Web Audio. */
+    const gain = audioContext.createGain();
+    const savedGain = window.VoidSettings?.getAudioInGain?.();
+    gain.gain.value = typeof savedGain === "number" ? savedGain : 1.0;
+
     const destination = audioContext.createMediaStreamDestination();
 
     source.connect(highpass);
     highpass.connect(lowpass);
     lowpass.connect(compressor);
-    compressor.connect(destination);
+    compressor.connect(gain);
+    gain.connect(destination);
 
     // Сохраняем ссылки для teardownAudioGraph(). Без этого ноды висят
     // подключёнными к контексту → утечка на каждый join/leave.
-    audioGraph = { source, highpass, lowpass, compressor, destination };
+    audioGraph = { source, highpass, lowpass, compressor, gain, destination };
 
     return destination.stream;
 }
@@ -117,6 +133,97 @@ function teardownAudioGraph() {
     }
     audioGraph = null;
 }
+
+/* ========= AUDIO IO (settings ↔ peers) =========
+ *
+ * Output device — `audio.setSinkId(id)` для каждого пир-`<audio>` и для
+ * системных звуков (ambient/welcome/join/leave/message). API Chromium / FF 116+;
+ * в Safari отсутствует, тогда всё идёт в системный default.
+ *
+ * Output volume — мастер-множитель (settings.audioOutGain ∈ [0..1]) поверх
+ * per-peer (volumeMap[userId] ∈ [0..1]). Финал = clamp(per × master).
+ *
+ * Input gain — `audioGraph.gain.gain.value` (ровно последняя нода в цепи).
+ * Меняется на лету, без renegotiation; peer.addTrack привязан к выходу
+ * destination, граф «внутри» не виден другой стороне.
+ *
+ * Input device — `getUserMedia({audio:{deviceId:...}})`. Заменять трек на
+ * лету через `replaceTrack` оставлено на будущее; пока — apply on rejoin.
+ */
+
+function getMasterOutputGain() {
+    const v = window.VoidSettings?.getAudioOutGain?.();
+    return typeof v === "number" ? v : 1.0;
+}
+
+function applyOutputVolumeForUser(userId) {
+    const audio = audioMap.get(userId);
+    if (!audio) return;
+    const per = volumeMap.get(userId) ?? 1;
+    const master = getMasterOutputGain();
+    audio.volume = Math.max(0, Math.min(1, per * master));
+}
+
+function applyOutputVolumeAll() {
+    for (const userId of audioMap.keys()) {
+        applyOutputVolumeForUser(userId);
+    }
+    /* Системные звуки тоже подчиняются мастеру. Их базовые громкости
+       заданы в audio.js (0.2 ambient, 0.4 join/leave/welcome) — умножаем
+       master, не перебивая базу. */
+    const master = getMasterOutputGain();
+    applyMasterToSystemSound(window.ambientSound, 0.2 * master);
+    applyMasterToSystemSound(window.welcomeSound, 0.4 * master);
+    applyMasterToSystemSound(window.joinSound, 0.4 * master);
+    applyMasterToSystemSound(window.leaveSound, 0.4 * master);
+    /* messageSound — играется через chat.js, volume там фиксирован 0.5;
+       обновим при следующем play(). Менять текущий .volume не имеет
+       смысла, потому что playMessageSound сам выставляет его перед play. */
+}
+
+function applyMasterToSystemSound(el, finalVolume) {
+    if (!el) return;
+    el.volume = Math.max(0, Math.min(1, finalVolume));
+}
+
+async function applyOutputSinkToAudio(audio) {
+    if (!audio || typeof audio.setSinkId !== "function") return;
+    const id = window.VoidSettings?.getAudioOutId?.() || "";
+    try {
+        await audio.setSinkId(id);
+    } catch (_) {
+        /* устройство пропало / отозвали permission — fallback на default,
+           уже стоит. Молчим. */
+    }
+}
+
+function applyOutputSinkToAll() {
+    for (const audio of audioMap.values()) applyOutputSinkToAudio(audio);
+    /* Системные звуки тоже маршрутизируем в выбранный output. */
+    applyOutputSinkToAudio(window.ambientSound);
+    applyOutputSinkToAudio(window.welcomeSound);
+    applyOutputSinkToAudio(window.joinSound);
+    applyOutputSinkToAudio(window.leaveSound);
+    const msg = document.getElementById("messageSound");
+    if (msg) applyOutputSinkToAudio(msg);
+}
+
+function applyInputGain() {
+    if (!audioGraph?.gain) return;
+    const v = window.VoidSettings?.getAudioInGain?.();
+    audioGraph.gain.gain.value = typeof v === "number" ? v : 1.0;
+}
+
+/* Settings-события: слушаем глобально один раз. Хендлер выживает между
+   join/leave (audioMap/audioGraph пересоздаются — это нормально). */
+document.addEventListener("void:audio-in-gain-changed", applyInputGain);
+document.addEventListener("void:audio-out-gain-changed", applyOutputVolumeAll);
+document.addEventListener("void:audio-out-device-changed", applyOutputSinkToAll);
+/* audio-in-device-changed — применяем при следующем initMedia (apply on
+   rejoin). Тут только пишем подсказку в лог, без принудительного reconnect. */
+document.addEventListener("void:audio-in-device-changed", (e) => {
+    log.info("rtc", "input device queued", { deviceId: e?.detail?.deviceId || "default" });
+});
 
 /**
  * Fallback-список STUN-серверов. WebRTC опрашивает их параллельно при сборе
@@ -229,8 +336,14 @@ function createPeer(userId, isChatInitiator) {
         }
         audio.srcObject = event.streams[0];
         audio.muted = !isSoundOn;
-        const savedVolume = volumeMap.get(userId) ?? 1;
-        audio.volume = savedVolume;
+        /* Финальная громкость = per-peer × master из settings. Через хелпер,
+           чтобы оба источника применялись одинаково и при ontrack, и при
+           движении ползунка громкости в настройках, и при движении арки. */
+        applyOutputVolumeForUser(userId);
+        /* Маршрутизируем audio в выбранный output device. На Safari/старых
+           браузерах функция setSinkId отсутствует — `applyOutputSinkToAudio`
+           тихо вернётся. */
+        applyOutputSinkToAudio(audio);
 
         // Старый analyser привязан к мёртвому source — пересоздаём.
         // Старый rAF-цикл сам остановится (см. monitorVolume).

@@ -308,6 +308,264 @@
     transform: translateY(0);
 }
 
+/* ========= AUDIO SECTION ========= */
+
+.settings-section {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 12px 0 4px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    margin: 2px -2px;
+}
+
+.settings-section-title {
+    font-size: 10px;
+    letter-spacing: var(--tracking-wide);
+    text-transform: lowercase;
+    color: var(--fg-3);
+    padding: 2px 2px 0;
+}
+
+.settings-audio-block {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 0 2px;
+}
+
+.settings-audio-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 22px;
+}
+
+.settings-audio-label {
+    color: var(--fg);
+    font-size: 13px;
+    text-transform: lowercase;
+    letter-spacing: var(--tracking);
+}
+
+/* live mic level meter */
+.settings-mic-meter {
+    flex: 1;
+    max-width: 120px;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.06);
+    overflow: hidden;
+    position: relative;
+}
+
+.settings-mic-meter-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--signal) 0%, var(--signal) 70%, var(--signal-warn) 100%);
+    transition: width 60ms linear, background 120ms ease;
+    transform-origin: left center;
+}
+
+.settings-mic-meter-fill.is-hot {
+    background: var(--signal-warn);
+}
+
+/* test button (для динамиков) */
+.settings-test-btn {
+    width: 26px;
+    height: 26px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 5px;
+    background: rgba(255, 255, 255, 0.02);
+    color: var(--fg-2);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: color var(--t-fast), background var(--t-fast), border-color var(--t-fast),
+                transform 140ms ease;
+}
+
+.settings-test-btn:hover,
+.settings-test-btn:focus-visible {
+    color: var(--fg);
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.22);
+    outline: none;
+}
+
+.settings-test-btn:active {
+    transform: scale(0.92);
+}
+
+.settings-test-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.settings-test-btn svg {
+    width: 11px;
+    height: 11px;
+    fill: currentColor;
+    transform: translateX(0.5px); /* визуально центруем «play» */
+}
+
+/* dropdown */
+.settings-select-wrap {
+    position: relative;
+    width: 100%;
+}
+
+.settings-select {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+    padding: 8px 32px 8px 12px;
+    color: var(--fg);
+    font-family: inherit;
+    font-size: 12px;
+    letter-spacing: var(--tracking);
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    cursor: pointer;
+    outline: none;
+    transition: border-color var(--t-fast), background var(--t-fast);
+    /* Длинные имена устройств обрезаются — не вылазят за пределы панели. */
+    text-overflow: ellipsis;
+}
+
+.settings-select:hover {
+    border-color: rgba(255, 255, 255, 0.18);
+}
+
+.settings-select:focus-visible {
+    border-color: rgba(255, 255, 255, 0.32);
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.settings-select:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.settings-select-chevron {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    width: 12px;
+    height: 12px;
+    transform: translateY(-50%);
+    pointer-events: none;
+    fill: none;
+    stroke: var(--fg-3);
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* slider */
+.settings-slider-row {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 12px;
+    padding-left: 2px;
+}
+
+.settings-slider-label {
+    font-size: 11px;
+    letter-spacing: var(--tracking);
+    text-transform: lowercase;
+    color: var(--fg-3);
+}
+
+.settings-slider-value {
+    font-size: 11px;
+    color: var(--fg-2);
+    font-variant-numeric: tabular-nums;
+    min-width: 36px;
+    text-align: right;
+}
+
+/* Кросс-браузерные стили для <input type="range">. Базируемся на appearance:none,
+   далее псевдоэлементы для WebKit (Chromium + Electron) и Firefox. */
+.settings-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 18px;
+    background: transparent;
+    cursor: pointer;
+    margin: 0;
+}
+
+.settings-slider::-webkit-slider-runnable-track {
+    height: 2px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 1px;
+}
+
+.settings-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--fg);
+    margin-top: -5px;
+    border: 0;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
+    transition: transform var(--t-fast);
+}
+
+.settings-slider:hover::-webkit-slider-thumb,
+.settings-slider:focus-visible::-webkit-slider-thumb {
+    transform: scale(1.15);
+}
+
+.settings-slider::-moz-range-track {
+    height: 2px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 1px;
+}
+
+.settings-slider::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--fg);
+    border: 0;
+    cursor: pointer;
+}
+
+.settings-slider:focus-visible {
+    outline: none;
+}
+
+/* footer-hint для аудио (permission / no setSinkId / apply-on-rejoin) */
+.settings-audio-hint {
+    display: block;
+    font-size: 11px;
+    color: var(--fg-3);
+    text-transform: lowercase;
+    line-height: 1.4;
+    padding: 0 2px;
+    opacity: 0;
+    max-height: 0;
+    overflow: hidden;
+    transition: opacity var(--t-fast), max-height var(--t-med);
+}
+
+.settings-audio-hint.is-visible {
+    opacity: 1;
+    max-height: 80px;
+}
+
 /* ========= FOOTER ========= */
 
 .settings-footer {

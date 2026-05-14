@@ -7,10 +7,30 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "0.2.1";
+    const APP_VERSION = "0.3.0";
 
     const STORAGE_KEY = "void:settings";
-    const DEFAULTS = { lang: "ru", streamer: false, nickname: "" };
+    /**
+     * audioInId / audioOutId — deviceId выбранных устройств; пустая строка =
+     * «системное по умолчанию» (passes constraints без явного deviceId).
+     * audioInGain — множитель для GainNode в audio-графе (0..1.5, 1.0 = unity).
+     * audioOutGain — мастер-громкость для всех `<audio>` элементов peers
+     *               и системных звуков (0..1.0).
+     */
+    const DEFAULTS = {
+        lang: "ru",
+        streamer: false,
+        nickname: "",
+        audioInId: "",
+        audioOutId: "",
+        audioInGain: 1.0,
+        audioOutGain: 1.0
+    };
+
+    const AUDIO_IN_GAIN_MIN = 0;
+    const AUDIO_IN_GAIN_MAX = 1.5;
+    const AUDIO_OUT_GAIN_MIN = 0;
+    const AUDIO_OUT_GAIN_MAX = 1.0;
 
     /** Лимит длины кастомного ника — синхронизирован с серверным
      *  `NICKNAME_MAX_LEN` в lib/security.js. Управляющие символы
@@ -25,6 +45,11 @@
             .replace(/\s+/g, " ")
             .trim()
             .slice(0, NICKNAME_MAX_LEN);
+    }
+
+    function clampGain(v, min, max) {
+        if (typeof v !== "number" || !isFinite(v)) return min;
+        return Math.max(min, Math.min(max, v));
     }
 
     const DICTIONARY = {
@@ -116,7 +141,18 @@
             "settings.nick.hint": "оставь пустым — будет случайное на каждый вход",
             "settings.nick.placeholder": "твоё имя",
             "settings.nick.save": "сохранить",
-            "settings.nick.saved": "сохранено"
+            "settings.nick.saved": "сохранено",
+
+            "settings.audio": "звук",
+            "settings.audio.mic": "микрофон",
+            "settings.audio.speakers": "динамики",
+            "settings.audio.default": "системное по умолчанию",
+            "settings.audio.gainIn": "усиление",
+            "settings.audio.gainOut": "громкость",
+            "settings.audio.test": "тест",
+            "settings.audio.permHint": "разреши доступ к микрофону, чтобы видеть имена устройств",
+            "settings.audio.noSinkId": "выбор колонок недоступен в этом браузере — звук идёт в системное устройство по умолчанию",
+            "settings.audio.applyOnRejoin": "новый микрофон подключится при следующем входе в комнату"
         },
         en: {
             "intro.question": "what is the music of life?",
@@ -206,7 +242,18 @@
             "settings.nick.hint": "leave empty — a random one each visit",
             "settings.nick.placeholder": "your name",
             "settings.nick.save": "save",
-            "settings.nick.saved": "saved"
+            "settings.nick.saved": "saved",
+
+            "settings.audio": "audio",
+            "settings.audio.mic": "microphone",
+            "settings.audio.speakers": "speakers",
+            "settings.audio.default": "system default",
+            "settings.audio.gainIn": "gain",
+            "settings.audio.gainOut": "volume",
+            "settings.audio.test": "test",
+            "settings.audio.permHint": "grant microphone access to see device names",
+            "settings.audio.noSinkId": "speaker selection isn't supported in this browser — using system default",
+            "settings.audio.applyOnRejoin": "the new microphone will be picked up the next time you join a room"
         }
     };
 
@@ -226,6 +273,14 @@
                     /* Пропускаем через тот же sanitize, что и при save — на случай
                        если в storage попало что-то из старой/чужой версии. */
                     state.nickname = sanitizeNickname(parsed.nickname);
+                }
+                if (typeof parsed.audioInId === "string") state.audioInId = parsed.audioInId.slice(0, 200);
+                if (typeof parsed.audioOutId === "string") state.audioOutId = parsed.audioOutId.slice(0, 200);
+                if (typeof parsed.audioInGain === "number" && isFinite(parsed.audioInGain)) {
+                    state.audioInGain = clampGain(parsed.audioInGain, AUDIO_IN_GAIN_MIN, AUDIO_IN_GAIN_MAX);
+                }
+                if (typeof parsed.audioOutGain === "number" && isFinite(parsed.audioOutGain)) {
+                    state.audioOutGain = clampGain(parsed.audioOutGain, AUDIO_OUT_GAIN_MIN, AUDIO_OUT_GAIN_MAX);
                 }
             }
         } catch {
@@ -316,6 +371,42 @@
     function getLang() { return state.lang; }
     function getStreamer() { return state.streamer; }
     function getNickname() { return state.nickname || ""; }
+    function getAudioInId() { return state.audioInId || ""; }
+    function getAudioOutId() { return state.audioOutId || ""; }
+    function getAudioInGain() { return state.audioInGain; }
+    function getAudioOutGain() { return state.audioOutGain; }
+
+    function setAudioInId(id) {
+        const next = typeof id === "string" ? id.slice(0, 200) : "";
+        if (state.audioInId === next) return;
+        state.audioInId = next;
+        saveState();
+        document.dispatchEvent(new CustomEvent("void:audio-in-device-changed", { detail: { deviceId: next } }));
+    }
+
+    function setAudioOutId(id) {
+        const next = typeof id === "string" ? id.slice(0, 200) : "";
+        if (state.audioOutId === next) return;
+        state.audioOutId = next;
+        saveState();
+        document.dispatchEvent(new CustomEvent("void:audio-out-device-changed", { detail: { deviceId: next } }));
+    }
+
+    function setAudioInGain(v) {
+        const next = clampGain(v, AUDIO_IN_GAIN_MIN, AUDIO_IN_GAIN_MAX);
+        if (state.audioInGain === next) return;
+        state.audioInGain = next;
+        saveState();
+        document.dispatchEvent(new CustomEvent("void:audio-in-gain-changed", { detail: { gain: next } }));
+    }
+
+    function setAudioOutGain(v) {
+        const next = clampGain(v, AUDIO_OUT_GAIN_MIN, AUDIO_OUT_GAIN_MAX);
+        if (state.audioOutGain === next) return;
+        state.audioOutGain = next;
+        saveState();
+        document.dispatchEvent(new CustomEvent("void:audio-out-gain-changed", { detail: { gain: next } }));
+    }
 
     /**
      * Сеттер кастомного ника. Пустая строка ⇒ «сбросить, пусть генерируется».
@@ -342,6 +433,16 @@
 
     let panelEl, scrimEl, gearBtn, langSegEl, streamerInputEl;
     let nickFormEl, nickInputEl, nickSavedEl, nickSavedTimer = null;
+    let micSelectEl, spkSelectEl, micGainEl, spkGainEl,
+        micGainValueEl, spkGainValueEl, micMeterFillEl, spkTestBtnEl,
+        audioHintEl;
+    /* Изолированный preview-stream/analyser для уровня микрофона в панели.
+       Включается на open, гасится на close. Не трогает основной localStream. */
+    let previewStream = null;
+    let previewCtx = null;
+    let previewAnalyser = null;
+    let previewRaf = null;
+    let previewLastDeviceId = null;
 
     function buildPanel() {
         if (document.getElementById("settingsPanel")) return;
@@ -400,6 +501,73 @@
                     <span class="settings-row-hint settings-row-hint--below" data-i18n="settings.nick.hint">${t("settings.nick.hint")}</span>
                 </div>
 
+                <div class="settings-section">
+                    <span class="settings-section-title" data-i18n="settings.audio">${t("settings.audio")}</span>
+
+                    <div class="settings-audio-block">
+                        <div class="settings-audio-head">
+                            <span class="settings-audio-label" data-i18n="settings.audio.mic">${t("settings.audio.mic")}</span>
+                            <div class="settings-mic-meter" id="settingsMicMeter" aria-hidden="true">
+                                <div class="settings-mic-meter-fill" id="settingsMicMeterFill"></div>
+                            </div>
+                        </div>
+                        <div class="settings-select-wrap">
+                            <select id="settingsMicSelect" class="settings-select" aria-label="${t("settings.audio.mic")}">
+                                <option value="" data-default data-i18n="settings.audio.default">${t("settings.audio.default")}</option>
+                            </select>
+                            <svg class="settings-select-chevron" viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M6 9l6 6 6-6"/>
+                            </svg>
+                        </div>
+                        <div class="settings-slider-row">
+                            <span class="settings-slider-label" data-i18n="settings.audio.gainIn">${t("settings.audio.gainIn")}</span>
+                            <input
+                                type="range"
+                                id="settingsMicGain"
+                                class="settings-slider"
+                                min="0" max="150" step="1"
+                                aria-label="${t("settings.audio.gainIn")}"
+                            />
+                            <span class="settings-slider-value" id="settingsMicGainValue">100%</span>
+                        </div>
+                    </div>
+
+                    <div class="settings-audio-block">
+                        <div class="settings-audio-head">
+                            <span class="settings-audio-label" data-i18n="settings.audio.speakers">${t("settings.audio.speakers")}</span>
+                            <button type="button" id="settingsSpkTest" class="settings-test-btn"
+                                title="${t("settings.audio.test")}"
+                                aria-label="${t("settings.audio.test")}"
+                                data-i18n-attr="title:settings.audio.test;aria-label:settings.audio.test">
+                                <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M7 5l12 7-12 7V5z"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="settings-select-wrap">
+                            <select id="settingsSpkSelect" class="settings-select" aria-label="${t("settings.audio.speakers")}">
+                                <option value="" data-default data-i18n="settings.audio.default">${t("settings.audio.default")}</option>
+                            </select>
+                            <svg class="settings-select-chevron" viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M6 9l6 6 6-6"/>
+                            </svg>
+                        </div>
+                        <div class="settings-slider-row">
+                            <span class="settings-slider-label" data-i18n="settings.audio.gainOut">${t("settings.audio.gainOut")}</span>
+                            <input
+                                type="range"
+                                id="settingsSpkGain"
+                                class="settings-slider"
+                                min="0" max="100" step="1"
+                                aria-label="${t("settings.audio.gainOut")}"
+                            />
+                            <span class="settings-slider-value" id="settingsSpkGainValue">100%</span>
+                        </div>
+                    </div>
+
+                    <span class="settings-audio-hint" id="settingsAudioHint" aria-live="polite"></span>
+                </div>
+
                 <div class="settings-row">
                     <div class="settings-row-text">
                         <span class="settings-row-label" data-i18n="settings.streamer">${t("settings.streamer")}</span>
@@ -437,6 +605,17 @@
         nickFormEl = panelEl.querySelector("#settingsNickForm");
         nickInputEl = panelEl.querySelector("#settingsNickInput");
         nickSavedEl = panelEl.querySelector("#settingsNickSaved");
+        micSelectEl = panelEl.querySelector("#settingsMicSelect");
+        spkSelectEl = panelEl.querySelector("#settingsSpkSelect");
+        micGainEl = panelEl.querySelector("#settingsMicGain");
+        spkGainEl = panelEl.querySelector("#settingsSpkGain");
+        micGainValueEl = panelEl.querySelector("#settingsMicGainValue");
+        spkGainValueEl = panelEl.querySelector("#settingsSpkGainValue");
+        micMeterFillEl = panelEl.querySelector("#settingsMicMeterFill");
+        spkTestBtnEl = panelEl.querySelector("#settingsSpkTest");
+        audioHintEl = panelEl.querySelector("#settingsAudioHint");
+
+        bindAudioControls();
 
         langSegEl.addEventListener("click", e => {
             const btn = e.target.closest(".settings-seg-btn");
@@ -478,6 +657,233 @@
         streamerInputEl.checked = !!state.streamer;
     }
 
+    /* ===== AUDIO devices / sliders ===== */
+
+    function bindAudioControls() {
+        if (!micSelectEl) return;
+
+        micSelectEl.addEventListener("change", () => {
+            setAudioInId(micSelectEl.value);
+            restartPreview();
+            showAudioHint(t("settings.audio.applyOnRejoin"));
+        });
+        spkSelectEl.addEventListener("change", () => {
+            setAudioOutId(spkSelectEl.value);
+        });
+
+        micGainEl.addEventListener("input", () => {
+            const v = Number(micGainEl.value) / 100;
+            setAudioInGain(v);
+            updateGainLabels();
+        });
+        spkGainEl.addEventListener("input", () => {
+            const v = Number(spkGainEl.value) / 100;
+            setAudioOutGain(v);
+            updateGainLabels();
+        });
+
+        spkTestBtnEl?.addEventListener("click", playTestTone);
+
+        /* devicechange — пользователь воткнул наушники, поменял USB-микрофон.
+           Перебираем список без участия пользователя. */
+        if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
+            navigator.mediaDevices.addEventListener("devicechange", () => {
+                if (panelEl?.classList.contains("is-open")) {
+                    populateDeviceSelects();
+                }
+            });
+        }
+    }
+
+    function updateGainLabels() {
+        if (micGainValueEl) micGainValueEl.textContent = Math.round(state.audioInGain * 100) + "%";
+        if (spkGainValueEl) spkGainValueEl.textContent = Math.round(state.audioOutGain * 100) + "%";
+    }
+
+    function applyAudioControlsFromState() {
+        if (!micGainEl) return;
+        micGainEl.value = String(Math.round(state.audioInGain * 100));
+        spkGainEl.value = String(Math.round(state.audioOutGain * 100));
+        updateGainLabels();
+    }
+
+    async function populateDeviceSelects() {
+        if (!micSelectEl) return;
+        if (!navigator.mediaDevices?.enumerateDevices) {
+            showAudioHint(t("settings.audio.noSinkId"));
+            return;
+        }
+
+        let devices = [];
+        try {
+            devices = await navigator.mediaDevices.enumerateDevices();
+        } catch (_) {
+            return;
+        }
+
+        const ins = devices.filter(d => d.kind === "audioinput");
+        const outs = devices.filter(d => d.kind === "audiooutput");
+
+        fillSelect(micSelectEl, ins, state.audioInId);
+        fillSelect(spkSelectEl, outs, state.audioOutId);
+
+        /* setSinkId есть только в Chrome/Edge/Firefox 116+; в Safari отсутствует.
+           Если API недоступен — гасим select и пишем подсказку, чтобы юзер не
+           недоумевал «почему не работает». */
+        const supportsSinkId = "setSinkId" in HTMLMediaElement.prototype;
+        if (!supportsSinkId) {
+            spkSelectEl.disabled = true;
+            if (spkTestBtnEl) spkTestBtnEl.disabled = true;
+            showAudioHint(t("settings.audio.noSinkId"));
+            return;
+        }
+
+        /* enumerateDevices возвращает имена устройств ТОЛЬКО когда у пользователя
+           уже выдан permission на микрофон. Если нет — labels пустые, и юзер
+           видит «Microphone 1 / Microphone 2». Подсказываем что делать. */
+        const hasLabels = devices.some(d => d.label && d.label.length > 0);
+        if (!hasLabels) {
+            showAudioHint(t("settings.audio.permHint"));
+        } else {
+            hideAudioHint();
+        }
+    }
+
+    function fillSelect(selectEl, list, savedId) {
+        /* Сохраняем дефолтный <option value="">. Остальные обновляем. */
+        const def = selectEl.querySelector("option[data-default]");
+        selectEl.innerHTML = "";
+        if (def) selectEl.appendChild(def);
+        list.forEach((d, i) => {
+            const opt = document.createElement("option");
+            opt.value = d.deviceId;
+            opt.textContent = d.label || `${selectEl === micSelectEl ? "microphone" : "speaker"} ${i + 1}`;
+            selectEl.appendChild(opt);
+        });
+        /* Если сохранённый id больше не существует — fallback на default. */
+        const exists = !savedId || list.some(d => d.deviceId === savedId);
+        selectEl.value = exists ? (savedId || "") : "";
+        if (!exists && savedId) {
+            if (selectEl === micSelectEl) setAudioInId("");
+            else setAudioOutId("");
+        }
+    }
+
+    function showAudioHint(text) {
+        if (!audioHintEl) return;
+        audioHintEl.textContent = text;
+        audioHintEl.classList.add("is-visible");
+    }
+    function hideAudioHint() {
+        if (!audioHintEl) return;
+        audioHintEl.textContent = "";
+        audioHintEl.classList.remove("is-visible");
+    }
+
+    /* ===== mic-level preview =====
+       Отдельный поток (не трогает основной localStream) — нужен, чтобы юзер
+       видел реакцию уровня при выборе устройства и крутил усиление с
+       feedback'ом. Запрашиваем только при открытой панели. */
+
+    async function startPreview() {
+        stopPreview();
+        if (!navigator.mediaDevices?.getUserMedia) return;
+        const id = state.audioInId;
+        previewLastDeviceId = id || "default";
+        try {
+            const constraints = {
+                audio: id ? { deviceId: { exact: id } } : true,
+                video: false
+            };
+            previewStream = await navigator.mediaDevices.getUserMedia(constraints);
+        } catch (_) {
+            /* нет permission / устройство пропало — просто молчим, meter
+               останется на нуле. Подсказка про permission уже видна. */
+            return;
+        }
+        try {
+            const Ctx = window.AudioContext || window.webkitAudioContext;
+            if (!Ctx) return;
+            previewCtx = new Ctx();
+            const src = previewCtx.createMediaStreamSource(previewStream);
+            previewAnalyser = previewCtx.createAnalyser();
+            previewAnalyser.fftSize = 256;
+            previewAnalyser.smoothingTimeConstant = 0.5;
+            src.connect(previewAnalyser);
+            runPreviewLoop();
+            /* Лейблы могли быть пустыми до permission — теперь они есть,
+               пере-наполняем select'ы. */
+            populateDeviceSelects();
+        } catch (_) {
+            stopPreview();
+        }
+    }
+
+    function runPreviewLoop() {
+        if (!previewAnalyser) return;
+        const data = new Uint8Array(previewAnalyser.frequencyBinCount);
+        const tick = () => {
+            if (!previewAnalyser || !micMeterFillEl) { previewRaf = null; return; }
+            previewAnalyser.getByteFrequencyData(data);
+            let sum = 0;
+            for (let i = 0; i < data.length; i++) sum += data[i];
+            const avg = sum / data.length;
+            /* avg в [0..255]; нормальная речь даёт 20..50, громкий звук — 80+.
+               Применяем gain (как множитель), отображаем в процентах от ~80.
+               Если уперлись в 100% — фактически юзер «в полку». */
+            const withGain = avg * state.audioInGain;
+            const pct = Math.min(100, (withGain / 80) * 100);
+            micMeterFillEl.style.width = pct.toFixed(1) + "%";
+            /* Цветная подсветка «слишком громко»: дорисуем класс по порогу. */
+            micMeterFillEl.classList.toggle("is-hot", pct > 92);
+            previewRaf = requestAnimationFrame(tick);
+        };
+        tick();
+    }
+
+    function stopPreview() {
+        if (previewRaf) { cancelAnimationFrame(previewRaf); previewRaf = null; }
+        if (previewStream) {
+            previewStream.getTracks().forEach(t => { try { t.stop(); } catch (_) {} });
+            previewStream = null;
+        }
+        if (previewCtx) {
+            try { previewCtx.close(); } catch (_) {}
+            previewCtx = null;
+        }
+        previewAnalyser = null;
+        if (micMeterFillEl) {
+            micMeterFillEl.style.width = "0%";
+            micMeterFillEl.classList.remove("is-hot");
+        }
+    }
+
+    async function restartPreview() {
+        if (panelEl?.classList.contains("is-open")) {
+            await startPreview();
+        }
+    }
+
+    /* ===== speaker test ===== */
+
+    async function playTestTone() {
+        /* Короткий «дзынь» через существующий звук join'а. Создаём временный
+           <audio>-элемент, чтобы применить setSinkId именно к нему, не
+           ломая основные системные звуки (у них может быть другой sink в
+           процессе работы). */
+        const audio = new Audio("/static/audio-in.mp3");
+        audio.volume = state.audioOutGain;
+        try {
+            if (audio.setSinkId && state.audioOutId) {
+                await audio.setSinkId(state.audioOutId);
+            }
+        } catch (_) {
+            /* Безымянное устройство пропало / нет permission на sinkId.
+               Падать в системный default — приемлемо. */
+        }
+        audio.play().catch(() => {});
+    }
+
     function applyNickInputUI() {
         if (!nickInputEl) return;
         /* Если у пользователя есть сохранённый ник — показываем его.
@@ -505,6 +911,9 @@
         /* Перерисовываем поле ника на каждом open — currentUsername мог
            перегенериться (пользователь очистил ник, или сменилась сессия). */
         applyNickInputUI();
+        applyAudioControlsFromState();
+        populateDeviceSelects();
+        startPreview();
         panelEl.classList.add("is-open");
         panelEl.setAttribute("aria-hidden", "false");
         scrimEl.classList.add("is-open");
@@ -514,6 +923,7 @@
 
     function closePanel() {
         if (!panelEl) return;
+        stopPreview();
         panelEl.classList.remove("is-open");
         panelEl.setAttribute("aria-hidden", "true");
         scrimEl.classList.remove("is-open");
@@ -556,7 +966,9 @@
     window.VoidI18n = { t, applyI18n, getLang };
     window.VoidSettings = {
         getLang, getStreamer, getNickname,
+        getAudioInId, getAudioOutId, getAudioInGain, getAudioOutGain,
         setLang, setStreamer, setNickname,
+        setAudioInId, setAudioOutId, setAudioInGain, setAudioOutGain,
         openPanel, closePanel
     };
 })();

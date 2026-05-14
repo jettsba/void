@@ -113,8 +113,14 @@ function createVolumeArc(participant, userId) {
         handle.setAttribute("cy", p.y.toFixed(3));
 
         volumeMap.set(userId, v);
-        const audio = audioMap.get(userId);
-        if (audio) audio.volume = v;
+        /* Финал = per-peer × master output gain (из settings). Не выставляем
+           audio.volume напрямую, чтобы мастер тоже учитывался. */
+        if (typeof applyOutputVolumeForUser === "function") {
+            applyOutputVolumeForUser(userId);
+        } else {
+            const audio = audioMap.get(userId);
+            if (audio) audio.volume = v;
+        }
     };
 
     applyVolume(volumeMap.get(userId) ?? 1);
