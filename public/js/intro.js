@@ -1,7 +1,16 @@
 function isIntroUnlockedInBrowser() {
     if (!INTRO_REMEMBER_UNLOCK) return false;
     try {
-        return localStorage.getItem(INTRO_UNLOCK_STORAGE_KEY) === "1";
+        if (localStorage.getItem(INTRO_UNLOCK_STORAGE_KEY) === "1") return true;
+        /* Одноразовая миграция: у пользователей, проходивших интро до v0.3.3,
+           флаг лежит под старым ключом "passed" без префикса. Переносим в
+           "void:passed" и удаляем старый — чтобы не показывать интро повторно. */
+        if (localStorage.getItem(INTRO_UNLOCK_STORAGE_KEY_LEGACY) === "1") {
+            localStorage.setItem(INTRO_UNLOCK_STORAGE_KEY, "1");
+            localStorage.removeItem(INTRO_UNLOCK_STORAGE_KEY_LEGACY);
+            return true;
+        }
+        return false;
     } catch {
         return false;
     }

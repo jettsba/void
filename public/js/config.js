@@ -16,7 +16,9 @@ const INTRO_PAUSE_AFTER_WELCOME_MS = 520;
  * Инкогнито / другой браузер / очистка данных — интро снова.
  */
 const INTRO_REMEMBER_UNLOCK = true;
-const INTRO_UNLOCK_STORAGE_KEY = "passed";
+const INTRO_UNLOCK_STORAGE_KEY = "void:passed";
+/* Старый ключ без префикса — для одноразовой миграции в intro.js. */
+const INTRO_UNLOCK_STORAGE_KEY_LEGACY = "passed";
 
 const ENTRY_ERROR_DISPLAY_MS = 1500;
 

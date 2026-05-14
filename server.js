@@ -60,18 +60,60 @@ server.listen(PORT, HOST, () => {
 
 /* ========= WEBSOCKET ========= */
 
+/**
+ * Anti-flooding для лога «origin rejected». Если бот шурует по WS — каждая
+ * попытка падала бы в лог, забивая `docker logs` за минуты. Группируем по
+ * IP, пишем одну запись на минуту с агрегированным счётчиком. Map чистится
+ * по тому же таймауту, не растёт неограниченно.
+ */
+const ORIGIN_REJECT_WINDOW_MS = 60 * 1000;
+const originRejectAggregator = new Map(); // ip -> { count, firstAt, lastOrigin, timer }
+
+function noteOriginReject(ip, origin) {
+    let entry = originRejectAggregator.get(ip);
+    if (!entry) {
+        /* Первое попадание — пишем в лог сразу, дальше копим. */
+        log.warn("security", "origin rejected", { origin, ip });
+        entry = {
+            count: 1,
+            firstAt: Date.now(),
+            lastOrigin: origin,
+            timer: setTimeout(() => flushOriginReject(ip), ORIGIN_REJECT_WINDOW_MS)
+        };
+        entry.timer.unref?.();
+        originRejectAggregator.set(ip, entry);
+        return;
+    }
+    entry.count += 1;
+    entry.lastOrigin = origin;
+}
+
+function flushOriginReject(ip) {
+    const entry = originRejectAggregator.get(ip);
+    originRejectAggregator.delete(ip);
+    if (!entry) return;
+    if (entry.count > 1) {
+        log.warn("security", "origin rejected (aggregated)", {
+            ip,
+            attempts: entry.count,
+            windowSec: Math.round((Date.now() - entry.firstAt) / 1000),
+            lastOrigin: entry.lastOrigin
+        });
+    }
+}
+
 const wss = new WebSocketServer({
     server,
     maxPayload: MAX_PAYLOAD_BYTES,
     perMessageDeflate: false,
     verifyClient: ({ req }, cb) => {
         const origin = req.headers.origin;
+        const ip = getClientIp(req);
         if (!isOriginAllowed(origin)) {
-            log.warn("security", "origin rejected", { origin, ip: getClientIp(req) });
+            noteOriginReject(ip, origin);
             cb(false, 403, "Forbidden origin");
             return;
         }
-        const ip = getClientIp(req);
         const count = ipConnections.get(ip) || 0;
         if (count >= MAX_CONNECTIONS_PER_IP) {
             log.warn("security", "ip connection cap hit", { ip, cap: MAX_CONNECTIONS_PER_IP });
