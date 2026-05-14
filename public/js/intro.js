@@ -126,11 +126,17 @@ async function checkPassword() {
     await runIntroWelcomeThenUnlock();
 }
 
-function showError() {
-    introError.classList.add("visible");
+let _showErrorTimer = null;
 
-    setTimeout(() => {
+function showError() {
+    if (_showErrorTimer) clearTimeout(_showErrorTimer);
+    introInput.disabled = true;
+    introError.classList.add("visible");
+    _showErrorTimer = setTimeout(() => {
         introError.classList.remove("visible");
+        introInput.disabled = false;
+        introInput.focus();
+        _showErrorTimer = null;
     }, 1200);
 }
 

@@ -180,6 +180,7 @@ function init() {
     roomInfo.addEventListener("click", async () => {
         try {
             await navigator.clipboard.writeText(currentRoomCode);
+            dismissInviteHint(true);
             roomInfo.classList.add("room-info--copied");
             if (roomCopyFeedbackTimer) clearTimeout(roomCopyFeedbackTimer);
             roomCopyFeedbackTimer = setTimeout(() => {

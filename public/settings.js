@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "0.4.0";
+    const APP_VERSION = "0.4.1";
 
     const STORAGE_KEY = "void:settings";
     /**
@@ -152,7 +152,9 @@
             "settings.audio.test": "тест",
             "settings.audio.permHint": "разреши доступ к микрофону, чтобы видеть имена устройств",
             "settings.audio.noSinkId": "выбор колонок недоступен в этом браузере — звук идёт в системное устройство по умолчанию",
-            "settings.audio.applyOnRejoin": "новый микрофон подключится при следующем входе в комнату"
+            "settings.audio.applyOnRejoin": "новый микрофон подключится при следующем входе в комнату",
+
+            "invite.hint": "пригласи друзей войти, используя код"
         },
         en: {
             "intro.question": "what is the music of life?",
@@ -253,7 +255,9 @@
             "settings.audio.test": "test",
             "settings.audio.permHint": "grant microphone access to see device names",
             "settings.audio.noSinkId": "speaker selection isn't supported in this browser — using system default",
-            "settings.audio.applyOnRejoin": "the new microphone will be picked up the next time you join a room"
+            "settings.audio.applyOnRejoin": "the new microphone will be picked up the next time you join a room",
+
+            "invite.hint": "invite friends with the code below"
         }
     };
 

@@ -163,6 +163,9 @@ wss.on("connection", (ws, req) => {
     ws._missedPongs = 0;
     ws._bucket = { tokens: MSG_BUCKET_CAPACITY, lastRefill: Date.now() };
     ipConnections.set(ip, (ipConnections.get(ip) || 0) + 1);
+    if (ipConnections.size > 100_000) {
+        log.error("security", "ip map exploded", { size: ipConnections.size });
+    }
 
     log.debug("ws", "client connected", { ip });
 

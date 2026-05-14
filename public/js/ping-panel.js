@@ -102,6 +102,36 @@ function pingClass(ms) {
     return "ping-bad";
 }
 
+/* ===== Connection quality dot on blobs ===== */
+
+let _connQualityTimer = null;
+
+async function refreshPeerConnQuality() {
+    if (!isJoined || typeof peers === "undefined") return;
+    for (const userId of peers.keys()) {
+        const ms = await getPeerPing(userId);
+        const el = document.querySelector(`.participant[data-user-id="${userId}"]`);
+        if (!el) continue;
+        if (ms == null || ms > 180) el.dataset.conn = "poor";
+        else delete el.dataset.conn;
+    }
+}
+
+function startConnQualityMonitor() {
+    if (_connQualityTimer) return;
+    _connQualityTimer = setInterval(refreshPeerConnQuality, 5000);
+}
+
+function stopConnQualityMonitor() {
+    if (_connQualityTimer) {
+        clearInterval(_connQualityTimer);
+        _connQualityTimer = null;
+    }
+    document.querySelectorAll(".participant[data-conn]").forEach(el => {
+        delete el.dataset.conn;
+    });
+}
+
 function escapeHtml(s) {
     const div = document.createElement("div");
     div.textContent = String(s);

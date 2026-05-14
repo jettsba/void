@@ -64,9 +64,10 @@ function showEntryError(reason) {
         });
     });
 
+    const displayMs = Math.max(3000, 1500 + text.length * 25);
     entryErrorHideTimer = setTimeout(() => {
         hideEntryError();
-    }, ENTRY_ERROR_DISPLAY_MS);
+    }, displayMs);
 }
 
 function abortJoinAttempt(reason) {
@@ -129,6 +130,8 @@ function closeMicBlockedModal() {
  */
 function tearDownRoomState() {
     closePingPanel();
+    stopConnQualityMonitor();
+    resetInviteHint();
     if (typeof resetChatOnLeave === "function") {
         resetChatOnLeave();
     }
@@ -371,6 +374,8 @@ function enterRoomUI() {
     screencastBtn.classList.remove("control-btn-stub");
     screencastBtn.title = _t("controls.screencast.share");
     syncScreencastBtnBlocked();
+
+    startConnQualityMonitor();
 
     playJoinSound();
 }

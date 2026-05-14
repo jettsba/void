@@ -1,3 +1,50 @@
+/* ===== Invite hint ===== */
+
+let _inviteHintEl = null;
+
+function _getOrCreateInviteHintEl() {
+    if (_inviteHintEl) return _inviteHintEl;
+    _inviteHintEl = document.createElement("div");
+    _inviteHintEl.className = "invite-hint";
+    _inviteHintEl.setAttribute("role", "status");
+    _inviteHintEl.addEventListener("click", () => dismissInviteHint(true));
+    const slot = participantsContainer?.closest(".users-slot");
+    if (slot) slot.appendChild(_inviteHintEl);
+    return _inviteHintEl;
+}
+
+function updateInviteHint() {
+    if (!isJoined) return;
+    try {
+        if (localStorage.getItem("void:invite-hint-seen") === "1") return;
+    } catch (_) {}
+    const count = participantsContainer
+        ? [...participantsContainer.querySelectorAll(".participant:not(.pop-out)")].length
+        : 0;
+    if (count === 1) {
+        const el = _getOrCreateInviteHintEl();
+        el.textContent = _t("invite.hint");
+        el.classList.add("is-visible");
+    } else {
+        _inviteHintEl?.classList.remove("is-visible");
+    }
+}
+
+function dismissInviteHint(persist) {
+    _inviteHintEl?.classList.remove("is-visible");
+    if (persist) {
+        try { localStorage.setItem("void:invite-hint-seen", "1"); } catch (_) {}
+    }
+}
+
+function resetInviteHint() {
+    if (_inviteHintEl) {
+        _inviteHintEl.classList.remove("is-visible");
+        _inviteHintEl.remove();
+        _inviteHintEl = null;
+    }
+}
+
 function removeAllParticipants() {
 
     const all = document.querySelectorAll(".participant");
@@ -73,6 +120,7 @@ function addParticipant(userId, nickname) {
 
     requestAnimationFrame(() => {
         participant.classList.add("pop-in");
+        updateInviteHint();
     });
 
     if (userId !== clientId) {
@@ -112,6 +160,7 @@ function removeParticipant(userId) {
     el.addEventListener("animationend", () => {
         el.remove();
         animateLayoutFlip(siblings, firstRects);
+        updateInviteHint();
     }, { once: true });
 }
 

@@ -76,6 +76,12 @@
     }
 }
 
+@media (hover: none) and (pointer: coarse) {
+    .volume-arc-hit {
+        stroke-width: 32;
+    }
+}
+
 .footer-meta {
     display: flex;
     align-items: center;

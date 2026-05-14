@@ -276,3 +276,39 @@
 .participant:not(.self) {
     cursor: pointer;
 }
+
+.invite-hint {
+    position: absolute;
+    top: calc(100% + 46px);
+    left: 50%;
+    transform: translateX(-50%) translateY(4px);
+    color: var(--fg-3);
+    font-size: 11px;
+    letter-spacing: var(--tracking-wide);
+    text-align: center;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--t-med), transform var(--t-med);
+    cursor: pointer;
+    z-index: 1;
+}
+
+.invite-hint.is-visible {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateX(-50%) translateY(0);
+}
+
+.participant[data-conn="poor"]::after {
+    content: "";
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--warn);
+    z-index: 3;
+    pointer-events: none;
+}

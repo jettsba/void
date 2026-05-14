@@ -217,12 +217,17 @@ function closeScreenOverlay() {
 }
 
 function toggleScreenFullscreen() {
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
     const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
     if (fsEl) {
         (document.exitFullscreen || document.webkitExitFullscreen)?.call(document);
-    } else {
-        (screenOverlay.requestFullscreen || screenOverlay.webkitRequestFullscreen)?.call(screenOverlay);
+        return;
     }
+    if (isIOS && screenOverlayVideo?.webkitEnterFullscreen) {
+        screenOverlayVideo.webkitEnterFullscreen();
+        return;
+    }
+    (screenOverlay.requestFullscreen || screenOverlay.webkitRequestFullscreen)?.call(screenOverlay);
 }
 
 function handleScreencastRejected() {
