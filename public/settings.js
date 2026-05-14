@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "0.3.1";
+    const APP_VERSION = "0.3.2";
 
     const STORAGE_KEY = "void:settings";
     /**
@@ -433,8 +433,10 @@
 
     let panelEl, scrimEl, gearBtn, langSegEl, streamerInputEl;
     let nickFormEl, nickInputEl, nickSavedEl, nickSavedTimer = null;
-    let micSelectEl, spkSelectEl, micGainEl, spkGainEl,
-        micGainValueEl, spkGainValueEl, micMeterFillEl, spkTestBtnEl,
+    let micDropdown, spkDropdown,
+        micGainEl, spkGainEl,
+        micGainValueEl, spkGainValueEl,
+        micMeterFillEl, spkTestBtnEl,
         audioHintEl;
     /* Изолированный preview-stream/analyser для уровня микрофона в панели.
        Включается на open, гасится на close. Не трогает основной localStream. */
@@ -511,13 +513,16 @@
                                 <div class="settings-mic-meter-fill" id="settingsMicMeterFill"></div>
                             </div>
                         </div>
-                        <div class="settings-select-wrap">
-                            <select id="settingsMicSelect" class="settings-select" aria-label="${t("settings.audio.mic")}">
-                                <option value="" data-default data-i18n="settings.audio.default">${t("settings.audio.default")}</option>
-                            </select>
-                            <svg class="settings-select-chevron" viewBox="0 0 24 24" aria-hidden="true">
-                                <path d="M6 9l6 6 6-6"/>
-                            </svg>
+                        <div class="settings-dropdown" id="settingsMicDropdown">
+                            <button type="button" class="settings-dropdown-trigger"
+                                aria-haspopup="listbox" aria-expanded="false"
+                                aria-label="${t("settings.audio.mic")}">
+                                <span class="settings-dropdown-current" data-default-label="settings.audio.default">${t("settings.audio.default")}</span>
+                                <svg class="settings-dropdown-chevron" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M6 9l6 6 6-6"/>
+                                </svg>
+                            </button>
+                            <ul class="settings-dropdown-menu" role="listbox" aria-hidden="true"></ul>
                         </div>
                         <div class="settings-slider-row">
                             <span class="settings-slider-label" data-i18n="settings.audio.gainIn">${t("settings.audio.gainIn")}</span>
@@ -544,13 +549,16 @@
                                 </svg>
                             </button>
                         </div>
-                        <div class="settings-select-wrap">
-                            <select id="settingsSpkSelect" class="settings-select" aria-label="${t("settings.audio.speakers")}">
-                                <option value="" data-default data-i18n="settings.audio.default">${t("settings.audio.default")}</option>
-                            </select>
-                            <svg class="settings-select-chevron" viewBox="0 0 24 24" aria-hidden="true">
-                                <path d="M6 9l6 6 6-6"/>
-                            </svg>
+                        <div class="settings-dropdown" id="settingsSpkDropdown">
+                            <button type="button" class="settings-dropdown-trigger"
+                                aria-haspopup="listbox" aria-expanded="false"
+                                aria-label="${t("settings.audio.speakers")}">
+                                <span class="settings-dropdown-current" data-default-label="settings.audio.default">${t("settings.audio.default")}</span>
+                                <svg class="settings-dropdown-chevron" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M6 9l6 6 6-6"/>
+                                </svg>
+                            </button>
+                            <ul class="settings-dropdown-menu" role="listbox" aria-hidden="true"></ul>
                         </div>
                         <div class="settings-slider-row">
                             <span class="settings-slider-label" data-i18n="settings.audio.gainOut">${t("settings.audio.gainOut")}</span>
@@ -605,8 +613,6 @@
         nickFormEl = panelEl.querySelector("#settingsNickForm");
         nickInputEl = panelEl.querySelector("#settingsNickInput");
         nickSavedEl = panelEl.querySelector("#settingsNickSaved");
-        micSelectEl = panelEl.querySelector("#settingsMicSelect");
-        spkSelectEl = panelEl.querySelector("#settingsSpkSelect");
         micGainEl = panelEl.querySelector("#settingsMicGain");
         spkGainEl = panelEl.querySelector("#settingsSpkGain");
         micGainValueEl = panelEl.querySelector("#settingsMicGainValue");
@@ -614,6 +620,17 @@
         micMeterFillEl = panelEl.querySelector("#settingsMicMeterFill");
         spkTestBtnEl = panelEl.querySelector("#settingsSpkTest");
         audioHintEl = panelEl.querySelector("#settingsAudioHint");
+
+        micDropdown = createDropdown(panelEl.querySelector("#settingsMicDropdown"), {
+            onChange: (v) => {
+                setAudioInId(v);
+                restartPreview();
+                showAudioHint(t("settings.audio.applyOnRejoin"));
+            }
+        });
+        spkDropdown = createDropdown(panelEl.querySelector("#settingsSpkDropdown"), {
+            onChange: (v) => setAudioOutId(v)
+        });
 
         bindAudioControls();
 
@@ -660,16 +677,7 @@
     /* ===== AUDIO devices / sliders ===== */
 
     function bindAudioControls() {
-        if (!micSelectEl) return;
-
-        micSelectEl.addEventListener("change", () => {
-            setAudioInId(micSelectEl.value);
-            restartPreview();
-            showAudioHint(t("settings.audio.applyOnRejoin"));
-        });
-        spkSelectEl.addEventListener("change", () => {
-            setAudioOutId(spkSelectEl.value);
-        });
+        if (!micGainEl) return;
 
         micGainEl.addEventListener("input", () => {
             const v = Number(micGainEl.value) / 100;
@@ -695,6 +703,139 @@
         }
     }
 
+    /* ===== custom dropdown =====
+       Полностью свой компонент: нативный <select> рендерит popup OS-средствами
+       и не уважает CSS (особенно <option> на тёмной теме на Windows/Linux).
+       Свой даёт hover/keyboard-nav/скруглённые углы — попадает в эстетику. */
+    function createDropdown(rootEl, opts) {
+        const onChange = opts?.onChange || (() => {});
+        const triggerEl = rootEl.querySelector(".settings-dropdown-trigger");
+        const currentEl = rootEl.querySelector(".settings-dropdown-current");
+        const menuEl = rootEl.querySelector(".settings-dropdown-menu");
+        const defaultLabelKey = currentEl?.dataset.defaultLabel || "settings.audio.default";
+
+        let value = "";
+        let options = [];   // [{value, label}]
+        let isOpen = false;
+        let activeIndex = -1;
+
+        function syncLabel() {
+            if (!currentEl) return;
+            const found = options.find(o => o.value === value);
+            currentEl.textContent = found ? found.label : t(defaultLabelKey);
+        }
+
+        function render() {
+            menuEl.innerHTML = "";
+            options.forEach((opt, i) => {
+                const li = document.createElement("li");
+                li.className = "settings-dropdown-option";
+                li.setAttribute("role", "option");
+                li.dataset.value = opt.value;
+                li.textContent = opt.label;
+                if (opt.value === value) {
+                    li.classList.add("is-selected");
+                    li.setAttribute("aria-selected", "true");
+                }
+                li.addEventListener("click", (e) => {
+                    e.stopPropagation();
+                    pickByIndex(i);
+                });
+                li.addEventListener("mouseenter", () => setActive(i));
+                menuEl.appendChild(li);
+            });
+            syncLabel();
+        }
+
+        function setActive(i) {
+            activeIndex = i;
+            Array.from(menuEl.children).forEach((el, idx) => {
+                el.classList.toggle("is-active", idx === i);
+            });
+            /* Скроллим в видимую область, если меню длиннее видимой части. */
+            const active = menuEl.children[i];
+            if (active && typeof active.scrollIntoView === "function") {
+                active.scrollIntoView({ block: "nearest" });
+            }
+        }
+
+        function pickByIndex(i) {
+            const opt = options[i];
+            if (!opt) return;
+            setValue(opt.value, /*fireChange*/ true);
+            close();
+            triggerEl.focus();
+        }
+
+        function setOptions(list) {
+            options = list.slice();
+            render();
+        }
+
+        function setValue(v, fireChange) {
+            const prev = value;
+            value = v == null ? "" : String(v);
+            Array.from(menuEl.children).forEach(el => {
+                const isSel = el.dataset.value === value;
+                el.classList.toggle("is-selected", isSel);
+                if (isSel) el.setAttribute("aria-selected", "true");
+                else el.removeAttribute("aria-selected");
+            });
+            syncLabel();
+            if (fireChange && prev !== value) onChange(value);
+        }
+
+        function open() {
+            if (isOpen) return;
+            isOpen = true;
+            rootEl.classList.add("is-open");
+            menuEl.setAttribute("aria-hidden", "false");
+            triggerEl.setAttribute("aria-expanded", "true");
+            const idx = options.findIndex(o => o.value === value);
+            setActive(idx >= 0 ? idx : 0);
+        }
+
+        function close() {
+            if (!isOpen) return;
+            isOpen = false;
+            rootEl.classList.remove("is-open");
+            menuEl.setAttribute("aria-hidden", "true");
+            triggerEl.setAttribute("aria-expanded", "false");
+        }
+
+        triggerEl.addEventListener("click", (e) => {
+            e.stopPropagation();
+            isOpen ? close() : open();
+        });
+
+        triggerEl.addEventListener("keydown", (e) => {
+            if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                e.preventDefault();
+                if (!isOpen) { open(); return; }
+                const step = e.key === "ArrowDown" ? 1 : -1;
+                setActive((activeIndex + step + options.length) % options.length);
+            } else if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                if (!isOpen) open();
+                else pickByIndex(activeIndex);
+            } else if (e.key === "Escape" && isOpen) {
+                e.preventDefault();
+                e.stopPropagation();
+                close();
+            } else if (e.key === "Tab" && isOpen) {
+                /* Tab — закрываем, но не отменяем default: фокус уйдёт штатно. */
+                close();
+            }
+        });
+
+        /* Клик вне дропдауна — закрыть. Один листенер на все инстансы — ок. */
+        document.addEventListener("click", (e) => {
+            if (isOpen && !rootEl.contains(e.target)) close();
+        });
+
+        return { setOptions, setValue, getValue: () => value };
+    }
+
     function updateGainLabels() {
         if (micGainValueEl) micGainValueEl.textContent = Math.round(state.audioInGain * 100) + "%";
         if (spkGainValueEl) spkGainValueEl.textContent = Math.round(state.audioOutGain * 100) + "%";
@@ -708,7 +849,7 @@
     }
 
     async function populateDeviceSelects() {
-        if (!micSelectEl) return;
+        if (!micDropdown) return;
         if (!navigator.mediaDevices?.enumerateDevices) {
             showAudioHint(t("settings.audio.noSinkId"));
             return;
@@ -724,18 +865,23 @@
         const ins = devices.filter(d => d.kind === "audioinput");
         const outs = devices.filter(d => d.kind === "audiooutput");
 
-        fillSelect(micSelectEl, ins, state.audioInId);
-        fillSelect(spkSelectEl, outs, state.audioOutId);
+        fillDropdown(micDropdown, ins, state.audioInId, "microphone", "audioInId");
+        fillDropdown(spkDropdown, outs, state.audioOutId, "speaker", "audioOutId");
 
         /* setSinkId есть только в Chrome/Edge/Firefox 116+; в Safari отсутствует.
-           Если API недоступен — гасим select и пишем подсказку, чтобы юзер не
-           недоумевал «почему не работает». */
+           Если API недоступен — гасим dropdown и пишем подсказку. */
         const supportsSinkId = "setSinkId" in HTMLMediaElement.prototype;
+        const spkRoot = panelEl.querySelector("#settingsSpkDropdown");
         if (!supportsSinkId) {
-            spkSelectEl.disabled = true;
+            spkRoot?.classList.add("is-disabled");
+            spkRoot?.querySelector(".settings-dropdown-trigger")?.setAttribute("disabled", "");
             if (spkTestBtnEl) spkTestBtnEl.disabled = true;
             showAudioHint(t("settings.audio.noSinkId"));
             return;
+        } else {
+            spkRoot?.classList.remove("is-disabled");
+            spkRoot?.querySelector(".settings-dropdown-trigger")?.removeAttribute("disabled");
+            if (spkTestBtnEl) spkTestBtnEl.disabled = false;
         }
 
         /* enumerateDevices возвращает имена устройств ТОЛЬКО когда у пользователя
@@ -749,22 +895,22 @@
         }
     }
 
-    function fillSelect(selectEl, list, savedId) {
-        /* Сохраняем дефолтный <option value="">. Остальные обновляем. */
-        const def = selectEl.querySelector("option[data-default]");
-        selectEl.innerHTML = "";
-        if (def) selectEl.appendChild(def);
+    function fillDropdown(dropdown, list, savedId, kindLabel, stateKey) {
+        const opts = [
+            { value: "", label: t("settings.audio.default") }
+        ];
         list.forEach((d, i) => {
-            const opt = document.createElement("option");
-            opt.value = d.deviceId;
-            opt.textContent = d.label || `${selectEl === micSelectEl ? "microphone" : "speaker"} ${i + 1}`;
-            selectEl.appendChild(opt);
+            opts.push({
+                value: d.deviceId,
+                label: d.label || `${kindLabel} ${i + 1}`
+            });
         });
+        dropdown.setOptions(opts);
         /* Если сохранённый id больше не существует — fallback на default. */
         const exists = !savedId || list.some(d => d.deviceId === savedId);
-        selectEl.value = exists ? (savedId || "") : "";
+        dropdown.setValue(exists ? (savedId || "") : "", /*fireChange*/ false);
         if (!exists && savedId) {
-            if (selectEl === micSelectEl) setAudioInId("");
+            if (stateKey === "audioInId") setAudioInId("");
             else setAudioOutId("");
         }
     }

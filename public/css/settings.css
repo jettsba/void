@@ -413,75 +413,165 @@
     transform: translateX(0.5px); /* визуально центруем «play» */
 }
 
-/* dropdown */
-.settings-select-wrap {
+/* ===== custom dropdown =====
+   Полностью свой компонент (см. settings.js createDropdown). Нативный
+   <select> рендерит popup OS-средствами и не уважает CSS — особенно
+   <option> на тёмной теме. Здесь — trigger + раскрывающееся меню. */
+
+.settings-dropdown {
     position: relative;
     width: 100%;
 }
 
-.settings-select {
+.settings-dropdown-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
     width: 100%;
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 6px;
-    padding: 8px 32px 8px 12px;
+    padding: 8px 12px;
     color: var(--fg);
     font-family: inherit;
     font-size: 12px;
+    text-align: left;
     letter-spacing: var(--tracking);
-    appearance: none;
-    -webkit-appearance: none;
-    -moz-appearance: none;
     cursor: pointer;
     outline: none;
     transition: border-color var(--t-fast), background var(--t-fast);
-    /* Длинные имена устройств обрезаются — не вылазят за пределы панели. */
-    text-overflow: ellipsis;
 }
 
-.settings-select:hover {
+.settings-dropdown-trigger:hover {
     border-color: rgba(255, 255, 255, 0.18);
 }
 
-.settings-select:focus-visible {
+.settings-dropdown-trigger:focus-visible {
     border-color: rgba(255, 255, 255, 0.32);
     background: rgba(255, 255, 255, 0.06);
 }
 
-.settings-select:disabled {
+.settings-dropdown.is-open .settings-dropdown-trigger {
+    border-color: rgba(255, 255, 255, 0.22);
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.settings-dropdown.is-disabled .settings-dropdown-trigger,
+.settings-dropdown-trigger:disabled {
     opacity: 0.45;
     cursor: not-allowed;
 }
 
-/* Раскрытый popup у нативного <select> рендерится OS-средствами и не
-   наследует color/background со select'а — без явных стилей option
-   получается светло-серый текст на белом фоне (нечитабельно на тёмной
-   теме). Chromium/Firefox на Windows/Linux/Electron уважают эти правила,
-   macOS native popup игнорирует — там OS красит сам. */
-.settings-select option {
-    background-color: var(--bg-1);
-    color: var(--fg);
+.settings-dropdown-current {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
-.settings-select option:checked,
-.settings-select option:hover {
-    background-color: var(--bg-2);
-    color: var(--fg);
-}
-
-.settings-select-chevron {
-    position: absolute;
-    right: 10px;
-    top: 50%;
+.settings-dropdown-chevron {
+    flex-shrink: 0;
     width: 12px;
     height: 12px;
-    transform: translateY(-50%);
-    pointer-events: none;
     fill: none;
     stroke: var(--fg-3);
     stroke-width: 1.6;
     stroke-linecap: round;
     stroke-linejoin: round;
+    transition: transform var(--t-fast), stroke var(--t-fast);
+}
+
+.settings-dropdown.is-open .settings-dropdown-chevron {
+    transform: rotate(180deg);
+    stroke: var(--fg-2);
+}
+
+/* Меню — позиционируется абсолютно под trigger. Скруглённые углы,
+   мягкая тень, скрол если очень много устройств. */
+.settings-dropdown-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    z-index: 5;
+    margin: 0;
+    padding: 4px;
+    list-style: none;
+    background: var(--bg-1);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+    max-height: 240px;
+    overflow-y: auto;
+    opacity: 0;
+    transform: translateY(-4px);
+    pointer-events: none;
+    transition: opacity var(--t-fast), transform var(--t-fast);
+}
+
+.settings-dropdown.is-open .settings-dropdown-menu {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+.settings-dropdown-option {
+    padding: 7px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    letter-spacing: var(--tracking);
+    color: var(--fg-2);
+    cursor: pointer;
+    transition: background var(--t-fast), color var(--t-fast);
+    /* Длинные имена устройств — одна строка с ellipsis. */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.settings-dropdown-option:hover,
+.settings-dropdown-option.is-active {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--fg);
+}
+
+.settings-dropdown-option.is-selected {
+    color: var(--fg);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.settings-dropdown-option.is-selected.is-active,
+.settings-dropdown-option.is-selected:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+/* Маленький маркер у выбранного пункта — слева от текста, тонкая полоска. */
+.settings-dropdown-option.is-selected::before {
+    content: "";
+    display: inline-block;
+    width: 2px;
+    height: 10px;
+    margin-right: 8px;
+    vertical-align: -1px;
+    background: var(--fg);
+    border-radius: 1px;
+}
+
+/* Кастомный скроллбар в menu — чтобы не светил OS-серым по тёмному. */
+.settings-dropdown-menu::-webkit-scrollbar {
+    width: 6px;
+}
+.settings-dropdown-menu::-webkit-scrollbar-track {
+    background: transparent;
+}
+.settings-dropdown-menu::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 3px;
+}
+.settings-dropdown-menu::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.16);
 }
 
 /* slider */
