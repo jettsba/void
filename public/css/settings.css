@@ -126,6 +126,14 @@
     text-transform: lowercase;
 }
 
+/* Подпись под полем ввода (а не над контролом, как обычный hint).
+   Чуть приподнятый top-отступ, чтобы визуально «склеилось» с инпутом
+   но осталось ощущение отдельной мета-строки. */
+.settings-row-hint--below {
+    margin-top: -2px;
+    line-height: 1.4;
+}
+
 .settings-seg {
     display: inline-flex;
     border: 1px solid rgba(255, 255, 255, 0.08);

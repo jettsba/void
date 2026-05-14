@@ -369,29 +369,9 @@
                     </button>
                 </header>
 
-                <div class="settings-row">
-                    <span class="settings-row-label" data-i18n="settings.lang">${t("settings.lang")}</span>
-                    <div class="settings-seg" id="settingsLangSeg" role="tablist">
-                        <button type="button" class="settings-seg-btn" data-val="ru" role="tab">RU</button>
-                        <button type="button" class="settings-seg-btn" data-val="en" role="tab">EN</button>
-                    </div>
-                </div>
-
-                <div class="settings-row">
-                    <div class="settings-row-text">
-                        <span class="settings-row-label" data-i18n="settings.streamer">${t("settings.streamer")}</span>
-                        <span class="settings-row-hint" data-i18n="settings.streamer.hint">${t("settings.streamer.hint")}</span>
-                    </div>
-                    <label class="settings-switch">
-                        <input type="checkbox" id="settingsStreamerInput"/>
-                        <span class="settings-switch-track"></span>
-                    </label>
-                </div>
-
                 <div class="settings-row settings-row--stack">
                     <div class="settings-row-text">
                         <span class="settings-row-label" data-i18n="settings.nick">${t("settings.nick")}</span>
-                        <span class="settings-row-hint" data-i18n="settings.nick.hint">${t("settings.nick.hint")}</span>
                     </div>
                     <form class="settings-nick-form" id="settingsNickForm" autocomplete="off">
                         <input
@@ -417,6 +397,26 @@
                         </button>
                         <span class="settings-nick-saved" id="settingsNickSaved" aria-live="polite" data-i18n="settings.nick.saved">${t("settings.nick.saved")}</span>
                     </form>
+                    <span class="settings-row-hint settings-row-hint--below" data-i18n="settings.nick.hint">${t("settings.nick.hint")}</span>
+                </div>
+
+                <div class="settings-row">
+                    <div class="settings-row-text">
+                        <span class="settings-row-label" data-i18n="settings.streamer">${t("settings.streamer")}</span>
+                        <span class="settings-row-hint" data-i18n="settings.streamer.hint">${t("settings.streamer.hint")}</span>
+                    </div>
+                    <label class="settings-switch">
+                        <input type="checkbox" id="settingsStreamerInput"/>
+                        <span class="settings-switch-track"></span>
+                    </label>
+                </div>
+
+                <div class="settings-row">
+                    <span class="settings-row-label" data-i18n="settings.lang">${t("settings.lang")}</span>
+                    <div class="settings-seg" id="settingsLangSeg" role="tablist">
+                        <button type="button" class="settings-seg-btn" data-val="ru" role="tab">RU</button>
+                        <button type="button" class="settings-seg-btn" data-val="en" role="tab">EN</button>
+                    </div>
                 </div>
 
                 <footer class="settings-footer">
