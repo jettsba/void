@@ -7,10 +7,25 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "0.2.0";
+    const APP_VERSION = "0.2.1";
 
     const STORAGE_KEY = "void:settings";
-    const DEFAULTS = { lang: "ru", streamer: false };
+    const DEFAULTS = { lang: "ru", streamer: false, nickname: "" };
+
+    /** Лимит длины кастомного ника — синхронизирован с серверным
+     *  `NICKNAME_MAX_LEN` в lib/security.js. Управляющие символы
+     *  стрипаем (C0/C1), пробелы схлопываем — как делает сервер. */
+    const NICKNAME_MAX_LEN = 32;
+    const NICKNAME_CONTROL_RX = new RegExp("[\\u0000-\\u001f\\u007f-\\u009f]", "g");
+
+    function sanitizeNickname(raw) {
+        if (typeof raw !== "string") return "";
+        return raw
+            .replace(NICKNAME_CONTROL_RX, "")
+            .replace(/\s+/g, " ")
+            .trim()
+            .slice(0, NICKNAME_MAX_LEN);
+    }
 
     const DICTIONARY = {
         ru: {
@@ -96,7 +111,12 @@
             "settings.title": "настройки",
             "settings.lang": "язык интерфейса",
             "settings.streamer": "режим стримера",
-            "settings.streamer.hint": "скрывает код комнаты в футере"
+            "settings.streamer.hint": "скрывает код комнаты в футере",
+            "settings.nick": "имя",
+            "settings.nick.hint": "оставь пустым — будет случайное на каждый вход",
+            "settings.nick.placeholder": "твоё имя",
+            "settings.nick.save": "сохранить",
+            "settings.nick.saved": "сохранено"
         },
         en: {
             "intro.question": "what is the music of life?",
@@ -181,7 +201,12 @@
             "settings.title": "settings",
             "settings.lang": "interface language",
             "settings.streamer": "streamer mode",
-            "settings.streamer.hint": "hides room code in the footer"
+            "settings.streamer.hint": "hides room code in the footer",
+            "settings.nick": "name",
+            "settings.nick.hint": "leave empty — a random one each visit",
+            "settings.nick.placeholder": "your name",
+            "settings.nick.save": "save",
+            "settings.nick.saved": "saved"
         }
     };
 
@@ -197,6 +222,11 @@
             if (parsed && typeof parsed === "object") {
                 if (parsed.lang === "ru" || parsed.lang === "en") state.lang = parsed.lang;
                 if (typeof parsed.streamer === "boolean") state.streamer = parsed.streamer;
+                if (typeof parsed.nickname === "string") {
+                    /* Пропускаем через тот же sanitize, что и при save — на случай
+                       если в storage попало что-то из старой/чужой версии. */
+                    state.nickname = sanitizeNickname(parsed.nickname);
+                }
             }
         } catch {
             /* приватный режим, мусор в storage — игнорим, остаются дефолты */
@@ -285,6 +315,21 @@
 
     function getLang() { return state.lang; }
     function getStreamer() { return state.streamer; }
+    function getNickname() { return state.nickname || ""; }
+
+    /**
+     * Сеттер кастомного ника. Пустая строка ⇒ «сбросить, пусть генерируется».
+     * Возвращает фактически сохранённое значение (после sanitize).
+     * Слушатели: addParticipant/nicknameMap/currentUsername в app.js.
+     */
+    function setNickname(raw) {
+        const next = sanitizeNickname(raw);
+        if (state.nickname === next) return next;
+        state.nickname = next;
+        saveState();
+        document.dispatchEvent(new CustomEvent("void:nickname-changed", { detail: { nickname: next } }));
+        return next;
+    }
 
     function applyStreamerAttr() {
         const app = document.getElementById("app");
@@ -296,6 +341,7 @@
     /* ===== panel UI ===== */
 
     let panelEl, scrimEl, gearBtn, langSegEl, streamerInputEl;
+    let nickFormEl, nickInputEl, nickSavedEl, nickSavedTimer = null;
 
     function buildPanel() {
         if (document.getElementById("settingsPanel")) return;
@@ -342,6 +388,37 @@
                     </label>
                 </div>
 
+                <div class="settings-row settings-row--stack">
+                    <div class="settings-row-text">
+                        <span class="settings-row-label" data-i18n="settings.nick">${t("settings.nick")}</span>
+                        <span class="settings-row-hint" data-i18n="settings.nick.hint">${t("settings.nick.hint")}</span>
+                    </div>
+                    <form class="settings-nick-form" id="settingsNickForm" autocomplete="off">
+                        <input
+                            type="text"
+                            id="settingsNickInput"
+                            class="settings-nick-input"
+                            maxlength="${NICKNAME_MAX_LEN}"
+                            data-i18n-placeholder="settings.nick.placeholder"
+                            placeholder="${t("settings.nick.placeholder")}"
+                            spellcheck="false"
+                        />
+                        <button
+                            type="submit"
+                            class="settings-nick-save"
+                            id="settingsNickSave"
+                            title="${t("settings.nick.save")}"
+                            data-i18n-attr="title:settings.nick.save;aria-label:settings.nick.save"
+                            aria-label="${t("settings.nick.save")}"
+                        >
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M5 12l5 5 9-11"/>
+                            </svg>
+                        </button>
+                        <span class="settings-nick-saved" id="settingsNickSaved" aria-live="polite" data-i18n="settings.nick.saved">${t("settings.nick.saved")}</span>
+                    </form>
+                </div>
+
                 <footer class="settings-footer">
                     <span class="settings-footer-pill">void v${APP_VERSION}</span>
                     <a class="settings-footer-author"
@@ -357,6 +434,9 @@
 
         langSegEl = panelEl.querySelector("#settingsLangSeg");
         streamerInputEl = panelEl.querySelector("#settingsStreamerInput");
+        nickFormEl = panelEl.querySelector("#settingsNickForm");
+        nickInputEl = panelEl.querySelector("#settingsNickInput");
+        nickSavedEl = panelEl.querySelector("#settingsNickSaved");
 
         langSegEl.addEventListener("click", e => {
             const btn = e.target.closest(".settings-seg-btn");
@@ -366,6 +446,16 @@
 
         streamerInputEl.addEventListener("change", () => {
             setStreamer(streamerInputEl.checked);
+        });
+
+        nickFormEl.addEventListener("submit", (e) => {
+            e.preventDefault();
+            const saved = setNickname(nickInputEl.value);
+            /* После sanitize реальное значение может отличаться от ввода
+               (обрезали пробелы / control chars / длину). Возвращаем
+               пользователю то, что реально сохранили. */
+            nickInputEl.value = saved;
+            flashNickSaved();
         });
 
         scrimEl.addEventListener("click", closePanel);
@@ -388,8 +478,33 @@
         streamerInputEl.checked = !!state.streamer;
     }
 
+    function applyNickInputUI() {
+        if (!nickInputEl) return;
+        /* Если у пользователя есть сохранённый ник — показываем его.
+           Иначе — текущее сгенерированное имя (window.currentUsername выставляет
+           app.js после generateAndAssignUsername). Так пользователь видит,
+           «как его сейчас зовут», и может либо принять/отредактировать,
+           либо очистить поле, чтобы вернуться к рандомной генерации. */
+        const stored = state.nickname || "";
+        const active = (typeof window !== "undefined" && window.currentUsername) || "";
+        nickInputEl.value = stored || active;
+    }
+
+    function flashNickSaved() {
+        if (!nickSavedEl) return;
+        nickSavedEl.classList.add("is-visible");
+        if (nickSavedTimer) clearTimeout(nickSavedTimer);
+        nickSavedTimer = setTimeout(() => {
+            nickSavedEl.classList.remove("is-visible");
+            nickSavedTimer = null;
+        }, 1400);
+    }
+
     function openPanel() {
         if (!panelEl) return;
+        /* Перерисовываем поле ника на каждом open — currentUsername мог
+           перегенериться (пользователь очистил ник, или сменилась сессия). */
+        applyNickInputUI();
         panelEl.classList.add("is-open");
         panelEl.setAttribute("aria-hidden", "false");
         scrimEl.classList.add("is-open");
@@ -428,6 +543,7 @@
         bindBrandTrigger();
         applyLangToggleUI();
         applyStreamerToggleUI();
+        applyNickInputUI();
     }
 
     if (document.readyState === "loading") {
@@ -439,6 +555,8 @@
     /* ===== exports ===== */
     window.VoidI18n = { t, applyI18n, getLang };
     window.VoidSettings = {
-        getLang, getStreamer, setLang, setStreamer, openPanel, closePanel
+        getLang, getStreamer, getNickname,
+        setLang, setStreamer, setNickname,
+        openPanel, closePanel
     };
 })();

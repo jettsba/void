@@ -33,7 +33,13 @@ function splitNicknameLines(nickname) {
 }
 
 function generateAndAssignUsername() {
-    currentUsername = generateUsername();
+    /* Если человек сохранил свой ник в настройках — используем его. Иначе
+       генерим случайный adjective+noun, как раньше. Settings подгружается
+       первым скриптом, к моменту вызова уже доступен. */
+    const stored = (typeof window !== "undefined" && window.VoidSettings)
+        ? window.VoidSettings.getNickname()
+        : "";
+    currentUsername = stored && stored.length > 0 ? stored : generateUsername();
 }
 
 function generateRoomCode(length = 5) {

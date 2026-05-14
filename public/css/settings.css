@@ -98,6 +98,14 @@
     padding: 4px 2px;
 }
 
+/* Для строки с никнеймом — стекуем подпись и форму вертикально, чтобы поле
+   ввода с кнопкой растягивалось во всю ширину панели. */
+.settings-row--stack {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+}
+
 .settings-row-text {
     display: flex;
     flex-direction: column;
@@ -204,6 +212,92 @@
 .settings-switch input:focus-visible + .settings-switch-track {
     outline: 1px solid rgba(255, 255, 255, 0.35);
     outline-offset: 2px;
+}
+
+/* ========= NICKNAME ROW ========= */
+
+.settings-nick-form {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    position: relative;
+}
+
+.settings-nick-input {
+    flex: 1;
+    min-width: 0;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+    padding: 8px 12px;
+    color: var(--fg);
+    font-size: 13px;
+    letter-spacing: var(--tracking);
+    transition: border-color var(--t-fast), background var(--t-fast);
+    outline: none;
+}
+
+.settings-nick-input::placeholder {
+    color: var(--fg-3);
+}
+
+.settings-nick-input:focus {
+    border-color: rgba(255, 255, 255, 0.22);
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.settings-nick-save {
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.02);
+    color: var(--fg-2);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: color var(--t-fast), background var(--t-fast), border-color var(--t-fast);
+}
+
+.settings-nick-save:hover,
+.settings-nick-save:focus-visible {
+    color: var(--fg);
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.22);
+    outline: none;
+}
+
+.settings-nick-save svg {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* «сохранено» — короткая всплывающая надпись справа от поля. По умолчанию
+   скрыта, на 1.4с появляется после успешного save. */
+.settings-nick-saved {
+    position: absolute;
+    right: 0;
+    top: -18px;
+    font-size: 10px;
+    letter-spacing: var(--tracking-wide);
+    text-transform: lowercase;
+    color: var(--fg-3);
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity var(--t-fast), transform var(--t-fast);
+    pointer-events: none;
+}
+
+.settings-nick-saved.is-visible {
+    opacity: 1;
+    transform: translateY(0);
 }
 
 /* ========= FOOTER ========= */

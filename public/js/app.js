@@ -88,6 +88,10 @@ function init() {
         paint();
     }
     generateAndAssignUsername();
+    /* Экспортируем «активный» ник в window, чтобы панель настроек могла
+       подставить его в поле ввода (settings.js — отдельный IIFE и не видит
+       script-scope let-переменные напрямую). Обновляется и при смене ника. */
+    window.currentUsername = currentUsername;
     clientId = generateClientId();
 
     if (typeof setReconnectHandlers === "function") {
@@ -190,6 +194,22 @@ function init() {
     if (typeof initChat === "function") {
         initChat();
     }
+
+    /* Кастомный ник из настроек: при сохранении — обновляем currentUsername,
+       nicknameMap для самого себя, и self-blob в DOM (addParticipant идемпотентен
+       и переписывает имя на месте). Соседи в комнате увидят новое имя на
+       следующем реконнекте — отдельного broadcast'а пока нет. */
+    document.addEventListener("void:nickname-changed", (e) => {
+        const stored = (e?.detail?.nickname || "").trim();
+        currentUsername = stored && stored.length > 0 ? stored : generateUsername();
+        window.currentUsername = currentUsername;
+        if (typeof nicknameMap !== "undefined") {
+            nicknameMap.set(clientId, currentUsername);
+        }
+        if (isJoined && typeof addParticipant === "function") {
+            addParticipant(clientId, currentUsername);
+        }
+    });
 
     if (!INTRO_ENABLED) {
         skipIntroAndShowApp();

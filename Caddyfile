@@ -28,8 +28,6 @@
 #
 # 5. Открой /etc/caddy/Caddyfile на сервере и положи туда содержимое ЭТОГО файла,
 #    заменив домен ниже при необходимости (сейчас: void-room.space).
-#    В блоке @trusted ниже подставь свой домашний / офисный IP — иначе админка
-#    закроется от всех (включая тебя).
 #
 # 6. Перезагрузи Caddy:
 #       sudo systemctl reload caddy
@@ -67,18 +65,9 @@ void-room.space, www.void-room.space, app.void-room.space {
         -Server
     }
 
-    # ---- /adminstats: IP-fence ----
-    # Без этого блока пароль (даже с timing-safe сравнением) виден миру и его
-    # можно перебирать. Список trusted-сетей подставь свой: твой домашний IP,
-    # офисный, VPN-выход — что угодно, откуда планируешь заходить.
-    @adminstats path /adminstats /adminstats/*
-    handle @adminstats {
-        @trusted client_ip 127.0.0.1/32 ::1/128 1.2.3.4/32
-        handle @trusted {
-            reverse_proxy localhost:3000
-        }
-        respond "forbidden" 403
-    }
+    # /adminstats защищён timing-safe сравнением пароля (lib/admin-stats.js).
+    # IP-fence убран сознательно: владелец сайта живёт за VPN с плавающим
+    # выходом, а удобнее заходить с любой сети, чем держать allow-list.
 
     reverse_proxy localhost:3000
 }
