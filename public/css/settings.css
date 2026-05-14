@@ -453,6 +453,22 @@
     cursor: not-allowed;
 }
 
+/* Раскрытый popup у нативного <select> рендерится OS-средствами и не
+   наследует color/background со select'а — без явных стилей option
+   получается светло-серый текст на белом фоне (нечитабельно на тёмной
+   теме). Chromium/Firefox на Windows/Linux/Electron уважают эти правила,
+   macOS native popup игнорирует — там OS красит сам. */
+.settings-select option {
+    background-color: var(--bg-1);
+    color: var(--fg);
+}
+
+.settings-select option:checked,
+.settings-select option:hover {
+    background-color: var(--bg-2);
+    color: var(--fg);
+}
+
 .settings-select-chevron {
     position: absolute;
     right: 10px;
