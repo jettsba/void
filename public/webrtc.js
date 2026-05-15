@@ -469,6 +469,21 @@ function createPeer(userId, isChatInitiator) {
         handlePeerConnectionStateChange(userId);
     };
 
+    /* L4: расширенное логирование WebRTC state machines. Раньше логировался
+       только `connectionState` через debug — при «у меня нет звука» картины
+       не было. ICE state даёт понять где сломалось (checking/disconnected/
+       failed). signalingState — где в SDP-обмене застряли. gathering — нет
+       ли проблем с сбором кандидатов (NAT/firewall). */
+    peer.oniceconnectionstatechange = () => {
+        log.info("rtc", "ice state", { userId, state: peer.iceConnectionState });
+    };
+    peer.onsignalingstatechange = () => {
+        log.info("rtc", "signaling state", { userId, state: peer.signalingState });
+    };
+    peer.onicegatheringstatechange = () => {
+        log.debug("rtc", "ice gathering", { userId, state: peer.iceGatheringState });
+    };
+
     /* Канон perfect negotiation. Никаких guard'ов на signalingState или роль —
        glare разрешается на стороне получателя через polite/impolite в handleOffer.
        setLocalDescription() без аргументов сам создаёт offer/answer в зависимости
@@ -679,7 +694,10 @@ function handlePeerConnectionStateChange(userId) {
     if (!peer) return;
 
     const state = peer.connectionState;
-    log.debug("rtc", "peer state", { userId, state, phase: peer._recoveryPhase });
+    /* L4: подняли с debug на info — переходы peer state (connecting →
+       connected → disconnected → failed) это ключевой сигнал стабильности
+       соединения, видеть всегда полезно. */
+    log.info("rtc", "peer state", { userId, state, phase: peer._recoveryPhase });
 
     if (state === "connected") {
         clearPeerHealthTimer(userId);
@@ -1083,6 +1101,61 @@ async function getPeerPing(userId) {
     } catch {
         return null;
     }
+}
+
+/* ========= DUMP STATS (L5) =========
+ *
+ * Диагностический хелпер: собирает getStats со ВСЕХ активных peer'ов и
+ * выводит таблицу в консоль. Юзер пишет «лагает / нет звука» — говоришь
+ * ему «открой консоль, набери log.dumpStats()», получаешь по каждому
+ * peer'у строку с RTT, jitter, packets-lost, bytesSent/Received.
+ *
+ * Биндим в window.log.dumpStats после первого createPeer, чтобы не делать
+ * это на каждый звонок. log.js загружается раньше webrtc.js — window.log
+ * гарантированно есть.
+ */
+async function dumpPeerStats() {
+    if (!peers.size) {
+        console.info("[stats] no active peers");
+        return [];
+    }
+    const rows = [];
+    for (const [userId, peer] of peers) {
+        const row = {
+            userId,
+            state: peer.connectionState,
+            ice: peer.iceConnectionState,
+            sig: peer.signalingState
+        };
+        try {
+            const stats = await peer.getStats();
+            stats.forEach(r => {
+                if (r.type === "candidate-pair" && r.nominated && r.state === "succeeded") {
+                    row.rtt_ms = Math.round((r.currentRoundTripTime || 0) * 1000);
+                    row.sent_kb = Math.round((r.bytesSent || 0) / 1024);
+                    row.recv_kb = Math.round((r.bytesReceived || 0) / 1024);
+                }
+                if (r.type === "inbound-rtp" && r.kind === "audio") {
+                    row.in_jitter_ms = Math.round((r.jitter || 0) * 1000);
+                    row.in_lost = r.packetsLost || 0;
+                    row.in_packets = r.packetsReceived || 0;
+                }
+                if (r.type === "outbound-rtp" && r.kind === "audio") {
+                    row.out_packets = r.packetsSent || 0;
+                    row.out_retrans = r.retransmittedPacketsSent || 0;
+                }
+            });
+        } catch (err) {
+            row.error = err?.message || String(err);
+        }
+        rows.push(row);
+    }
+    console.table(rows);
+    return rows;
+}
+
+if (typeof window !== "undefined" && window.log) {
+    window.log.dumpStats = dumpPeerStats;
 }
 
 /* ========= CONNECTIVITY REPORT =========
