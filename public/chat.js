@@ -862,6 +862,7 @@ function renderLikeBadge(msgId) {
         return;
     }
 
+    const isFirstAppearance = !badge;
     if (!badge) {
         badge = document.createElement("button");
         badge.type = "button";
@@ -872,7 +873,7 @@ function renderLikeBadge(msgId) {
         const heart = document.createElement("span");
         heart.className = "chat-msg-likes-heart";
         heart.setAttribute("aria-hidden", "true");
-        heart.textContent = "♥";
+        heart.innerHTML = HEART_SVG;
 
         const cnt = document.createElement("span");
         cnt.className = "chat-msg-likes-count";
@@ -888,18 +889,53 @@ function renderLikeBadge(msgId) {
 
     const isMine = likers.has(getSelfId());
     badge.classList.toggle("is-mine", isMine);
-    badge.querySelector(".chat-msg-likes-count").textContent = String(count);
+
+    const cntEl = badge.querySelector(".chat-msg-likes-count");
+    const prevCount = Number(cntEl.textContent) || 0;
+    cntEl.textContent = String(count);
     wrap.classList.add("has-likes");
+
+    /* «Пульс» при изменении счётчика — отдельная одноразовая анимация на чипе.
+       Класс снимаем после end, чтобы можно было запустить ещё раз. Первое
+       появление берёт другую анимацию (см. CSS .chat-msg-likes:initial). */
+    if (!isFirstAppearance && count !== prevCount) {
+        badge.classList.remove("is-pulsing");
+        // reflow — рестарт keyframes без него не сработает
+        void badge.offsetWidth;
+        badge.classList.add("is-pulsing");
+    }
 }
+
+/* Material-style сердце. ViewBox 24×24, fill=currentColor — управляем
+   цветом через .chat-msg-likes-heart / .chat-like-popup. */
+const HEART_SVG =
+    '<svg viewBox="0 0 24 24" aria-hidden="true">' +
+    '<path d="M12 21.05l-1.32-1.2C5.6 15.16 2.25 12.12 2.25 8.4 2.25 5.36 4.64 3 7.7 3c1.73 0 3.39.8 4.3 2.07C12.91 3.8 14.57 3 16.3 3c3.06 0 5.45 2.36 5.45 5.4 0 3.72-3.35 6.76-8.43 11.46L12 21.05z"/>' +
+    '</svg>';
 
 /* Биндим жесты на каждое сообщение. Pointer Events унифицируют мышь/тач. */
 function attachLikeGestures(wrap, msgId) {
     /* Двойной клик — мгновенный toggle. Игнорируем, если попали по
-       интерактивному элементу (ссылка, картинка, скачать) — у них своё. */
+       интерактивному элементу (ссылка, картинка, скачать) — у них своё.
+       После toggle снимаем системное выделение слова: dblclick по
+       умолчанию выделяет слово/чип, и preventDefault не везде это
+       подавляет — снимаем явно через Selection API. */
     wrap.addEventListener("dblclick", (e) => {
         if (isInteractiveTarget(e.target)) return;
         e.preventDefault();
         toggleOwnLike(msgId);
+        try {
+            const sel = window.getSelection && window.getSelection();
+            if (sel && sel.removeAllRanges) sel.removeAllRanges();
+        } catch (_) {}
+    });
+
+    /* Подавляем mousedown-выделение при втором клике дабл-кликовой пары:
+       первый pointerdown уже поставил каретку; на втором (detail===2) браузер
+       начинает выделять слово ДО того, как сработает наш dblclick.
+       preventDefault на mousedown отменяет это, не ломая обычное drag-select. */
+    wrap.addEventListener("mousedown", (e) => {
+        if (e.detail >= 2 && !isInteractiveTarget(e.target)) e.preventDefault();
     });
 
     /* Подавляем системное меню «копировать/выбрать» по long-press на тач —
@@ -953,7 +989,7 @@ function showLikePopup(msgId, anchorX, anchorY) {
     popup.className = "chat-like-popup";
     popup.title = _ct("chat.like");
     popup.setAttribute("aria-label", _ct("chat.like"));
-    popup.textContent = "♥";
+    popup.innerHTML = HEART_SVG;
 
     document.body.appendChild(popup);
 

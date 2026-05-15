@@ -817,12 +817,14 @@ async function startScreenShare(height = 1080, fps = 30, captureAudio = false) {
     const width = height === 480 ? 854 : height === 720 ? 1280 : 1920;
     /* По дефолту getDisplayMedia({audio:true}) даёт mono 32-48kHz без явных
        constraints — Chrome применяет VoIP-цепочку и opus в voip-mode, итог
-       «телефонное» качество для музыки/видео-демки. Просим стерео 48kHz и
-       явно гасим mic-обработку (AEC/NS/AGC) на этом треке: иначе AGC будет
-       пампить громкость, а AEC будет цеплять звук демки как «эхо» и душить
-       его при разговоре зрителя. */
+       «телефонное» качество для музыки/видео-демки. Просим стерео 48kHz.
+       echoCancellation:true — Chrome вычитает из захваченного системного аудио
+       всё, что сам же вывел через браузерный аудио-движок (голоса пиров из WebRTC),
+       иначе их голоса попадают в screencast-поток и возвращаются к ним эхом.
+       noiseSuppression/autoGainControl отключены, чтобы не душить музыку и
+       не вызывать ducking (AGC+AEC вместе порождают затихание при разговоре зрителя). */
     const audioConstraints = captureAudio ? {
-        echoCancellation: false,
+        echoCancellation: true,
         noiseSuppression: false,
         autoGainControl: false,
         sampleRate: 48000,
