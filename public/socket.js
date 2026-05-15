@@ -3,11 +3,14 @@
 let socket = null;
 
 /**
- * intentionalClose === true означает, что сокет закрывает САМ пользователь
- * (leaveRoom, отмена входа, abortJoinAttempt). Только в этом случае мы НЕ
- * должны пытаться реконнектиться. Любое другое закрытие — аварийное.
+ * F9: «намеренное закрытие» теперь живёт на самом ws-объекте (`ws._intentional`),
+ * а не в модульной переменной. Без этого быстрый leave→join создавал гонку:
+ * новый сокет уже создан, но close-event СТАРОГО сокета ещё в очереди.
+ * Старый handler смотрел на глобальный `intentionalClose`, который мог быть
+ * сброшен новым connectSocket'ом, и портил новую сессию.
+ * Также close-handler теперь проверяет `ws === socket`: events от устаревших
+ * сокетов просто игнорятся, не трогая глобальную ссылку.
  */
-let intentionalClose = false;
 
 /**
  * Расписание попыток реконнекта в миллисекундах. Подобрано так, чтобы за ~1 минуту
@@ -114,11 +117,13 @@ function setReconnectHandlers({ onAttempt, onSuccess, onFailed }) {
 
 /** Закрыть сокет штатно (вызывается из script.js при leaveRoom / отмене). */
 function resetSocketConnection() {
-    intentionalClose = true;
     cancelReconnect();
     stopLivenessWatchdog();
     _outgoingBuffer.clear();
     if (socket) {
+        /* F9: помечаем именно ЭТОТ ws — его close-handler потом увидит флаг и
+           не запустит reconnect. Глобальной «намеренности» больше нет. */
+        socket._intentional = true;
         try {
             socket.close();
         } catch (_) {}
@@ -143,13 +148,16 @@ function connectSocket() {
             return;
         }
 
-        intentionalClose = false;
-
         let connectionResolved = false;
         // wss:// на HTTPS-странице, ws:// на http://localhost для разработки.
         // Браузер запрещает mixed content (https + ws), поэтому схема обязана совпадать.
         const wsScheme = window.location.protocol === "https:" ? "wss" : "ws";
         const ws = new WebSocket(`${wsScheme}://${window.location.host}`);
+        /* F9: per-socket флаг «намеренного закрытия». Глобальной модульной
+           переменной больше нет — она ломала рейс leave→join: новый ws
+           создаётся, старый close-event прилетает позже и видит сброшенный
+           глобал → запускает reconnect к мёртвому сокету. */
+        ws._intentional = false;
         socket = ws;
 
         const timeoutId = setTimeout(() => {
@@ -196,6 +204,12 @@ function connectSocket() {
         });
 
         ws.addEventListener("close", () => {
+            /* F9: события устаревшего сокета (старый ws, чей close прилетел
+               после того, как мы уже создали новый) — игнорируем, чтобы не
+               перетереть `socket`-ссылку на актуальный ws и не запустить
+               лишний reconnect. */
+            if (socket !== null && socket !== ws) return;
+
             stopLivenessWatchdog();
             if (!connectionResolved) {
                 connectionResolved = true;
@@ -210,7 +224,7 @@ function connectSocket() {
 
             // Аварийное закрытие во время активной комнаты — пробуем восстановиться.
             // Если пользователь сам нажал leave / мы вне комнаты — просто молчим.
-            if (!intentionalClose && typeof isJoined !== "undefined" && isJoined) {
+            if (!ws._intentional && typeof isJoined !== "undefined" && isJoined) {
                 scheduleReconnect();
             } else if (typeof setConnectionState === "function") {
                 setConnectionState("ready");
@@ -237,7 +251,10 @@ function connectSocket() {
  * Вызывает onReconnectAttempt перед самой попыткой и onReconnectSuccess/Failed по результату.
  */
 function scheduleReconnect() {
-    if (intentionalClose) return;
+    /* F9: проверка теперь на текущий socket-флаг — глобала нет.
+       Если socket уже null (могли успеть закрыть resetSocketConnection),
+       сценарий «закрыли намеренно» = ничего реконнектить не надо. */
+    if (!socket || socket._intentional) return;
 
     reconnecting = true;
 
@@ -270,7 +287,10 @@ function scheduleReconnect() {
 }
 
 async function attemptReconnect() {
-    if (intentionalClose) return;
+    /* F9: «намеренное» означает «мы только что resetSocketConnection
+       и socket=null». Если socket не null и НЕ помечен intentional —
+       продолжаем попытку реконнекта. */
+    if (socket && socket._intentional) return;
     if (typeof navigator !== "undefined" && navigator.onLine === false) {
         // Сети нет — не тратим попытку, ждём события 'online'.
         log.debug("ws", "offline, defer reconnect");
@@ -303,7 +323,8 @@ async function attemptReconnect() {
  */
 if (typeof window !== "undefined") {
     window.addEventListener("online", () => {
-        if (reconnecting && !reconnectTimer && !intentionalClose) {
+        const intentional = socket?._intentional === true;
+        if (reconnecting && !reconnectTimer && !intentional) {
             log.info("ws", "back online, retrying immediately");
             attemptReconnect();
         }

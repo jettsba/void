@@ -375,6 +375,12 @@ function createPeer(userId, isChatInitiator) {
     peer._polite = String(clientId) > String(userId);
     peer._makingOffer = false;
     peer._isSettingRemoteAnswerPending = false;
+    /* F7: фаза recovery state machine. Защита от зацикливания на нестабильной
+       сети: peer прыгает disconnected→connected→disconnected, без фазы каждый
+       новый disconnected отменял бы 8s rebuild-таймер активной попытки restart
+       и перезапускал grace заново. С фазой повторный disconnected при уже
+       активном восстановлении просто игнорится — даём текущей попытке доделать. */
+    peer._recoveryPhase = "idle"; // idle | grace | restarting | passive-wait
     /* ICE-кандидаты, прилетевшие раньше setRemoteDescription (например на
        rebuild, когда сторона ещё не получила первый offer): копим тут и
        проливаем сразу после setRemoteDescription. */
@@ -552,10 +558,20 @@ function callUser(userId) {
 
 async function handleOffer(data) {
 
-    // Сторона решила сделать full rebuild и прислала rebuild:true. Закрываем
-    // свой старый peer (если был) — иначе setRemoteDescription упадёт на
-    // несовпадении DTLS fingerprint'ов.
+    /* F8: на rebuild ICE-кандидаты от удалённой стороны (с её НОВОГО peer'а)
+       могут прилететь раньше rebuild-offer'а — это типичный гонка на медленных
+       каналах. Сейчас они сидят в _pendingIceCandidates СТАРОГО локального
+       peer'а, который мы сейчас закроем. Сохраняем перед cleanup, чтобы новый
+       peer получил их сразу после setRemoteDescription. */
+    let carriedPendingIce = null;
     if (data.rebuild) {
+        const oldPeer = peers.get(data.from);
+        if (oldPeer?._pendingIceCandidates?.length) {
+            carriedPendingIce = oldPeer._pendingIceCandidates;
+        }
+        // Сторона решила сделать full rebuild и прислала rebuild:true. Закрываем
+        // свой старый peer (если был) — иначе setRemoteDescription упадёт на
+        // несовпадении DTLS fingerprint'ов.
         cleanupPeerSlot(data.from);
     }
 
@@ -563,6 +579,9 @@ async function handleOffer(data) {
     if (!peer) {
         // Получили offer первыми → мы chat-receiver, не chat-initiator.
         peer = createPeer(data.from, false);
+    }
+    if (carriedPendingIce) {
+        peer._pendingIceCandidates.push(...carriedPendingIce);
     }
 
     /* Glare detection. Если мы СЕЙЧАС сами генерируем offer (или ждём
@@ -660,10 +679,11 @@ function handlePeerConnectionStateChange(userId) {
     if (!peer) return;
 
     const state = peer.connectionState;
-    log.debug("rtc", "peer state", { userId, state });
+    log.debug("rtc", "peer state", { userId, state, phase: peer._recoveryPhase });
 
     if (state === "connected") {
         clearPeerHealthTimer(userId);
+        peer._recoveryPhase = "idle";
         reportConnectivity(peer);
         return;
     }
@@ -676,7 +696,15 @@ function handlePeerConnectionStateChange(userId) {
     }
 
     if (state === "disconnected") {
+        /* F7: если recovery уже в работе — НЕ перезапускать grace, иначе на
+           флапающей сети peer бесконечно качается disconnected→grace→restart,
+           отменяя 8s rebuild-таймер каждый раз, и до rebuild дело не доходит.
+           Активная попытка пусть отрабатывает свой таймер. */
+        if (peer._recoveryPhase === "restarting" || peer._recoveryPhase === "passive-wait") {
+            return;
+        }
         clearPeerHealthTimer(userId);
+        peer._recoveryPhase = "grace";
         const t = setTimeout(() => {
             const p = peers.get(userId);
             if (!p) return;
@@ -688,6 +716,8 @@ function handlePeerConnectionStateChange(userId) {
     }
 
     if (state === "failed") {
+        /* failed — терминал, recovery без задержки независимо от фазы.
+           ICE state machine больше ничего сама не починит. */
         clearPeerHealthTimer(userId);
         attemptPeerRecovery(userId);
         return;
@@ -710,6 +740,7 @@ function attemptPeerRecovery(userId) {
     if (!peer._polite) {
         // Impolite — активная сторона.
         log.info("rtc", "ice restart", { userId });
+        peer._recoveryPhase = "restarting";
         try {
             peer.restartIce();
         } catch (err) {
@@ -729,6 +760,7 @@ function attemptPeerRecovery(userId) {
     } else {
         // Polite — пассивная сторона. Даём impolite шанс починить.
         log.debug("rtc", "peer broken, waiting for impolite", { userId, ms: PEER_PASSIVE_REBUILD_TIMEOUT_MS });
+        peer._recoveryPhase = "passive-wait";
         const t = setTimeout(() => {
             const p = peers.get(userId);
             if (!p) return;

@@ -241,20 +241,24 @@ function handleConnectionLost() {
     showEntryError("connection-lost");
 }
 
-async function leaveRoom() {
+function leaveRoom() {
 
     playLeaveSound();
 
-    // Сначала шлём leave-room (даём серверу шанс уведомить остальных),
-    // потом ждём 100мс и сносим всё через общий helper. resetSocketConnection
-    // внутри tearDownRoomState закроет сокет — повторный socket.close() не нужен.
+    /* F10: 100ms ожидание flush не гарантировано на медленных аплинках —
+       сообщение могло не выйти из TCP-буфера, и сервер чистил нас через
+       60s heartbeat. Полагаемся на clean-close handshake (initiated в
+       resetSocketConnection → socket.close(1000)): браузер flushит pending
+       data ДО отправки FIN, а серверный handleDisconnect функционально
+       эквивалентен handleLeaveRoom (broadcast participant-left +
+       captureSessionDuration). Сообщение leave-room оставляем как
+       «попытка дойти первым» — если успеет, отлично; нет — close-handler
+       сервера сделает всё то же. */
     sendSocket({
         type: "leave-room",
         userId: clientId,
         room: currentRoomCode
     });
-
-    await new Promise(r => setTimeout(r, 100));
 
     tearDownRoomState();
 }
