@@ -1,6 +1,6 @@
 /* ========= CONFIG ========= */
 
-const INTRO_ENABLED = true;
+const INTRO_ENABLED = false;
 /* Пароль остаётся завязан на «тишину» — это часть лора. Принимаем оба
    варианта (русский и английский эквивалент), даже если интерфейс переключили. */
 const INTRO_ACCESS_PASSWORD = ["тишина", "тишина, брат", "тишина, брат мой", "silence", "silence, brother", "silence, my brother"];
