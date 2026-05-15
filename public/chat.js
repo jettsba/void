@@ -26,6 +26,13 @@ const CHAT_CHUNK_BYTES   = 60 * 1024;          // safe < 64KB SCTP recommended c
 const CHAT_HIGH_WATER    = 4 * 1024 * 1024;    // 4 MB — свыше — ждём опустошения
 const CHAT_LOW_WATER     = 1 * 1024 * 1024;
 
+/** F14: per-inbox watchdog. Если между чанками прошло больше — считаем
+ *  передачу стухшей, освобождаем chunks[] (могут быть десятки МБ),
+ *  помечаем сообщение как failed. До F14 удержание длилось до закрытия
+ *  канала, которое могло прийти только после полного ICE-таймаута (~10s
+ *  + 5s grace + 8s restart). */
+const CHAT_INBOX_STALL_MS = 60_000;
+
 const CHAT_MAX_IMAGE_MB  = 10;                 // исходник; даунскейлим до отправки
 const CHAT_MAX_FILE_MB   = 100;                 // raw, без обработки
 const CHAT_IMAGE_MAX_DIM = 1920;
@@ -248,6 +255,9 @@ function resetChatOnLeave() {
     chatHasMessages = false;
     chatPanel.classList.remove("has-messages");
 
+    /* F14: гасим per-inbox таймеры перед clear, чтобы не тикали впустую после
+       leave room. Сам failPendingMessage safe (querySelector null-guarded). */
+    channelInbox.forEach(inbox => clearInboxWatchdog(inbox));
     channelInbox.clear();
     channelSendQueues.clear();
     messageLikes.clear();
@@ -294,6 +304,7 @@ function bindChatChannel(channel, userId) {
         // Прибираем незавершённый приём с этого канала.
         const inbox = channelInbox.get(userId);
         if (inbox) {
+            clearInboxWatchdog(inbox);
             failPendingMessage(inbox.meta.msgId);
             channelInbox.delete(userId);
         }
@@ -322,8 +333,31 @@ function detachChatChannelForUser(userId) {
     channelSendQueues.delete(userId);
     const inbox = channelInbox.get(userId);
     if (inbox) {
+        clearInboxWatchdog(inbox);
         failPendingMessage(inbox.meta.msgId);
         channelInbox.delete(userId);
+    }
+}
+
+/* F14: per-inbox stall watchdog. Сбрасывается на каждый новый чанк; если за
+   CHAT_INBOX_STALL_MS не пришло ни одного — считаем передачу стухшей и
+   освобождаем chunks (могут быть десятки МБ в RAM). */
+function startInboxWatchdog(userId, inbox) {
+    clearInboxWatchdog(inbox);
+    inbox._timer = setTimeout(() => {
+        log.warn("chat", "inbox stalled, dropping", {
+            userId, msgId: inbox.meta.msgId,
+            received: inbox.received, total: inbox.meta.totalChunks
+        });
+        failPendingMessage(inbox.meta.msgId);
+        channelInbox.delete(userId);
+    }, CHAT_INBOX_STALL_MS);
+}
+
+function clearInboxWatchdog(inbox) {
+    if (inbox?._timer) {
+        clearTimeout(inbox._timer);
+        inbox._timer = null;
     }
 }
 
@@ -565,14 +599,20 @@ function handleIncoming(data, userId) {
             }
             // Если предыдущий приём не завершился — закрываем его как failed.
             const prev = channelInbox.get(userId);
-            if (prev) failPendingMessage(prev.meta.msgId);
+            if (prev) {
+                clearInboxWatchdog(prev);
+                failPendingMessage(prev.meta.msgId);
+            }
 
-            channelInbox.set(userId, {
+            const newInbox = {
                 meta: json,
                 chunks: [],
                 received: 0,
-                totalBytes: 0
-            });
+                totalBytes: 0,
+                _timer: null
+            };
+            channelInbox.set(userId, newInbox);
+            startInboxWatchdog(userId, newInbox);
             appendMessage(json, false, { ready: false });
             return;
         }
@@ -588,9 +628,12 @@ function handleIncoming(data, userId) {
         inbox.chunks.push(data);
         inbox.received += 1;
         inbox.totalBytes += data.byteLength;
+        /* F14: пришёл свежий чанк — пересбрасываем watchdog. */
+        startInboxWatchdog(userId, inbox);
 
         if (inbox.totalBytes > inbox.meta.size + CHAT_CHUNK_BYTES) {
             log.warn("chat", "transfer overflow, aborting", { msgId: inbox.meta.msgId });
+            clearInboxWatchdog(inbox);
             failPendingMessage(inbox.meta.msgId);
             channelInbox.delete(userId);
             return;
@@ -599,6 +642,7 @@ function handleIncoming(data, userId) {
         updateMessageProgress(inbox.meta.msgId, inbox.received / inbox.meta.totalChunks);
 
         if (inbox.received >= inbox.meta.totalChunks) {
+            clearInboxWatchdog(inbox);
             const blob = new Blob(inbox.chunks, {
                 type: inbox.meta.mime || "application/octet-stream"
             });

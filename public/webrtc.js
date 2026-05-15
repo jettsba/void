@@ -960,7 +960,7 @@ async function startScreenShare(height = 1080, fps = 30, captureAudio = false) {
         sampleRate: 48000,
         channelCount: 2
     } : false;
-    screenStream = await navigator.mediaDevices.getDisplayMedia({
+    const stream = await navigator.mediaDevices.getDisplayMedia({
         video: {
             width: { ideal: width },
             height: { ideal: height },
@@ -968,6 +968,15 @@ async function startScreenShare(height = 1080, fps = 30, captureAudio = false) {
         },
         audio: audioConstraints
     });
+    /* F13: пока юзер выбирал source в нативном промпте, он мог покинуть
+       комнату. Tracks уже захвачены (OS-индикатор «вы шарите» горит),
+       peer'ов нет — некому передавать. Останавливаем tracks и кидаем
+       ошибку, чтобы caller (scNextBtn click handler) обработал как cancel. */
+    if (typeof isJoined !== "undefined" && !isJoined) {
+        stream.getTracks().forEach(t => t.stop());
+        throw new Error("not-joined");
+    }
+    screenStream = stream;
     const videoTrack = screenStream.getVideoTracks()[0];
     const audioTrack = screenStream.getAudioTracks()[0];
     /* contentHint="music" — подсказка W3C, что трек НЕ голос. Chrome переключает

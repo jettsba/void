@@ -267,7 +267,11 @@ function scheduleReconnect() {
         return;
     }
 
-    const delay = RECONNECT_DELAYS_MS[reconnectAttempt];
+    /* F15: jitter ±30% сверху, чтобы при массовом дисконнекте (рестарт сервера,
+       проблема у провайдера на участке) клиенты не лупили синхронно одной
+       волной — это thundering herd, сервер захлёбывается на open. */
+    const baseDelay = RECONNECT_DELAYS_MS[reconnectAttempt];
+    const delay = Math.round(baseDelay + Math.random() * baseDelay * 0.3);
     reconnectAttempt += 1;
     const total = RECONNECT_DELAYS_MS.length;
 

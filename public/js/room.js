@@ -208,7 +208,8 @@ function handleSocketReconnected() {
 
         el.classList.remove("pop-in");
         el.classList.add("pop-out");
-        el.addEventListener("animationend", () => el.remove(), { once: true });
+        /* F18: fallback таймер — `animationend` не всегда стреляет. */
+        _onAnimationEndOrFallback(el);
     });
 
     // nicknameMap чистим, но себя оставляем — нужен для ping-панели и т.п.

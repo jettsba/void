@@ -2,6 +2,28 @@
    на каждое обновление громкости/аудио-состояния/скринкаста. */
 const participantElements = new Map(); // userId → .participant element
 
+/**
+ * F18: безопасный «удалить узел после конца анимации». `animationend` не
+ * гарантирован: его не будет если animation вообще не запустилась (CSS не
+ * загрузился, prefers-reduced-motion в некоторых браузерах, `display:none`).
+ * Без fallback DOM-узлы зависают в .pop-out классе. Помимо animationend
+ * запускаем setTimeout(500) — это слегка дольше, чем самая длинная pop-анимация.
+ * Любая из двух веток сработает первой → idempotent finish.
+ */
+function _onAnimationEndOrFallback(el, onDone) {
+    let done = false;
+    const fire = () => {
+        if (done) return;
+        done = true;
+        el.removeEventListener("animationend", fire);
+        clearTimeout(timer);
+        if (typeof onDone === "function") onDone();
+        else el.remove();
+    };
+    el.addEventListener("animationend", fire, { once: true });
+    const timer = setTimeout(fire, 500);
+}
+
 /* ===== Invite hint ===== */
 
 let _inviteHintEl = null;
@@ -61,9 +83,7 @@ function removeAllParticipants() {
         el.classList.remove("pop-in");
         el.classList.add("pop-out");
 
-        el.addEventListener("animationend", () => {
-            el.remove();
-        }, { once: true });
+        _onAnimationEndOrFallback(el);
     });
 }
 
@@ -163,11 +183,11 @@ function removeParticipant(userId) {
     el.classList.add("pop-out");
     participantElements.delete(userId);
 
-    el.addEventListener("animationend", () => {
+    _onAnimationEndOrFallback(el, () => {
         el.remove();
         animateLayoutFlip(siblings, firstRects);
         updateInviteHint();
-    }, { once: true });
+    });
 }
 
 /**
