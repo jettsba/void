@@ -43,12 +43,24 @@ const CHAT_MAX_TEXT_LEN = 4000;
  *  сотни МБ. Когда переполняем, прибиваем самый старый URL. */
 const CHAT_MAX_LIVE_BLOB_URLS = 30;
 
+/* Like-жест: время удержания pointer'а до показа всплывающего сердца,
+   и максимальный сдвиг (px²) — больше → считаем за drag/scroll и отменяем. */
+const LIKE_LONGPRESS_MS    = 420;
+const LIKE_LONGPRESS_MAX_DIST_SQ = 100; // 10px радиус
+const LIKE_POPUP_TIMEOUT_MS = 2600;
+const LIKE_TARGET_MAX_LEN  = 80;        // sanity cap для msgId извне
+
 /* ========= STATE ========= */
 
 const chatChannels       = new Map(); // userId → RTCDataChannel
 const channelSendQueues  = new Map(); // userId → Promise (последовательная очередь send'ов)
 const channelInbox       = new Map(); // userId → {meta, chunks:[], received, totalBytes}
 const objectUrlsToRevoke = new Set(); // URL.createObjectURL — чистим при выходе
+
+/** msgId → Set<userId>. Лайки эфемерны как и сам чат: сохраняются только
+ *  пока DOM-узел сообщения жив. Поздним джойнерам прошлые лайки не видны
+ *  (как и сами прошлые сообщения). */
+const messageLikes = new Map();
 
 /** LRU для blob-URL'ов: Map сохраняет порядок вставки, переставляем
  *  через delete + set когда URL переиспользуется. */
@@ -78,6 +90,10 @@ let chatHasMessages = false;
 let dragCounter = 0;
 let lightboxState = null; // {sourceImg, escHandler}
 let lightboxCloseTimer = null;
+
+let likePopupEl = null;
+let likePopupTimer = null;
+let likePopupOutsideHandler = null;
 
 /* ========= INIT ========= */
 
@@ -129,6 +145,7 @@ function initChat() {
 
     document.addEventListener("keydown", (e) => {
         if (e.key !== "Escape") return;
+        if (likePopupEl)   { hideLikePopup(); return; }
         if (lightboxState) { closeLightbox(); return; }
         if (chatOpen)      { setChatOpen(false); }
     });
@@ -233,6 +250,8 @@ function resetChatOnLeave() {
 
     channelInbox.clear();
     channelSendQueues.clear();
+    messageLikes.clear();
+    hideLikePopup();
 
     if (lightboxState) closeLightbox();
 
@@ -489,6 +508,14 @@ function handleIncoming(data, userId) {
         }
         json.from = userId;
 
+        if (json.kind === "like") {
+            const target = json.target;
+            if (typeof target !== "string" || !target || target.length > LIKE_TARGET_MAX_LEN) return;
+            if (json.op !== "add" && json.op !== "remove") return;
+            applyLike(target, userId, json.op);
+            return;
+        }
+
         if (json.kind === "text") {
             /* B2: cap длины. Локально <textarea maxlength="2000">, но peer
                может прислать любой размер. Без cap'а можно положить layout
@@ -602,7 +629,9 @@ function appendMessage(msg, isSelf, attachState = null) {
     }
 
     wrap.appendChild(body);
+    attachLikeGestures(wrap, msg.msgId);
     chatMessagesEl.appendChild(wrap);
+    renderLikeBadge(msg.msgId);
 
     if (!chatHasMessages) {
         chatHasMessages = true;
@@ -768,6 +797,212 @@ function scrollChatToBottom(smooth) {
         behavior: smooth ? "smooth" : "auto"
     });
     if (!smooth) refreshChatJumpButton();
+}
+
+/* ========= LIKES =========
+ * Двойной клик / долгое удержание на сообщении → toggle собственного лайка.
+ * Несколько участников могут «накладывать» свои лайки — рисуем общий счётчик.
+ * Кто конкретно лайкнул — намеренно не показываем. Состояние эфемерное:
+ * хранится только пока DOM-узел сообщения жив (как и сам чат). Поздним
+ * джойнерам прошлые лайки не приходят. */
+
+function applyLike(msgId, userId, op) {
+    /* Если сообщения нет в DOM (например, мы джойнились позже и не видели
+       оригинал) — лайк игнорируем, чтобы не копить мёртвые записи в Map'е. */
+    const wrap = chatMessagesEl?.querySelector(`[data-msg-id="${cssEscape(msgId)}"]`);
+    if (!wrap) return;
+
+    let likers = messageLikes.get(msgId);
+    if (!likers) {
+        if (op === "remove") return;
+        likers = new Set();
+        messageLikes.set(msgId, likers);
+    }
+    const before = likers.size;
+    if (op === "add") likers.add(userId);
+    else likers.delete(userId);
+    if (likers.size === 0) messageLikes.delete(msgId);
+    if (likers.size !== before) renderLikeBadge(msgId);
+}
+
+function toggleOwnLike(msgId) {
+    const selfId = getSelfId();
+    const likers = messageLikes.get(msgId);
+    const op = likers && likers.has(selfId) ? "remove" : "add";
+
+    applyLike(msgId, selfId, op);
+
+    const json = JSON.stringify({
+        type: "msg",
+        kind: "like",
+        target: msgId,
+        op,
+        ts: Date.now(),
+        from: selfId
+    });
+    chatChannels.forEach((channel, uid) => {
+        enqueueSend(uid, async () => {
+            if (channel.readyState !== "open") return;
+            try { channel.send(json); }
+            catch (err) { log.warn("chat", "like send failed", { userId: uid, err: err?.message || String(err) }); }
+        });
+    });
+}
+
+function renderLikeBadge(msgId) {
+    const wrap = chatMessagesEl.querySelector(`[data-msg-id="${cssEscape(msgId)}"]`);
+    if (!wrap) return;
+    const likers = messageLikes.get(msgId);
+    const count = likers ? likers.size : 0;
+
+    let badge = wrap.querySelector(":scope > .chat-msg-likes");
+    if (count === 0) {
+        if (badge) badge.remove();
+        wrap.classList.remove("has-likes");
+        return;
+    }
+
+    if (!badge) {
+        badge = document.createElement("button");
+        badge.type = "button";
+        badge.className = "chat-msg-likes";
+        badge.title = _ct("chat.like");
+        badge.setAttribute("aria-label", _ct("chat.like"));
+
+        const heart = document.createElement("span");
+        heart.className = "chat-msg-likes-heart";
+        heart.setAttribute("aria-hidden", "true");
+        heart.textContent = "♥";
+
+        const cnt = document.createElement("span");
+        cnt.className = "chat-msg-likes-count";
+
+        badge.appendChild(heart);
+        badge.appendChild(cnt);
+        badge.addEventListener("click", (e) => {
+            e.stopPropagation();
+            toggleOwnLike(msgId);
+        });
+        wrap.appendChild(badge);
+    }
+
+    const isMine = likers.has(getSelfId());
+    badge.classList.toggle("is-mine", isMine);
+    badge.querySelector(".chat-msg-likes-count").textContent = String(count);
+    wrap.classList.add("has-likes");
+}
+
+/* Биндим жесты на каждое сообщение. Pointer Events унифицируют мышь/тач. */
+function attachLikeGestures(wrap, msgId) {
+    /* Двойной клик — мгновенный toggle. Игнорируем, если попали по
+       интерактивному элементу (ссылка, картинка, скачать) — у них своё. */
+    wrap.addEventListener("dblclick", (e) => {
+        if (isInteractiveTarget(e.target)) return;
+        e.preventDefault();
+        toggleOwnLike(msgId);
+    });
+
+    /* Подавляем системное меню «копировать/выбрать» по long-press на тач —
+       иначе наша всплывашка перебивается нативной. На мыши контекстное меню
+       оставляем (правый клик не задействован). */
+    wrap.addEventListener("contextmenu", (e) => {
+        if (e.pointerType === "touch" || e.pointerType === "pen") e.preventDefault();
+    });
+
+    wrap.addEventListener("pointerdown", (e) => {
+        if (e.button !== undefined && e.button !== 0) return;
+        if (isInteractiveTarget(e.target)) return;
+
+        const startX = e.clientX;
+        const startY = e.clientY;
+        let timer = setTimeout(() => {
+            timer = null;
+            cleanup();
+            showLikePopup(msgId, startX, startY);
+        }, LIKE_LONGPRESS_MS);
+
+        const onMove = (ev) => {
+            const dx = ev.clientX - startX;
+            const dy = ev.clientY - startY;
+            if (dx * dx + dy * dy > LIKE_LONGPRESS_MAX_DIST_SQ) cleanup();
+        };
+        const cleanup = () => {
+            if (timer) { clearTimeout(timer); timer = null; }
+            wrap.removeEventListener("pointermove",   onMove);
+            wrap.removeEventListener("pointerup",     cleanup);
+            wrap.removeEventListener("pointercancel", cleanup);
+            wrap.removeEventListener("pointerleave",  cleanup);
+        };
+        wrap.addEventListener("pointermove",   onMove);
+        wrap.addEventListener("pointerup",     cleanup);
+        wrap.addEventListener("pointercancel", cleanup);
+        wrap.addEventListener("pointerleave",  cleanup);
+    });
+}
+
+function isInteractiveTarget(node) {
+    return !!(node && node.closest &&
+        node.closest("a, button, input, textarea, .chat-attach-image"));
+}
+
+function showLikePopup(msgId, anchorX, anchorY) {
+    hideLikePopup();
+
+    const popup = document.createElement("button");
+    popup.type = "button";
+    popup.className = "chat-like-popup";
+    popup.title = _ct("chat.like");
+    popup.setAttribute("aria-label", _ct("chat.like"));
+    popup.textContent = "♥";
+
+    document.body.appendChild(popup);
+
+    /* Позиционируем над пальцем/курсором, прижимая к viewport, чтобы не
+       вылезти за край (актуально на тач — long-press у самого края экрана). */
+    const w = popup.offsetWidth  || 40;
+    const h = popup.offsetHeight || 40;
+    const pad = 8;
+    let x = anchorX - w / 2;
+    let y = anchorY - h - 14;
+    x = Math.max(pad, Math.min(window.innerWidth  - w - pad, x));
+    y = Math.max(pad, Math.min(window.innerHeight - h - pad, y));
+    popup.style.left = x + "px";
+    popup.style.top  = y + "px";
+
+    popup.addEventListener("click", (e) => {
+        e.stopPropagation();
+        toggleOwnLike(msgId);
+        hideLikePopup();
+    });
+
+    likePopupEl = popup;
+    requestAnimationFrame(() => popup.classList.add("is-visible"));
+
+    likePopupTimer = setTimeout(hideLikePopup, LIKE_POPUP_TIMEOUT_MS);
+
+    /* Закрываем по любому касанию вне всплывашки. capture=true — ловим раньше,
+       чем кто-то ещё успеет stopPropagation. Слушаем pointerdown — реагируем
+       синхронно с тач-стартом, до click. */
+    likePopupOutsideHandler = (ev) => {
+        if (ev.target === popup || popup.contains(ev.target)) return;
+        hideLikePopup();
+    };
+    document.addEventListener("pointerdown", likePopupOutsideHandler, true);
+    chatMessagesEl?.addEventListener("scroll", hideLikePopup, { once: true });
+}
+
+function hideLikePopup() {
+    if (likePopupTimer) { clearTimeout(likePopupTimer); likePopupTimer = null; }
+    if (likePopupOutsideHandler) {
+        document.removeEventListener("pointerdown", likePopupOutsideHandler, true);
+        likePopupOutsideHandler = null;
+    }
+    if (likePopupEl) {
+        const el = likePopupEl;
+        likePopupEl = null;
+        el.classList.remove("is-visible");
+        setTimeout(() => { try { el.remove(); } catch (_) {} }, 160);
+    }
 }
 
 /* ========= UI: pending attachments ========= */

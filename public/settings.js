@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "0.4.3";
+    const APP_VERSION = "0.4.4";
 
     const STORAGE_KEY = "void:settings";
     /**
@@ -94,6 +94,7 @@
             "chat.remove": "убрать",
             "chat.image": "изображение",
             "chat.file": "файл",
+            "chat.like": "лайк",
 
             "footer.ready": "готово",
             "footer.connected": "подключено",
@@ -197,6 +198,7 @@
             "chat.remove": "remove",
             "chat.image": "image",
             "chat.file": "file",
+            "chat.like": "like",
 
             "footer.ready": "ready",
             "footer.connected": "connected",
