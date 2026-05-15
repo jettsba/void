@@ -1156,6 +1156,38 @@ async function dumpPeerStats() {
 
 if (typeof window !== "undefined" && window.log) {
     window.log.dumpStats = dumpPeerStats;
+    window.log.bugReport = bugReport;
+}
+
+/**
+ * One-liner для багрепортов: собирает всё, что нужно мне для диагностики, в
+ * один JSON. Юзер делает `copy(await log.bugReport())` → пастит сообщение.
+ * Внутри:
+ *   - history: ring buffer log'а (последние 300 записей)
+ *   - peers: getStats по каждому активному peer'у
+ *   - окружение: версия, URL, userAgent, viewport, online-status
+ *   - идентификаторы текущей сессии: room code + clientId
+ */
+async function bugReport() {
+    const peerStats = peers.size ? await dumpPeerStats() : [];
+    const history = window.log?.dump?.() || [];
+    const report = {
+        ts: new Date().toISOString(),
+        version: window.VoidVersion || "unknown",
+        url: location.href,
+        userAgent: navigator.userAgent,
+        viewport: { w: innerWidth, h: innerHeight, dpr: devicePixelRatio },
+        online: navigator.onLine,
+        room: typeof currentRoomCode !== "undefined" ? currentRoomCode : null,
+        userId: typeof clientId !== "undefined" ? clientId : null,
+        peerCount: peers.size,
+        peers: peerStats,
+        history
+    };
+    log.info("boot", "bug report generated", {
+        entries: history.length, peers: peerStats.length
+    });
+    return JSON.stringify(report, null, 2);
 }
 
 /* ========= CONNECTIVITY REPORT =========
