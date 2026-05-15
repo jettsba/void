@@ -32,7 +32,9 @@ let _wasReconnect = false;
 let _wasReconnectClearTimer = null;
 let _reconnectRejoinRetries = 0;
 const _RECONNECT_REJOIN_MAX_RETRIES = 3;
-const _RECONNECT_REJOIN_RETRY_DELAY_MS = 2500;
+// Базовая задержка перед первой повторной попыткой join после id-collision.
+// Следующие попытки: base * 1.5^retry (1.5s, 2.25s, 3.375s).
+const _RECONNECT_REJOIN_BASE_DELAY_MS = 1500;
 const _WAS_RECONNECT_WINDOW_MS = 10000;
 
 /** Колбэки, которые вешает script.js — сообщить ему о ходе реконнекта. */
@@ -291,6 +293,7 @@ function handleSocketMessage(data) {
                     attempt: _reconnectRejoinRetries,
                     max: _RECONNECT_REJOIN_MAX_RETRIES
                 });
+                const delay = Math.round(_RECONNECT_REJOIN_BASE_DELAY_MS * Math.pow(1.5, _reconnectRejoinRetries - 1));
                 setTimeout(() => {
                     if (typeof isJoined !== "undefined" && isJoined && currentRoomCode) {
                         sendSocket({
@@ -300,7 +303,7 @@ function handleSocketMessage(data) {
                             nickname: currentUsername
                         });
                     }
-                }, _RECONNECT_REJOIN_RETRY_DELAY_MS);
+                }, delay);
                 return;
             }
             _reconnectRejoinRetries = 0;
@@ -311,6 +314,19 @@ function handleSocketMessage(data) {
 
         case "audio-state":
             updateParticipantAudioState(data.userId, data.mic, data.sound);
+            break;
+
+        case "nickname-changed":
+            /* Кто-то из соседей сменил ник в настройках. Обновляем кеш и
+               перерисовываем blob (addParticipant идемпотентен — обновит имя
+               in-place, не плодя дублей). Ping-панель и chat-инициалы читают
+               nicknameMap при следующем re-render. */
+            if (typeof nicknameMap !== "undefined" && typeof data.userId === "string") {
+                nicknameMap.set(data.userId, data.nickname);
+            }
+            if (typeof addParticipant === "function") {
+                addParticipant(data.userId, data.nickname);
+            }
             break;
 
         case "screencast-state":

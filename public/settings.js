@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "0.4.2";
+    const APP_VERSION = "0.4.3";
 
     const STORAGE_KEY = "void:settings";
     /**

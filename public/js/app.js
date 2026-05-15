@@ -201,8 +201,9 @@ function init() {
 
     /* Кастомный ник из настроек: при сохранении — обновляем currentUsername,
        nicknameMap для самого себя, и self-blob в DOM (addParticipant идемпотентен
-       и переписывает имя на месте). Соседи в комнате увидят новое имя на
-       следующем реконнекте — отдельного broadcast'а пока нет. */
+       и переписывает имя на месте). Если сидим в комнате — шлём `nickname-update`
+       на сервер, чтобы он разослал остальным `nickname-changed` и они тоже
+       перерисовали ник без перезахода. */
     document.addEventListener("void:nickname-changed", (e) => {
         const stored = (e?.detail?.nickname || "").trim();
         currentUsername = stored && stored.length > 0 ? stored : generateUsername();
@@ -210,8 +211,13 @@ function init() {
         if (typeof nicknameMap !== "undefined") {
             nicknameMap.set(clientId, currentUsername);
         }
-        if (isJoined && typeof addParticipant === "function") {
-            addParticipant(clientId, currentUsername);
+        if (isJoined) {
+            if (typeof addParticipant === "function") {
+                addParticipant(clientId, currentUsername);
+            }
+            if (typeof sendSocket === "function") {
+                sendSocket({ type: "nickname-update", nickname: currentUsername });
+            }
         }
     });
 

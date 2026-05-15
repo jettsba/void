@@ -387,9 +387,10 @@ function createPeer(userId, isChatInitiator) {
             // параллельно прилетает встречный offer и handleOffer его
             // отрабатывает раньше нас. Тогда тут уже создан answer — и
             // отправлять его нужно как answer, не как offer.
+            const sdp = screenStream?.active ? patchOpusForStereo(desc.sdp) : desc.sdp;
             const msg = { to: peer._userId, type: desc.type };
-            if (desc.type === "offer") msg.offer = desc;
-            else msg.answer = desc;
+            if (desc.type === "offer") msg.offer = { type: desc.type, sdp };
+            else msg.answer = { type: desc.type, sdp };
             if (desc.type === "offer" && peer._signalRebuildOnNextOffer) {
                 msg.rebuild = true;
                 peer._signalRebuildOnNextOffer = false;
@@ -424,6 +425,7 @@ function createPeer(userId, isChatInitiator) {
         const at = screenStream.getAudioTracks()[0];
         if (at) senders.push(peer.addTrack(at, screenStream));
         if (senders.length) screenSenders.set(userId, senders);
+        applyScreenAudioParams(senders);
     }
 
     peers.set(userId, peer);
@@ -813,27 +815,83 @@ function monitorVolume(userId, analyser) {
 
 async function startScreenShare(height = 1080, fps = 30, captureAudio = false) {
     const width = height === 480 ? 854 : height === 720 ? 1280 : 1920;
+    /* По дефолту getDisplayMedia({audio:true}) даёт mono 32-48kHz без явных
+       constraints — Chrome применяет VoIP-цепочку и opus в voip-mode, итог
+       «телефонное» качество для музыки/видео-демки. Просим стерео 48kHz и
+       явно гасим mic-обработку (AEC/NS/AGC) на этом треке: иначе AGC будет
+       пампить громкость, а AEC будет цеплять звук демки как «эхо» и душить
+       его при разговоре зрителя. */
+    const audioConstraints = captureAudio ? {
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false,
+        sampleRate: 48000,
+        channelCount: 2
+    } : false;
     screenStream = await navigator.mediaDevices.getDisplayMedia({
         video: {
             width: { ideal: width },
             height: { ideal: height },
             frameRate: { ideal: fps }
         },
-        audio: captureAudio
+        audio: audioConstraints
     });
     const videoTrack = screenStream.getVideoTracks()[0];
     const audioTrack = screenStream.getAudioTracks()[0];
+    /* contentHint="music" — подсказка W3C, что трек НЕ голос. Chrome переключает
+       opus из voip-mode в audio-mode (стерео, без DTX, без VAD-подавления). Без
+       этого даже после bitrate-бампа звук остаётся «сжатым». */
+    if (audioTrack) {
+        try { audioTrack.contentHint = "music"; } catch (_) {}
+    }
     for (const [userId, peer] of peers) {
         const senders = [];
         if (videoTrack) senders.push(peer.addTrack(videoTrack, screenStream));
         if (audioTrack) senders.push(peer.addTrack(audioTrack, screenStream));
-        screenSenders.set(userId, senders);
+        if (senders.length) screenSenders.set(userId, senders);
+        applyScreenAudioParams(senders);
     }
     videoTrack.onended = () => {
         stopScreenShare();
         if (typeof broadcastScreencastState === 'function') broadcastScreencastState(false);
         if (typeof updateScreencastButton === 'function') updateScreencastButton(false);
     };
+}
+
+/**
+ * SDP-патч для opus: добавляет stereo=1;sprop-stereo=1;maxaveragebitrate=192000
+ * к fmtp-строке opus, чтобы браузер договорился на стерео-передачу вместо mono voip.
+ * Применяется только в offer/answer, сгенерированных при активном screenStream.
+ */
+function patchOpusForStereo(sdp) {
+    return sdp.replace(
+        /(a=fmtp:\d+ .+?(?:minptime=\d+|useinbandfec=\d+)[^\r\n]*)/g,
+        (match) => {
+            if (match.includes("stereo=1")) return match;
+            return match + ";stereo=1;sprop-stereo=1;maxaveragebitrate=192000";
+        }
+    );
+}
+
+/**
+ * Поднять параметры encoder'а на screen-audio sender'е: целевой битрейт 192
+ * kbps (по дефолту opus сидит на ~32 kbps voip), networkPriority="high"
+ * чтобы при congestion'е звук не резался первым. Без этого даже стерео-захват
+ * звучит так же зажато, как и узкополосный mono — кодек просто не выдаёт
+ * больше bandwidth.
+ */
+async function applyScreenAudioParams(senders) {
+    const audioSender = senders.find(s => s.track?.kind === "audio");
+    if (!audioSender) return;
+    try {
+        const params = audioSender.getParameters();
+        if (!params.encodings || !params.encodings.length) params.encodings = [{}];
+        params.encodings[0].maxBitrate = 192000;
+        params.encodings[0].networkPriority = "high";
+        await audioSender.setParameters(params);
+    } catch (err) {
+        log.warn("rtc", "screen audio setParameters failed", { err: err?.message || String(err) });
+    }
 }
 
 function stopScreenShare() {

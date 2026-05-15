@@ -29,6 +29,7 @@ import {
     handleJoinConfirm,
     handleScreencastState,
     handleAudioState,
+    handleNicknameUpdate,
     handleLeaveRoom,
     handleDisconnect,
     handleSignal,
@@ -125,7 +126,7 @@ const wss = new WebSocketServer({
     },
 });
 
-mountAdminStats(app, wss);
+mountAdminStats(app);
 
 /**
  * Heartbeat. Без него мёртвый TCP-коннект (закрытая вкладка без FIN, спящий ноут,
@@ -209,6 +210,10 @@ wss.on("connection", (ws, req) => {
                     handleAudioState(ws, data);
                     break;
 
+                case "nickname-update":
+                    handleNicknameUpdate(ws, data);
+                    break;
+
                 case "screencast-state":
                     handleScreencastState(ws, data);
                     break;
@@ -237,12 +242,13 @@ wss.on("connection", (ws, req) => {
         if (cur <= 1) ipConnections.delete(ip);
         else ipConnections.set(ip, cur - 1);
         // 1000 = normal, 1001 = going away (refresh/tab close), 1005 = no status
-        // received (тоже типичное закрытие из браузера). Всё остальное —
-        // подозрительно, логируем чтобы не теряться при будущих регрессиях.
-        // 1006 = abnormal close — heartbeat прибил мёртвый сокет, бывает.
+        // received (тоже типичное закрытие из браузера). 1006 = abnormal close —
+        // ожидаемый исход heartbeat'а для мёртвых сокетов, уровень debug.
+        // Всё остальное — подозрительно, warn.
         if (code !== 1000 && code !== 1001 && code !== 1005) {
             const reason = reasonBuf?.toString?.() || "";
-            log.warn("ws", "abnormal close", { ip, code, reason });
+            const level = code === 1006 ? "debug" : "warn";
+            log[level]("ws", "abnormal close", { ip, code, reason });
         }
         handleDisconnect(ws);
     });
