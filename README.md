@@ -139,6 +139,44 @@ MAX_ROOM_USERS=5
 
 ---
 
+## ▸ отладка
+
+в браузере доступна глобальная `window.log` с уровнями (`error`/`warn`/`info`/`debug`),
+ring buffer'ом на 300 последних записей и набором утилит. дефолт — `info`,
+
+доступные команды:
+
+| команда | что делает |
+| --- | --- |
+| `log.getLevel()` | текущий уровень |
+| `log.setLevel("debug")` | включить подробные логи, сохранить в localStorage |
+| `log.setLevel("warn")` | потише — только проблемы |
+| `log.clearLevel()` | сбросить в дефолт (`info`) |
+| `log.dump()` | массив из последних 300 записей (любого уровня) |
+| `log.dumpString()` | то же, но одной строкой — удобно копипастить |
+| `log.clearBuffer()` | обнулить ring buffer (например, перед воспроизведением бага) |
+| `await log.dumpStats()` | `console.table` со статой по всем peer'ам: rtt, jitter, lost/sent |
+| `await log.bugReport()` | json со всем нужным для багрепорта: история + peers + окружение |
+
+быстрый багрепорт одной командой:
+
+```js
+copy(await log.bugReport())
+```
+
+enter → в буфер вносится json с историей, peer stats, версией, url, user-agent
+и id текущей комнаты
+
+если баг воспроизводится — `log.clearBuffer()` и повторить ровно, потом
+`log.bugReport()`. получится чистый лог с момента триггера.
+
+ещё есть `?debug=1` в url — поднимает уровень до `debug` на одну загрузку без
+изменения localStorage. полезно когда не хочется лезть в консоль чтобы что-то поменять.
+
+на сервере — то же самое через env `LOG_LEVEL` (см. секцию деплоя).
+
+---
+
 ## ▸ roadmap
 
 - [x] голос + чат + screen share
@@ -154,5 +192,5 @@ MAX_ROOM_USERS=5
 ---
 
 <div align="center">
-<sub>private commercial project · all rights reserved · made with care</sub>
+<sub>void 2026 · all rights reserved · made with care</sub>
 </div>
