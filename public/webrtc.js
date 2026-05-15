@@ -317,6 +317,7 @@ function createPeer(userId, isChatInitiator) {
                 videoEl = document.createElement('video');
                 videoEl.autoplay = true;
                 videoEl.playsInline = true;
+                videoEl.muted = true; // audio routed via WebAudio in screen overlay only
                 videoMap.set(userId, videoEl);
             }
             videoEl.srcObject = event.streams[0];

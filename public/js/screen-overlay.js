@@ -157,19 +157,41 @@ let pendingScreenOverlayTimer = null;
 let _screenShareAudioCtx = null;
 let _screenShareGainNode = null;
 
-function _startScreenOverlayAudio(stream) {
-    _stopScreenOverlayAudio();
-    const audioTracks = stream.getAudioTracks ? stream.getAudioTracks() : [];
-    if (!audioTracks.length) return;
+// Called during a user gesture (click to open overlay) — creates AudioContext
+// and gain node while the gesture is still active. Safe to call multiple times.
+function _prepareScreenAudioCtx() {
+    if (_screenShareAudioCtx) return;
     try {
         _screenShareAudioCtx = new AudioContext({ latencyHint: "playback" });
-        const src = _screenShareAudioCtx.createMediaStreamSource(new MediaStream(audioTracks));
         _screenShareGainNode = _screenShareAudioCtx.createGain();
         _screenShareGainNode.gain.value = (typeof isSoundOn !== "undefined" && !isSoundOn) ? 0 : 1;
-        src.connect(_screenShareGainNode);
         _screenShareGainNode.connect(_screenShareAudioCtx.destination);
     } catch (_) {
-        // AudioContext unavailable — fall back to native video audio
+        _screenShareAudioCtx = null;
+        _screenShareGainNode = null;
+    }
+}
+
+function _startScreenOverlayAudio(stream) {
+    const audioTracks = stream.getAudioTracks ? stream.getAudioTracks() : [];
+    if (!audioTracks.length) return;
+    // Reuse AudioContext prepared during the user gesture. If not prepared yet
+    // (video was already ready when user clicked, no pending path), create now —
+    // we're still inside the click handler, so the gesture is still active.
+    _prepareScreenAudioCtx();
+    if (!_screenShareAudioCtx) {
+        if (screenOverlayVideo) screenOverlayVideo.muted = false;
+        return;
+    }
+    try {
+        _screenShareGainNode.gain.value = (typeof isSoundOn !== "undefined" && !isSoundOn) ? 0 : 1;
+        const src = _screenShareAudioCtx.createMediaStreamSource(new MediaStream(audioTracks));
+        src.connect(_screenShareGainNode);
+        // Resume in case context was created outside a gesture (fallback path).
+        _screenShareAudioCtx.resume().catch(() => {
+            if (screenOverlayVideo) screenOverlayVideo.muted = false;
+        });
+    } catch (_) {
         if (screenOverlayVideo) screenOverlayVideo.muted = false;
         _screenShareAudioCtx = null;
         _screenShareGainNode = null;
@@ -212,12 +234,16 @@ function openScreenOverlay(userId) {
     if (!videoEl?.srcObject) {
         /* Race: socket «started sharing» прилетел, а WebRTC-трек ещё нет.
            Запоминаем намерение и ждём сигнала из ontrack. Таймаут 5 сек —
-           если трек не приедет, чистим pending. */
+           если трек не приедет, чистим pending.
+           _prepareScreenAudioCtx здесь — чтобы AudioContext создался в контексте
+           user gesture (клик), пока он активен, до прихода трека. */
+        _prepareScreenAudioCtx();
         pendingScreenOverlayUserId = userId;
         clearTimeout(pendingScreenOverlayTimer);
         pendingScreenOverlayTimer = setTimeout(() => {
             pendingScreenOverlayUserId = null;
             pendingScreenOverlayTimer = null;
+            _stopScreenOverlayAudio(); // clean up prepared context if track never arrived
         }, 5000);
         return;
     }
