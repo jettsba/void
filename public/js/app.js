@@ -157,6 +157,17 @@ function init() {
         if (e.key === "Escape" && screenOverlay.classList.contains("is-visible")) closeScreenOverlay();
     });
 
+    /* F2: pagehide — единственный надёжный сигнал «вкладка уходит» (закрытие,
+       reload, навигация назад на iOS Safari, перевод в bfcache). beforeunload
+       блокирует bfcache и часто не стреляет на мобильных. Если мы в комнате —
+       шлём leave-room синхронно, чтобы сервер сразу разослал participant-left,
+       а не ждал 60 секунд heartbeat'а. */
+    window.addEventListener("pagehide", () => {
+        if (!isJoined) return;
+        if (typeof socket === "undefined" || !socket || socket.readyState !== 1) return;
+        try { socket.send(JSON.stringify({ type: "leave-room" })); } catch (_) {}
+    });
+
     document.body.style.opacity = "1";
     setConnectionState("ready");
 

@@ -41,7 +41,7 @@ const PEER_ICE_RESTART_TIMEOUT_MS = 8000;
  *  починить первой и не плодить встречные restart'ы. */
 const PEER_PASSIVE_REBUILD_TIMEOUT_MS = 15000;
 
-async function initMedia() {
+function buildMicConstraints() {
     /* Если в настройках выбран конкретный микрофон — просим именно его.
        Иначе — системный default. Пустую строку в deviceId передавать
        нельзя, поэтому ветвим. */
@@ -53,9 +53,12 @@ async function initMedia() {
     };
     const savedMicId = window.VoidSettings?.getAudioInId?.() || "";
     if (savedMicId) audioConstraints.deviceId = { exact: savedMicId };
+    return audioConstraints;
+}
 
+async function initMedia() {
     localStream = await navigator.mediaDevices.getUserMedia({
-        audio: audioConstraints,
+        audio: buildMicConstraints(),
         video: false
     });
 
@@ -68,8 +71,97 @@ async function initMedia() {
        UI отзывается на реальный голос пользователя, а не на отфильтрованный. */
     processedStream = applyAudioProcessing(localStream);
 
+    /* F5: микрофонный трек может умереть посреди звонка (USB-устройство
+       выдернули, переключили Bluetooth, OS отозвала audio session). Tracks
+       уходят в `ended`, peer'ы продолжают передавать тишину, юзер этого
+       не знает. Слушаем onended → toast + попытка пересобрать через
+       getUserMedia + replaceTrack для всех peers. */
+    watchLocalMicTrack(localStream);
+
     createVolumeAnalyser(localStream, clientId);
     log.debug("rtc", "mic granted");
+}
+
+function watchLocalMicTrack(stream) {
+    const track = stream?.getAudioTracks?.()[0];
+    if (!track) return;
+    track.addEventListener("ended", onLocalMicEnded, { once: true });
+}
+
+let _micReinitInFlight = false;
+
+async function onLocalMicEnded() {
+    if (_micReinitInFlight) return;
+    _micReinitInFlight = true;
+    try {
+        log.warn("rtc", "local mic track ended unexpectedly");
+        if (typeof isJoined !== "undefined" && !isJoined) return;
+        if (typeof showRoomToast === "function") {
+            showRoomToast(_micT("errors.mic-lost"));
+        }
+        const ok = await reinitLocalMic();
+        if (!ok && typeof showRoomToast === "function") {
+            showRoomToast(_micT("errors.mic-lost.failed"));
+        }
+    } finally {
+        _micReinitInFlight = false;
+    }
+}
+
+function _micT(key) {
+    if (typeof _t === "function") return _t(key);
+    if (window.VoidI18n?.t) return window.VoidI18n.t(key);
+    return key;
+}
+
+/**
+ * Полная пересборка локального микрофона: новый getUserMedia, новый Web Audio
+ * граф, замена трека во всех peer-соединениях через `replaceTrack` (без
+ * renegotiation — sender'у можно подменить track в горячую, m=audio остаётся).
+ * Возвращает true если получилось, false если getUserMedia провалился.
+ */
+async function reinitLocalMic() {
+    teardownAudioGraph();
+    localStream = null;
+    processedStream = null;
+
+    try {
+        localStream = await navigator.mediaDevices.getUserMedia({
+            audio: buildMicConstraints(),
+            video: false
+        });
+    } catch (err) {
+        log.error("rtc", "mic re-acquire failed", { err: err?.message || String(err) });
+        return false;
+    }
+
+    processedStream = applyAudioProcessing(localStream);
+    watchLocalMicTrack(localStream);
+
+    // Self analyser завязан на старый (мёртвый) stream — пересоздаём на новом.
+    analyserMap.delete(clientId);
+    createVolumeAnalyser(localStream, clientId);
+
+    const newAudioTrack = (processedStream || localStream).getAudioTracks()[0];
+    if (newAudioTrack) {
+        for (const peer of peers.values()) {
+            const sender = peer._micSender;
+            if (!sender) continue;
+            try {
+                await sender.replaceTrack(newAudioTrack);
+            } catch (err) {
+                log.warn("rtc", "mic replaceTrack failed", { userId: peer._userId, err: err?.message || String(err) });
+            }
+        }
+    }
+
+    /* Применяем текущее isMicOn — getUserMedia всегда возвращает enabled=true,
+       а юзер мог быть в muted-режиме. Без applyAudioState peer'ы услышат звук
+       вопреки его выключенному микрофону. */
+    if (typeof applyAudioState === "function") applyAudioState();
+
+    log.info("rtc", "mic re-initialized");
+    return true;
 }
 
 /**
@@ -416,7 +508,12 @@ function createPeer(userId, isChatInitiator) {
        в следующий microtask — к этому моменту хендлер уже на месте. */
     const outboundStream = processedStream || localStream;
     outboundStream.getTracks().forEach(track => {
-        peer.addTrack(track, outboundStream);
+        const sender = peer.addTrack(track, outboundStream);
+        /* F5: сохраняем ссылку на mic sender, чтобы при выходе мик-трека в
+           `ended` можно было подменить track через replaceTrack без полной
+           ренегациации. Один аудио-трек на peer — mic; screen-audio добавляется
+           отдельно ниже и в screenSenders, не сюда. */
+        if (track.kind === "audio") peer._micSender = sender;
     });
 
     if (screenStream?.active) {

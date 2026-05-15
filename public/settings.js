@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "0.4.7";
+    const APP_VERSION = "0.4.8";
 
     const STORAGE_KEY = "void:settings";
     /**
@@ -124,6 +124,8 @@
             "errors.id-collision": "сессия с этим id уже активна — обнови страницу",
             "errors.unknown": "что-то пошло не так",
             "errors.screencast.busy": "демонстрация уже идёт в этой комнате",
+            "errors.mic-lost": "микрофон отключился — пробую восстановить",
+            "errors.mic-lost.failed": "не удалось восстановить микрофон — попробуй перезайти",
 
             "screencast.watch": "смотреть",
             "screencast.screen": "экран",
@@ -154,6 +156,18 @@
             "settings.audio.permHint": "разреши доступ к микрофону, чтобы видеть имена устройств",
             "settings.audio.noSinkId": "выбор колонок недоступен в этом браузере — звук идёт в системное устройство по умолчанию",
             "settings.audio.applyOnRejoin": "новый микрофон подключится при следующем входе в комнату",
+
+            "settings.support": "поддержать",
+            "support.title": "спасибо, что ты здесь",
+            "support.body": "void бесплатный и без рекламы. если он сделал твой день чуть теплее — можно угостить чашкой кофе. это правда помогает держать сервер живым и пилить дальше.",
+            "support.copy.title": "скопировать адрес",
+            "support.copied": "скопировано",
+            "support.qr.show": "показать qr",
+            "support.qr.title": "qr-код адреса",
+            "support.qr.close": "закрыть",
+            "support.coin.btc": "bitcoin",
+            "support.coin.eth": "ethereum (erc-20)",
+            "support.coin.usdt": "usdt (tron, trc-20)",
 
             "invite.hint": "пригласи друзей войти, используя код"
         },
@@ -228,6 +242,8 @@
             "errors.id-collision": "session id is already active — refresh the page",
             "errors.unknown": "something went wrong",
             "errors.screencast.busy": "screen share is already active in this room",
+            "errors.mic-lost": "mic disconnected — trying to restore",
+            "errors.mic-lost.failed": "couldn't restore mic — try rejoining",
 
             "screencast.watch": "watch",
             "screencast.screen": "screen",
@@ -258,6 +274,18 @@
             "settings.audio.permHint": "grant microphone access to see device names",
             "settings.audio.noSinkId": "speaker selection isn't supported in this browser — using system default",
             "settings.audio.applyOnRejoin": "the new microphone will be picked up the next time you join a room",
+
+            "settings.support": "support",
+            "support.title": "thanks for being here",
+            "support.body": "void is free and ad-free. if it made your day a little warmer — you can buy it a coffee. it genuinely helps keep the server up and the work going.",
+            "support.copy.title": "copy address",
+            "support.copied": "copied",
+            "support.qr.show": "show qr",
+            "support.qr.title": "address qr code",
+            "support.qr.close": "close",
+            "support.coin.btc": "bitcoin",
+            "support.coin.eth": "ethereum (erc-20)",
+            "support.coin.usdt": "usdt (tron, trc-20)",
 
             "invite.hint": "invite friends with the code below"
         }
@@ -602,11 +630,20 @@
                 </div>
 
                 <footer class="settings-footer">
-                    <span class="settings-footer-pill">void v${APP_VERSION}</span>
-                    <a class="settings-footer-author"
-                       href="https://t.me/mtbibltww"
-                       target="_blank"
-                       rel="noopener noreferrer">by @casheaterr</a>
+                    <div class="settings-footer-meta">
+                        <span class="settings-footer-pill">void v${APP_VERSION}</span>
+                        <a class="settings-footer-author"
+                           href="https://t.me/mtbibltww"
+                           target="_blank"
+                           rel="noopener noreferrer">by @casheaterr</a>
+                    </div>
+                    <button type="button" class="settings-support-btn" id="settingsSupportBtn"
+                        aria-haspopup="dialog" aria-controls="supportModal">
+                        <svg class="settings-support-heart" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M12 21s-7-4.35-9.5-8.5C.7 9 2.6 5 6.2 5c2 0 3.4 1.1 4.3 2.4l1.5 2 1.5-2C14.4 6.1 15.8 5 17.8 5c3.6 0 5.5 4 3.7 7.5C19 16.65 12 21 12 21z"/>
+                        </svg>
+                        <span class="settings-support-label" data-i18n="settings.support">${t("settings.support")}</span>
+                    </button>
                 </footer>
             </div>
         `;

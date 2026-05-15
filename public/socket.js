@@ -37,6 +37,70 @@ const _RECONNECT_REJOIN_MAX_RETRIES = 3;
 const _RECONNECT_REJOIN_BASE_DELAY_MS = 1500;
 const _WAS_RECONNECT_WINDOW_MS = 10000;
 
+/**
+ * F3: liveness watchdog. Сервер шлёт data-frame `{type:"keepalive"}` раз в
+ * 30 секунд (HEARTBEAT_INTERVAL_MS на сервере). Если 45 секунд подряд от
+ * сервера НИЧЕГО не пришло — значит TCP-туннель мёртв, хотя `readyState===1`
+ * лжёт. Принудительно закрываем сокет, чтобы стандартный reconnect-флоу
+ * подхватился.
+ *
+ * 45s выбраны как 30s heartbeat + 15s страховки на сетевое дрожание.
+ * Любое входящее сообщение (включая keepalive, signalling, broadcast'ы)
+ * обнуляет таймер.
+ */
+const LIVENESS_TIMEOUT_MS = 45_000;
+const LIVENESS_CHECK_MS = 10_000;
+let _lastServerMsgAt = 0;
+let _livenessTimer = null;
+
+function startLivenessWatchdog() {
+    stopLivenessWatchdog();
+    _lastServerMsgAt = Date.now();
+    _livenessTimer = setInterval(() => {
+        if (!socket || socket.readyState !== 1) return;
+        if (Date.now() - _lastServerMsgAt > LIVENESS_TIMEOUT_MS) {
+            log.warn("ws", "liveness timeout, forcing reconnect");
+            try { socket.close(); } catch (_) {}
+        }
+    }, LIVENESS_CHECK_MS);
+}
+
+function stopLivenessWatchdog() {
+    if (_livenessTimer) {
+        clearInterval(_livenessTimer);
+        _livenessTimer = null;
+    }
+}
+
+/**
+ * F4: буфер исходящих на время разрыва WS. На реконнекте `handleSocketReconnected`
+ * пере-анонсирует основное состояние (mic/screen — через applyAudioState,
+ * nickname — через join-room), НО в окне между «WS уже мёртв» и «реконнект
+ * заметил» юзер мог щёлкнуть микрофоном/настройкой ника несколько раз. Без
+ * буфера эти изменения молча уйдут в null, потому что sendSocket no-op'ит при
+ * readyState!==1. Кешируем последнее значение по типу (toggling mic 5 раз
+ * подряд → буфер хранит финал), флашим после успешного user-list.
+ *
+ * Whitelist жёсткий: signalling (offer/answer/ice) НЕ буферим. После реконнекта
+ * mesh пересобирается с нуля через closeRemotePeerConnections — старые SDP
+ * и кандидаты устарели в момент close().
+ */
+const _BUFFERABLE_TYPES = new Set(["audio-state", "screencast-state", "nickname-update"]);
+const _OUTGOING_BUFFER_TTL_MS = 10_000;
+const _outgoingBuffer = new Map(); // type → {data, addedAt}
+
+function flushOutgoingBuffer() {
+    if (_outgoingBuffer.size === 0) return;
+    if (!socket || socket.readyState !== 1) return;
+    const now = Date.now();
+    const queue = [..._outgoingBuffer.values()];
+    _outgoingBuffer.clear();
+    for (const entry of queue) {
+        if (now - entry.addedAt > _OUTGOING_BUFFER_TTL_MS) continue;
+        try { socket.send(JSON.stringify(entry.data)); } catch (_) {}
+    }
+}
+
 /** Колбэки, которые вешает script.js — сообщить ему о ходе реконнекта. */
 let onReconnectAttempt = null;     // (attempt, total) => void
 let onReconnectSuccess = null;     // () => void  -> здесь script.js перезайдёт в комнату
@@ -52,6 +116,8 @@ function setReconnectHandlers({ onAttempt, onSuccess, onFailed }) {
 function resetSocketConnection() {
     intentionalClose = true;
     cancelReconnect();
+    stopLivenessWatchdog();
+    _outgoingBuffer.clear();
     if (socket) {
         try {
             socket.close();
@@ -108,6 +174,10 @@ function connectSocket() {
             }
 
             ws.addEventListener("message", (event) => {
+                /* F3: любое входящее сообщение — признак, что туннель жив.
+                   Обновляем timestamp до парсинга, чтобы даже невалидный JSON
+                   (но реально пришедший с сервера) сбрасывал watchdog. */
+                _lastServerMsgAt = Date.now();
                 /* B8: битый JSON (поломанный промежуточным proxy фрейм, баг
                    сервера) не должен прокидывать throw в global error —
                    просто логируем и игнорируем сообщение. */
@@ -121,10 +191,12 @@ function connectSocket() {
                 handleSocketMessage(data);
             });
 
+            startLivenessWatchdog();
             resolve();
         });
 
         ws.addEventListener("close", () => {
+            stopLivenessWatchdog();
             if (!connectionResolved) {
                 connectionResolved = true;
                 clearTimeout(timeoutId);
@@ -247,11 +319,23 @@ if (typeof window !== "undefined") {
 function sendSocket(data) {
     if (socket && socket.readyState === 1) {
         socket.send(JSON.stringify(data));
+        return;
+    }
+    /* F4: WS не готов — если тип буферизуемый, сохраняем последнее значение.
+       После реконнекта flushOutgoingBuffer пройдётся по очереди. */
+    if (data && _BUFFERABLE_TYPES.has(data.type)) {
+        _outgoingBuffer.set(data.type, { data, addedAt: Date.now() });
     }
 }
 
 function handleSocketMessage(data) {
     switch (data.type) {
+        case "keepalive":
+            /* F3: серверный пульс. Сам факт получения сообщения уже сбросил
+               liveness timer выше в onmessage; здесь просто признаём тип, чтобы
+               не оставлять «висящих» сообщений в switch'е. */
+            return;
+
         case "room-created":
             if (data.success) {
                 sendSocket({
@@ -357,6 +441,17 @@ function handleSocketMessage(data) {
 
         case "new-participant":
             addParticipant(data.userId, data.nickname);
+            /* F1: если в нашей карте peer'ов уже есть запись под тем же userId —
+               это призрак прошлой сессии (тот человек реконнектился). Сервер
+               только что подтвердил, что под этим userId сидит свежий сокет,
+               значит наш старый peer заведомо мёртв. Без явного cleanup ICE
+               state machine будет ждать grace (5s) + restart (8s) + polite
+               passive (15s) — до 28 секунд тишины. Сносим сразу, callUser
+               создаст новый peer и handshake пройдёт заново. */
+            if (peers.has(data.userId)) {
+                log.debug("ws", "stale peer on new-participant, rebuilding", { userId: data.userId });
+                cleanupPeerSlot(data.userId);
+            }
             callUser(data.userId);
             break;
 
@@ -374,6 +469,11 @@ function handleSocketMessage(data) {
                     // offer / answer.
                     setConnectionState("connected");
                 }
+                /* F4: дренируем буфер исходящих, накопленных пока WS был мёртв.
+                   Делаем ДО applyAudioState/broadcastScreencastState — те же
+                   типы (audio-state/screencast-state) сейчас будут отправлены
+                   с актуальным локальным состоянием, перебивая буферные. */
+                flushOutgoingBuffer();
                 // Сервер при handleJoinConfirm сбрасывает наш `screen`, `mic`,
                 // `sound` к дефолтам (true/true/false). Если до реконнекта мы
                 // вещали или были в нестандартном audio-state — пере-анонсируем,

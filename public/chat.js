@@ -479,13 +479,31 @@ async function sendChunksToChannel(channel, buffer, totalChunks) {
     }
 }
 
+/* F6: peer может сдохнуть, пока буфер всё ещё выше CHAT_HIGH_WATER, и тогда
+   `bufferedamountlow` НИКОГДА не сработает. Без timeout/onclose-резолва Promise
+   висит вечно → per-channel mutex заперт → любые следующие отправки на этот
+   канал блокируются навсегда, а ArrayBuffer текущего чанка (до 100 MB)
+   удерживается в RAM через async-кадр. Резолвим по любому из трёх условий:
+   bufferedamountlow, close канала, либо 30s hard cap. */
+const CHAT_LOW_BUFFER_TIMEOUT_MS = 30_000;
+
 function waitForLowBuffer(channel) {
     return new Promise((resolve) => {
-        const onLow = () => {
+        let settled = false;
+        const finish = () => {
+            if (settled) return;
+            settled = true;
             channel.removeEventListener("bufferedamountlow", onLow);
+            channel.removeEventListener("close", finish);
+            channel.removeEventListener("error", finish);
+            clearTimeout(timer);
             resolve();
         };
+        const onLow = () => finish();
         channel.addEventListener("bufferedamountlow", onLow);
+        channel.addEventListener("close", finish);
+        channel.addEventListener("error", finish);
+        const timer = setTimeout(finish, CHAT_LOW_BUFFER_TIMEOUT_MS);
     });
 }
 

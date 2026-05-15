@@ -144,6 +144,15 @@ mountAdminStats(app);
 const HEARTBEAT_INTERVAL_MS = 30 * 1000;
 const HEARTBEAT_MAX_MISSED = 2;
 
+/**
+ * F3: app-level keepalive поверх WS ping. Браузерные WebSocket API не отдают
+ * клиенту событие на control-frame ping/pong — JS не видит, что сервер ещё жив.
+ * При half-open TCP (NAT silently dropped) клиент считает `readyState===1` за
+ * правду и до 60 секунд молча шлёт сообщения в никуда. Шлём data-frame, чтобы
+ * клиентский liveness watchdog мог детектить молчание сервера явно.
+ */
+const KEEPALIVE_PAYLOAD = JSON.stringify({ type: "keepalive" });
+
 const heartbeatTimer = setInterval(() => {
     wss.clients.forEach((ws) => {
         if ((ws._missedPongs || 0) >= HEARTBEAT_MAX_MISSED) {
@@ -152,6 +161,9 @@ const heartbeatTimer = setInterval(() => {
         }
         ws._missedPongs = (ws._missedPongs || 0) + 1;
         try { ws.ping(); } catch (_) {}
+        if (ws.readyState === 1) {
+            try { ws.send(KEEPALIVE_PAYLOAD); } catch (_) {}
+        }
     });
 }, HEARTBEAT_INTERVAL_MS);
 heartbeatTimer.unref?.();
