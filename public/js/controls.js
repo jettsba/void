@@ -58,6 +58,9 @@ function applyAudioState() {
     document.querySelectorAll("audio").forEach(audio => {
         audio.muted = !isSoundOn;
     });
+    if (typeof setScreenOverlayAudioMuted === "function") {
+        setScreenOverlayAudioMuted(!isSoundOn);
+    }
 
     updateMicUI();
     updateSoundUI();

@@ -150,6 +150,49 @@ let screenOverlayTrackCleanup = null;
 let pendingScreenOverlayUserId = null;
 let pendingScreenOverlayTimer = null;
 
+// WebAudio routing for screen share audio — routes received screen audio
+// through AudioContext instead of native <video> element playback.
+// Chrome's communications ducking only affects HTML media elements; AudioContext
+// uses a separate audio session type that isn't ducked when the viewer speaks.
+let _screenShareAudioCtx = null;
+let _screenShareGainNode = null;
+
+function _startScreenOverlayAudio(stream) {
+    _stopScreenOverlayAudio();
+    const audioTracks = stream.getAudioTracks ? stream.getAudioTracks() : [];
+    if (!audioTracks.length) return;
+    try {
+        _screenShareAudioCtx = new AudioContext({ latencyHint: "playback" });
+        const src = _screenShareAudioCtx.createMediaStreamSource(new MediaStream(audioTracks));
+        _screenShareGainNode = _screenShareAudioCtx.createGain();
+        _screenShareGainNode.gain.value = (typeof isSoundOn !== "undefined" && !isSoundOn) ? 0 : 1;
+        src.connect(_screenShareGainNode);
+        _screenShareGainNode.connect(_screenShareAudioCtx.destination);
+    } catch (_) {
+        // AudioContext unavailable — fall back to native video audio
+        if (screenOverlayVideo) screenOverlayVideo.muted = false;
+        _screenShareAudioCtx = null;
+        _screenShareGainNode = null;
+    }
+}
+
+function _stopScreenOverlayAudio() {
+    if (_screenShareAudioCtx) {
+        _screenShareAudioCtx.close();
+        _screenShareAudioCtx = null;
+        _screenShareGainNode = null;
+    }
+    if (screenOverlayVideo) screenOverlayVideo.muted = false;
+}
+
+function setScreenOverlayAudioMuted(muted) {
+    if (_screenShareGainNode) {
+        _screenShareGainNode.gain.value = muted ? 0 : 1;
+    } else if (screenOverlayVideo) {
+        screenOverlayVideo.muted = muted;
+    }
+}
+
 /**
  * Вызывается из webrtc.js peer.ontrack после того, как видео-трек экрана
  * приехал и привязан к videoEl. Если пользователь уже кликнул «watch screen»
@@ -186,6 +229,8 @@ function openScreenOverlay(userId) {
 
     screenOverlayUserId = userId;
     screenOverlayVideo.srcObject = stream;
+    screenOverlayVideo.muted = true; // audio routed via WebAudio below (prevents comms ducking)
+    _startScreenOverlayAudio(stream);
     screenOverlay.removeAttribute("inert");
     screenOverlay.setAttribute("aria-hidden", "false");
     screenOverlay.classList.add("is-visible");
@@ -211,6 +256,7 @@ function closeScreenOverlay() {
     }
     screenOverlay.classList.remove("is-visible");
     hideOverlayElement(screenOverlay);
+    _stopScreenOverlayAudio();
     if (screenOverlayVideo) screenOverlayVideo.srcObject = null;
     screenOverlayTrackCleanup?.();
     screenOverlayTrackCleanup = null;
