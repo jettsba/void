@@ -34,8 +34,8 @@ function _getOrCreateInviteHintEl() {
     _inviteHintEl.className = "invite-hint";
     _inviteHintEl.setAttribute("role", "status");
     _inviteHintEl.addEventListener("click", () => dismissInviteHint(true));
-    const slot = participantsContainer?.closest(".users-slot");
-    if (slot) slot.appendChild(_inviteHintEl);
+    const footer = document.querySelector(".footer.footer-meta");
+    if (footer) footer.appendChild(_inviteHintEl);
     return _inviteHintEl;
 }
 

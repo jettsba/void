@@ -187,7 +187,7 @@
             "bug.thanks.body": "заявка ушла. постараюсь разобраться как можно скорее.",
             "bug.thanks.close": "закрыть",
 
-            "invite.hint": "пригласи друзей войти, используя код"
+            "invite.hint": "пригласи друзей войти, используя код ниже"
         },
         en: {
             "intro.question": "what is the music of life?",

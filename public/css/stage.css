@@ -279,9 +279,9 @@
 
 .invite-hint {
     position: absolute;
-    top: calc(100% + 46px);
+    bottom: calc(100% + 8px);
     left: 50%;
-    transform: translateX(-50%) translateY(4px);
+    transform: translateX(-50%) translateY(-4px);
     color: var(--fg-3);
     font-size: 11px;
     letter-spacing: var(--tracking-wide);
