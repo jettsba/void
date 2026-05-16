@@ -676,19 +676,26 @@
 
 .settings-footer {
     margin-top: auto;
-    padding: 10px 0;
+    padding: 12px 0;
     border-top: 1px solid rgba(255, 255, 255, 0.05);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 10px;
-    min-height: 32px;
+    gap: 12px;
     font-size: 11px;
     line-height: 1;
     text-transform: lowercase;
     letter-spacing: var(--tracking);
     color: var(--fg-3);
     user-select: none;
+}
+
+.settings-footer-meta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    min-width: 0;
 }
 
 .settings-footer-pill {
@@ -714,6 +721,375 @@
     outline: none;
 }
 
+/* Кнопка-«сердечко» справа в футере: heart + label в 2 строки,
+   цвет и обводка совпадают с like-бейджем в чате (#e26b7a). */
+.settings-support-btn {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 6px 12px;
+    min-height: 44px;
+    border-radius: 8px;
+    border: 1px solid rgba(226, 107, 122, 0.45);
+    background: rgba(226, 107, 122, 0.06);
+    color: #e26b7a;
+    font: inherit;
+    font-size: 10.5px;
+    text-transform: lowercase;
+    letter-spacing: var(--tracking);
+    cursor: pointer;
+    transition: background var(--t-fast), border-color var(--t-fast), transform var(--t-fast);
+}
+
+.settings-support-btn:hover,
+.settings-support-btn:focus-visible {
+    outline: none;
+    background: rgba(226, 107, 122, 0.12);
+    border-color: rgba(226, 107, 122, 0.7);
+}
+
+.settings-support-btn:active { transform: scale(0.97); }
+
+.settings-support-heart {
+    width: 14px;
+    height: 14px;
+    fill: currentColor;
+}
+
+.settings-support-label { line-height: 1; }
+
+/* ========= SUPPORT MODAL ========= */
+
+.support-modal,
+.support-qr-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--t-med);
+}
+
+.support-modal.is-open,
+.support-qr-modal.is-open {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.support-qr-modal { z-index: 210; }
+
+.support-backdrop,
+.support-qr-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
+}
+
+.support-card {
+    position: relative;
+    width: min(420px, 100%);
+    max-height: calc(100vh - 48px);
+    overflow: hidden;
+    background: rgba(18, 18, 21, 0.98);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+    transform: scale(0.96);
+    transition: transform var(--t-med);
+}
+
+.support-modal.is-open .support-card { transform: scale(1); }
+
+.support-content {
+    position: relative;
+    z-index: 1;
+    padding: 28px 24px 22px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    max-height: calc(100vh - 48px);
+    overflow-y: auto;
+}
+
+.support-close {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 2;
+    width: 30px;
+    height: 30px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 0;
+    border-radius: 7px;
+    cursor: pointer;
+    color: var(--fg-3);
+    transition: color var(--t-fast), background var(--t-fast);
+}
+
+.support-close:hover,
+.support-close:focus-visible {
+    outline: none;
+    color: var(--fg);
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.support-close svg {
+    width: 14px;
+    height: 14px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.7;
+    stroke-linecap: round;
+}
+
+.support-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-right: 28px;
+}
+
+.support-head-heart {
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    fill: #e26b7a;
+}
+
+.support-title {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--fg);
+    text-transform: lowercase;
+    letter-spacing: var(--tracking-wide);
+    line-height: 1.2;
+}
+
+.support-body {
+    margin: 0;
+    color: var(--fg-2);
+    font-size: 12.5px;
+    line-height: 1.55;
+    text-transform: lowercase;
+}
+
+.support-coins {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 4px;
+}
+
+.support-coin {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.support-coin-label {
+    font-size: 10.5px;
+    text-transform: lowercase;
+    letter-spacing: var(--tracking-wide);
+    color: var(--fg-3);
+}
+
+.support-coin-row {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+}
+
+.support-coin-addr {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 8px;
+    color: var(--fg-2);
+    font: inherit;
+    font-size: 11.5px;
+    cursor: pointer;
+    text-align: left;
+    transition: background var(--t-fast), border-color var(--t-fast);
+}
+
+.support-coin-addr:hover,
+.support-coin-addr:focus-visible {
+    outline: none;
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.16);
+    color: var(--fg);
+}
+
+.support-coin-addr-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: "JetBrains Mono", monospace;
+    letter-spacing: 0;
+    transition: opacity var(--t-fast);
+    width: 100%;
+}
+
+.support-coin-copied {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #e26b7a;
+    text-transform: lowercase;
+    letter-spacing: var(--tracking-wide);
+    font-size: 11.5px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--t-fast);
+}
+
+.support-coin-addr.is-copied .support-coin-addr-text { opacity: 0; }
+.support-coin-addr.is-copied .support-coin-copied { opacity: 1; }
+
+.support-coin-qr {
+    flex-shrink: 0;
+    width: 38px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 8px;
+    color: var(--fg-2);
+    cursor: pointer;
+    transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
+}
+
+.support-coin-qr:hover,
+.support-coin-qr:focus-visible {
+    outline: none;
+    color: var(--fg);
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.16);
+}
+
+.support-coin-qr svg {
+    width: 16px;
+    height: 16px;
+    fill: currentColor;
+}
+
+/* ========= QR sub-modal ========= */
+
+.support-qr-card {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    padding: 24px 22px 20px 22px;
+    background: rgba(18, 18, 21, 0.98);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+    max-width: min(300px, 100%);
+    transform: scale(0.96);
+    transition: transform var(--t-med);
+}
+
+.support-qr-modal.is-open .support-qr-card { transform: scale(1); }
+
+.support-qr-close {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 0;
+    border-radius: 6px;
+    cursor: pointer;
+    color: var(--fg-3);
+    transition: color var(--t-fast), background var(--t-fast);
+}
+
+.support-qr-close:hover,
+.support-qr-close:focus-visible {
+    outline: none;
+    color: var(--fg);
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.support-qr-close svg {
+    width: 14px;
+    height: 14px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.7;
+    stroke-linecap: round;
+}
+
+.support-qr-title {
+    font-size: 11px;
+    text-transform: lowercase;
+    letter-spacing: var(--tracking-wide);
+    color: var(--fg-3);
+    padding-right: 22px;
+    text-align: center;
+}
+
+.support-qr-figure {
+    width: 220px;
+    height: 220px;
+    background: #ffffff;
+    border-radius: 8px;
+    padding: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.support-qr-figure img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    /* Тоневой ресемплинг 1500→204px иначе мылится в Chrome/Edge.
+       Для QR нужны чёткие пиксельные грани. */
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+    -webkit-user-drag: none;
+    user-select: none;
+}
+
+.support-qr-addr {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10.5px;
+    color: var(--fg-3);
+    text-align: center;
+    word-break: break-all;
+    line-height: 1.4;
+    max-width: 240px;
+}
+
 /* ========= STREAMER MODE ========= */
 
 /* В стримерском режиме код комнаты в футере не показываем — текст
@@ -725,7 +1101,11 @@
 
 @media (prefers-reduced-motion: reduce) {
     .settings-scrim,
-    .settings-panel {
+    .settings-panel,
+    .support-modal,
+    .support-qr-modal,
+    .support-card,
+    .support-qr-card {
         transition: none;
     }
 }

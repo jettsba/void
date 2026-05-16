@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "0.4.12";
+    const APP_VERSION = "0.4.16";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
@@ -475,6 +475,16 @@
         micGainValueEl, spkGainValueEl,
         micMeterFillEl, spkTestBtnEl,
         audioHintEl;
+    let supportBtnEl, supportModalEl, supportQrModalEl, supportQrFigureEl, supportQrLabelEl;
+
+    /* Адреса намеренно зашиты в код: они привязаны к одному автору,
+       никакой динамики тут не нужно. Если кошельки сменятся — правка здесь
+       (и заодно перегенерить картинки в public/static/qr/). */
+    const SUPPORT_COINS = [
+        { id: "btc",  labelKey: "support.coin.btc",  address: "bc1qqny8g5zy2a7eyzdj9dknl55gj6hdqh2kejcut3", qr: "static/qr/btc.png" },
+        { id: "eth",  labelKey: "support.coin.eth",  address: "0x7DD7912D37bD498f2F920079d89D500C5aB970ca", qr: "static/qr/eth.png" },
+        { id: "usdt", labelKey: "support.coin.usdt", address: "TA2rJmmDujhuL1b2PDZwKhPDUufQkkG665",        qr: "static/qr/usdt.png" }
+    ];
     /* Изолированный preview-stream/analyser для уровня микрофона в панели.
        Включается на open, гасится на close. Не трогает основной localStream. */
     let previewStream = null;
@@ -703,9 +713,187 @@
         scrimEl.addEventListener("click", closePanel);
         panelEl.querySelector("#settingsClose").addEventListener("click", closePanel);
 
+        supportBtnEl = panelEl.querySelector("#settingsSupportBtn");
+        supportBtnEl?.addEventListener("click", openSupportModal);
+
+        buildSupportModal();
+
         document.addEventListener("keydown", e => {
-            if (e.key === "Escape" && panelEl.classList.contains("is-open")) closePanel();
+            if (e.key !== "Escape") return;
+            /* QR-окно поверх support-модалки: закрываем по очереди. */
+            if (supportQrModalEl?.classList.contains("is-open")) { closeSupportQr(); return; }
+            if (supportModalEl?.classList.contains("is-open")) { closeSupportModal(); return; }
+            if (panelEl.classList.contains("is-open")) closePanel();
         });
+    }
+
+    /* ===== support modal ===== */
+
+    function buildSupportModal() {
+        if (document.getElementById("supportModal")) return;
+
+        const coinsHtml = SUPPORT_COINS.map(c => `
+            <div class="support-coin" data-coin="${c.id}">
+                <span class="support-coin-label" data-i18n="${c.labelKey}">${t(c.labelKey)}</span>
+                <div class="support-coin-row">
+                    <button type="button" class="support-coin-addr"
+                        data-address="${c.address}"
+                        data-i18n-attr="title:support.copy.title;aria-label:support.copy.title"
+                        title="${t("support.copy.title")}"
+                        aria-label="${t("support.copy.title")}">
+                        <span class="support-coin-addr-text">${c.address}</span>
+                        <span class="support-coin-copied" data-i18n="support.copied">${t("support.copied")}</span>
+                    </button>
+                    <button type="button" class="support-coin-qr"
+                        data-address="${c.address}" data-coin-id="${c.id}"
+                        data-i18n-attr="title:support.qr.show;aria-label:support.qr.show"
+                        title="${t("support.qr.show")}"
+                        aria-label="${t("support.qr.show")}">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4z"/>
+                            <path d="M14 14h2v2h-2zM18 14h2v2h-2zM14 18h2v2h-2zM18 18h2v2h-2z"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        `).join("");
+
+        supportModalEl = document.createElement("div");
+        supportModalEl.className = "support-modal";
+        supportModalEl.id = "supportModal";
+        supportModalEl.setAttribute("aria-hidden", "true");
+        supportModalEl.setAttribute("role", "dialog");
+        supportModalEl.setAttribute("aria-labelledby", "supportTitle");
+        supportModalEl.innerHTML = `
+            <div class="support-backdrop" id="supportBackdrop"></div>
+            <div class="support-card">
+                <button type="button" class="support-close" id="supportClose"
+                    data-i18n-attr="aria-label:support.qr.close;title:support.qr.close"
+                    aria-label="${t("support.qr.close")}"
+                    title="${t("support.qr.close")}">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M6 6l12 12"/>
+                        <path d="M18 6L6 18"/>
+                    </svg>
+                </button>
+                <div class="support-content">
+                    <div class="support-head">
+                        <svg class="support-head-heart" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M12 21s-7-4.35-9.5-8.5C.7 9 2.6 5 6.2 5c2 0 3.4 1.1 4.3 2.4l1.5 2 1.5-2C14.4 6.1 15.8 5 17.8 5c3.6 0 5.5 4 3.7 7.5C19 16.65 12 21 12 21z"/>
+                        </svg>
+                        <h2 class="support-title" id="supportTitle" data-i18n="support.title">${t("support.title")}</h2>
+                    </div>
+                    <p class="support-body" data-i18n="support.body">${t("support.body")}</p>
+                    <div class="support-coins">${coinsHtml}</div>
+                </div>
+            </div>
+        `;
+
+        supportQrModalEl = document.createElement("div");
+        supportQrModalEl.className = "support-qr-modal";
+        supportQrModalEl.id = "supportQrModal";
+        supportQrModalEl.setAttribute("aria-hidden", "true");
+        supportQrModalEl.setAttribute("role", "dialog");
+        supportQrModalEl.innerHTML = `
+            <div class="support-qr-backdrop" id="supportQrBackdrop"></div>
+            <div class="support-qr-card">
+                <button type="button" class="support-qr-close" id="supportQrClose"
+                    data-i18n-attr="aria-label:support.qr.close;title:support.qr.close"
+                    aria-label="${t("support.qr.close")}"
+                    title="${t("support.qr.close")}">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M6 6l12 12"/>
+                        <path d="M18 6L6 18"/>
+                    </svg>
+                </button>
+                <span class="support-qr-title" id="supportQrLabel" data-i18n="support.qr.title">${t("support.qr.title")}</span>
+                <div class="support-qr-figure" id="supportQrFigure" aria-hidden="true"></div>
+                <span class="support-qr-addr" id="supportQrAddr"></span>
+            </div>
+        `;
+
+        document.body.appendChild(supportModalEl);
+        document.body.appendChild(supportQrModalEl);
+
+        supportQrFigureEl = supportQrModalEl.querySelector("#supportQrFigure");
+        supportQrLabelEl = supportQrModalEl.querySelector("#supportQrAddr");
+
+        supportModalEl.querySelector("#supportBackdrop").addEventListener("click", closeSupportModal);
+        supportModalEl.querySelector("#supportClose").addEventListener("click", closeSupportModal);
+
+        supportModalEl.querySelectorAll(".support-coin-addr").forEach(btn => {
+            btn.addEventListener("click", () => copySupportAddress(btn));
+        });
+        supportModalEl.querySelectorAll(".support-coin-qr").forEach(btn => {
+            btn.addEventListener("click", () => {
+                const addr = btn.dataset.address || "";
+                const coin = SUPPORT_COINS.find(c => c.id === btn.dataset.coinId);
+                openSupportQr(addr, coin ? t(coin.labelKey) : "", coin ? coin.qr : "");
+            });
+        });
+
+        supportQrModalEl.querySelector("#supportQrBackdrop").addEventListener("click", closeSupportQr);
+        supportQrModalEl.querySelector("#supportQrClose").addEventListener("click", closeSupportQr);
+    }
+
+    function openSupportModal() {
+        if (!supportModalEl) return;
+        supportModalEl.classList.add("is-open");
+        supportModalEl.setAttribute("aria-hidden", "false");
+    }
+
+    function closeSupportModal() {
+        if (!supportModalEl) return;
+        supportModalEl.classList.remove("is-open");
+        supportModalEl.setAttribute("aria-hidden", "true");
+        /* QR закроем тоже — он бессмыслен без родительской модалки. */
+        closeSupportQr();
+    }
+
+    function openSupportQr(address, coinLabel, qrSrc) {
+        if (!supportQrModalEl || !supportQrFigureEl) return;
+        const src = qrSrc || "";
+        const alt = coinLabel || t("support.qr.title");
+        /* Картинки 1500×1500 — CSS даст object-fit:contain в 220×220 контейнер.
+           Браузер сам отресемплит, оставаясь в quiet-zone PNG. */
+        supportQrFigureEl.innerHTML = src
+            ? `<img src="${src}" alt="${alt}" draggable="false">`
+            : "";
+        if (supportQrLabelEl) supportQrLabelEl.textContent = address;
+        const titleEl = supportQrModalEl.querySelector("#supportQrLabel");
+        if (titleEl) titleEl.textContent = alt;
+        supportQrModalEl.classList.add("is-open");
+        supportQrModalEl.setAttribute("aria-hidden", "false");
+    }
+
+    function closeSupportQr() {
+        if (!supportQrModalEl) return;
+        supportQrModalEl.classList.remove("is-open");
+        supportQrModalEl.setAttribute("aria-hidden", "true");
+    }
+
+    async function copySupportAddress(btnEl) {
+        const addr = btnEl.dataset.address || "";
+        if (!addr) return;
+        try {
+            await navigator.clipboard.writeText(addr);
+        } catch (_) {
+            /* fallback: невидимый textarea + execCommand для старых браузеров /
+               http-контекстов. clipboard-API требует secure context. */
+            try {
+                const ta = document.createElement("textarea");
+                ta.value = addr;
+                ta.style.position = "fixed";
+                ta.style.opacity = "0";
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand("copy");
+                document.body.removeChild(ta);
+            } catch (_) { return; }
+        }
+        btnEl.classList.add("is-copied");
+        clearTimeout(btnEl._copyT);
+        btnEl._copyT = setTimeout(() => btnEl.classList.remove("is-copied"), 1200);
     }
 
     function applyLangToggleUI() {
