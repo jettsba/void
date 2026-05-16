@@ -68,3 +68,49 @@ body::after {
     z-index: 1;
     background: radial-gradient(120% 80% at 50% 50%, transparent 55%, rgba(0, 0, 0, 0.55) 100%);
 }
+
+/* ========= GLOBAL SCROLLBAR =========
+   Стандартный OS-серый бьёт по тёмной теме. Делаем тонкую полупрозрачную
+   полоску — единообразно везде (textarea, settings-панель, чат, dropdown'ы).
+   Локальные правила в chat.css / chat-attach.css / settings.css перекрывают
+   эту базу, если им нужен иной look. */
+
+*::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+    background: transparent;
+}
+
+*::-webkit-scrollbar-track,
+*::-webkit-scrollbar-corner {
+    background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 3px;
+    transition: background var(--t-fast);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.18);
+}
+
+/* Кнопок прокрутки (стрелочки на тач-bar Windows) скрываем — мешают. */
+*::-webkit-scrollbar-button {
+    display: none;
+    width: 0;
+    height: 0;
+}
+
+/* Firefox: нет ::-webkit-* псевдо-элементов, есть собственное API. */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+}
+
+/* Скрытое через атрибут [hidden] должно быть скрыто, даже когда у элемента
+   объявлен display: flex/grid (наш bug-view, например). */
+[hidden] {
+    display: none !important;
+}

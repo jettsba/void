@@ -771,26 +771,39 @@
     align-items: center;
     justify-content: center;
     padding: 24px;
+    /* Bg + blur кладём прямо на корень модалки (как у .chat-lightbox).
+       Если оставить blur на дочернем .support-backdrop, родительский opacity:0
+       заставляет браузер откладывать композитинг блюра — он «проявляется»
+       с задержкой. Здесь же оба свойства анимируются явно. */
+    background: rgba(0, 0, 0, 0);
+    backdrop-filter: blur(0px);
+    -webkit-backdrop-filter: blur(0px);
     opacity: 0;
     pointer-events: none;
-    transition: opacity var(--t-med);
+    transition:
+        opacity var(--t-med),
+        background var(--t-med),
+        backdrop-filter var(--t-med),
+        -webkit-backdrop-filter var(--t-med);
 }
 
 .support-modal.is-open,
 .support-qr-modal.is-open {
     opacity: 1;
     pointer-events: auto;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
 }
 
 .support-qr-modal { z-index: 210; }
 
+/* Backdrop теперь невидимый clickable-слой: только ловит клики «по фону».
+   Bg/blur уехали на родителя выше. */
 .support-backdrop,
 .support-qr-backdrop {
     position: absolute;
     inset: 0;
-    background: rgba(0, 0, 0, 0.55);
-    backdrop-filter: blur(3px);
-    -webkit-backdrop-filter: blur(3px);
 }
 
 .support-card {
@@ -1152,22 +1165,30 @@
     align-items: center;
     justify-content: center;
     padding: 24px;
+    /* См. комментарий у .support-modal: bg+blur на корне, не на дочернем. */
+    background: rgba(0, 0, 0, 0);
+    backdrop-filter: blur(0px);
+    -webkit-backdrop-filter: blur(0px);
     opacity: 0;
     pointer-events: none;
-    transition: opacity var(--t-med);
+    transition:
+        opacity var(--t-med),
+        background var(--t-med),
+        backdrop-filter var(--t-med),
+        -webkit-backdrop-filter var(--t-med);
 }
 
 .bug-modal.is-open {
     opacity: 1;
     pointer-events: auto;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
 }
 
 .bug-backdrop {
     position: absolute;
     inset: 0;
-    background: rgba(0, 0, 0, 0.55);
-    backdrop-filter: blur(3px);
-    -webkit-backdrop-filter: blur(3px);
 }
 
 .bug-card {
