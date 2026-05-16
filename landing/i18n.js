@@ -159,7 +159,7 @@ window.VOID_I18N = {
 
         'hero.eyebrow':        'voice rooms that disappear',
         'hero.h1':             'a room<br/><span class="accent">that vanishes.</span>',
-        'hero.tagline':        'open it, invite a friend, talk — and the room is gone. no accounts, no apps, no records kept. voice for as long as you need it.',
+        'hero.tagline':        'open void, share the code, talk. no accounts, no apps, no records kept. voice for as long as you need it.',
         'hero.promise':        '— easier than picking up the phone.',
         'hero.cta.enter':      'open a room',
         'hero.cta.download':   'for desktop',

@@ -21,6 +21,7 @@ import {
     getClientIp,
 } from "./lib/security.js";
 import { mountAdminStats } from "./lib/admin-stats.js";
+import { mountBugReport } from "./lib/bug-report.js";
 import {
     consumeToken,
     handleHello,
@@ -134,6 +135,10 @@ const wss = new WebSocketServer({
 });
 
 mountAdminStats(app);
+/* /api/report-bug — багрепорт-форма из настроек. JSON только для этого
+   route (нет смысла парсить тело на каждом запросе статики). 256 KB cap —
+   с запасом под полный log.bugReport() от Chrome (история + peer stats). */
+mountBugReport(app, express.json({ limit: "256kb" }));
 
 /**
  * Heartbeat. Без него мёртвый TCP-коннект (закрытая вкладка без FIN, спящий ноут,

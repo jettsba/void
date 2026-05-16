@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "0.5.0";
+    const APP_VERSION = "0.5.1";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
@@ -172,6 +172,21 @@
             "support.coin.eth": "ethereum (erc-20)",
             "support.coin.usdt": "usdt (tron, trc-20)",
 
+            "settings.bug": "сообщить о проблеме",
+            "bug.title": "сообщить о проблеме",
+            "bug.body": "опиши, что пошло не так или что хотелось бы добавить. к заявке автоматически приложится короткий технический лог — поможет быстрее разобраться.",
+            "bug.desc.placeholder": "опиши проблему или предложение",
+            "bug.contact.placeholder": "контакт (почта / telegram), по желанию",
+            "bug.contact.hint": "необязательно, но так смогу ответить",
+            "bug.submit": "отправить",
+            "bug.submitting": "отправляю…",
+            "bug.error": "не удалось отправить — попробуй ещё раз",
+            "bug.error.rate": "слишком много заявок — подожди немного",
+            "bug.error.empty": "напиши пару слов о проблеме",
+            "bug.thanks.title": "спасибо!",
+            "bug.thanks.body": "заявка ушла. постараюсь разобраться как можно скорее.",
+            "bug.thanks.close": "закрыть",
+
             "invite.hint": "пригласи друзей войти, используя код"
         },
         en: {
@@ -289,6 +304,21 @@
             "support.coin.btc": "bitcoin",
             "support.coin.eth": "ethereum (erc-20)",
             "support.coin.usdt": "usdt (tron, trc-20)",
+
+            "settings.bug": "report a bug",
+            "bug.title": "report a bug",
+            "bug.body": "describe what went wrong or what you'd like to see added. a short technical log will be attached automatically — it helps me figure out the issue faster.",
+            "bug.desc.placeholder": "describe the problem or suggestion",
+            "bug.contact.placeholder": "contact (email / telegram), optional",
+            "bug.contact.hint": "optional, lets me reach back if needed",
+            "bug.submit": "send",
+            "bug.submitting": "sending…",
+            "bug.error": "couldn't send — please try again",
+            "bug.error.rate": "too many submissions — wait a bit",
+            "bug.error.empty": "write a couple of words first",
+            "bug.thanks.title": "thanks!",
+            "bug.thanks.body": "your report is on its way. i'll look into it as soon as i can.",
+            "bug.thanks.close": "close",
 
             "invite.hint": "invite friends with the code below"
         }
@@ -476,6 +506,10 @@
         micMeterFillEl, spkTestBtnEl,
         audioHintEl;
     let supportBtnEl, supportModalEl, supportQrModalEl, supportQrFigureEl, supportQrLabelEl;
+    let bugBtnEl, bugModalEl, bugFormViewEl, bugSuccessViewEl,
+        bugDescEl, bugContactEl, bugSubmitEl, bugErrorEl;
+    /* Чтобы не дать спамить кнопкой submit на медленной сети. */
+    let bugSubmitting = false;
 
     /* Адреса намеренно зашиты в код: они привязаны к одному автору,
        никакой динамики тут не нужно. Если кошельки сменятся — правка здесь
@@ -642,6 +676,18 @@
                     </div>
                 </div>
 
+                <button type="button" class="settings-bug-btn" id="settingsBugBtn"
+                    aria-haspopup="dialog" aria-controls="bugModal"
+                    data-i18n-attr="title:settings.bug;aria-label:settings.bug"
+                    title="${t("settings.bug")}"
+                    aria-label="${t("settings.bug")}">
+                    <svg class="settings-bug-icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M5 3v18"/>
+                        <path d="M5 4h12l-2 3 2 3H5"/>
+                    </svg>
+                    <span class="settings-bug-label" data-i18n="settings.bug">${t("settings.bug")}</span>
+                </button>
+
                 <footer class="settings-footer">
                     <div class="settings-footer-meta">
                         <span class="settings-footer-pill">void v${APP_VERSION}</span>
@@ -716,13 +762,18 @@
         supportBtnEl = panelEl.querySelector("#settingsSupportBtn");
         supportBtnEl?.addEventListener("click", openSupportModal);
 
+        bugBtnEl = panelEl.querySelector("#settingsBugBtn");
+        bugBtnEl?.addEventListener("click", openBugModal);
+
         buildSupportModal();
+        buildBugModal();
 
         document.addEventListener("keydown", e => {
             if (e.key !== "Escape") return;
-            /* QR-окно поверх support-модалки: закрываем по очереди. */
+            /* Закрываем модалки по иерархии: QR поверх support, поверх bug, поверх settings. */
             if (supportQrModalEl?.classList.contains("is-open")) { closeSupportQr(); return; }
             if (supportModalEl?.classList.contains("is-open")) { closeSupportModal(); return; }
+            if (bugModalEl?.classList.contains("is-open")) { closeBugModal(); return; }
             if (panelEl.classList.contains("is-open")) closePanel();
         });
     }
@@ -894,6 +945,189 @@
         btnEl.classList.add("is-copied");
         clearTimeout(btnEl._copyT);
         btnEl._copyT = setTimeout(() => btnEl.classList.remove("is-copied"), 1200);
+    }
+
+    /* ===== bug-report modal ===== */
+
+    /** Кэп на длину описания/контакта. Сервер тоже валидирует — здесь UX-кэп. */
+    const BUG_DESC_MAX = 5000;
+    const BUG_CONTACT_MAX = 200;
+
+    function buildBugModal() {
+        if (document.getElementById("bugModal")) return;
+
+        bugModalEl = document.createElement("div");
+        bugModalEl.className = "bug-modal";
+        bugModalEl.id = "bugModal";
+        bugModalEl.setAttribute("aria-hidden", "true");
+        bugModalEl.setAttribute("role", "dialog");
+        bugModalEl.setAttribute("aria-labelledby", "bugTitle");
+        bugModalEl.innerHTML = `
+            <div class="bug-backdrop" id="bugBackdrop"></div>
+            <div class="bug-card">
+                <button type="button" class="bug-close" id="bugClose"
+                    data-i18n-attr="aria-label:bug.thanks.close;title:bug.thanks.close"
+                    aria-label="${t("bug.thanks.close")}"
+                    title="${t("bug.thanks.close")}">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M6 6l12 12"/>
+                        <path d="M18 6L6 18"/>
+                    </svg>
+                </button>
+
+                <div class="bug-view bug-view--form" id="bugFormView">
+                    <h2 class="bug-title" id="bugTitle" data-i18n="bug.title">${t("bug.title")}</h2>
+                    <p class="bug-body" data-i18n="bug.body">${t("bug.body")}</p>
+
+                    <form class="bug-form" id="bugForm" autocomplete="off">
+                        <textarea
+                            id="bugDesc"
+                            class="bug-input bug-input--desc"
+                            rows="5"
+                            maxlength="${BUG_DESC_MAX}"
+                            data-i18n-placeholder="bug.desc.placeholder"
+                            placeholder="${t("bug.desc.placeholder")}"
+                            required
+                        ></textarea>
+
+                        <div class="bug-field">
+                            <input
+                                type="text"
+                                id="bugContact"
+                                class="bug-input"
+                                maxlength="${BUG_CONTACT_MAX}"
+                                data-i18n-placeholder="bug.contact.placeholder"
+                                placeholder="${t("bug.contact.placeholder")}"
+                            />
+                            <span class="bug-hint" data-i18n="bug.contact.hint">${t("bug.contact.hint")}</span>
+                        </div>
+
+                        <div class="bug-error" id="bugError" aria-live="polite"></div>
+
+                        <button type="submit" class="bug-submit" id="bugSubmit"
+                            data-label-idle="${t("bug.submit")}"
+                            data-label-sending="${t("bug.submitting")}">
+                            <span class="bug-submit-label" data-i18n="bug.submit">${t("bug.submit")}</span>
+                        </button>
+                    </form>
+                </div>
+
+                <div class="bug-view bug-view--success" id="bugSuccessView" hidden>
+                    <svg class="bug-success-heart" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M12 21s-7-4.35-9.5-8.5C.7 9 2.6 5 6.2 5c2 0 3.4 1.1 4.3 2.4l1.5 2 1.5-2C14.4 6.1 15.8 5 17.8 5c3.6 0 5.5 4 3.7 7.5C19 16.65 12 21 12 21z"/>
+                    </svg>
+                    <h2 class="bug-title" data-i18n="bug.thanks.title">${t("bug.thanks.title")}</h2>
+                    <p class="bug-body" data-i18n="bug.thanks.body">${t("bug.thanks.body")}</p>
+                    <button type="button" class="bug-success-close" id="bugSuccessClose" data-i18n="bug.thanks.close">${t("bug.thanks.close")}</button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(bugModalEl);
+
+        bugFormViewEl    = bugModalEl.querySelector("#bugFormView");
+        bugSuccessViewEl = bugModalEl.querySelector("#bugSuccessView");
+        bugDescEl        = bugModalEl.querySelector("#bugDesc");
+        bugContactEl     = bugModalEl.querySelector("#bugContact");
+        bugSubmitEl      = bugModalEl.querySelector("#bugSubmit");
+        bugErrorEl       = bugModalEl.querySelector("#bugError");
+
+        bugModalEl.querySelector("#bugBackdrop").addEventListener("click", closeBugModal);
+        bugModalEl.querySelector("#bugClose").addEventListener("click", closeBugModal);
+        bugModalEl.querySelector("#bugSuccessClose").addEventListener("click", closeBugModal);
+        bugModalEl.querySelector("#bugForm").addEventListener("submit", submitBugReport);
+    }
+
+    function openBugModal() {
+        if (!bugModalEl) return;
+        /* Возвращаемся к форме (на случай если предыдущее открытие закончилось success). */
+        showBugFormView();
+        bugErrorEl.textContent = "";
+        bugErrorEl.classList.remove("is-visible");
+        bugModalEl.classList.add("is-open");
+        bugModalEl.setAttribute("aria-hidden", "false");
+        /* Микро-задержка чтобы анимация открытия не съела focus. */
+        setTimeout(() => bugDescEl?.focus(), 60);
+    }
+
+    function closeBugModal() {
+        if (!bugModalEl) return;
+        bugModalEl.classList.remove("is-open");
+        bugModalEl.setAttribute("aria-hidden", "true");
+    }
+
+    function showBugFormView() {
+        bugFormViewEl.hidden = false;
+        bugSuccessViewEl.hidden = true;
+    }
+
+    function showBugSuccessView() {
+        bugFormViewEl.hidden = true;
+        bugSuccessViewEl.hidden = false;
+    }
+
+    async function submitBugReport(e) {
+        e.preventDefault();
+        if (bugSubmitting) return;
+
+        const description = (bugDescEl.value || "").trim();
+        const contact = (bugContactEl.value || "").trim().slice(0, BUG_CONTACT_MAX);
+
+        if (!description) {
+            showBugError(t("bug.error.empty"));
+            return;
+        }
+
+        bugSubmitting = true;
+        bugSubmitEl.disabled = true;
+        bugSubmitEl.querySelector(".bug-submit-label").textContent =
+            bugSubmitEl.dataset.labelSending;
+        bugErrorEl.classList.remove("is-visible");
+
+        /* log.bugReport() возвращает JSON-строку. На свежей вкладке без peers
+           она будет короткой; в активной комнате — до десятков КБ. Сервер
+           сам режет до safe-limit'а, здесь не паримся о размере. */
+        let report = "";
+        try {
+            if (window.log?.bugReport) report = await window.log.bugReport();
+        } catch (_) { /* не критично — отправим без него */ }
+
+        try {
+            const res = await fetch("/api/report-bug", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    description: description.slice(0, BUG_DESC_MAX),
+                    contact,
+                    report,
+                    lang: state.lang
+                })
+            });
+            if (res.status === 429) {
+                showBugError(t("bug.error.rate"));
+                return;
+            }
+            if (!res.ok) {
+                showBugError(t("bug.error"));
+                return;
+            }
+            /* Очищаем форму, чтобы при следующем открытии было чисто. */
+            bugDescEl.value = "";
+            bugContactEl.value = "";
+            showBugSuccessView();
+        } catch (_) {
+            showBugError(t("bug.error"));
+        } finally {
+            bugSubmitting = false;
+            bugSubmitEl.disabled = false;
+            bugSubmitEl.querySelector(".bug-submit-label").textContent =
+                bugSubmitEl.dataset.labelIdle;
+        }
+    }
+
+    function showBugError(msg) {
+        bugErrorEl.textContent = msg;
+        bugErrorEl.classList.add("is-visible");
     }
 
     function applyLangToggleUI() {
