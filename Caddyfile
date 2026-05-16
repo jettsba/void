@@ -42,32 +42,42 @@
 # Откроешь https://void-room.space — всё работает, микрофон разрешён, wss поднимается.
 # ============================================================================
 
-void-room.space, www.void-room.space, app.void-room.space {
+# ---- Лендинг (основной домен) -----------------------------------------------
+# script-src включает 'unsafe-inline' т.к. лендинг использует большой inline-блок
+# с i18n, анимациями и поведением страницы. Данные пользователей не обрабатываются.
+void-room.space, www.void-room.space {
     encode zstd gzip
 
-    # ---- Security headers ----
-    # CSP заметки:
-    # - script-src 'self' — никаких inline <script>, eval. В коде их нет (проверено).
-    # - style-src 'self' 'unsafe-inline' — JS массово ставит el.style.x = ... для
-    #   FLIP-анимаций, drag арки громкости, лайтбокса. CSP-3 без 'unsafe-inline'
-    #   блокирует это в Firefox и (нестрого) в Chrome. unsafe-inline для style
-    #   безопасен: XSS-гейт держит script-src.
-    # - connect-src перечисляет wss явно — браузерное ограничение, Caddy всё равно
-    #   проксирует.
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options    "nosniff"
+        X-Frame-Options           "DENY"
+        Referrer-Policy           "strict-origin-when-cross-origin"
+        Permissions-Policy        "microphone=(), camera=(), geolocation=(), display-capture=(), interest-cohort=()"
+        Content-Security-Policy   "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+        -Server
+    }
+
+    reverse_proxy localhost:3000
+}
+
+# ---- Приложение (поддомен app) -----------------------------------------------
+# Строгий CSP: script-src без 'unsafe-inline'. В коде приложения нет inline-скриптов.
+# style-src 'unsafe-inline' оставлен: JS динамически ставит el.style.x для анимаций.
+# connect-src содержит wss:// для WebSocket-сигналинга.
+app.void-room.space {
+    encode zstd gzip
+
     header {
         Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
         X-Content-Type-Options    "nosniff"
         X-Frame-Options           "DENY"
         Referrer-Policy           "strict-origin-when-cross-origin"
         Permissions-Policy        "microphone=(self), camera=(), geolocation=(), display-capture=(self), interest-cohort=()"
-        Content-Security-Policy   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' wss://void-room.space wss://www.void-room.space wss://app.void-room.space; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
-        # Прячем «Server: Caddy» — стандартный hardening, не упрощаем рекогносцировку.
+        Content-Security-Policy   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' wss://app.void-room.space; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
         -Server
     }
 
     # /adminstats защищён timing-safe сравнением пароля (lib/admin-stats.js).
-    # IP-fence убран сознательно: владелец сайта живёт за VPN с плавающим
-    # выходом, а удобнее заходить с любой сети, чем держать allow-list.
-
     reverse_proxy localhost:3000
 }

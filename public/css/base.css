@@ -1,3 +1,8 @@
+@font-face { font-family: 'JetBrains Mono'; font-style: normal; font-weight: 300; font-display: swap; src: url('/static/fonts/JetBrainsMono-Light.ttf') format('truetype'); }
+@font-face { font-family: 'JetBrains Mono'; font-style: normal; font-weight: 400; font-display: swap; src: url('/static/fonts/JetBrainsMono-Regular.ttf') format('truetype'); }
+@font-face { font-family: 'JetBrains Mono'; font-style: normal; font-weight: 500; font-display: swap; src: url('/static/fonts/JetBrainsMono-Medium.ttf') format('truetype'); }
+@font-face { font-family: 'DotGothic16'; font-style: normal; font-weight: 400; font-display: swap; src: url('/static/fonts/DotGothic16-Regular.ttf') format('truetype'); }
+
 :root {
     --bg-0: #0a0a0b;
     --bg-1: #101012;

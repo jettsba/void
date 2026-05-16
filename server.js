@@ -50,9 +50,16 @@ const PORT = process.env.PORT || 3000;
  */
 const HOST = process.env.BIND_HOST || "127.0.0.1";
 
-// Абсолютный путь — `public` не зависит от cwd, при `node /any/path/server.js`
-// статика отдастся корректно. (До этого был относительный `"public"`.)
-app.use(express.static(path.join(__dirname, "public")));
+// Шрифты доступны на обоих доменах (лендинг + приложение)
+app.use('/static/fonts', express.static(path.join(__dirname, 'public/static/fonts')));
+
+// Маршрутизация по поддомену: app.* → приложение, всё остальное → лендинг
+app.use((req, res, next) => {
+    const isApp = req.hostname === 'app.void-room.space'
+               || req.hostname === 'localhost'
+               || req.hostname === '127.0.0.1';
+    express.static(path.join(__dirname, isApp ? 'public' : 'landing'))(req, res, next);
+});
 
 const server = http.createServer(app);
 
