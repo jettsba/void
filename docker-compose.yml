@@ -27,12 +27,13 @@ services:
       - BIND_HOST=0.0.0.0
       # Лимит участников в комнате.
       - MAX_ROOM_USERS=${MAX_ROOM_USERS:-5}
-      # Telegram-бот для багрепортов (POST /api/report-bug). Если хотя бы одна
-      # из этих переменных пуста — endpoint вернёт 503 «not configured», а UI
-      # покажет «не удалось отправить». Конфиг полностью на стороне сервера,
-      # клиент о реальных кредах не знает.
-      - BUG_TG_TOKEN=${BUG_TG_TOKEN:-}
-      - BUG_TG_CHAT=${BUG_TG_CHAT:-}
+      # Yandex SMTP для багрепортов (POST /api/report-bug). Если USER или PASS
+      # пусты — endpoint вернёт 503 «not configured», UI покажет «не удалось
+      # отправить». Конфиг полностью на стороне сервера, клиент кредов не видит.
+      # BUG_SMTP_TO опционален — дефолт = BUG_SMTP_USER (письмо себе).
+      - BUG_SMTP_USER=${BUG_SMTP_USER:-}
+      - BUG_SMTP_PASS=${BUG_SMTP_PASS:-}
+      - BUG_SMTP_TO=${BUG_SMTP_TO:-}
     volumes:
       # Персистентная статистика beta-теста: stats.json лежит на хосте
       # и переживает docker compose up --build / restart. Папка ./data
