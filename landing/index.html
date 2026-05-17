@@ -12,6 +12,15 @@
     <meta property="og:title"       content="void — voice rooms" />
     <meta property="og:description" content="ephemeral voice spaces. no accounts. no history. p2p." />
 
+    <!-- Lenis: premium smooth scroll with inertia. ~16kb, used by Apple,
+         Cuberto, Studio Freight, etc. Self-hosted (vendored to landing/).
+         RELATIVE path so it works in VSCode Live Server too (where the
+         workspace root is /void, not /landing, and an absolute "/lenis.min.js"
+         would 404). In production express.static('landing') still serves it
+         at /lenis.min.js, and a relative ref from /index.html resolves
+         identically. -->
+    <script src="lenis.min.js" defer></script>
+
 <style>
 /* ----------------------------------------------------------------------------
    void — design tokens (lifted from the design system)
@@ -52,9 +61,11 @@
     --t-heading: clamp(28px, 4vw, 56px);
     --t-display: clamp(48px, 9vw, 124px);
 
-    --ease:  cubic-bezier(.2, .6, .2, 1);
-    --t-fast: 120ms var(--ease);
-    --t-med:  320ms var(--ease);
+    --ease:       cubic-bezier(.2, .65, .2, 1);   /* default — smooth out */
+    --ease-in-out: cubic-bezier(.45, 0, .35, 1);  /* dramatic, for emphasis */
+    --ease-soft:   cubic-bezier(.3, 0, .3, 1);    /* gentle for pulses */
+    --t-fast: 160ms var(--ease);
+    --t-med:  380ms var(--ease);
     --t-slow: 800ms var(--ease);
 
     --radius:      2px;
@@ -79,7 +90,10 @@ html, body {
     text-rendering: optimizeLegibility;
 }
 
-html { scroll-behavior: smooth; }
+/* NB: don't set `scroll-behavior: smooth` here — it fights Lenis (each
+   Lenis-driven scrollTo() triggers the browser's own smoothing, producing
+   stutter and lag instead of the expected glide). Lenis owns scrolling. */
+html { scroll-behavior: auto; }
 body { overflow-x: hidden; }
 
 body::after {
@@ -121,10 +135,11 @@ p { font-size: var(--t-14); color: var(--fg); line-height: 1.6; text-wrap: prett
     transition:
         border-color var(--t-fast),
         color var(--t-fast),
-        background var(--t-fast);
+        background var(--t-fast),
+        transform 380ms var(--ease);
 }
-.btn:hover  { border-color: var(--fg-2); }
-.btn:active { background: var(--bg-1); }
+.btn:hover  { border-color: var(--fg-2); transform: translateY(-1px); }
+.btn:active { background: var(--bg-1); transform: translateY(0); }
 .btn.primary {
     background: var(--fg);
     color: var(--bg-0);
@@ -138,15 +153,16 @@ p { font-size: var(--t-14); color: var(--fg); line-height: 1.6; text-wrap: prett
     border-radius: var(--radius);
     pointer-events: none;
     box-shadow: 0 0 0 rgba(255,255,255,0);
-    transition: box-shadow var(--t-med);
+    transition: box-shadow 480ms var(--ease);
 }
-.btn.primary:hover  { background: #fff; border-color: #fff; }
+.btn.primary:hover  { background: #fff; border-color: #fff; transform: translateY(-2px); }
 .btn.primary:hover::before {
     box-shadow:
-        0 0 12px rgba(255,255,255,0.18),
-        0 0 32px rgba(255,255,255,0.10);
+        0 0 16px rgba(255,255,255,0.24),
+        0 0 42px rgba(255,255,255,0.14),
+        0 0 90px rgba(255,255,255,0.06);
 }
-.btn.primary:active { background: var(--fg); }
+.btn.primary:active { background: var(--fg); transform: translateY(0); }
 .btn.ghost { border-color: transparent; color: var(--fg-2); }
 .btn.ghost:hover { color: var(--fg); }
 
@@ -236,151 +252,185 @@ section { position: relative; z-index: 2; }
 }
 
 .intro-stage {
-    position: relative;
-    z-index: 102;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 36px;
+    position: absolute;
+    inset: 0;
     pointer-events: none;
+    z-index: 102;
 }
 
-/* the intro logo starts as a single faint ring, brightens, spins, bursts,
-   then floats up to the header slot. */
+/* ----------------------------------------------------------------------------
+   Intro: a soft glowing orb pinned dead-centre of the viewport. It spins,
+   accelerates, throws off swirling particles as it charges up, then explodes
+   in a supernova burst before flying up to become the header's logo dot.
+
+   Centering: top:50%; left:50% + translate(-50%, -50%) puts the logo EXACTLY
+   at viewport center at any browser zoom / Windows DPI scaling — no flex/grid
+   gap math, no off-by-N pixels. JS preserves the centering during liftoff by
+   using calc(-50% + Xpx) inside the transform.
+   ---------------------------------------------------------------------------- */
 .intro-logo {
-    position: relative;
-    width: 160px;
-    height: 160px;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 200px;
+    height: 200px;
     transform-origin: 50% 50%;
     will-change: transform, opacity;
     opacity: 0;
-    transform: scale(0.7);
+    transform: translate(-50%, -50%) scale(0.92);
     transition:
-        transform 1400ms var(--ease),
-        opacity 1400ms var(--ease);
+        transform 700ms var(--ease),
+        opacity 600ms var(--ease);
 }
 .intro-logo.is-awake {
     opacity: 1;
-    transform: scale(1);
+    transform: translate(-50%, -50%) scale(1);
 }
 
-/* the eclipse — glowing ring */
-.intro-eclipse {
+/* outer halo — wide soft bloom that intensifies as the spin accelerates.
+   driven via CSS custom property so warming/charging classes can crank it
+   without re-declaring the gradient. */
+.orb-halo {
+    position: absolute;
+    inset: 14%;
+    border-radius: 50%;
+    background: radial-gradient(circle at 50% 50%,
+        rgba(255,255,255, calc(0.18 * var(--intensity, 1))) 0%,
+        rgba(255,255,255, calc(0.10 * var(--intensity, 1))) 24%,
+        rgba(245,245,247, calc(0.04 * var(--intensity, 1))) 50%,
+        rgba(0,0,0,0)                                       72%);
+    filter: blur(6px);
+    pointer-events: none;
+    z-index: 0;
+    transition: inset 700ms var(--ease);
+}
+
+/* concentric ring frames — quiet structural background */
+.orb-frame {
     position: absolute;
     inset: 0;
     border-radius: 50%;
-    border: 1.5px solid rgba(230, 230, 232, 0.92);
-    background: transparent;
-    box-shadow:
-        0 0 14px rgba(255,255,255,0.55),
-        0 0 42px rgba(245,245,247,0.40),
-        0 0 96px rgba(210,210,216,0.28),
-        0 0 168px rgba(170,170,182,0.16);
-    transition: box-shadow 800ms var(--ease);
+    z-index: 1;
+    transition: opacity 400ms var(--ease);
 }
-
-/* an outer halo ring, ultra faint */
-.intro-halo {
+.orb-frame .orb-ring {
     position: absolute;
-    inset: -18%;
+    inset: 0;
     border-radius: 50%;
-    border: 1px solid rgba(230,230,232,0.06);
-    opacity: 0;
-    transform: scale(0.92);
-    transition: opacity 1400ms var(--ease), transform 1400ms var(--ease);
-}
-.intro-logo.is-awake .intro-halo { opacity: 1; transform: scale(1); }
-
-/* inner orbit — a thin notch + arc that ROTATES, so the spin reads */
-.intro-orbit {
-    position: absolute;
-    inset: 18%;
-    border-radius: 50%;
-    border: 1px solid rgba(230,230,232,0.10);
+    border: 1px solid rgba(230, 230, 232, 0.14);
     transform-origin: 50% 50%;
-    animation: orbit-spin 8.5s linear infinite;
+    opacity: 0.75;
 }
-.intro-orbit::before {
-    content: "";
+.orb-frame .r-2 { inset: 14%; opacity: 0.55; }
+.orb-frame .r-3 { inset: 28%; opacity: 0.35; }
+
+/* SPINNER — the rotating arc that VISUALLY READS the spin. Driven by JS rAF
+   so we can smoothly ramp angular velocity via a physics model. A bright dot
+   sits at the top edge so the rotation is unmistakable. */
+.orb-spinner {
     position: absolute;
-    top: -3px;
-    left: 50%;
-    width: 4px;
-    height: 4px;
-    background: var(--fg);
-    border-radius: 50%;
-    transform: translateX(-50%);
-    box-shadow: 0 0 10px rgba(255,255,255,0.85);
-}
-.intro-orbit::after {
-    content: "";
-    position: absolute;
-    inset: 0;
+    inset: 10%;
     border-radius: 50%;
     border: 1px solid transparent;
-    border-top-color: rgba(245,245,247,0.55);
-    border-right-color: rgba(245,245,247,0.20);
+    border-top-color:   rgba(255, 255, 255, 0.70);
+    border-right-color: rgba(255, 255, 255, 0.22);
+    transform-origin: 50% 50%;
+    will-change: transform;
+    z-index: 2;
+    transition: opacity 400ms var(--ease);
 }
-
-.intro-core {
+.orb-spinner::before {
+    content: "";
     position: absolute;
-    inset: 42%;
+    top: -3.5px;
+    left: 50%;
+    width: 5px;
+    height: 5px;
+    background: #fff;
     border-radius: 50%;
-    background: rgba(255,255,255,0.92);
+    transform: translateX(-50%);
     box-shadow:
-        0 0 8px rgba(255,255,255,0.85),
-        0 0 24px rgba(255,255,255,0.45);
-    animation: core-pulse 3.6s var(--ease) infinite;
+        0 0 6px rgba(255,255,255,0.9),
+        0 0 16px rgba(255,255,255,0.45);
 }
 
-@keyframes orbit-spin {
-    from { transform: rotate(0deg); }
-    to   { transform: rotate(360deg); }
-}
-@keyframes core-pulse {
-    0%, 100% { transform: scale(1);    opacity: 1; }
-    50%      { transform: scale(0.78); opacity: 0.7; }
-}
-
-.intro-caption {
-    color: var(--fg-3);
-    font-size: 11px;
-    letter-spacing: var(--tracking-wide);
-    text-transform: lowercase;
-    opacity: 0;
-    transition: opacity 1200ms var(--ease);
-    min-height: 1em;
-}
-.intro-caption.visible { opacity: 1; }
-.intro-caption.fading  { opacity: 0; }
-
-/* charging — pre-burst windup. orbit accelerates, glow blooms. */
-.intro-logo.is-charging .intro-orbit { animation-duration: 0.7s; }
-.intro-logo.is-charging .intro-eclipse {
+/* the core: bright, breathing white sphere */
+.orb-core {
+    position: absolute;
+    inset: 40%;
+    border-radius: 50%;
+    background: radial-gradient(circle at 45% 45%,
+        #ffffff 0%, #ffffff 45%, #e0e0e4 80%, #b8b8c0 100%);
     box-shadow:
-        0 0 30px rgba(255,255,255,0.85),
-        0 0 96px rgba(245,245,247,0.60),
-        0 0 200px rgba(210,210,216,0.45),
-        0 0 360px rgba(170,170,182,0.32);
-    transition: box-shadow 900ms var(--ease);
+        0 0 10px rgba(255,255,255,0.85),
+        0 0 28px rgba(255,255,255,0.42),
+        0 0 70px rgba(245,245,247,0.22);
+    z-index: 3;
+    transform-origin: 50% 50%;
+    will-change: transform, box-shadow;
+    transition:
+        box-shadow 800ms var(--ease-in-out),
+        transform  800ms var(--ease-in-out);
 }
 
-/* the flight to header slot. JS measures + applies inline transform. */
+/* WARMING + CHARGING — modulate intensity smoothly as the rotor accelerates.
+   Halo blooms, core brightens & swells. CSS-only escalation. */
+.intro-logo.is-warming  { --intensity: 1.6; }
+.intro-logo.is-warming .orb-core {
+    box-shadow:
+        0 0 16px rgba(255,255,255,0.95),
+        0 0 48px rgba(255,255,255,0.60),
+        0 0 120px rgba(245,245,247,0.32);
+}
+.intro-logo.is-charging { --intensity: 2.6; }
+.intro-logo.is-charging .orb-core {
+    box-shadow:
+        0 0 24px rgba(255,255,255,1),
+        0 0 80px  rgba(255,255,255,0.75),
+        0 0 200px rgba(245,245,247,0.45),
+        0 0 360px rgba(210,210,216,0.28);
+    transform: scale(1.08);
+}
+.intro-logo.is-bursting .orb-core {
+    box-shadow:
+        0 0 40px  rgba(255,255,255,1),
+        0 0 140px rgba(255,255,255,0.95),
+        0 0 320px rgba(245,245,247,0.65),
+        0 0 600px rgba(210,210,216,0.42);
+    transform: scale(1.25);
+    transition:
+        box-shadow 260ms cubic-bezier(.2, .9, .25, 1),
+        transform  260ms cubic-bezier(.2, .9, .25, 1);
+}
+
+/* lift-off: orb scales/translates to header slot; halo+frame+spinner dissolve
+   so only the core remains. The JS-set inline transform uses
+   `translate(calc(-50% + Xpx), calc(-50% + Ypx)) scale(s)` to preserve the
+   viewport-centering origin during the flight. */
 .intro-logo.is-flying {
     transition:
-        transform 1500ms cubic-bezier(.55,.05,.2,1),
-        opacity 1500ms cubic-bezier(.55,.05,.2,1);
+        transform 1400ms cubic-bezier(.55,.05,.2,1),
+        opacity 1400ms cubic-bezier(.55,.05,.2,1);
 }
-.intro-logo.is-flying .intro-orbit { opacity: 0; transition: opacity 600ms var(--ease); }
-.intro-logo.is-flying .intro-core { opacity: 0; transition: opacity 600ms var(--ease); }
-.intro-logo.is-flying .intro-halo { opacity: 0; transition: opacity 400ms var(--ease); }
-.intro-logo.is-flying .intro-eclipse {
+.intro-logo.is-flying .orb-halo    { opacity: 0; transition: opacity 500ms var(--ease); }
+.intro-logo.is-flying .orb-frame   { opacity: 0; transition: opacity 500ms var(--ease); }
+.intro-logo.is-flying .orb-spinner { opacity: 0; transition: opacity 400ms var(--ease); }
+.intro-logo.is-flying .orb-core {
     box-shadow:
-        0 0 6px rgba(255,255,255,0.45),
-        0 0 18px rgba(245,245,247,0.35),
-        0 0 40px rgba(210,210,216,0.22),
-        0 0 72px rgba(170,170,182,0.14);
-    transition: box-shadow 1100ms var(--ease);
+        0 0 4px  rgba(255,255,255,0.7),
+        0 0 14px rgba(255,255,255,0.35);
+    transform: scale(1);
+    transition:
+        box-shadow 1000ms var(--ease),
+        transform 1000ms var(--ease);
+}
+
+/* shared @keyframes used by .hero-vis-orbit (and historically by the intro
+   orbit before it was migrated to JS rAF). Must live in the global CSS
+   scope — was accidentally purged in an earlier intro rewrite. */
+@keyframes orbit-spin {
+    from { transform: rotate(0deg);   }
+    to   { transform: rotate(360deg); }
 }
 
 /* page reveal */
@@ -680,21 +730,55 @@ section { position: relative; z-index: 2; }
     text-transform: lowercase;
 }
 
-/* ----- hero visualizer ----- */
+/* ----- hero visualizer -----
+   a centered pulsing white core with a wide soft halo and a few faint
+   concentric rings. the rings + orbiting dots add subtle motion without
+   taking attention from the headline. no corner ticks or labels — keeps
+   the vibe quiet and "expensive". hidden on tablet/mobile (< 880px) so
+   the headline owns the viewport. */
 .hero-vis {
     position: relative;
     aspect-ratio: 1 / 1;
     width: 100%;
-    max-width: 480px;
+    max-width: 460px;
     margin-left: auto;
-    padding: 36px;     /* room for the corner ticks */
+    align-self: start;                    /* push to top of grid cell */
+    margin-top: 24px;                     /* small breathing space */
+    isolation: isolate;                   /* contain the halo glow */
 }
-@media (max-width: 880px) { .hero-vis { margin: 0 auto; } }
+@media (max-width: 880px) {
+    .hero-vis { display: none; }          /* mobile/tablet: hide entirely */
+}
+
+/* soft halo behind the core — the "expensive" glow.
+   tuned smaller to match the smaller core; inset positive so the halo
+   sits inside the rings rather than spilling beyond the container. */
+.hero-vis-halo {
+    position: absolute;
+    inset: 22%;
+    border-radius: 50%;
+    background:
+        radial-gradient(circle at 50% 50%,
+            rgba(255,255,255,0.18) 0%,
+            rgba(255,255,255,0.09) 22%,
+            rgba(245,245,247,0.04) 44%,
+            rgba(0,0,0,0)         70%);
+    filter: blur(6px);
+    pointer-events: none;
+    z-index: 0;
+    animation: hero-halo-breathe 6.5s cubic-bezier(.4, 0, .4, 1) infinite;
+    will-change: transform, opacity;
+}
+@keyframes hero-halo-breathe {
+    0%, 100% { transform: scale(1);    opacity: 0.85; }
+    50%      { transform: scale(1.06); opacity: 1; }
+}
 
 .hero-vis-frame {
     position: absolute;
-    inset: 36px;
+    inset: 0;
     border-radius: 50%;
+    z-index: 1;
 }
 .hero-vis-frame .r {
     position: absolute;
@@ -704,9 +788,9 @@ section { position: relative; z-index: 2; }
     transform-origin: 50% 50%;
     opacity: 0.7;
 }
-.hero-vis-frame .r-1 { animation: hero-pulse 5.6s var(--ease) infinite; }
-.hero-vis-frame .r-2 { inset: 12%; opacity: 0.45; animation: hero-pulse 5.6s var(--ease) infinite 1s; }
-.hero-vis-frame .r-3 { inset: 24%; opacity: 0.30; animation: hero-pulse 5.6s var(--ease) infinite 2s; }
+.hero-vis-frame .r-1 { animation: hero-pulse 5.6s cubic-bezier(.3, 0, .3, 1) infinite; }
+.hero-vis-frame .r-2 { inset: 12%; opacity: 0.45; animation: hero-pulse 5.6s cubic-bezier(.3, 0, .3, 1) infinite 1s; }
+.hero-vis-frame .r-3 { inset: 24%; opacity: 0.30; animation: hero-pulse 5.6s cubic-bezier(.3, 0, .3, 1) infinite 2s; }
 .hero-vis-frame .r-4 { inset: 36%; opacity: 0.20; }
 
 @keyframes hero-pulse {
@@ -715,28 +799,49 @@ section { position: relative; z-index: 2; }
     100% { transform: scale(1.10); opacity: 0; }
 }
 
+/* the pulsing white core — heart of the visualizer.
+   ~16% of the container, with a moderate soft glow that breathes. */
 .hero-vis-core {
     position: absolute;
-    inset: calc(36px + 42%);
+    inset: 42%;
     border-radius: 50%;
-    background: var(--fg);
+    background: radial-gradient(circle at 50% 50%,
+        #ffffff 0%, #ffffff 38%, #e8e8ea 70%, #c8c8cc 100%);
     box-shadow:
-        0 0 10px rgba(255,255,255,0.65),
-        0 0 32px rgba(255,255,255,0.32),
-        0 0 80px rgba(255,255,255,0.18);
-    animation: core-breathe 3.4s var(--ease) infinite;
+        0 0 10px rgba(255,255,255,0.92),
+        0 0 24px rgba(255,255,255,0.50),
+        0 0 52px rgba(245,245,247,0.28),
+        0 0 100px rgba(210,210,216,0.16);
+    animation: hero-core-pulse 4.2s cubic-bezier(.45, 0, .35, 1) infinite;
+    z-index: 3;
+    will-change: transform, box-shadow;
 }
-@keyframes core-breathe {
-    0%, 100% { transform: scale(1); }
-    50%      { transform: scale(0.86); }
+@keyframes hero-core-pulse {
+    0%, 100% {
+        transform: scale(1);
+        box-shadow:
+            0 0 10px rgba(255,255,255,0.92),
+            0 0 24px rgba(255,255,255,0.50),
+            0 0 52px rgba(245,245,247,0.28),
+            0 0 100px rgba(210,210,216,0.16);
+    }
+    50% {
+        transform: scale(1.10);
+        box-shadow:
+            0 0 16px rgba(255,255,255,1),
+            0 0 40px rgba(255,255,255,0.68),
+            0 0 80px rgba(245,245,247,0.38),
+            0 0 140px rgba(210,210,216,0.22);
+    }
 }
 
 .hero-vis-orbit {
     position: absolute;
-    inset: 36px;
+    inset: 0;
     border-radius: 50%;
     border: 1px solid var(--fg-4);
     animation: orbit-spin 28s linear infinite;
+    z-index: 2;
 }
 .hero-vis-orbit::before {
     content: "";
@@ -749,34 +854,9 @@ section { position: relative; z-index: 2; }
     border-radius: 50%;
     transform: translateX(-50%);
 }
-.hero-vis-orbit.a { inset: calc(36px + 6%); }
-.hero-vis-orbit.b { inset: calc(36px + 18%); animation-duration: 18s; animation-direction: reverse; }
+.hero-vis-orbit.a { inset: 6%; }
+.hero-vis-orbit.b { inset: 18%; animation-duration: 18s; animation-direction: reverse; }
 .hero-vis-orbit.b::before { background: var(--signal); box-shadow: 0 0 8px rgba(200,200,204,0.55); }
-
-/* corner ticks — fixed to absolute corners of the .hero-vis box, not labels */
-.hero-vis-tick {
-    position: absolute;
-    width: 14px;
-    height: 14px;
-    border: 1px solid var(--fg-4);
-}
-.hero-vis-tick.tl { top: 0; left: 0; border-right: 0; border-bottom: 0; }
-.hero-vis-tick.tr { top: 0; right: 0; border-left: 0; border-bottom: 0; }
-.hero-vis-tick.bl { bottom: 0; left: 0; border-right: 0; border-top: 0; }
-.hero-vis-tick.br { bottom: 0; right: 0; border-left: 0; border-top: 0; }
-
-.hero-vis-corner-text {
-    position: absolute;
-    color: var(--fg-3);
-    font-size: 10px;
-    letter-spacing: var(--tracking-wide);
-    text-transform: lowercase;
-    line-height: 1;
-}
-.hero-vis-corner-text.tl { top: 4px;    left: 22px; }
-.hero-vis-corner-text.tr { top: 4px;    right: 22px; }
-.hero-vis-corner-text.bl { bottom: 4px; left: 22px; }
-.hero-vis-corner-text.br { bottom: 4px; right: 22px; }
 
 /* ============================================================================
    how it works
@@ -1763,20 +1843,51 @@ section { position: relative; z-index: 2; }
 }
 
 /* ============================================================================
-   reveal
+   reveal — initial hidden state lives on .reveal itself, so blocks don't
+   "blink" when the .in class is added with an animation-delay (previously
+   the keyframe's `both` fill-mode would snap the element back to opacity:0
+   for the delay window, then animate in — visually it looked like the
+   element flickered off for ~500ms before appearing).
+
+   transition (not animation) is used so the initial hidden state is
+   declarative, no fill-mode quirks; will-change keeps it composited.
    ============================================================================ */
-@keyframes reveal-in {
-    from { opacity: 0; transform: translateY(12px); }
-    to   { opacity: 1; transform: none; }
+.reveal {
+    opacity: 0;
+    transform: translateY(14px);
+    transition:
+        opacity 800ms cubic-bezier(.2, .65, .2, 1),
+        transform 900ms cubic-bezier(.2, .65, .2, 1);
+    will-change: opacity, transform;
 }
 .reveal.in {
-    animation: reveal-in 700ms var(--ease) both;
+    opacity: 1;
+    transform: none;
 }
-.reveal[data-delay="1"].in { animation-delay:  80ms; }
-.reveal[data-delay="2"].in { animation-delay: 160ms; }
-.reveal[data-delay="3"].in { animation-delay: 240ms; }
-.reveal[data-delay="4"].in { animation-delay: 320ms; }
-.reveal[data-delay="5"].in { animation-delay: 400ms; }
+.reveal[data-delay="1"] { transition-delay:  80ms; }
+.reveal[data-delay="2"] { transition-delay: 180ms; }
+.reveal[data-delay="3"] { transition-delay: 280ms; }
+.reveal[data-delay="4"] { transition-delay: 380ms; }
+.reveal[data-delay="5"] { transition-delay: 480ms; }
+
+/* typing cursor — used by [data-type="cursor"] reveal elements.
+   width matches a thin glyph so the line height doesn't jump when text
+   appears; steps(2) gives the hard on/off blink instead of a smooth fade. */
+.type-cursor {
+    display: inline-block;
+    width: 0.5ch;
+    color: var(--fg);
+    animation: cursor-blink 1s steps(2, end) infinite;
+    transform: translateY(-0.04em);
+    text-shadow:
+        0 0 1px rgba(255,255,255,0.6),
+        0 0 14px rgba(255,255,255,0.22);
+}
+.type-cursor::before { content: "|"; }
+@keyframes cursor-blink {
+    0%, 49% { opacity: 1; }
+    50%, 100% { opacity: 0; }
+}
 
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
@@ -1795,12 +1906,15 @@ section { position: relative; z-index: 2; }
         <canvas id="introCanvas" class="intro-canvas"></canvas>
         <div class="intro-stage">
             <div id="introLogo" class="intro-logo">
-                <span class="intro-halo"></span>
-                <span class="intro-eclipse"></span>
-                <span class="intro-orbit"></span>
-                <span class="intro-core"></span>
+                <div class="orb-halo"></div>
+                <div class="orb-frame">
+                    <div class="orb-ring r-1"></div>
+                    <div class="orb-ring r-2"></div>
+                    <div class="orb-ring r-3"></div>
+                </div>
+                <div class="orb-spinner"></div>
+                <div class="orb-core"></div>
             </div>
-            <div id="introCaption" class="intro-caption"></div>
         </div>
     </div>
 
@@ -1870,10 +1984,7 @@ section { position: relative; z-index: 2; }
                     </div>
 
                     <div class="hero-vis reveal" data-delay="3" aria-hidden="true">
-                        <span class="hero-vis-tick tl"></span><span class="hero-vis-corner-text tl" data-i18n="hero.corner.tl">— сигнал</span>
-                        <span class="hero-vis-tick tr"></span><span class="hero-vis-corner-text tr" data-i18n="hero.corner.tr">в эфире</span>
-                        <span class="hero-vis-tick bl"></span><span class="hero-vis-corner-text bl" data-i18n="hero.corner.bl">ты ↔ друг</span>
-                        <span class="hero-vis-tick br"></span><span class="hero-vis-corner-text br" data-i18n="hero.corner.br">— void</span>
+                        <div class="hero-vis-halo"></div>
                         <div class="hero-vis-frame">
                             <div class="r r-1"></div><div class="r r-2"></div><div class="r r-3"></div><div class="r r-4"></div>
                         </div>
@@ -2495,7 +2606,7 @@ section { position: relative; z-index: 2; }
             <div class="shell">
                 <div class="final-content">
                     <div class="q reveal" data-i18n="final.q">— что есть музыка жизни?</div>
-                    <div class="a reveal" data-delay="1" data-i18n="final.a">тишина.</div>
+                    <div class="a reveal" data-delay="1" data-type="cursor" data-i18n="final.a">тишина.</div>
                     <div class="final-actions reveal" data-delay="2">
                         <a class="btn primary" href="https://void-room.space">
                             <span data-i18n="final.cta.enter">открыть комнату</span>
@@ -2862,23 +2973,31 @@ window.getVoidLang = function () {
 };
 
 /* ============================================================================
-   void — intro animation (slow, cinematic)
-   sequence:
-     T=0      logo fades in, faint
-     T=900    caption types in: "priming the room"
-     T=2400   caption swaps to "..opening"
-     T=3000   charging: orbit accelerates, glow intensifies, particles emit
-     T=4200   BURST — big radial scatter
-     T=4500   lift-off — logo floats up to the centered header slot,
-              shrinking on the way; page reveals beneath
-     T=6000   intro layer removed; flag stored to skip on reload
-   skippable: click anywhere or any key
+   void — intro: supernova spin-up.
+
+   A soft glowing orb sits dead-center. Its spinner ring starts rotating
+   already in motion (no dead idle), accelerates smoothly via a physics rotor
+   (I·dω/dt = T - μω), throws off swirling particles whose emission rate
+   tracks the spin velocity, peaks at a BURST that radial-explodes the
+   accumulated energy across the screen, then the bright core flies up to
+   become the header logo dot.
+
+   Centering is rock-solid at any browser zoom or Windows DPI scale because:
+     1) the orb is pinned via top:50%/left:50% + translate(-50%, -50%) — the
+        most reliable cross-zoom centering primitive in CSS;
+     2) the canvas is `position:fixed; inset:0` covering the viewport at
+        (0,0), and its buffer is sized via window.innerWidth/Height (layout-
+        independent — getBoundingClientRect can return 0 if called before
+        layout settles, which is what was making particles only render in a
+        tiny top-left rect — the default 300x150 canvas buffer).
+
+   skippable: click anywhere or any key.
    ============================================================================ */
 
 (function () {
     const intro      = document.getElementById('intro');
     const introLogo  = document.getElementById('introLogo');
-    const introCap   = document.getElementById('introCaption');
+    const orbSpinner = introLogo && introLogo.querySelector('.orb-spinner');
     const canvas     = document.getElementById('introCanvas');
     const headerSlot = document.getElementById('brandLogoSlot');
     const page       = document.getElementById('page');
@@ -2896,55 +3015,210 @@ window.getVoidLang = function () {
         return;
     }
 
-    /* ---- particle canvas ---------------------------------------------- */
+    /* ---- canvas sizing -----------------------------------------------------
+       The canvas is CSS `position: fixed; inset: 0;` so it ALWAYS covers the
+       viewport at (0, 0)-(innerWidth, innerHeight). We size the buffer to
+       window.innerWidth/innerHeight (× dpr for crispness).
+
+       Why not `canvas.getBoundingClientRect()` here? Earlier version did that,
+       but at IIFE-execution time on some browsers/Live Server setups the
+       layout may not have settled — getBoundingClientRect returned ~zero,
+       canvas.width=0 left the default 300x150 buffer, and particles drawn at
+       viewport-center coords (~960, ~540) fell OUTSIDE that small buffer →
+       only a tiny top-left rect rendered visible particles. window.innerWidth
+       is layout-independent and always correct.
+
+       After setting the buffer + setTransform(dpr,...), drawing coord (x, y)
+       maps to viewport pixel (x, y) — no per-frame coord translation needed.
+       The safeResize() guard avoids re-running canvas.width=N (which clears
+       the buffer) on every frame when dimensions haven't changed.
+       ---------------------------------------------------------------------- */
     const ctx = canvas.getContext('2d');
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     let W = 0, H = 0;
+
     function size() {
-        W = canvas.clientWidth = window.innerWidth;
-        H = canvas.clientHeight = window.innerHeight;
-        canvas.width  = W * dpr;
-        canvas.height = H * dpr;
+        W = window.innerWidth  || document.documentElement.clientWidth  || 0;
+        H = window.innerHeight || document.documentElement.clientHeight || 0;
+        canvas.width  = Math.max(1, Math.round(W * dpr));
+        canvas.height = Math.max(1, Math.round(H * dpr));
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
+    function safeResize() {
+        const w = window.innerWidth  || document.documentElement.clientWidth  || 0;
+        const h = window.innerHeight || document.documentElement.clientHeight || 0;
+        if (w !== W || h !== H) size();
+    }
     size();
-    window.addEventListener('resize', size);
+    window.addEventListener('resize', safeResize);
+    // re-measure after layout settles in case the first call landed too early.
+    window.addEventListener('load', safeResize);
 
+    /* logoCenter — viewport coords. Since the canvas covers the viewport at
+       (0,0) with no translation, viewport coords ARE canvas drawing coords. */
+    function logoCenter() {
+        const lr = introLogo.getBoundingClientRect();
+        return {
+            cx: lr.left + lr.width / 2,
+            cy: lr.top  + lr.height / 2,
+            radius: lr.width / 2,
+        };
+    }
+
+    /* ---- particle field --------------------------------------------- */
     const particles = [];
 
+    /**
+     * Emit n particles in a tangential spray. They start on a small ring at
+     * the orb's edge, with velocity composed of a radial component (outward)
+     * and a tangential component (in the spin direction, so they spiral
+     * outward rather than just exploding radially — much more "alive").
+     *
+     * @param n         count
+     * @param opts.speed       base radial speed
+     * @param opts.tang        tangential scatter (random both directions)
+     * @param opts.tangSpin    tangential bias in the spin direction (omega-driven)
+     * @param opts.ringFrac    spawn ring radius as fraction of logo radius
+     * @param opts.warm        probability (0..1) a particle is warm-toned
+     * @param opts.ttlScale    lifespan multiplier
+     */
     function spawn(n, opts) {
         opts = opts || {};
-        const cx = opts.cx ?? W / 2;
-        const cy = opts.cy ?? H / 2;
+        const c        = logoCenter();
+        const r0       = c.radius * (opts.ringFrac ?? 0.55);
+        const tangSpin = opts.tangSpin ?? 0;
+        const warmP    = opts.warm    ?? 0.06;
+        const ttlMul   = opts.ttlScale ?? 1;
+
         for (let i = 0; i < n; i++) {
-            const a = Math.random() * Math.PI * 2;
+            const a     = Math.random() * Math.PI * 2;
             const speed = (opts.speed || 1.5) * (0.6 + Math.random() * 1.4);
-            const tang  = (opts.tang || 0) * (Math.random() - 0.5);
+            const tang  = (opts.tang || 0) * (Math.random() - 0.5) + tangSpin;
+            // velocity: radial outward (cos a, sin a) plus tangential (-sin a, cos a)
             const vx = Math.cos(a) * speed - Math.sin(a) * tang;
             const vy = Math.sin(a) * speed + Math.cos(a) * tang;
-            const r0 = opts.r0 ?? 60;
-            const px = cx + Math.cos(a) * r0;
-            const py = cy + Math.sin(a) * r0;
+            const px = c.cx + Math.cos(a) * r0;
+            const py = c.cy + Math.sin(a) * r0;
             particles.push({
                 x: px, y: py,
                 vx, vy,
                 life: 0,
-                ttl: 1.4 + Math.random() * 2.4,
+                ttl: (1.4 + Math.random() * 2.4) * ttlMul,
                 size: 0.6 + Math.random() * 1.6,
-                hue: Math.random() < 0.06 ? 'warm' : 'white',
+                hue: Math.random() < warmP ? 'warm' : 'white',
             });
         }
     }
 
-    let lastT = performance.now();
-    let running = true;
+    /* ---- physics rotor — I·dω/dt = T(t) − μω -----------------------------
+       Smooth asymptotic spin-up; we just shape the torque profile over
+       time and the angular velocity evolves naturally. Sub-class controls
+       glow + emission rate by reading omega.                              */
+    let orbitAngle  = 0;
+    let orbitOmega  = 2.2;                  // already spinning on first frame
+    const INERTIA   = 1.0;
+    const FRICTION  = 1.4;
+
+    const startedAt = performance.now();
+    let torqueOverride = null;
+
+    function torqueAt(tSec) {
+        if (torqueOverride !== null) return torqueOverride;
+        if (tSec < 0.05) return 10;                     // motor on immediately
+        if (tSec < 2.6) {
+            // cubic ease-in ramp 10 → 65 over 2.55s
+            const u = (tSec - 0.05) / (2.6 - 0.05);
+            return 10 + (u * u * u) * 55;
+        }
+        return 65;                                      // hold at peak — keep spinning through burst + liftoff
+    }
+
+    /* ---- shockwave rings on canvas (used for BURST + send-off) --------- */
+    const waves = [];
+    function spawnWave(opts) {
+        waves.push({
+            bornAt:    performance.now(),
+            duration:  opts.duration,
+            peakAlpha: opts.peakAlpha,
+            lineWidth: opts.lineWidth,
+            reachFrac: opts.reachFrac,
+            glow:      opts.glow || 0,
+        });
+    }
+    function drawWaves(now) {
+        if (waves.length === 0) return;
+        const c    = logoCenter();
+        const maxR = Math.hypot(W, H) / 2;
+        for (let i = waves.length - 1; i >= 0; i--) {
+            const w   = waves[i];
+            const age = (now - w.bornAt) / w.duration;
+            if (age >= 1) { waves.splice(i, 1); continue; }
+            const eased = 1 - Math.pow(1 - age, 3);
+            const r     = eased * maxR * w.reachFrac;
+            const alpha = w.peakAlpha * Math.pow(1 - age, 1.25);
+            ctx.beginPath();
+            ctx.strokeStyle = `rgba(245, 245, 247, ${alpha})`;
+            ctx.lineWidth   = Math.max(0.5, w.lineWidth * (1 - age * 0.45));
+            if (w.glow > 0) {
+                ctx.shadowColor = `rgba(255, 255, 255, ${alpha * 0.7})`;
+                ctx.shadowBlur  = w.glow;
+            }
+            ctx.arc(c.cx, c.cy, r, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+        }
+    }
+
+    /* ---- main rAF loop: physics + emission + render -------------------- */
+    let cleanedUp = false;                      // declared early — no TDZ risk
+    let lastT     = performance.now();
+    let running   = true;
+    let emitAccum = 0;                          // sub-frame emission accumulator
+
     function loop(t) {
         if (!running) return;
         const dt = Math.min(0.05, (t - lastT) / 1000);
         lastT = t;
 
-        ctx.clearRect(0, 0, W, H);
+        // catch any size change (incl. the layout-not-yet-ready init case)
+        safeResize();
 
+        // physics (semi-implicit Euler — stable for stiff viscous damping)
+        const tSec  = (t - startedAt) / 1000;
+        const T     = torqueAt(tSec);
+        const accel = (T - FRICTION * orbitOmega) / INERTIA;
+        orbitOmega += accel * dt;
+        if (orbitOmega < 0) orbitOmega = 0;
+        orbitAngle += orbitOmega * dt;
+        if (orbSpinner) orbSpinner.style.transform = `rotate(${orbitAngle}rad)`;
+
+        // omega-driven particle emission: faster spin → more sparks per second.
+        // Stops emitting once the orb is flying away (otherwise sparks would
+        // chase the shrinking logo across the screen).
+        // Spawn from JUST BEYOND the orb's outer edge (ringFrac > 1) so the
+        // sparks live in the empty space around the orb instead of dying inside
+        // its own glow halo. Base speed is also high enough that even early
+        // (low-omega) particles travel a visible distance before fading.
+        if (!cleanedUp) {
+            const emitRate  = Math.min(320, 12 + orbitOmega * 8);   // particles/sec
+            emitAccum += emitRate * dt;
+            const emitCount = Math.floor(emitAccum);
+            emitAccum -= emitCount;
+            if (emitCount > 0) {
+                const tangSpin = Math.min(3.0, orbitOmega * 0.09);
+                spawn(emitCount, {
+                    speed:    1.6 + Math.min(3.2, orbitOmega * 0.07),
+                    tang:     0.9 + Math.min(2.0, orbitOmega * 0.05),
+                    tangSpin: tangSpin,
+                    ringFrac: 1.05,             // spawn just outside the orb
+                });
+            }
+        }
+
+        ctx.clearRect(0, 0, W, H);
+        drawWaves(t);
+
+        // update + render particles
         for (let i = particles.length - 1; i >= 0; i--) {
             const p = particles[i];
             p.life += dt;
@@ -2966,36 +3240,12 @@ window.getVoidLang = function () {
             ctx.fill();
         }
         ctx.shadowBlur = 0;
+
         requestAnimationFrame(loop);
     }
     requestAnimationFrame((t) => { lastT = t; loop(t); });
 
-    /* ---- caption typing ------------------------------------------------ */
-    let typeTimer = null;
-    function typeText(text, done) {
-        clearInterval(typeTimer);
-        let i = 0;
-        introCap.classList.remove('fading');
-        introCap.classList.add('visible');
-        introCap.textContent = '';
-        typeTimer = setInterval(() => {
-            i++;
-            introCap.textContent = text.slice(0, i) + (i < text.length && i % 2 ? '_' : '');
-            if (i >= text.length) {
-                clearInterval(typeTimer);
-                introCap.textContent = text;
-                if (done) done();
-            }
-        }, 90);
-    }
-
-    function fadeCaption(after) {
-        introCap.classList.add('fading');
-        setTimeout(after || (() => {}), 700);
-    }
-
     /* ---- the lift-off -------------------------------------------------- */
-    let cleanedUp = false;
     function liftOff() {
         if (cleanedUp) return;
         cleanedUp = true;
@@ -3011,18 +3261,19 @@ window.getVoidLang = function () {
         const dx = tx - sx;
         const dy = ty - sy;
 
-        introLogo.classList.remove('is-charging');
+        introLogo.classList.remove('is-bursting');
         introLogo.classList.add('is-flying');
 
-        // a few sparks trailing the flight
-        spawn(60, { speed: 2.4, tang: 1.0, r0: 60 });
+        // a final soft echo of the burst as the orb departs
+        spawnWave({ duration: 1400, peakAlpha: 0.28, lineWidth: 1.2, reachFrac: 0.75, glow: 5 });
 
         requestAnimationFrame(() => {
-            introLogo.style.transform = `translate(${dx}px, ${dy}px) scale(${scale})`;
+            // calc() preserves the translate(-50%, -50%) centering origin so the
+            // logo stays anchored to the viewport center mathematically while
+            // flying, instead of getting offset by removing the centering shift.
+            introLogo.style.transform =
+                `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(${scale})`;
         });
-
-        // fade caption out too
-        fadeCaption();
 
         // header slot lights up about the time the logo arrives
         setTimeout(() => {
@@ -3060,62 +3311,121 @@ window.getVoidLang = function () {
     intro.addEventListener('click', skipAll);
     window.addEventListener('keydown', () => { if (!cleanedUp) skipAll(); }, { once: true });
 
-    /* ---- the sequence (slower, deliberate) ----------------------------- */
+    /* ---- the sequence: supernova spin-up.
+       T=0    orb wakes (visible, already gently rotating)
+       T=600  warming: halo + core glow bloom subtly
+       T=1800 charging: full glow + core swells; spin near peak
+       T=2800 BURST: motor cuts, friction takes over; massive radial scatter
+              of particles + double shockwave ring crossing the viewport —
+              the "release of accumulated darkness as pure energy"
+       T=3400 lift-off: bright core flies up to header, halo dissolves
+    */
 
-    // T=200 — wake the logo (CSS handles fade/scale)
-    setTimeout(() => introLogo.classList.add('is-awake'), 200);
+    // T=0 — wake (orb appears and is already spinning)
+    setTimeout(() => introLogo.classList.add('is-awake'), 0);
 
-    // T=900 — type caption
-    function pickCaption() {
-        const lang = (window.getVoidLang && window.getVoidLang()) || 'ru';
-        return lang === 'en'
-            ? { a: 'opening the void', b: 'silence is loading' }
-            : { a: 'открываем пустоту',   b: 'тишина загружается' };
-    }
+    // T=600 — warming: halo + glow bloom
+    setTimeout(() => introLogo.classList.add('is-warming'), 600);
+
+    // T=1800 — charging: full intensity bloom; spin approaching peak
     setTimeout(() => {
-        const c = pickCaption();
-        typeText(c.a);
-    }, 900);
-
-    // T=2400 — fade caption, retype second phrase
-    setTimeout(() => {
-        fadeCaption(() => {
-            const c = pickCaption();
-            typeText(c.b);
-        });
-    }, 2400);
-
-    // T=900 → start a steady stream of slow sparks (ambient)
-    let sparkInterval = null;
-    setTimeout(() => {
-        sparkInterval = setInterval(() => {
-            spawn(2, { speed: 0.7, tang: 0.5, r0: 70 });
-        }, 110);
-    }, 900);
-
-    // T=3000 — charging
-    setTimeout(() => {
+        introLogo.classList.remove('is-warming');
         introLogo.classList.add('is-charging');
-        clearInterval(sparkInterval);
-        sparkInterval = setInterval(() => {
-            spawn(5, { speed: 2.2, tang: 1.4, r0: 65 });
-        }, 60);
-    }, 3000);
+    }, 1800);
 
-    // T=4200 — burst
+    // T=2800 — SUPERNOVA BURST: massive scatter + double shockwave. Motor
+    // KEEPS RUNNING (disc stays at full RPM through liftoff — no awkward
+    // slowdown before flying up). The burst is purely a visual release.
     setTimeout(() => {
-        clearInterval(sparkInterval);
-        spawn(240, { speed: 3.6, tang: 2.6, r0: 64 });
-        setTimeout(() => spawn(80, { speed: 1.6, tang: 1.0, r0: 80 }), 140);
-    }, 4200);
+        introLogo.classList.remove('is-charging');
+        introLogo.classList.add('is-bursting');
 
-    // T=4500 — lift-off
-    setTimeout(liftOff, 4500);
+        // double shockwave: leading bright ring + faint trailing echo
+        spawnWave({ duration: 1500, peakAlpha: 0.85, lineWidth: 2.8, reachFrac: 1.10, glow: 18 });
+        setTimeout(() => {
+            spawnWave({ duration: 1200, peakAlpha: 0.38, lineWidth: 1.4, reachFrac: 0.85, glow: 6 });
+        }, 200);
+
+        // supernova particle spray — layered: fast outer wave, medium drift,
+        // slow long-lived debris. Variance in speed/ttl reads as "matter
+        // being thrown off at different velocities" rather than a uniform pop.
+        // ringFrac > 1 so the spray originates from outside the orb, not from
+        // inside its own glow halo where it would be invisible.
+        spawn(320, { speed: 5.0, tang: 2.2, ringFrac: 1.00, ttlScale: 1.3, warm: 0.12 });
+        setTimeout(() => spawn(160, { speed: 2.8, tang: 1.4, ringFrac: 1.10, ttlScale: 1.5 }),  80);
+        setTimeout(() => spawn(90,  { speed: 1.6, tang: 0.9, ringFrac: 1.18, ttlScale: 1.9 }), 220);
+    }, 2800);
+
+    // T=3400 — lift-off (disc still spinning at peak RPM as it flies up)
+    setTimeout(liftOff, 3400);
 })();
 
 /* ============================================================================
    void — landing behaviors
    ============================================================================ */
+
+/* ----------------------------------------------------------------------------
+   Smooth inertial scroll via Lenis (loaded from CDN in <head>).
+   Lenis is the industry-standard smooth-scroll lib used by Apple, Cuberto,
+   Studio Freight et al. — handles wheel/touch/keyboard with proper momentum
+   and frame-rate-independent easing. We just configure and start its rAF loop.
+
+   Skipped on prefers-reduced-motion. Touch uses native momentum (syncTouch
+   off — Lenis-smoothed touch can feel laggy vs. iOS rubber-band).
+   ---------------------------------------------------------------------------- */
+(function initLenis() {
+    function start() {
+        if (typeof Lenis === 'undefined') return;
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+        const lenis = new Lenis({
+            // lerp mode: position chases target each frame at a fixed fraction
+            // of the remaining distance. Lower = floatier + longer coast.
+            // 0.07 gives a clearly visible "doезжает at stop" coast without
+            // dragging on; combined with a wheelMultiplier > 1, each notch
+            // covers more ground so the page still feels responsive.
+            lerp: 0.07,
+            smoothWheel: true,
+            syncTouch: false,           // touch keeps native iOS momentum
+            wheelMultiplier: 1.35,      // each wheel notch covers more ground
+            touchMultiplier: 1.5,
+        });
+
+        function raf(time) {
+            lenis.raf(time);
+            requestAnimationFrame(raf);
+        }
+        requestAnimationFrame(raf);
+
+        // anchor links — route through Lenis so internal nav coasts smoothly too
+        document.addEventListener('click', (e) => {
+            const a = e.target.closest('a[href^="#"]');
+            if (!a) return;
+            const id = a.getAttribute('href').slice(1);
+            if (!id) return;
+            const el = document.getElementById(id);
+            if (!el) return;
+            e.preventDefault();
+            lenis.scrollTo(el, {
+                offset: 0,
+                duration: 1.8,
+                easing: (t) => 1 - Math.pow(1 - t, 4),  // quartic ease-out: silky landing
+            });
+            try { history.pushState(null, '', '#' + id); } catch (_) {}
+        });
+
+        window.__lenis = lenis;        // expose for debugging
+    }
+
+    // Lenis is loaded with `defer`, so it's ready by DOMContentLoaded.
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', start);
+    } else if (typeof Lenis !== 'undefined') {
+        start();
+    } else {
+        window.addEventListener('load', start);
+    }
+})();
 
 (function () {
     /* -------------------------------------------------- ambient background */
@@ -3174,22 +3484,80 @@ window.getVoidLang = function () {
         requestAnimationFrame((t) => { t0 = t; tick(t); });
     }
 
-    /* -------------------------------------------------- header scroll state */
-    const header = document.getElementById('header');
-    function onScroll() {
-        const y = window.scrollY || window.pageYOffset;
+    /* -------------------------------------------------- header scroll state +
+       hero scroll-fade. parallax via transform would fight the .reveal
+       transition (which also owns `transform`), so we only modulate opacity
+       — that composes cleanly and never causes a "snap back" flicker.
+       all writes batched in rAF to avoid layout thrash. */
+    const header   = document.getElementById('header');
+    const hero     = document.querySelector('.hero');
+    const heroCopy = document.querySelector('.hero-copy');
+    const heroVis  = document.querySelector('.hero-vis');
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    let scrollY = 0;
+    let scrollTicking = false;
+    let revealsSettled = false;
+    setTimeout(() => { revealsSettled = true; }, 1400); // after reveal transitions finish
+
+    function flushScroll() {
+        scrollTicking = false;
+        const y = scrollY;
+
         if (y > 20) header.classList.add('scrolled');
-        else header.classList.remove('scrolled');
+        else        header.classList.remove('scrolled');
+
+        if (prefersReducedMotion || !hero || !revealsSettled) return;
+        const heroH = hero.offsetHeight || 1;
+        const p = Math.max(0, Math.min(1, y / (heroH * 0.85)));
+        // soft fade on hero copy + vis as you leave the section — feels like
+        // the content is being absorbed into the void below.
+        if (heroCopy) heroCopy.style.opacity = `${1 - p * 0.55}`;
+        if (heroVis)  heroVis.style.opacity  = `${1 - p * 0.40}`;
+    }
+
+    function onScroll() {
+        scrollY = window.scrollY || window.pageYOffset;
+        if (!scrollTicking) {
+            scrollTicking = true;
+            requestAnimationFrame(flushScroll);
+        }
     }
     window.addEventListener('scroll', onScroll, { passive: true });
     onScroll();
 
-    /* -------------------------------------------------- scroll reveals */
+    /* -------------------------------------------------- scroll reveals.
+       Elements with [data-type="cursor"] also get a typing animation:
+       a blinking caret appears first, pauses, then types the text in. */
+    function triggerTyping(el) {
+        const text = el.textContent;
+        el.textContent = '';
+        const textNode = document.createTextNode('');
+        const cursor   = document.createElement('span');
+        cursor.className = 'type-cursor';
+        cursor.setAttribute('aria-hidden', 'true');
+        el.appendChild(textNode);
+        el.appendChild(cursor);
+
+        const CARET_PAUSE = 850;   // cursor blinks before any character appears
+        const PER_CHAR    = 145;   // typing cadence — feels deliberate, not rushed
+
+        setTimeout(() => {
+            let i = 0;
+            const id = setInterval(() => {
+                i++;
+                textNode.data = text.slice(0, i);
+                if (i >= text.length) clearInterval(id);
+            }, PER_CHAR);
+        }, CARET_PAUSE);
+    }
+
     const io = new IntersectionObserver((entries) => {
         for (const e of entries) {
             if (e.isIntersecting) {
                 e.target.classList.add('in');
                 io.unobserve(e.target);
+                if (e.target.dataset.type === 'cursor') triggerTyping(e.target);
             }
         }
     }, { rootMargin: '0px 0px -80px 0px', threshold: 0.05 });
