@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml">
+
+  <url>
+    <loc>https://void-room.space/</loc>
+    <lastmod>2026-05-17</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>1.0</priority>
+    <xhtml:link rel="alternate" hreflang="ru"        href="https://void-room.space/"/>
+    <xhtml:link rel="alternate" hreflang="en"        href="https://void-room.space/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://void-room.space/"/>
+  </url>
+
+  <!-- The app itself is on a separate subdomain; some search engines respect
+       a cross-host sitemap entry if both hosts share ownership. Yandex and
+       Google both honor it when the destination resolves to the same org. -->
+  <url>
+    <loc>https://app.void-room.space/</loc>
+    <lastmod>2026-05-17</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+</urlset>

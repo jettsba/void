@@ -3,14 +3,114 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>void — voice rooms</title>
-    <meta name="description" content="void — ephemeral voice rooms. peer-to-peer, no accounts, no history." />
-    <meta name="theme-color" content="#0a0a0b" />
 
-    <meta property="og:type"        content="website" />
-    <meta property="og:site_name"   content="void" />
-    <meta property="og:title"       content="void — voice rooms" />
-    <meta property="og:description" content="ephemeral voice spaces. no accounts. no history. p2p." />
+    <!-- ====== PRIMARY ====== -->
+    <title>void — голосовые комнаты, которые исчезают | peer-to-peer voice rooms</title>
+    <meta name="description" content="Голосовые комнаты без регистрации, без истории, peer-to-peer. Открой комнату одним кликом, поделись кодом, поговорите — и комнаты больше нет. Голос, видео, экран, файлы. Бесплатно." />
+    <meta name="keywords" content="голосовая комната, голосовой чат, без регистрации, p2p, peer-to-peer, ephemeral, временный чат, voice chat, voice rooms, browser voice chat, без аккаунтов, void, void-room" />
+    <meta name="author" content="void" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <meta name="googlebot" content="index, follow" />
+    <meta name="theme-color" content="#0a0a0b" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="format-detection" content="telephone=no" />
+
+    <!-- Canonical + i18n alternates: tells search engines this is the master
+         URL and lists language variants (we don't have separate /en/ pages
+         yet, but `x-default` + `ru`/`en` on the same URL signals the page is
+         multilingual — better than nothing). -->
+    <link rel="canonical" href="https://void-room.space/" />
+    <link rel="alternate" hreflang="ru"        href="https://void-room.space/" />
+    <link rel="alternate" hreflang="en"        href="https://void-room.space/" />
+    <link rel="alternate" hreflang="x-default" href="https://void-room.space/" />
+
+    <!-- ====== OPEN GRAPH (Facebook, LinkedIn, Telegram, Slack, Discord) ====== -->
+    <meta property="og:type"             content="website" />
+    <meta property="og:site_name"        content="void" />
+    <meta property="og:title"            content="void — голосовые комнаты, которые исчезают" />
+    <meta property="og:description"      content="P2P голосовые комнаты без регистрации, без истории. Открой, позови друга — и комнаты больше нет." />
+    <meta property="og:url"              content="https://void-room.space/" />
+    <meta property="og:image"            content="https://void-room.space/og.png" />
+    <meta property="og:image:secure_url" content="https://void-room.space/og.png" />
+    <meta property="og:image:type"       content="image/png" />
+    <meta property="og:image:width"      content="1200" />
+    <meta property="og:image:height"     content="630" />
+    <meta property="og:image:alt"        content="void — голосовые комнаты, которые исчезают. Светящееся ядро в центре чёрного пространства." />
+    <meta property="og:locale"           content="ru_RU" />
+    <meta property="og:locale:alternate" content="en_US" />
+
+    <!-- ====== TWITTER / X CARD ====== -->
+    <meta name="twitter:card"        content="summary_large_image" />
+    <meta name="twitter:title"       content="void — голосовые комнаты, которые исчезают" />
+    <meta name="twitter:description" content="P2P голосовые комнаты без регистрации, без истории. Открой, позови друга — и комнаты больше нет." />
+    <meta name="twitter:image"       content="https://void-room.space/og.png" />
+    <meta name="twitter:image:alt"   content="void — голосовые комнаты, которые исчезают" />
+
+    <!-- ====== STRUCTURED DATA (Schema.org) ======
+         Helps Google understand what this site IS (a WebApplication for
+         communication, not an article or product page). Improves the chance
+         of getting a rich snippet, knowledge panel, or sitelinks. -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "WebApplication",
+          "name": "void",
+          "alternateName": "void-room",
+          "url": "https://void-room.space/",
+          "applicationCategory": "CommunicationApplication",
+          "operatingSystem": "Any (browser-based)",
+          "browserRequirements": "Requires a modern browser with WebRTC support (Chrome, Firefox, Safari, Edge).",
+          "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+          },
+          "description": "Ephemeral peer-to-peer voice rooms. No accounts, no history, no tracking. Open a room, share the code, talk — and the room is gone.",
+          "featureList": [
+            "Peer-to-peer voice calls",
+            "Screen sharing",
+            "Text chat with file sharing",
+            "No registration or accounts",
+            "No history or recording",
+            "End-to-end via WebRTC",
+            "Up to 5 participants per room"
+          ],
+          "inLanguage": ["ru", "en"],
+          "isAccessibleForFree": true,
+          "softwareVersion": "0.5"
+        },
+        {
+          "@type": "Organization",
+          "name": "void",
+          "url": "https://void-room.space/",
+          "logo": "https://void-room.space/static/favicon/favicon.svg"
+        },
+        {
+          "@type": "WebSite",
+          "name": "void",
+          "url": "https://void-room.space/",
+          "inLanguage": "ru-RU",
+          "potentialAction": {
+            "@type": "Action",
+            "target": "https://app.void-room.space/"
+          }
+        }
+      ]
+    }
+    </script>
+
+    <!-- ====== FAVICON + APP ICONS ====== -->
+    <link rel="icon"             type="image/svg+xml" href="/static/favicon/favicon.svg" />
+    <link rel="icon"             type="image/png"     sizes="96x96"   href="/static/favicon/favicon-96x96.png" />
+    <link rel="shortcut icon"                          href="/static/favicon/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180"      href="/static/favicon/apple-touch-icon.png" />
+    <link rel="manifest"                              href="/static/favicon/site.webmanifest" />
+    <meta name="apple-mobile-web-app-title"      content="void" />
+    <meta name="apple-mobile-web-app-capable"    content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="application-name"                content="void" />
 
     <!-- Lenis: premium smooth scroll with inertia. ~16kb, used by Apple,
          Cuberto, Studio Freight, etc. Self-hosted (vendored to landing/).
@@ -277,14 +377,18 @@ section { position: relative; z-index: 2; }
     transform-origin: 50% 50%;
     will-change: transform, opacity;
     opacity: 0;
-    transform: translate(-50%, -50%) scale(0.92);
+    /* pixel-based translate (NOT translate(-50%, -50%)) so liftOff can smoothly
+       interpolate to a pixel-based target transform — calc(-50% + Xpx) edge
+       cases occasionally failed to animate in some browsers, leaving the orb
+       frozen mid-intro. -100px = half of width (200/2). */
+    transform: translate(-100px, -100px) scale(0.92);
     transition:
         transform 700ms var(--ease),
         opacity 600ms var(--ease);
 }
 .intro-logo.is-awake {
     opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
+    transform: translate(-100px, -100px) scale(1);
 }
 
 /* outer halo — wide soft bloom that intensifies as the spin accelerates.
@@ -404,9 +508,10 @@ section { position: relative; z-index: 2; }
 }
 
 /* lift-off: orb scales/translates to header slot; halo+frame+spinner dissolve
-   so only the core remains. The JS-set inline transform uses
-   `translate(calc(-50% + Xpx), calc(-50% + Ypx)) scale(s)` to preserve the
-   viewport-centering origin during the flight. */
+   so only the core remains. The JS-set inline transform uses pure pixel-based
+   `translate(Xpx, Ypx) scale(s)` (no calc(), no percent mixing) so browsers
+   smoothly interpolate the transition every time — earlier calc()-based form
+   occasionally failed to animate in some browsers, freezing the intro. */
 .intro-logo.is-flying {
     transition:
         transform 1400ms cubic-bezier(.55,.05,.2,1),
@@ -3016,46 +3121,59 @@ window.getVoidLang = function () {
     }
 
     /* ---- canvas sizing -----------------------------------------------------
-       The canvas is CSS `position: fixed; inset: 0;` so it ALWAYS covers the
-       viewport at (0, 0)-(innerWidth, innerHeight). We size the buffer to
-       window.innerWidth/innerHeight (× dpr for crispness).
+       The canvas is CSS `position: fixed; inset: 0;` which fills the LAYOUT
+       VIEWPORT — i.e., everything EXCLUDING the vertical scrollbar area.
+       The buffer must match the same area, so we size from
+       `document.documentElement.clientWidth/clientHeight` which also excludes
+       the scrollbar.
 
-       Why not `canvas.getBoundingClientRect()` here? Earlier version did that,
-       but at IIFE-execution time on some browsers/Live Server setups the
-       layout may not have settled — getBoundingClientRect returned ~zero,
-       canvas.width=0 left the default 300x150 buffer, and particles drawn at
-       viewport-center coords (~960, ~540) fell OUTSIDE that small buffer →
-       only a tiny top-left rect rendered visible particles. window.innerWidth
-       is layout-independent and always correct.
+       Why NOT `window.innerWidth`? It returns the visual viewport width
+       *including* the scrollbar area. Mismatching buffer (innerWidth*dpr)
+       with CSS area (clientWidth) makes the browser stretch the buffer to
+       fit the smaller CSS rect — every drawing coord ends up subpixel-shifted
+       toward the scrollbar side. At Windows 125% scaling + a ~17px scrollbar,
+       this produced a visible ~8 CSS-px drift of particles, scaled to ~10
+       physical pixels — the "съезжает вправо вниз" the user observed.
 
-       After setting the buffer + setTransform(dpr,...), drawing coord (x, y)
-       maps to viewport pixel (x, y) — no per-frame coord translation needed.
-       The safeResize() guard avoids re-running canvas.width=N (which clears
-       the buffer) on every frame when dimensions haven't changed.
+       getBoundingClientRect on the logo also returns layout-viewport coords,
+       so once buffer == CSS rect, no per-frame translation is needed: the
+       drawing coord equals the on-screen CSS pixel.
+
+       safeResize() avoids re-running canvas.width=N every frame (which clears
+       the buffer + resets transforms) when nothing actually changed.
        ---------------------------------------------------------------------- */
     const ctx = canvas.getContext('2d');
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     let W = 0, H = 0;
 
+    function measureViewport() {
+        // clientWidth/Height of <html> = layout viewport = what `inset: 0`
+        // actually covers. Fallback to innerWidth/Height for the (rare) case
+        // where clientWidth returns 0 (very early script execution).
+        return {
+            w: document.documentElement.clientWidth  || window.innerWidth  || 0,
+            h: document.documentElement.clientHeight || window.innerHeight || 0,
+        };
+    }
     function size() {
-        W = window.innerWidth  || document.documentElement.clientWidth  || 0;
-        H = window.innerHeight || document.documentElement.clientHeight || 0;
+        const v = measureViewport();
+        W = v.w; H = v.h;
         canvas.width  = Math.max(1, Math.round(W * dpr));
         canvas.height = Math.max(1, Math.round(H * dpr));
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
     function safeResize() {
-        const w = window.innerWidth  || document.documentElement.clientWidth  || 0;
-        const h = window.innerHeight || document.documentElement.clientHeight || 0;
-        if (w !== W || h !== H) size();
+        const v = measureViewport();
+        if (v.w !== W || v.h !== H) size();
     }
     size();
     window.addEventListener('resize', safeResize);
     // re-measure after layout settles in case the first call landed too early.
     window.addEventListener('load', safeResize);
 
-    /* logoCenter — viewport coords. Since the canvas covers the viewport at
-       (0,0) with no translation, viewport coords ARE canvas drawing coords. */
+    /* logoCenter — viewport coords. Since the canvas covers the layout
+       viewport at (0,0) and its buffer is sized to match, viewport coords
+       ARE canvas drawing coords. */
     function logoCenter() {
         const lr = introLogo.getBoundingClientRect();
         return {
@@ -3119,7 +3237,6 @@ window.getVoidLang = function () {
     const INERTIA   = 1.0;
     const FRICTION  = 1.4;
 
-    const startedAt = performance.now();
     let torqueOverride = null;
 
     function torqueAt(tSec) {
@@ -3150,11 +3267,19 @@ window.getVoidLang = function () {
         const c    = logoCenter();
         const maxR = Math.hypot(W, H) / 2;
         for (let i = waves.length - 1; i >= 0; i--) {
-            const w   = waves[i];
-            const age = (now - w.bornAt) / w.duration;
+            const w = waves[i];
+            // Clamp age to [0, ∞). w.bornAt is set with performance.now() INSIDE
+            // a stage fn called from physicsStep called from loop(t) — `t` is
+            // the rAF frame-start timestamp and `performance.now()` is called
+            // milliseconds later in the same frame, so for a wave born on the
+            // current frame, (t - bornAt) is a small NEGATIVE number. Without
+            // this clamp, `eased = 1 - (1 - negativeAge)^3` goes negative,
+            // `r = eased * maxR * reachFrac` is negative, and ctx.arc throws
+            // IndexSizeError — which broke the rAF chain and froze the intro.
+            const age = Math.max(0, (now - w.bornAt) / w.duration);
             if (age >= 1) { waves.splice(i, 1); continue; }
             const eased = 1 - Math.pow(1 - age, 3);
-            const r     = eased * maxR * w.reachFrac;
+            const r     = Math.max(0, eased * maxR * w.reachFrac);
             const alpha = w.peakAlpha * Math.pow(1 - age, 1.25);
             ctx.beginPath();
             ctx.strokeStyle = `rgba(245, 245, 247, ${alpha})`;
@@ -3169,38 +3294,69 @@ window.getVoidLang = function () {
         }
     }
 
-    /* ---- main rAF loop: physics + emission + render -------------------- */
-    let cleanedUp = false;                      // declared early — no TDZ risk
+    /* ---- main rAF loop: physics + emission + render -------------------------
+       Physics runs at a FIXED timestep (120 Hz), with the renderer running at
+       whatever rAF rate the browser provides. This makes the intro completely
+       frame-rate-independent:
+
+         * dropped frames → loop catches up on the next render by sub-stepping
+           physics until physics-time matches wall-time;
+         * stage events (warming → charging → BURST → liftoff) are triggered
+           by physics-time, not wall-clock setTimeout — so if the browser is
+           slow, stages wait for omega to actually reach its expected value
+           before firing. Previously, slow frames caused BURST to fire while
+           omega was still ramping → "intro ends at low speed".
+
+       Catch-up is capped at 0.25s/frame to prevent runaway after a long
+       tab-away. Particle emission also runs per physics step (not per render
+       frame), so the count is consistent regardless of frame rate.
+       ---------------------------------------------------------------------- */
+    let cleanedUp = false;
     let lastT     = performance.now();
     let running   = true;
-    let emitAccum = 0;                          // sub-frame emission accumulator
+    let emitAccum = 0;
+    let physTime  = 0;                          // total physics-time elapsed
+    let physAccum = 0;
+    let stageIdx  = 0;
+    const PHYS_DT       = 1 / 120;              // fixed physics tick
+    const MAX_CATCHUP_S = 0.25;                 // cap per-frame catch-up
 
-    function loop(t) {
-        if (!running) return;
-        const dt = Math.min(0.05, (t - lastT) / 1000);
-        lastT = t;
+    // Stages fire when physTime crosses `at` (seconds since intro start).
+    // Defined here so they can reference spawnWave/spawn/liftOff defined above.
+    const STAGES = [
+        { at: 0.00, fn: () => introLogo.classList.add('is-awake') },
+        { at: 0.60, fn: () => introLogo.classList.add('is-warming') },
+        { at: 1.80, fn: () => {
+            introLogo.classList.remove('is-warming');
+            introLogo.classList.add('is-charging');
+        }},
+        { at: 2.80, fn: () => {
+            introLogo.classList.remove('is-charging');
+            introLogo.classList.add('is-bursting');
+            // primary shockwave + primary spray
+            spawnWave({ duration: 1500, peakAlpha: 0.85, lineWidth: 2.8, reachFrac: 1.10, glow: 18 });
+            spawn(320, { speed: 5.0, tang: 2.2, ringFrac: 1.00, ttlScale: 1.3, warm: 0.12 });
+        }},
+        { at: 3.00, fn: () => {
+            // trailing shockwave echo + secondary spray
+            spawnWave({ duration: 1200, peakAlpha: 0.38, lineWidth: 1.4, reachFrac: 0.85, glow: 6 });
+            spawn(160, { speed: 2.8, tang: 1.4, ringFrac: 1.10, ttlScale: 1.5 });
+        }},
+        { at: 3.14, fn: () => spawn(90, { speed: 1.6, tang: 0.9, ringFrac: 1.18, ttlScale: 1.9 }) },
+        { at: 3.40, fn: () => liftOff() },
+    ];
 
-        // catch any size change (incl. the layout-not-yet-ready init case)
-        safeResize();
-
-        // physics (semi-implicit Euler — stable for stiff viscous damping)
-        const tSec  = (t - startedAt) / 1000;
-        const T     = torqueAt(tSec);
+    function physicsStep(dt) {
+        // semi-implicit Euler — stable for stiff viscous damping
+        const T     = torqueAt(physTime);
         const accel = (T - FRICTION * orbitOmega) / INERTIA;
         orbitOmega += accel * dt;
         if (orbitOmega < 0) orbitOmega = 0;
         orbitAngle += orbitOmega * dt;
-        if (orbSpinner) orbSpinner.style.transform = `rotate(${orbitAngle}rad)`;
 
-        // omega-driven particle emission: faster spin → more sparks per second.
-        // Stops emitting once the orb is flying away (otherwise sparks would
-        // chase the shrinking logo across the screen).
-        // Spawn from JUST BEYOND the orb's outer edge (ringFrac > 1) so the
-        // sparks live in the empty space around the orb instead of dying inside
-        // its own glow halo. Base speed is also high enough that even early
-        // (low-omega) particles travel a visible distance before fading.
+        // emission (per physics tick — consistent regardless of frame rate)
         if (!cleanedUp) {
-            const emitRate  = Math.min(320, 12 + orbitOmega * 8);   // particles/sec
+            const emitRate = Math.min(320, 12 + orbitOmega * 8);
             emitAccum += emitRate * dt;
             const emitCount = Math.floor(emitAccum);
             emitAccum -= emitCount;
@@ -3210,21 +3366,56 @@ window.getVoidLang = function () {
                     speed:    1.6 + Math.min(3.2, orbitOmega * 0.07),
                     tang:     0.9 + Math.min(2.0, orbitOmega * 0.05),
                     tangSpin: tangSpin,
-                    ringFrac: 1.05,             // spawn just outside the orb
+                    ringFrac: 1.05,
                 });
             }
         }
 
+        physTime += dt;
+
+        // Fire any stages whose physics-time has come. Errors are LOGGED, not
+        // silently swallowed — but the stage index still advances so a single
+        // broken stage can't deadlock the intro on itself forever.
+        while (stageIdx < STAGES.length && physTime >= STAGES[stageIdx].at) {
+            try {
+                STAGES[stageIdx].fn();
+            } catch (e) {
+                console.error('[intro stage ' + stageIdx + ' at ' + STAGES[stageIdx].at + 's]', e);
+            }
+            stageIdx++;
+        }
+    }
+
+    function loop(t) {
+        if (!running) return;
+        const realDt = (t - lastT) / 1000;
+        lastT = t;
+
+        safeResize();
+
+        // accumulate up to MAX_CATCHUP_S of wall time; the rest is dropped to
+        // prevent runaway if the tab was backgrounded for ages.
+        physAccum += Math.min(MAX_CATCHUP_S, realDt);
+        let safety = 200;  // upper bound on sub-steps per frame
+        while (physAccum >= PHYS_DT && safety-- > 0) {
+            physicsStep(PHYS_DT);
+            physAccum -= PHYS_DT;
+        }
+
+        if (orbSpinner) orbSpinner.style.transform = `rotate(${orbitAngle}rad)`;
+
         ctx.clearRect(0, 0, W, H);
         drawWaves(t);
 
-        // update + render particles
+        // particle integration runs at the render rate (dt-scaled velocities
+        // so motion is frame-rate-independent too).
+        const partDt = Math.min(0.05, realDt);
         for (let i = particles.length - 1; i >= 0; i--) {
             const p = particles[i];
-            p.life += dt;
+            p.life += partDt;
             if (p.life > p.ttl) { particles.splice(i, 1); continue; }
-            p.vx *= (1 - 0.55 * dt);
-            p.vy *= (1 - 0.55 * dt);
+            p.vx *= (1 - 0.55 * partDt);
+            p.vy *= (1 - 0.55 * partDt);
             p.x  += p.vx;
             p.y  += p.vy;
             const f = 1 - (p.life / p.ttl);
@@ -3250,52 +3441,69 @@ window.getVoidLang = function () {
         if (cleanedUp) return;
         cleanedUp = true;
 
-        const sourceRect = introLogo.getBoundingClientRect();
-        const targetRect = headerSlot.getBoundingClientRect();
-
-        const sx = sourceRect.left + sourceRect.width / 2;
-        const sy = sourceRect.top  + sourceRect.height / 2;
-        const tx = targetRect.left + targetRect.width / 2;
-        const ty = targetRect.top  + targetRect.height / 2;
-        const scale = targetRect.width / sourceRect.width;
-        const dx = tx - sx;
-        const dy = ty - sy;
-
-        introLogo.classList.remove('is-bursting');
-        introLogo.classList.add('is-flying');
-
-        // a final soft echo of the burst as the orb departs
-        spawnWave({ duration: 1400, peakAlpha: 0.28, lineWidth: 1.2, reachFrac: 0.75, glow: 5 });
-
-        requestAnimationFrame(() => {
-            // calc() preserves the translate(-50%, -50%) centering origin so the
-            // logo stays anchored to the viewport center mathematically while
-            // flying, instead of getting offset by removing the centering shift.
-            introLogo.style.transform =
-                `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(${scale})`;
-        });
-
-        // header slot lights up about the time the logo arrives
-        setTimeout(() => {
-            if (headerSlot) headerSlot.classList.add('is-ready');
-        }, 1200);
-
-        // the page itself fades in slightly before the intro layer fades out,
-        // so it reads as "rising from the darkness"
-        setTimeout(() => {
-            page.classList.add('is-visible');
-        }, 900);
-
-        setTimeout(() => {
-            intro.classList.add('fade-out');
-        }, 1300);
-
-        setTimeout(() => {
+        // The page-reveal chain is what the user ACTUALLY needs to see; do it
+        // first so even if the fancy transform math below fails, the page
+        // doesn't get stuck on the intro overlay.
+        const safeSetTimeout = (fn, ms) => setTimeout(() => { try { fn(); } catch (e) { console.error('[intro liftOff]', e); } }, ms);
+        safeSetTimeout(() => page.classList.add('is-visible'),                900);
+        safeSetTimeout(() => { if (headerSlot) headerSlot.classList.add('is-ready'); }, 1200);
+        safeSetTimeout(() => intro.classList.add('fade-out'),                1300);
+        safeSetTimeout(() => {
             running = false;
             intro.remove();
-            sessionStorage.setItem(SKIP_KEY, '1');
+            try { sessionStorage.setItem(SKIP_KEY, '1'); } catch (_) {}
         }, 2600);
+
+        // Now attempt the flying-to-header animation. If anything throws here,
+        // it's swallowed and the page still reveals (chain above is independent).
+        try {
+            const sourceRect = introLogo.getBoundingClientRect();
+            const targetRect = headerSlot ? headerSlot.getBoundingClientRect() : null;
+
+            introLogo.classList.remove('is-bursting');
+            introLogo.classList.add('is-flying');
+            spawnWave({ duration: 1400, peakAlpha: 0.28, lineWidth: 1.2, reachFrac: 0.75, glow: 5 });
+
+            if (!targetRect || targetRect.width === 0 || sourceRect.width === 0) {
+                // no measurable target — just fade the orb out in place
+                introLogo.style.transform = `translate(-100px, -100px) scale(0.25)`;
+                introLogo.style.opacity   = '0';
+                return;
+            }
+
+            // Pixel-based math so the transition is a simple between-pixel-translates
+            // interpolation (no calc() / mixed-unit edge cases).
+            // Element is centered via top:50%/left:50% + translate(-100px,-100px).
+            // To move its center to viewport pixel (tx, ty), we need:
+            //   translate( tx - vw/2 - w/2 ,  ty - vh/2 - h/2 ).
+            const vw = document.documentElement.clientWidth  || window.innerWidth;
+            const vh = document.documentElement.clientHeight || window.innerHeight;
+            const tx = targetRect.left + targetRect.width  / 2;
+            const ty = targetRect.top  + targetRect.height / 2;
+            const offsetX = tx - vw / 2 - sourceRect.width  / 2;
+            const offsetY = ty - vh / 2 - sourceRect.height / 2;
+            const scale   = targetRect.width / sourceRect.width;
+
+            requestAnimationFrame(() => {
+                introLogo.style.transform =
+                    `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
+            });
+        } catch (e) {
+            console.error('[intro liftOff transform]', e);
+            // page reveal still happens via safeSetTimeout chain above
+        }
     }
+
+    // Absolute safety net: if for ANY reason cleanedUp hasn't fired by 7s
+    // wall-clock after IIFE start (frame drops, JS errors, tab backgrounded
+    // during liftOff, etc.), force the page-reveal sequence so the user never
+    // gets stuck staring at the intro.
+    setTimeout(function safetyNet() {
+        if (!cleanedUp) {
+            console.warn('[intro] safety net triggered after 7s — forcing skipAll');
+            skipAll();
+        }
+    }, 7000);
 
     function skipAll() {
         if (cleanedUp) return;
@@ -3311,53 +3519,18 @@ window.getVoidLang = function () {
     intro.addEventListener('click', skipAll);
     window.addEventListener('keydown', () => { if (!cleanedUp) skipAll(); }, { once: true });
 
-    /* ---- the sequence: supernova spin-up.
-       T=0    orb wakes (visible, already gently rotating)
-       T=600  warming: halo + core glow bloom subtly
-       T=1800 charging: full glow + core swells; spin near peak
-       T=2800 BURST: motor cuts, friction takes over; massive radial scatter
-              of particles + double shockwave ring crossing the viewport —
-              the "release of accumulated darkness as pure energy"
-       T=3400 lift-off: bright core flies up to header, halo dissolves
-    */
+    /* The sequence (supernova spin-up):
+         physTime=0.00 — orb wakes, already spinning
+         physTime=0.60 — warming: halo + glow bloom
+         physTime=1.80 — charging: full glow + core swells, spin near peak
+         physTime=2.80 — BURST: shockwave + primary spray
+         physTime=3.00 — trailing echo + secondary spray
+         physTime=3.14 — tertiary debris spray
+         physTime=3.40 — lift-off
 
-    // T=0 — wake (orb appears and is already spinning)
-    setTimeout(() => introLogo.classList.add('is-awake'), 0);
-
-    // T=600 — warming: halo + glow bloom
-    setTimeout(() => introLogo.classList.add('is-warming'), 600);
-
-    // T=1800 — charging: full intensity bloom; spin approaching peak
-    setTimeout(() => {
-        introLogo.classList.remove('is-warming');
-        introLogo.classList.add('is-charging');
-    }, 1800);
-
-    // T=2800 — SUPERNOVA BURST: massive scatter + double shockwave. Motor
-    // KEEPS RUNNING (disc stays at full RPM through liftoff — no awkward
-    // slowdown before flying up). The burst is purely a visual release.
-    setTimeout(() => {
-        introLogo.classList.remove('is-charging');
-        introLogo.classList.add('is-bursting');
-
-        // double shockwave: leading bright ring + faint trailing echo
-        spawnWave({ duration: 1500, peakAlpha: 0.85, lineWidth: 2.8, reachFrac: 1.10, glow: 18 });
-        setTimeout(() => {
-            spawnWave({ duration: 1200, peakAlpha: 0.38, lineWidth: 1.4, reachFrac: 0.85, glow: 6 });
-        }, 200);
-
-        // supernova particle spray — layered: fast outer wave, medium drift,
-        // slow long-lived debris. Variance in speed/ttl reads as "matter
-        // being thrown off at different velocities" rather than a uniform pop.
-        // ringFrac > 1 so the spray originates from outside the orb, not from
-        // inside its own glow halo where it would be invisible.
-        spawn(320, { speed: 5.0, tang: 2.2, ringFrac: 1.00, ttlScale: 1.3, warm: 0.12 });
-        setTimeout(() => spawn(160, { speed: 2.8, tang: 1.4, ringFrac: 1.10, ttlScale: 1.5 }),  80);
-        setTimeout(() => spawn(90,  { speed: 1.6, tang: 0.9, ringFrac: 1.18, ttlScale: 1.9 }), 220);
-    }, 2800);
-
-    // T=3400 — lift-off (disc still spinning at peak RPM as it flies up)
-    setTimeout(liftOff, 3400);
+       All triggered by the physics-time-driven STAGES table inside loop(),
+       so frame drops or background-tab pauses don't desync omega from the
+       burst trigger. See STAGES near the rAF loop above. */
 })();
 
 /* ============================================================================
@@ -3435,10 +3608,13 @@ window.getVoidLang = function () {
         const dpr = Math.min(window.devicePixelRatio || 1, 2);
         let W = 0, H = 0;
         function fit() {
-            W = bg.clientWidth = window.innerWidth;
-            H = bg.clientHeight = window.innerHeight;
-            bg.width  = W * dpr;
-            bg.height = H * dpr;
+            // clientWidth/Height of <html> matches what `inset: 0` covers
+            // (excludes scrollbar) — keeps buffer == CSS rect, no stretching
+            // (same fix as the intro canvas; see comments there).
+            W = document.documentElement.clientWidth  || window.innerWidth  || 0;
+            H = document.documentElement.clientHeight || window.innerHeight || 0;
+            bg.width  = Math.max(1, Math.round(W * dpr));
+            bg.height = Math.max(1, Math.round(H * dpr));
             ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         }
         fit();

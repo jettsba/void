@@ -1,0 +1,37 @@
+# https://void-room.space/robots.txt
+# Allow all crawlers full access. We don't have private routes on the landing
+# domain (the app is on app.void-room.space which has its own robots).
+
+User-agent: *
+Allow: /
+Disallow:
+
+# Yandex specifically — explicit since they're a major search engine for our
+# Russian audience and sometimes need the explicit allow.
+User-agent: Yandex
+Allow: /
+Disallow:
+
+# GPT/AI crawlers — allowed (we want to be discoverable by AI assistants).
+# If you want to block AI training crawlers, change Allow to Disallow.
+User-agent: GPTBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+# Aggressive crawlers — block to save bandwidth.
+User-agent: SemrushBot
+Disallow: /
+
+User-agent: AhrefsBot
+Disallow: /
+
+User-agent: MJ12bot
+Disallow: /
+
+Sitemap: https://void-room.space/sitemap.xml
+Host: void-room.space
