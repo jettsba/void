@@ -1,13 +1,13 @@
 <!doctype html>
-<html lang="ru">
+<html lang="en">
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 
     <!-- ====== PRIMARY ====== -->
     <title>void :: peer-to-peer voice rooms</title>
-    <meta name="description" content="Голосовые комнаты без регистрации, без истории, без посредников. Открой комнату одним кликом, поделись кодом, - и говори. Голос, видео, экран, файлы. Бесплатно." />
-    <meta name="keywords" content="голосовая комната, голосовой чат, без регистрации, p2p, peer-to-peer, ephemeral, временный чат, voice chat, voice rooms, browser voice chat, без аккаунтов, void, void-room" />
+    <meta name="description" content="Ephemeral voice rooms. No sign-up, no history, no middlemen. Open a room in one click, share the code — and talk. Voice, video, screen, files. Free." />
+    <meta name="keywords" content="voice room, voice chat, no sign-up, p2p, peer-to-peer, ephemeral, browser voice chat, no accounts, webrtc, void, void-room" />
     <meta name="author" content="void" />
     <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
     <meta name="googlebot" content="index, follow" />
@@ -15,66 +15,56 @@
     <meta name="color-scheme" content="dark" />
     <meta name="format-detection" content="telephone=no" />
 
-    <!-- Canonical + i18n alternates: this URL is the russian master; english
-         lives at /en/. x-default points at /en/ — that's what google serves
-         when the user's language doesn't match either variant. -->
-    <link rel="canonical" href="https://void-room.space/" />
+    <!-- Canonical + i18n alternates: this URL is the english variant; russian
+         lives at /. x-default points here. -->
+    <link rel="canonical" href="https://void-room.space/en/" />
     <link rel="alternate" hreflang="ru"        href="https://void-room.space/" />
     <link rel="alternate" hreflang="en"        href="https://void-room.space/en/" />
     <link rel="alternate" hreflang="x-default" href="https://void-room.space/en/" />
 
-    <!-- Language auto-detect. Runs synchronously in <head> BEFORE any render so
-         the user never sees a flash of the wrong language. Logic:
-         1. If user has clicked the footer language link before (localStorage
-            `void.lang` = 'ru' or 'en'), honor that choice — never redirect.
-         2. Otherwise, if navigator.language starts with `ru`, stay on /.
-         3. Anything else (including unknown/exotic locales) → redirect to /en/.
-         The script intentionally does NOT run when opened over file:// or via
-         VSCode Live Server (those use http://127.0.0.1 — fine — or file:, where
-         location.replace to /en/ would 404). It also bails on any throw. -->
+    <!-- Language auto-detect (mirror of /). If a manual choice exists in
+         localStorage, honor it. Otherwise: russian-locale users get sent home
+         to /; everyone else stays on /en/. -->
     <script>
     (function () {
         try {
             var saved = null;
             try { saved = localStorage.getItem('void.lang'); } catch (_) {}
             if (saved === 'ru' || saved === 'en') {
-                if (saved === 'en') location.replace('/en/' + location.search + location.hash);
+                if (saved === 'ru') location.replace('/' + location.search + location.hash);
                 return;
             }
             var lang = (navigator.language || navigator.userLanguage || 'en').toLowerCase();
-            if (lang.indexOf('ru') !== 0) {
-                location.replace('/en/' + location.search + location.hash);
+            if (lang.indexOf('ru') === 0) {
+                location.replace('/' + location.search + location.hash);
             }
         } catch (_) { /* never block render */ }
     })();
     </script>
 
-    <!-- ====== OPEN GRAPH (Facebook, LinkedIn, Telegram, Slack, Discord) ====== -->
+    <!-- ====== OPEN GRAPH ====== -->
     <meta property="og:type"             content="website" />
     <meta property="og:site_name"        content="void" />
     <meta property="og:title"            content="void — leaves no trace." />
-    <meta property="og:description"      content="P2P голосовые комнаты без регистрации и посредников. Открой, поделись кодом — и говори." />
-    <meta property="og:url"              content="https://void-room.space/" />
+    <meta property="og:description"      content="Peer-to-peer voice rooms. No sign-up, no middlemen. Open it, share the code — and talk." />
+    <meta property="og:url"              content="https://void-room.space/en/" />
     <meta property="og:image"            content="https://void-room.space/og.png" />
     <meta property="og:image:secure_url" content="https://void-room.space/og.png" />
     <meta property="og:image:type"       content="image/png" />
     <meta property="og:image:width"      content="1200" />
     <meta property="og:image:height"     content="630" />
     <meta property="og:image:alt"        content="void — leaves no trace." />
-    <meta property="og:locale"           content="ru_RU" />
-    <meta property="og:locale:alternate" content="en_US" />
+    <meta property="og:locale"           content="en_US" />
+    <meta property="og:locale:alternate" content="ru_RU" />
 
     <!-- ====== TWITTER / X CARD ====== -->
     <meta name="twitter:card"        content="summary_large_image" />
     <meta name="twitter:title"       content="void — leaves no trace." />
-    <meta name="twitter:description" content="P2P голосовые комнаты без регистрации, без истории. Открой, позови друга — и комнаты больше нет." />
+    <meta name="twitter:description" content="Peer-to-peer voice rooms. No sign-up, no history. Open it, call a friend — and the room is gone." />
     <meta name="twitter:image"       content="https://void-room.space/og.png" />
     <meta name="twitter:image:alt"   content="void — leaves no trace." />
 
-    <!-- ====== STRUCTURED DATA (Schema.org) ======
-         Helps Google understand what this site IS (a WebApplication for
-         communication, not an article or product page). Improves the chance
-         of getting a rich snippet, knowledge panel, or sitelinks. -->
+    <!-- ====== STRUCTURED DATA (Schema.org) ====== -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -83,7 +73,7 @@
           "@type": "WebApplication",
           "name": "void",
           "alternateName": "void-room",
-          "url": "https://void-room.space/",
+          "url": "https://void-room.space/en/",
           "applicationCategory": "CommunicationApplication",
           "operatingSystem": "Any (browser-based)",
           "browserRequirements": "Requires a modern browser with WebRTC support (Chrome, Firefox, Safari, Edge).",
@@ -102,7 +92,7 @@
             "End-to-end via WebRTC",
             "Up to 5 participants per room"
           ],
-          "inLanguage": ["ru", "en"],
+          "inLanguage": ["en", "ru"],
           "isAccessibleForFree": true,
           "softwareVersion": "0.5"
         },
@@ -115,8 +105,8 @@
         {
           "@type": "WebSite",
           "name": "void",
-          "url": "https://void-room.space/",
-          "inLanguage": "ru-RU",
+          "url": "https://void-room.space/en/",
+          "inLanguage": "en-US",
           "potentialAction": {
             "@type": "Action",
             "target": "https://app.void-room.space/"
@@ -137,16 +127,11 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="application-name"                content="void" />
 
-    <!-- Lenis: premium smooth scroll with inertia. ~16kb, used by Apple,
-         Cuberto, Studio Freight, etc. Self-hosted (vendored to landing/).
-         RELATIVE path so it works in VSCode Live Server too (where the
-         workspace root is /void, not /landing, and an absolute "/lenis.min.js"
-         would 404). In production express.static('landing') still serves it
-         at /lenis.min.js, and a relative ref from /index.html resolves
-         identically. -->
-    <script src="lenis.min.js" defer></script>
+    <!-- Lenis + landing assets. Absolute paths from site root: this file lives
+         at /en/, but the shared assets are served from /. -->
+    <script src="/lenis.min.js" defer></script>
 
-    <link rel="stylesheet" href="landing.css" />
+    <link rel="stylesheet" href="/landing.css" />
 </head>
 <body>
     <canvas id="bgCanvas" class="bg-canvas" aria-hidden="true"></canvas>
@@ -191,17 +176,17 @@
                             <span class="line"></span>
                             <span class="app-version" data-version-fallback="v0.6.5">v0.6.5</span>
                         </div>
-                        <h1 class="hero-display reveal" data-delay="1" data-i18n-html="hero.h1">
-                            ничего лишнего.
+                        <h1 class="hero-display reveal" data-delay="1">
+                            <span class="h1-line">leaves</span><span class="h1-line">no trace.</span>
                         </h1>
-                        <p class="hero-tagline reveal" data-delay="2" data-i18n="hero.tagline">открой void, поделись кодом — и говори. без регистрации, без аналитики, без посредников.</p>
-                        <p class="hero-promise reveal" data-delay="3" data-i18n="hero.promise">— голос — пока он нужен.</p>
+                        <p class="hero-tagline reveal" data-delay="2">open void, share the code — and talk. no sign-up, no analytics, no middlemen.</p>
+                        <p class="hero-promise reveal" data-delay="3">— voice, for as long as you need it.</p>
                         <div class="hero-actions reveal" data-delay="4">
                             <a class="btn primary" href="https://app.void-room.space">
-                                <span data-i18n="hero.cta.enter">запустить в web</span>
+                                <span>launch in web</span>
                                 <svg class="btn-arrow" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h10"/><path d="M9 4l4 4-4 4"/></svg>
                             </a>
-                            <a class="btn" href="#download" data-i18n="hero.cta.download">скачать</a>
+                            <a class="btn" href="#download">download</a>
                         </div>
                     </div>
 
@@ -223,10 +208,10 @@
             <div class="shell">
                 <div class="sect-head nobottom reveal">
                     <div>
-                        <div class="num" data-i18n="how.num">— 01 / как работает</div>
-                        <h2 data-i18n="how.title">всего три шага.</h2>
+                        <div class="num">— 01 / how it works</div>
+                        <h2>just three steps.</h2>
                     </div>
-                    <p class="note" data-i18n="how.note"># 73 69 6c 65 6e 63 65</p>
+                    <p class="note"># 73 69 6c 65 6e 63 65</p>
                 </div>
 
                 <div class="howto">
@@ -236,8 +221,8 @@
                                 <span class="step-n">01</span>
                             </div>
                             <div class="step-body">
-                                <h3 class="step-title" data-i18n="step.1.title">открой комнату</h3>
-                                <p class="step-text" data-i18n-html="step.1.text">один клик — и у тебя короткий код вида <span class="id">#A11LM</span>. без регистрации и кодов подтверждения.</p>
+                                <h3 class="step-title">open a room</h3>
+                                <p class="step-text">one click — and you get a short code like <span class="id">#A11LM</span>. no accounts, no verification codes.</p>
                             </div>
                         </article>
                         <article class="step" data-step="1">
@@ -245,8 +230,8 @@
                                 <span class="step-n">02</span>
                             </div>
                             <div class="step-body">
-                                <h3 class="step-title" data-i18n="step.2.title">пригласи кого-то</h3>
-                                <p class="step-text" data-i18n="step.2.text">отправь код любым удобным способом. он введёт его — void установит связь и выйдет из цепи.</p>
+                                <h3 class="step-title">invite someone</h3>
+                                <p class="step-text">send the code however you want. they enter it — void connects you and steps out of the way.</p>
                             </div>
                         </article>
                         <article class="step" data-step="2">
@@ -254,25 +239,25 @@
                                 <span class="step-n">03</span>
                             </div>
                             <div class="step-body">
-                                <h3 class="step-title" data-i18n="step.3.title">наслаждайстесь общением</h3>
-                                <p class="step-text" data-i18n="step.3.text">все, что говорите - лишь между вами: голос, чат, файлы — всё останется здесь.</p>
+                                <h3 class="step-title">just talk</h3>
+                                <p class="step-text">everything stays between you: voice, chat, files — nothing leaves the room.</p>
                             </div>
                         </article>
                         <article class="step" data-step="3">
                             <div class="step-icon">
-                                <span class="step-n" data-i18n="step.4.num">×</span>
+                                <span class="step-n">×</span>
                             </div>
                             <div class="step-body">
-                                <h3 class="step-title" data-i18n="step.4.title">выходите — и ничего не останется</h3>
-                                <p class="step-text" data-i18n="step.4.text">комната исчезает вместе с последним. ничего не сохраняется. совсем.</p>
+                                <h3 class="step-title">leave — and nothing remains</h3>
+                                <p class="step-text">the room disappears with the last person. nothing is saved. nothing at all.</p>
                             </div>
                         </article>
                     </div>
 
                     <div class="flow reveal" data-delay="1" aria-hidden="true">
                         <div class="flow-head">
-                            <span data-i18n="flow.head.l">— как все устроено</span>
-                            <span data-i18n="flow.head.r">ты · кто-то</span>
+                            <span>— how void works</span>
+                            <span>you · someone</span>
                         </div>
                         <div class="flow-canvas">
                             <div class="flow-node srv"  style="left: 50%; top: 24%;">
@@ -284,8 +269,8 @@
                                         <circle cx="5" cy="11" r="0.5" fill="currentColor"/>
                                     </svg>
                                 </span>
-                                <label data-i18n="flow.srv">void</label>
-                                <span class="sub" data-i18n="flow.srv.sub">— помогает найти. дальше не нужен.</span>
+                                <label>void</label>
+                                <span class="sub">— helps you find each other. nothing more.</span>
                             </div>
                             <div class="flow-node you" style="left: 18%; top: 72%;">
                                 <span class="ring">
@@ -294,8 +279,8 @@
                                         <path d="M3.5 13.5c0.6-2.4 2.6-3.5 4.5-3.5s3.9 1.1 4.5 3.5"/>
                                     </svg>
                                 </span>
-                                <label data-i18n="flow.you">ты</label>
-                                <span class="sub" data-i18n="flow.you.sub"></span>
+                                <label>you</label>
+                                <span class="sub"></span>
                             </div>
                             <div class="flow-node peer" style="left: 82%; top: 72%;">
                                 <span class="ring">
@@ -304,8 +289,8 @@
                                         <path d="M3.5 13.5c0.6-2.4 2.6-3.5 4.5-3.5s3.9 1.1 4.5 3.5"/>
                                     </svg>
                                 </span>
-                                <label data-i18n="flow.peer">кто-то</label>
-                                <span class="sub" data-i18n="flow.peer.sub"></span>
+                                <label>friend</label>
+                                <span class="sub"></span>
                             </div>
 
                             <svg class="flow-edges" viewBox="0 0 100 100" preserveAspectRatio="none">
@@ -327,8 +312,8 @@
                             </svg>
                         </div>
                         <div class="flow-foot">
-                            <span class="flow-legend"><span class="swatch"></span><span data-i18n="flow.legend.1">ваш разговор</span></span>
-                            <span class="flow-legend dashed"><span class="swatch"></span><span data-i18n="flow.legend.2">установление связи</span></span>
+                            <span class="flow-legend"><span class="swatch"></span><span>your conversation</span></span>
+                            <span class="flow-legend dashed"><span class="swatch"></span><span>introduction</span></span>
                         </div>
                     </div>
                 </div>
@@ -340,10 +325,10 @@
             <div class="shell">
                 <div class="sect-head reveal">
                     <div>
-                        <div class="num" data-i18n="why.num">— 02 / почему именно void</div>
-                        <h2 data-i18n="why.title">шесть простых причин.</h2>
+                        <div class="num">— 02 / why void</div>
+                        <h2>six simple reasons.</h2>
                     </div>
-                    <p class="note" data-i18n="why.note">/ 74 68 65 2d 76 6f 69 64 2d 65 67 67</p>
+                    <p class="note">/ 74 68 65 2d 76 6f 69 64 2d 65 67 67</p>
                 </div>
 
                 <div class="qual-grid reveal">
@@ -358,8 +343,8 @@
                                 </svg>
                             </span>
                         </div>
-                        <h3 class="qual-title" data-i18n="qual.1.title">никаких аккаунтов</h3>
-                        <p class="qual-text" data-i18n="qual.1.text">ни email, ни пароля, ни кодов подтверждения. открыл — и говоришь.</p>
+                        <h3 class="qual-title">no accounts</h3>
+                        <p class="qual-text">no email, no passwords, no verification codes. open the room and talk.</p>
                     </article>
 
                     <article class="qual">
@@ -374,8 +359,8 @@
                                 </svg>
                             </span>
                         </div>
-                        <h3 class="qual-title" data-i18n="qual.2.title">ничего не записывается</h3>
-                        <p class="qual-text" data-i18n="qual.2.text">ни сообщений, ни файлов. никакой истории. комната закрыта - ничего не осталось.</p>
+                        <h3 class="qual-title">nothing kept</h3>
+                        <p class="qual-text">no messages, no files, no history. once the room closes, nothing remains.</p>
                     </article>
 
                     <article class="qual">
@@ -390,8 +375,8 @@
                                 </svg>
                             </span>
                         </div>
-                        <h3 class="qual-title" data-i18n="qual.3.title">разговор — только между вами</h3>
-                        <p class="qual-text" data-i18n="qual.3.text">голос идёт напрямую. без обработки в чужом облаке.</p>
+                        <h3 class="qual-title">your conversation stays yours</h3>
+                        <p class="qual-text">voice travels directly between peers. no processing in someone else's cloud.</p>
                     </article>
 
                     <article class="qual">
@@ -405,8 +390,8 @@
                                 </svg>
                             </span>
                         </div>
-                        <h3 class="qual-title" data-i18n="qual.4.title">живёт здесь и сейчас</h3>
-                        <p class="qual-text" data-i18n="qual.4.text">комната существует, пока нужна. вышли — она исчезла.</p>
+                        <h3 class="qual-title">built for the moment</h3>
+                        <p class="qual-text">the room exists only while it's needed. leave — and it disappears.</p>
                     </article>
 
                     <article class="qual">
@@ -420,8 +405,8 @@
                                 </svg>
                             </span>
                         </div>
-                        <h3 class="qual-title" data-i18n="qual.5.title">не только голос</h3>
-                        <p class="qual-text" data-i18n="qual.5.text">чат, файлы, демонстрация экрана — всё в одном.</p>
+                        <h3 class="qual-title">more than voice</h3>
+                        <p class="qual-text">chat, file sharing, and screen streaming — all in one place.</p>
                     </article>
 
                     <article class="qual">
@@ -435,8 +420,8 @@
                                 </svg>
                             </span>
                         </div>
-                        <h3 class="qual-title" data-i18n="qual.6.title">никто не считает</h3>
-                        <p class="qual-text" data-i18n="qual.6.text">нет ни аналитики, ни трекеров, ни уведомлений.</p>
+                        <h3 class="qual-title">nobody is watching</h3>
+                        <p class="qual-text">no analytics, no trackers, no attention metrics.</p>
                     </article>
                 </div>
             </div>
@@ -447,22 +432,22 @@
             <div class="shell">
                 <div class="sect-head nobottom reveal">
                     <div>
-                        <div class="num" data-i18n="inside.num">— 03 / что умеет void</div>
-                        <h2 data-i18n="inside.title">что внутри?</h2>
+                        <div class="num">— 03 / what it does</div>
+                        <h2>what's inside?</h2>
                     </div>
-                    <p class="note" data-i18n="inside.note">/ NO RELAY</p>
+                    <p class="note">/ NO RELAY</p>
                 </div>
 
                 <!-- 1. mesh -->
                 <div class="feat-row reveal">
                     <div class="feat-copy">
-                        <span class="feat-eyebrow" data-i18n="feat.1.eyebrow">— 01 · голос</span>
-                        <h3 class="feat-title" data-i18n="feat.1.title">до пяти человек, как у костра.</h3>
-                        <p class="feat-text" data-i18n="feat.1.text">каждый слышит каждого без серверных задержек и без сжатия в чужом облаке. голос идёт прямо между вашими устройствами — и звучит, как должен.</p>
+                        <span class="feat-eyebrow">— 01 · voice</span>
+                        <h3 class="feat-title">up to five, like around a campfire.</h3>
+                        <p class="feat-text">everyone hears everyone directly — no server delay, no cloud processing. your voice travels device to device, and sounds the way it should.</p>
                         <div class="feat-tags">
-                            <span class="pill" data-i18n="feat.1.tag.1">чистый звук</span>
-                            <span class="pill" data-i18n="feat.1.tag.2">без эха</span>
-                            <span class="pill" data-i18n="feat.1.tag.3">без шумов</span>
+                            <span class="pill">clean audio</span>
+                            <span class="pill">no echo</span>
+                            <span class="pill">no noise</span>
                         </div>
                     </div>
                     <div class="feat-vis">
@@ -514,13 +499,13 @@
                 <!-- 2. chat -->
                 <div class="feat-row flip reveal">
                     <div class="feat-copy">
-                        <span class="feat-eyebrow" data-i18n="feat.2.eyebrow">— 02 · чат и файлы</span>
-                        <h3 class="feat-title" data-i18n="feat.2.title">напиши. отправь файл. покажи фото.</h3>
-                        <p class="feat-text" data-i18n="feat.2.text">тот же канал, что и голос. файлы до 100 мб, изображения до 10 мб. всё уходит вместе с комнатой.</p>
+                        <span class="feat-eyebrow">— 02 · chat &amp; files</span>
+                        <h3 class="feat-title">send a message. drop a file. share a photo.</h3>
+                        <p class="feat-text">the same direct channel as voice. files up to 100 mb, images up to 10 mb. everything disappears with the room.</p>
                         <div class="feat-tags">
-                            <span class="pill" data-i18n="feat.2.tag.1">drag &amp; drop</span>
-                            <span class="pill" data-i18n="feat.2.tag.2">images · 10 mb</span>
-                            <span class="pill" data-i18n="feat.2.tag.3">files · 100 mb</span>
+                            <span class="pill">drag &amp; drop</span>
+                            <span class="pill">images · 10 mb</span>
+                            <span class="pill">files · 100 mb</span>
                         </div>
                     </div>
                     <div class="feat-vis">
@@ -531,23 +516,23 @@
                         <div class="vis-body">
                             <div class="chat-vis">
                                 <div class="chat-msg">
-                                    <div class="who" data-i18n="feat.2.msg.1.who">кто-то</div>
-                                    <span data-i18n="feat.2.msg.1.body">я через минуту</span>
+                                    <div class="who">someone</div>
+                                    <span>joining in a sec</span>
                                 </div>
                                 <div class="chat-msg me">
-                                    <div class="who" data-i18n="feat.2.msg.2.who">ты</div>
-                                    <span data-i18n="feat.2.msg.2.body">жду</span>
+                                    <div class="who">you</div>
+                                    <span>no rush</span>
                                 </div>
                                 <div class="chat-msg file me">
                                     <div class="icon">exe</div>
                                     <div>
                                         <div>void-setup.exe</div>
-                                        <div class="meta" data-i18n="feat.2.msg.file.meta">— 72.4 мб</div>
+                                        <div class="meta">— 72.4 mb</div>
                                     </div>
                                 </div>
                                 <div class="chat-msg">
-                                    <div class="who" data-i18n="feat.2.msg.3.who">кто-то</div>
-                                    <span data-i18n="feat.2.msg.3.body">ого о.о</span>
+                                    <div class="who">someone</div>
+                                    <span>whoa o.o</span>
                                 </div>
                             </div>
                         </div>
@@ -557,13 +542,13 @@
                 <!-- 3. screen — mock editor with cursor and selection -->
                 <div class="feat-row reveal">
                     <div class="feat-copy">
-                        <span class="feat-eyebrow" data-i18n="feat.3.eyebrow">— 03 · экран</span>
-                        <h3 class="feat-title" data-i18n="feat.3.title">покажи, что у тебя на экране.</h3>
-                        <p class="feat-text" data-i18n="feat.3.text">вместе со звуком и fullhd. подходит для совместной работы, кино и игр. без приложений и расширений.</p>
+                        <span class="feat-eyebrow">— 03 · screen</span>
+                        <h3 class="feat-title">show what's on your screen.</h3>
+                        <p class="feat-text">with system audio and fullhd. great for working together, watching movies, or gaming.</p>
                         <div class="feat-tags">
-                            <span class="pill" data-i18n="feat.3.tag.1">480p / 720p / 1080p</span>
-                            <span class="pill" data-i18n="feat.3.tag.2">30 / 60 fps</span>
-                            <span class="pill" data-i18n="feat.3.tag.3">screen audio</span>
+                            <span class="pill">480p / 720p / 1080p</span>
+                            <span class="pill">30 / 60 fps</span>
+                            <span class="pill">screen audio</span>
                         </div>
                     </div>
                     <div class="feat-vis">
@@ -575,14 +560,14 @@
                             <div class="screen-vis">
                                 <div class="screen-bar">
                                     <span class="traffic"><span></span><span></span><span></span></span>
-                                    <span data-i18n="feat.3.window.title">editor — main.js</span>
+                                    <span>editor — main.js</span>
                                 </div>
                                 <div class="screen-body" id="screenBody">
                                     <span class="code-line"><span class="ln">01</span><span class="kw">const</span> <span class="fn">peer</span> = <span class="kw">new</span> <span class="fn">RTCPeerConnection</span>();</span>
                                     <span class="code-line"><span class="ln">02</span><span class="kw">const</span> ch = peer.<span class="fn">createDataChannel</span>(<span class="st">'void'</span>);</span>
                                     <span class="code-line"><span class="ln">03</span></span>
                                     <span class="code-line"><span class="ln">04</span>ch.<span class="fn">onmessage</span> = (e) =&gt; {</span>
-                                    <span class="code-line"><span class="ln">05</span>  <span class="cm">// — без сервера. чистый p2p.</span></span>
+                                    <span class="code-line"><span class="ln">05</span>  <span class="cm">// — no server. pure p2p.</span></span>
                                     <span class="code-line"><span class="ln">06</span>  <span class="fn">render</span>(e.data);</span>
                                     <span class="code-line"><span class="ln">07</span>};</span>
                                     <span class="code-line"><span class="ln">08</span></span>
@@ -608,34 +593,34 @@
         <!-- MANIFEST / PRIVACY -->
         <section class="manifest" id="privacy">
             <div class="shell">
-                <div class="lead reveal" data-i18n="privacy.lead">— 04 / ничего лишнего</div>
-                <h2 class="reveal" data-delay="1" data-i18n-html="privacy.title">void — про то, чего <em>здесь нет.</em><br/>и это всё, что нужно знать.</h2>
+                <div class="lead reveal">— 04 / nothing extra</div>
+                <h2 class="reveal" data-delay="1">void is about <em>what isn't here.</em><br/>that's all that matters.</h2>
 
                 <ul class="deny-list reveal" data-delay="2">
                     <li>
                         <span class="key">— 01</span>
-                        <span class="what" data-i18n="privacy.deny.1">регистрации и паролей</span>
-                        <span class="stat" data-i18n="privacy.deny.stat">нет</span>
+                        <span class="what">sign-ups and passwords</span>
+                        <span class="stat">none</span>
                     </li>
                     <li>
                         <span class="key">— 02</span>
-                        <span class="what" data-i18n="privacy.deny.2">истории сообщений</span>
-                        <span class="stat" data-i18n="privacy.deny.stat">нет</span>
+                        <span class="what">message history</span>
+                        <span class="stat">none</span>
                     </li>
                     <li>
                         <span class="key">— 03</span>
-                        <span class="what" data-i18n="privacy.deny.3">счётчиков и трекеров</span>
-                        <span class="stat" data-i18n="privacy.deny.stat">нет</span>
+                        <span class="what">counters and trackers</span>
+                        <span class="stat">none</span>
                     </li>
                     <li>
                         <span class="key">— 04</span>
-                        <span class="what" data-i18n="privacy.deny.4">посредника в разговоре</span>
-                        <span class="stat" data-i18n="privacy.deny.stat">нет</span>
+                        <span class="what">middlemen between you</span>
+                        <span class="stat">none</span>
                     </li>
                     <li>
                         <span class="key">— 05</span>
-                        <span class="what" data-i18n="privacy.deny.5">следов в браузере</span>
-                        <span class="stat" data-i18n="privacy.deny.stat">нет</span>
+                        <span class="what">traces in your browser</span>
+                        <span class="stat">none</span>
                     </li>
                 </ul>
             </div>
@@ -646,42 +631,42 @@
             <div class="shell">
                 <div class="sect-head nobottom reveal">
                     <div>
-                        <div class="num" data-i18n="plat.num">— 05 / платформы</div>
-                        <h2 data-i18n="plat.title">web или desktop приложение.</h2>
+                        <div class="num">— 05 / platforms</div>
+                        <h2>from a browser or your desktop.</h2>
                     </div>
-                    <p class="note" data-i18n="plat.note">выбирай то, что удобнее. внутри — один и тот же void.</p>
+                    <p class="note">pick whichever feels easier. it's the same void inside.</p>
                 </div>
 
                 <div class="plat reveal">
                     <div class="plat-card">
-                        <span class="index" data-i18n="plat.web.index">— web · void-room.space</span>
-                        <span class="name" data-i18n="plat.web.name">web-app</span>
-                        <p class="desc" data-i18n="plat.web.desc">открыл вкладку — и все готово. ничего ставить не нужно. работает на телефоне и компьютере.</p>
+                        <span class="index">— web · void-room.space</span>
+                        <span class="name">web-app</span>
+                        <p class="desc">open a tab — you're in. nothing to install. works on phone and desktop alike.</p>
                         <ul class="spec">
-                            <li><span data-i18n="plat.web.spec.install">установка</span> <b>—</b></li>
-                            <li><span data-i18n="plat.web.spec.size">размер</span> <b>~ 0</b></li>
-                            <li><span data-i18n="plat.web.spec.auto">автозапуск</span> <b>—</b></li>
-                            <li><span data-i18n="plat.web.spec.keys">горячие клавиши</span> <b data-i18n="plat.web.spec.keys.v">браузерные</b></li>
+                            <li><span>install</span> <b>—</b></li>
+                            <li><span>size</span> <b>~ 0</b></li>
+                            <li><span>autostart</span> <b>—</b></li>
+                            <li><span>hotkeys</span> <b>browser</b></li>
                         </ul>
                         <div class="actions">
                             <a class="btn primary" href="https://app.void-room.space">
-                                <span data-i18n="plat.web.cta">открыть в браузере</span>
+                                <span>open in browser</span>
                                 <svg class="btn-arrow" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h10"/><path d="M9 4l4 4-4 4"/></svg>
                             </a>
                         </div>
                     </div>
                     <div class="plat-card">
-                        <span class="index" data-i18n="plat.desk.index">— desktop · windows x64</span>
-                        <span class="name" data-i18n="plat.desk.name">desktop</span>
-                        <p class="desc" data-i18n="plat.desk.desc">отдельное приложение, всегда под рукой. быстрый старт, без браузерных вкладок.</p>
+                        <span class="index">— desktop · windows x64</span>
+                        <span class="name">desktop-app</span>
+                        <p class="desc">a dedicated app, always within reach. faster launch, no browser tabs.</p>
                         <ul class="spec">
-                            <li><span data-i18n="plat.desk.spec.install">установка</span> <b>~ 48 mb</b></li>
-                            <li><span data-i18n="plat.desk.spec.tray">системный трей</span> <b data-i18n="plat.desk.spec.tray.v">есть</b></li>
-                            <li><span data-i18n="plat.desk.spec.auto">автозапуск</span> <b data-i18n="plat.desk.spec.auto.v">по выбору</b></li>
-                            <li><span data-i18n="plat.desk.spec.keys">горячие клавиши</span> <b data-i18n="plat.desk.spec.keys.v">глобальные</b></li>
+                            <li><span>install</span> <b>~ 48 mb</b></li>
+                            <li><span>tray</span> <b>yes</b></li>
+                            <li><span>autostart</span> <b>opt-in</b></li>
+                            <li><span>hotkeys</span> <b>global</b></li>
                         </ul>
                         <div class="actions">
-                            <a class="btn" href="#" data-i18n="plat.desk.cta">скачать void</a>
+                            <a class="btn" href="#">download void</a>
                         </div>
                     </div>
                 </div>
@@ -695,14 +680,14 @@
             </div>
             <div class="shell">
                 <div class="final-content">
-                    <div class="q reveal" data-i18n="final.q">— что есть музыка жизни?</div>
-                    <div class="a reveal" data-delay="1" data-type="cursor" data-i18n="final.a">тишина.</div>
+                    <div class="q reveal">— what is the music of life?</div>
+                    <div class="a reveal" data-delay="1" data-type="cursor">silence.</div>
                     <div class="final-actions reveal" data-delay="2">
                         <a class="btn primary" href="https://void-room.space">
-                            <span data-i18n="final.cta.enter">запустить</span>
+                            <span>launch web</span>
                             <svg class="btn-arrow" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h10"/><path d="M9 4l4 4-4 4"/></svg>
                         </a>
-                        <a class="btn" href="#" data-i18n="final.cta.download">скачать</a>
+                        <a class="btn" href="#">download desktop</a>
                     </div>
                 </div>
             </div>
@@ -711,10 +696,10 @@
 
     <footer class="footer">
         <p class="footer-copy">void · <span id="year">2026</span><br>all rights reserved</p>
-        <a class="footer-lang" href="/en/" data-set-lang="en" hreflang="en" lang="en">english</a>
+        <a class="footer-lang" href="/" data-set-lang="ru" hreflang="ru" lang="ru">русский</a>
     </footer>
 
-    <script src="intro.js" defer></script>
-    <script src="landing.js" defer></script>
+    <script src="/intro.js" defer></script>
+    <script src="/landing.js" defer></script>
 </body>
 </html>

@@ -136,11 +136,47 @@ void — landing behaviors
        transition (which also owns `transform`), so we only modulate opacity
        — that composes cleanly and never causes a "snap back" flicker.
        all writes batched in rAF to avoid layout thrash. */
-    const header   = document.getElementById('header');
-    const hero     = document.querySelector('.hero');
-    const heroCopy = document.querySelector('.hero-copy');
-    const heroVis  = document.querySelector('.hero-vis');
+    const brandLock  = document.getElementById('brandLockup');
+    const brandSlot  = document.getElementById('brandLogoSlot');
+    const hero       = document.querySelector('.hero');
+    const heroCopy   = document.querySelector('.hero-copy');
+    const heroVis    = document.querySelector('.hero-vis');
     const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    /* reveal the "void" wordmark a short beat AFTER the intro orb lands in the
+       header slot. intro.js adds `.is-ready` on brandLogoSlot when the eclipse
+       is in place; we wait for that, then add `.is-revealed` on the lockup so
+       the text slides out from behind the orb. */
+    function scheduleBrandReveal() {
+        if (!brandLock || !brandSlot) return;
+        const reveal = () => setTimeout(() => brandLock.classList.add('is-revealed'), 450);
+        if (brandSlot.classList.contains('is-ready')) { reveal(); return; }
+        const mo = new MutationObserver(() => {
+            if (brandSlot.classList.contains('is-ready')) { mo.disconnect(); reveal(); }
+        });
+        mo.observe(brandSlot, { attributes: true, attributeFilter: ['class'] });
+    }
+    scheduleBrandReveal();
+
+    /* clicking the lockup scrolls to top (#top via Lenis). pin the wordmark
+       as shown for the duration of that scroll so it doesn't blink-out when
+       the cursor/finger leaves — flushScroll releases .is-pinned once y<=20.
+       Safety: if already near the top (no scroll will fire) or on touch where
+       :hover doesn't apply, release on a short timeout so it doesn't stick. */
+    if (brandLock) {
+        let pinTimer = null;
+        brandLock.addEventListener('click', () => {
+            brandLock.classList.add('is-pinned');
+            if (pinTimer) clearTimeout(pinTimer);
+            // covers: (a) already at top, no scroll happens; (b) touch devices
+            // where :hover sticks after tap. 1800ms = comfortably longer than
+            // the Lenis scroll-to-top from anywhere on the page.
+            pinTimer = setTimeout(() => {
+                brandLock.classList.remove('is-pinned');
+                pinTimer = null;
+            }, 1800);
+        });
+    }
 
     let scrollY = 0;
     let scrollTicking = false;
@@ -151,8 +187,15 @@ void — landing behaviors
         scrollTicking = false;
         const y = scrollY;
 
-        if (y > 20) header.classList.add('scrolled');
-        else        header.classList.remove('scrolled');
+        if (brandLock) {
+            if (y > 20) brandLock.classList.add('is-collapsed');
+            else        brandLock.classList.remove('is-collapsed');
+            // .is-pinned holds the wordmark visible after a click on the lockup
+            // even when the cursor leaves. Release it once we're back at the
+            // top — at that point .is-collapsed is gone so the text stays shown
+            // for the right reason (not collapsed) instead of the sticky one.
+            if (y <= 20) brandLock.classList.remove('is-pinned');
+        }
 
         if (prefersReducedMotion || !hero || !revealsSettled) return;
         const heroH = hero.offsetHeight || 1;
@@ -374,16 +417,15 @@ void — landing behaviors
             .catch(() => { /* keep data-version-fallback as-is */ });
     })();
 
-    /* -------------------------------------------------- language toggle */
-    const toggle = document.querySelector('.lang-toggle');
-    if (toggle && window.applyVoidLang && window.getVoidLang) {
-        const initial = window.getVoidLang();
-        window.applyVoidLang(initial);
-        toggle.addEventListener('click', (e) => {
-            const btn = e.target.closest('button[data-lang]');
-            if (!btn) return;
-            const next = btn.getAttribute('data-lang');
-            window.applyVoidLang(next);
+    /* -------------------------------------------------- footer language link.
+       Pins the user's choice in localStorage BEFORE navigating, so the inline
+       auto-detect script in the destination's <head> sees the saved preference
+       and doesn't bounce them back. Without this, clicking "english" from /
+       would land on /en/ — and then the en page's auto-detect would see a
+       ru-locale browser and immediately redirect back to /. */
+    document.querySelectorAll('.footer-lang[data-set-lang]').forEach((a) => {
+        a.addEventListener('click', () => {
+            try { localStorage.setItem('void.lang', a.getAttribute('data-set-lang')); } catch (_) {}
         });
-    }
+    });
 })();
