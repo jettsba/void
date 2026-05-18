@@ -807,14 +807,30 @@ section {
 
 .hero-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 450px;  
+  grid-template-columns: minmax(0, 1fr) 450px;
   gap: 64px;
   align-items: center;
 }
 @media (max-width: 880px) {
   .hero-grid {
     grid-template-columns: 1fr;
-    gap: 56px;
+    gap: 0;
+  }
+  .hero-copy {
+    display: contents;
+  }
+  .hero-eyebrow { order: 1; }
+  .hero-display { order: 2; }
+  .hero-vis     { order: 3; }
+  .hero-tagline { order: 4; }
+  .hero-promise { order: 5; }
+  .hero-actions { order: 6; }
+}
+@media (max-width: 720px) {
+  .hero {
+    min-height: 100svh;
+    padding: 100px 0 64px;
+    align-content: start;
   }
 }
 
@@ -886,21 +902,45 @@ section {
   height: 52px;
   padding: 0 28px;
 }
+@media (max-width: 480px) {
+  .hero-actions {
+    flex-direction: column;
+    gap: 10px;
+  }
+  .hero-actions .btn {
+    width: 100%;
+    justify-content: center;
+    height: 48px;
+  }
+}
 
-/* ----- hero visualizer -----
-   a centered pulsing white core with a wide soft halo and a few faint
-   concentric rings. the rings + orbiting dots add subtle motion without
-   taking attention from the headline. no corner ticks or labels — keeps
-   the vibe quiet and "expensive". hidden on tablet/mobile (< 880px) so
-   the headline owns the viewport. */
+/* ----- hero visualizer ----- */
 .hero-vis {
   position: relative;
   aspect-ratio: 1 / 1;
   width: 450px;
   margin-left: auto;
-  align-self: start; /* push to top of grid cell */
-  margin-top: 24px; /* small breathing space */
-  isolation: isolate; /* contain the halo glow */
+  align-self: start;
+  margin-top: 24px;
+  isolation: isolate;
+}
+@media (max-width: 880px) {
+  .hero-vis {
+    width: min(320px, 80vw);
+    margin: 0 auto 40px;
+  }
+  .hero-eyebrow {
+    margin-bottom: 6px;
+  }
+  .hero-display {
+    margin-bottom: 32px;
+  }
+}
+@media (max-width: 480px) {
+  .hero-vis {
+    width: min(260px, 70vw);
+    margin: 0 auto 36px;
+  }
 }
 
 
@@ -1548,6 +1588,23 @@ section {
     order: 2;
   }
 }
+@media (max-width: 520px) {
+  .feat-row,
+  .feat-row.flip {
+    gap: 20px;
+    padding: 36px 0;
+  }
+  .feat-copy {
+    max-width: 100%;
+    gap: 12px;
+  }
+  .feat-title {
+    font-size: clamp(18px, 5.5vw, 24px);
+  }
+  .feat-text {
+    font-size: 13px;
+  }
+}
 
 .feat-copy {
   display: flex;
@@ -1587,6 +1644,27 @@ section {
   background: var(--bg-1);
   border-radius: 2px;
   overflow: hidden;
+  min-width: 0;
+}
+@media (max-width: 520px) {
+  .feat-vis {
+    aspect-ratio: auto;
+  }
+  .feat-vis .vis-body {
+    padding: 14px;
+  }
+  /* mesh: peers расставлены по %; почти квадрат — peer'ы не слипаются по вертикали */
+  .feat-vis:has(.mesh-wrap) {
+    aspect-ratio: 5 / 4;
+  }
+  .flow {
+    aspect-ratio: 4 / 5;
+  }
+  /* chat: контент сам определит высоту, без зияющей пустоты сверху */
+  .feat-vis:has(.chat-vis) .chat-vis {
+    justify-content: flex-start;
+  }
+  /* screen: высота по объёму кода, без пустого низа */
 }
 .feat-vis .vis-head {
   display: flex;
@@ -1918,13 +1996,29 @@ section {
 .manifest h2 {
   font-size: clamp(28px, 3.6vw, 48px);
   font-weight: var(--w-light);
-  line-height: 1.15;
+  line-height: 1.25;
   text-transform: lowercase;
   color: var(--fg);
   max-width: 880px;
   margin: 0 auto 64px;
   letter-spacing: -0.005em;
   text-wrap: balance;
+}
+@media (max-width: 720px) {
+  .manifest {
+    padding: 100px 0;
+  }
+  .manifest h2 {
+    font-size: clamp(22px, 6vw, 36px);
+    max-width: 100%;
+    line-height: 1.3;
+    margin-bottom: 40px;
+  }
+  .manifest h2 br {
+    display: block;
+    content: "";
+    margin-top: 0.35em;
+  }
 }
 .manifest h2 em {
   color: var(--fg-3);
@@ -2078,16 +2172,28 @@ section {
   padding: 200px 0 240px;
   text-align: center;
   position: relative;
+  overflow: hidden;
 }
 .final .ring-stack {
   position: absolute;
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  width: min(840px, 80vw);
+  width: max(840px, 130vw);
   aspect-ratio: 1 / 1;
   pointer-events: none;
   opacity: 0.5;
+}
+@media (max-width: 720px) {
+  .final {
+    padding: 120px 0 140px;
+  }
+  .final .ring-stack {
+    width: max(560px, 160vw);
+  }
+  .final .a {
+    font-size: clamp(40px, 12vw, 72px);
+  }
 }
 .final .ring-stack span {
   position: absolute;
@@ -2151,6 +2257,19 @@ section {
   height: 52px;
   padding: 0 28px;
 }
+@media (max-width: 480px) {
+  .final-actions {
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+  }
+  .final-actions .btn {
+    width: min(280px, 100%);
+    justify-content: center;
+    height: 48px;
+  }
+}
 
 /* ============================================================================
    footer — minimal centered credit
@@ -2158,6 +2277,8 @@ section {
 .footer {
   padding: 16px var(--gutter) 46px;
   text-align: center;
+  position: relative;
+  z-index: 2;
 }
 .footer-copy {
   margin: 0;
