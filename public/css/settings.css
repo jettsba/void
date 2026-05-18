@@ -956,7 +956,7 @@
     white-space: nowrap;
     font-family: "JetBrains Mono", monospace;
     letter-spacing: 0;
-    transition: opacity var(--t-fast);
+    transition: opacity 160ms ease, transform 160ms ease;
     width: 100%;
 }
 
@@ -966,17 +966,24 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #e26b7a;
+    color: var(--fg);
     text-transform: lowercase;
     letter-spacing: var(--tracking-wide);
     font-size: 11.5px;
     opacity: 0;
+    transform: translateY(5px);
     pointer-events: none;
-    transition: opacity var(--t-fast);
+    transition: opacity 160ms ease, transform 160ms ease;
 }
 
-.support-coin-addr.is-copied .support-coin-addr-text { opacity: 0; }
-.support-coin-addr.is-copied .support-coin-copied { opacity: 1; }
+.support-coin-addr.is-copied .support-coin-addr-text {
+    opacity: 0;
+    transform: translateY(-5px);
+}
+.support-coin-addr.is-copied .support-coin-copied {
+    opacity: 1;
+    transform: translateY(0);
+}
 
 .support-coin-qr {
     flex-shrink: 0;
