@@ -1418,6 +1418,55 @@
     background: rgba(255, 255, 255, 0.04);
 }
 
+/* ===== settings hint ===== */
+
+.settings-hint {
+    position: fixed;
+    top: 70px;
+    left: 43px;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(-4px);
+    transition: opacity 400ms ease, transform 400ms ease;
+}
+
+.settings-hint.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.settings-hint-arrow {
+    color: var(--fg-3);
+    width: 10px;
+    height: 14px;
+    flex-shrink: 0;
+    animation: hint-float 1.8s ease-in-out infinite;
+}
+
+.settings-hint-text {
+    font-size: 11px;
+    color: var(--fg-3);
+    letter-spacing: var(--tracking-wide);
+    text-transform: lowercase;
+    white-space: nowrap;
+}
+
+@keyframes hint-float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-4px); }
+}
+
+@media (max-width: 480px) {
+    .settings-hint {
+        top: 84px;
+        left: 14px;
+    }
+}
+
 @media (prefers-reduced-motion: reduce) {
     .settings-scrim,
     .settings-panel,
@@ -1427,7 +1476,9 @@
     .support-qr-card,
     .bug-modal,
     .bug-card,
-    .bug-success-heart {
+    .bug-success-heart,
+    .settings-hint,
+    .settings-hint-arrow {
         transition: none;
         animation: none;
     }

@@ -161,6 +161,7 @@
             "settings.audio.applyOnRejoin": "новый микрофон подключится при следующем входе в комнату",
 
             "settings.support": "поддержать",
+            "settings.hint": "нажми, чтобы открыть настройки",
             "support.title": "спасибо, что ты здесь",
             "support.body": "void бесплатный и без рекламы. если он сделал твой день чуть теплее — можно угостить чашкой кофе. это правда помогает держать сервер живым и пилить дальше.",
             "support.copy.title": "скопировать адрес",
@@ -184,7 +185,7 @@
             "bug.error.rate": "слишком много заявок — подожди немного",
             "bug.error.empty": "напиши пару слов о проблеме",
             "bug.thanks.title": "спасибо!",
-            "bug.thanks.body": "заявка ушла. постараюсь разобраться как можно скорее.",
+            "bug.thanks.body": "заявка отправлена. постараюсь разобраться как можно скорее.",
             "bug.thanks.close": "закрыть",
 
             "invite.hint": "пригласи друзей войти, используя код ниже"
@@ -294,6 +295,7 @@
             "settings.audio.applyOnRejoin": "the new microphone will be picked up the next time you join a room",
 
             "settings.support": "support",
+            "settings.hint": "tap to open settings",
             "support.title": "thanks for being here",
             "support.body": "void is free and ad-free. if it made your day a little warmer — you can buy it a coffee. it genuinely helps keep the server up and the work going.",
             "support.copy.title": "copy address",
@@ -494,6 +496,34 @@
         if (!app) return;
         if (state.streamer) app.dataset.streamer = "on";
         else delete app.dataset.streamer;
+    }
+
+    /* ===== settings hint ===== */
+
+    const HINT_KEY = "void:hint-settings";
+
+    function buildSettingsHint() {
+        if (localStorage.getItem(HINT_KEY)) return;
+        const el = document.createElement("div");
+        el.className = "settings-hint";
+        el.id = "settingsHint";
+        el.setAttribute("aria-hidden", "true");
+        el.innerHTML = `
+            <svg class="settings-hint-arrow" viewBox="0 0 12 16" fill="none" aria-hidden="true">
+                <path d="M6 14V2M1.5 7.5L6 2L10.5 7.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span class="settings-hint-text" data-i18n="settings.hint">${t("settings.hint")}</span>
+        `;
+        document.body.appendChild(el);
+        setTimeout(() => el.classList.add("is-visible"), 600);
+    }
+
+    function dismissSettingsHint() {
+        const el = document.getElementById("settingsHint");
+        if (!el) return;
+        localStorage.setItem(HINT_KEY, "1");
+        el.classList.remove("is-visible");
+        el.addEventListener("transitionend", () => el.remove(), { once: true });
     }
 
     /* ===== panel UI ===== */
@@ -1522,6 +1552,7 @@
 
     function openPanel() {
         if (!panelEl) return;
+        dismissSettingsHint();
         /* Перерисовываем поле ника на каждом open — currentUsername мог
            перегенериться (пользователь очистил ник, или сменилась сессия). */
         applyNickInputUI();
@@ -1568,6 +1599,7 @@
         applyLangToggleUI();
         applyStreamerToggleUI();
         applyNickInputUI();
+        buildSettingsHint();
     }
 
     if (document.readyState === "loading") {
