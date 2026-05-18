@@ -7,7 +7,7 @@ window.VOID_I18N = {
         'header.cta.download': 'скачать',
         'header.cta.enter':    'войти',
 
-        'hero.eyebrow':        'v0.6.2',
+        // hero.eyebrow removed — version is injected by landing.js from /api/version
         'hero.h1':             'ничего лишнего.',
         'hero.tagline':        'открой void, поделись кодом — и говори. без регистрации, без аналитики, без посредников.',
         'hero.promise':        '— голос — пока он нужен.',
@@ -145,7 +145,7 @@ window.VOID_I18N = {
         'header.cta.download': 'download',
         'header.cta.enter':    'enter',
 
-        'hero.eyebrow':        'v0.6.2',
+        // hero.eyebrow removed — version is injected by landing.js from /api/version
         'hero.h1':             '<span class="h1-line">leaves</span><span class="h1-line">no trace.</span>',
         'hero.tagline':        'open void, share the code — and talk. no sign-up, no analytics, no middlemen.',
         'hero.promise':        '— voice, for as long as you need it.',

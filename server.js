@@ -39,6 +39,7 @@ import {
 
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -53,6 +54,24 @@ const HOST = process.env.BIND_HOST || "127.0.0.1";
 
 // Шрифты доступны на обоих доменах (лендинг + приложение)
 app.use('/static/fonts', express.static(path.join(__dirname, 'public/static/fonts')));
+
+/* /api/version — единственный источник правды для версии в UI.
+   Лендинг (eyebrow в hero) и приложение могут фетчить это вместо того, чтобы
+   хардкодить вручную и забывать бампить. Версия читается из package.json при
+   старте процесса (редеплой контейнера = новая версия). Кэширование на 1 час
+   на стороне клиента — версия меняется только при редеплое. */
+const PKG_VERSION = (() => {
+    try {
+        const pkg = JSON.parse(readFileSync(path.join(__dirname, "package.json"), "utf8"));
+        return pkg.version || "0.0.0";
+    } catch (_) {
+        return "0.0.0";
+    }
+})();
+app.get('/api/version', (req, res) => {
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.json({ version: PKG_VERSION });
+});
 
 // Маршрутизация по поддомену: app.* → приложение, всё остальное → лендинг
 app.use((req, res, next) => {

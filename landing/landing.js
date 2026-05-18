@@ -355,6 +355,25 @@ void — landing behaviors
     const y = document.getElementById('year');
     if (y) y.textContent = new Date().getFullYear();
 
+    /* -------------------------------------------------- live app version
+       Fetches /api/version (served by server.js from package.json) and writes
+       it into every `.app-version` element on the page. If the fetch fails
+       (no node server behind — e.g. when opened via VSCode Live Server), the
+       element keeps its `data-version-fallback` text so the eyebrow doesn't
+       go blank. Cached client-side for 1 hour. */
+    (function injectVersion() {
+        const slots = document.querySelectorAll('.app-version');
+        if (slots.length === 0) return;
+        fetch('/api/version', { cache: 'default' })
+            .then(r => r.ok ? r.json() : null)
+            .then(data => {
+                if (!data || !data.version) return;
+                const text = 'v' + data.version;
+                slots.forEach(el => { el.textContent = text; });
+            })
+            .catch(() => { /* keep data-version-fallback as-is */ });
+    })();
+
     /* -------------------------------------------------- language toggle */
     const toggle = document.querySelector('.lang-toggle');
     if (toggle && window.applyVoidLang && window.getVoidLang) {
