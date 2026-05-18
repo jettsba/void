@@ -52,8 +52,12 @@ const PORT = process.env.PORT || 3000;
  */
 const HOST = process.env.BIND_HOST || "127.0.0.1";
 
-// Шрифты доступны на обоих доменах (лендинг + приложение)
-app.use('/static/fonts', express.static(path.join(__dirname, 'public/static/fonts')));
+// Шрифты + фавиконки доступны на обоих доменах (лендинг + приложение).
+// favicons лежат только в public/, но landing index.html ссылается на тот
+// же путь /static/favicon/... — без явного маунта он бы отдавал 404 на
+// void-room.space (express.static('landing') не находит этих файлов).
+app.use('/static/fonts',   express.static(path.join(__dirname, 'public/static/fonts')));
+app.use('/static/favicon', express.static(path.join(__dirname, 'public/static/favicon')));
 
 /* /api/version — единственный источник правды для версии в UI.
    Лендинг (eyebrow в hero) и приложение могут фетчить это вместо того, чтобы
