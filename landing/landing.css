@@ -1,3 +1,184 @@
+/* ----------------------------------------------------------------------------
+   void — design tokens (lifted from the design system)
+   ---------------------------------------------------------------------------- */
+
+@font-face { font-family: 'JetBrains Mono'; font-style: normal; font-weight: 100; font-display: swap; src: url('/static/fonts/JetBrainsMono-Thin.ttf') format('truetype'); }
+@font-face { font-family: 'JetBrains Mono'; font-style: normal; font-weight: 300; font-display: swap; src: url('/static/fonts/JetBrainsMono-Light.ttf') format('truetype'); }
+@font-face { font-family: 'JetBrains Mono'; font-style: normal; font-weight: 400; font-display: swap; src: url('/static/fonts/JetBrainsMono-Regular.ttf') format('truetype'); }
+@font-face { font-family: 'JetBrains Mono'; font-style: normal; font-weight: 500; font-display: swap; src: url('/static/fonts/JetBrainsMono-Medium.ttf') format('truetype'); }
+
+:root {
+    --bg-0: #0a0a0b;
+    --bg-1: #101012;
+    --bg-2: #16161a;
+
+    --fg:   #e6e6e8;
+    --fg-2: #8a8a90;
+    --fg-3: #4d4d54;
+    --fg-4: #2a2a2f;
+
+    --signal:      #c8c8cc;
+    --signal-warn: #b87a5a;
+    --screen:      #5faa7a;
+
+    --font: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+    --w-light: 300;
+    --w-reg:   400;
+    --w-med:   500;
+
+    --tracking:      0.02em;
+    --tracking-wide: 0.18em;
+
+    --t-12: 12px;
+    --t-14: 14px;
+    --t-16: 16px;
+    --t-18: 18px;
+    --t-heading: clamp(28px, 4vw, 56px);
+    --t-display: clamp(48px, 9vw, 124px);
+
+    --ease:       cubic-bezier(.2, .65, .2, 1);   /* default — smooth out */
+    --ease-in-out: cubic-bezier(.45, 0, .35, 1);  /* dramatic, for emphasis */
+    --ease-soft:   cubic-bezier(.3, 0, .3, 1);    /* gentle for pulses */
+    --t-fast: 160ms var(--ease);
+    --t-med:  380ms var(--ease);
+    --t-slow: 800ms var(--ease);
+
+    --radius:      2px;
+    --radius-pill: 999px;
+
+    /* the "island" max width — header, footer, hero, sections all align to it */
+    --island: 1180px;
+    --gutter: 32px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+    background: var(--bg-0);
+    color: var(--fg);
+    font-family: var(--font);
+    font-size: var(--t-14);
+    font-weight: var(--w-reg);
+    letter-spacing: var(--tracking);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+}
+
+/* NB: don't set `scroll-behavior: smooth` here — it fights Lenis (each
+   Lenis-driven scrollTo() triggers the browser's own smoothing, producing
+   stutter and lag instead of the expected glide). Lenis owns scrolling. */
+html { scroll-behavior: auto; }
+body { overflow-x: hidden; }
+
+body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1;
+    background: radial-gradient(120% 80% at 50% 50%, transparent 55%, rgba(0,0,0,0.55) 100%);
+}
+
+button, input, textarea { font-family: inherit; color: inherit; letter-spacing: inherit; }
+
+h1 { font-size: var(--t-heading); font-weight: var(--w-reg); letter-spacing: var(--tracking); line-height: 1.1; text-transform: lowercase; }
+h2 { font-size: var(--t-18); font-weight: var(--w-med); letter-spacing: var(--tracking); text-transform: lowercase; }
+p { font-size: var(--t-14); color: var(--fg); line-height: 1.6; text-wrap: pretty; }
+
+.eyebrow { color: var(--fg-3); font-size: var(--t-12); letter-spacing: var(--tracking-wide); text-transform: lowercase; }
+.id { font-family: var(--font); font-weight: var(--w-med); letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg); }
+
+/* primitives ---------------------------------------------------------------- */
+.btn {
+    height: 48px;
+    padding: 0 24px;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: transparent;
+    color: var(--fg);
+    border: 1px solid var(--fg-4);
+    border-radius: var(--radius);
+    font-family: var(--font);
+    font-size: var(--t-12);
+    letter-spacing: var(--tracking-wide);
+    text-transform: lowercase;
+    cursor: pointer;
+    text-decoration: none;
+    white-space: nowrap;
+    transition:
+        border-color var(--t-fast),
+        color var(--t-fast),
+        background var(--t-fast),
+        transform 380ms var(--ease);
+}
+.btn:hover  { border-color: var(--fg-2); transform: translateY(-1px); }
+.btn:active { background: var(--bg-1); transform: translateY(0); }
+.btn.primary {
+    background: var(--fg);
+    color: var(--bg-0);
+    border-color: var(--fg);
+    position: relative;
+}
+.btn.primary::before {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border-radius: var(--radius);
+    pointer-events: none;
+    box-shadow: 0 0 0 rgba(255,255,255,0);
+    transition: box-shadow 480ms var(--ease);
+}
+.btn.primary:hover  { background: #fff; border-color: #fff; transform: translateY(-2px); }
+.btn.primary:hover::before {
+    box-shadow:
+        0 0 16px rgba(255,255,255,0.24),
+        0 0 42px rgba(255,255,255,0.14),
+        0 0 90px rgba(255,255,255,0.06);
+}
+.btn.primary:active { background: var(--fg); transform: translateY(0); }
+.btn.ghost { border-color: transparent; color: var(--fg-2); }
+.btn.ghost:hover { color: var(--fg); }
+
+/* arrow — proper SVG glyph that scales with currentColor */
+.btn-arrow {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    transition: transform var(--t-med);
+}
+.btn:hover .btn-arrow { transform: translateX(4px); }
+
+.dot {
+    width: 6px; height: 6px;
+    border-radius: var(--radius-pill);
+    background: var(--signal);
+    box-shadow: 0 0 8px rgba(200,200,204,0.45);
+    display: inline-block;
+}
+.dot.warn   { background: var(--signal-warn); box-shadow: 0 0 8px rgba(184,122,90,0.45); }
+.dot.screen { background: var(--screen);      box-shadow: 0 0 8px rgba(95,170,122,0.45); }
+
+@keyframes void-pulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.45; }
+}
+.dot.pulse { animation: void-pulse 1.6s var(--ease) infinite; }
+
+.pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    height: 22px; padding: 0 10px;
+    border: 1px solid var(--fg-4);
+    border-radius: var(--radius-pill);
+    color: var(--fg-2);
+    font-size: var(--t-12);
+    letter-spacing: var(--tracking-wide);
+    text-transform: lowercase;
+    white-space: nowrap;
+}
+
 /* ============================================================================
    void — landing
    layout: a fixed-width "island" with floating header & footer over the canvas
@@ -47,151 +228,190 @@ section { position: relative; z-index: 2; }
 }
 
 .intro-stage {
-    position: relative;
-    z-index: 102;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 36px;
+    position: absolute;
+    inset: 0;
     pointer-events: none;
+    z-index: 102;
 }
 
-/* the intro logo starts as a single faint ring, brightens, spins, bursts,
-   then floats up to the header slot. */
+/* ----------------------------------------------------------------------------
+   Intro: a soft glowing orb pinned dead-centre of the viewport. It spins,
+   accelerates, throws off swirling particles as it charges up, then explodes
+   in a supernova burst before flying up to become the header's logo dot.
+
+   Centering: top:50%; left:50% + translate(-50%, -50%) puts the logo EXACTLY
+   at viewport center at any browser zoom / Windows DPI scaling — no flex/grid
+   gap math, no off-by-N pixels. JS preserves the centering during liftoff by
+   using calc(-50% + Xpx) inside the transform.
+   ---------------------------------------------------------------------------- */
 .intro-logo {
-    position: relative;
-    width: 160px;
-    height: 160px;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 200px;
+    height: 200px;
     transform-origin: 50% 50%;
     will-change: transform, opacity;
     opacity: 0;
-    transform: scale(0.7);
+    /* pixel-based translate (NOT translate(-50%, -50%)) so liftOff can smoothly
+       interpolate to a pixel-based target transform — calc(-50% + Xpx) edge
+       cases occasionally failed to animate in some browsers, leaving the orb
+       frozen mid-intro. -100px = half of width (200/2). */
+    transform: translate(-100px, -100px) scale(0.92);
     transition:
-        transform 1400ms var(--ease),
-        opacity 1400ms var(--ease);
+        transform 700ms var(--ease),
+        opacity 600ms var(--ease);
 }
 .intro-logo.is-awake {
     opacity: 1;
-    transform: scale(1);
+    transform: translate(-100px, -100px) scale(1);
 }
 
-/* the eclipse — glowing ring */
-.intro-eclipse {
+/* outer halo — wide soft bloom that intensifies as the spin accelerates.
+   driven via CSS custom property so warming/charging classes can crank it
+   without re-declaring the gradient. */
+.orb-halo {
+    position: absolute;
+    inset: 14%;
+    border-radius: 50%;
+    background: radial-gradient(circle at 50% 50%,
+        rgba(255,255,255, calc(0.18 * var(--intensity, 1))) 0%,
+        rgba(255,255,255, calc(0.10 * var(--intensity, 1))) 24%,
+        rgba(245,245,247, calc(0.04 * var(--intensity, 1))) 50%,
+        rgba(0,0,0,0)                                       72%);
+    filter: blur(6px);
+    pointer-events: none;
+    z-index: 0;
+    transition: inset 700ms var(--ease);
+}
+
+/* concentric ring frames — quiet structural background */
+.orb-frame {
     position: absolute;
     inset: 0;
     border-radius: 50%;
-    border: 1.5px solid rgba(230, 230, 232, 0.92);
-    background: transparent;
-    box-shadow:
-        0 0 14px rgba(255,255,255,0.55),
-        0 0 42px rgba(245,245,247,0.40),
-        0 0 96px rgba(210,210,216,0.28),
-        0 0 168px rgba(170,170,182,0.16);
-    transition: box-shadow 800ms var(--ease);
+    z-index: 1;
+    transition: opacity 400ms var(--ease);
 }
-
-/* an outer halo ring, ultra faint */
-.intro-halo {
+.orb-frame .orb-ring {
     position: absolute;
-    inset: -18%;
+    inset: 0;
     border-radius: 50%;
-    border: 1px solid rgba(230,230,232,0.06);
-    opacity: 0;
-    transform: scale(0.92);
-    transition: opacity 1400ms var(--ease), transform 1400ms var(--ease);
-}
-.intro-logo.is-awake .intro-halo { opacity: 1; transform: scale(1); }
-
-/* inner orbit — a thin notch + arc that ROTATES, so the spin reads */
-.intro-orbit {
-    position: absolute;
-    inset: 18%;
-    border-radius: 50%;
-    border: 1px solid rgba(230,230,232,0.10);
+    border: 1px solid rgba(230, 230, 232, 0.14);
     transform-origin: 50% 50%;
-    animation: orbit-spin 8.5s linear infinite;
+    opacity: 0.75;
 }
-.intro-orbit::before {
-    content: "";
+.orb-frame .r-2 { inset: 14%; opacity: 0.55; }
+.orb-frame .r-3 { inset: 28%; opacity: 0.35; }
+
+/* SPINNER — the rotating arc that VISUALLY READS the spin. Driven by JS rAF
+   so we can smoothly ramp angular velocity via a physics model. A bright dot
+   sits at the top edge so the rotation is unmistakable. */
+.orb-spinner {
     position: absolute;
-    top: -3px;
-    left: 50%;
-    width: 4px;
-    height: 4px;
-    background: var(--fg);
-    border-radius: 50%;
-    transform: translateX(-50%);
-    box-shadow: 0 0 10px rgba(255,255,255,0.85);
-}
-.intro-orbit::after {
-    content: "";
-    position: absolute;
-    inset: 0;
+    inset: 10%;
     border-radius: 50%;
     border: 1px solid transparent;
-    border-top-color: rgba(245,245,247,0.55);
-    border-right-color: rgba(245,245,247,0.20);
+    border-top-color:   rgba(255, 255, 255, 0.70);
+    border-right-color: rgba(255, 255, 255, 0.22);
+    transform-origin: 50% 50%;
+    will-change: transform;
+    z-index: 2;
+    transition: opacity 400ms var(--ease);
 }
-
-.intro-core {
+.orb-spinner::before {
+    content: "";
     position: absolute;
-    inset: 42%;
+    top: -3.5px;
+    left: 50%;
+    width: 5px;
+    height: 5px;
+    background: #fff;
     border-radius: 50%;
-    background: rgba(255,255,255,0.92);
+    transform: translateX(-50%);
     box-shadow:
-        0 0 8px rgba(255,255,255,0.85),
-        0 0 24px rgba(255,255,255,0.45);
-    animation: core-pulse 3.6s var(--ease) infinite;
+        0 0 6px rgba(255,255,255,0.9),
+        0 0 16px rgba(255,255,255,0.45);
 }
 
-@keyframes orbit-spin {
-    from { transform: rotate(0deg); }
-    to   { transform: rotate(360deg); }
-}
-@keyframes core-pulse {
-    0%, 100% { transform: scale(1);    opacity: 1; }
-    50%      { transform: scale(0.78); opacity: 0.7; }
-}
-
-.intro-caption {
-    color: var(--fg-3);
-    font-size: 11px;
-    letter-spacing: var(--tracking-wide);
-    text-transform: lowercase;
-    opacity: 0;
-    transition: opacity 1200ms var(--ease);
-    min-height: 1em;
-}
-.intro-caption.visible { opacity: 1; }
-.intro-caption.fading  { opacity: 0; }
-
-/* charging — pre-burst windup. orbit accelerates, glow blooms. */
-.intro-logo.is-charging .intro-orbit { animation-duration: 0.7s; }
-.intro-logo.is-charging .intro-eclipse {
+/* the core: bright, breathing white sphere */
+.orb-core {
+    position: absolute;
+    inset: 40%;
+    border-radius: 50%;
+    background: radial-gradient(circle at 45% 45%,
+        #ffffff 0%, #ffffff 45%, #e0e0e4 80%, #b8b8c0 100%);
     box-shadow:
-        0 0 30px rgba(255,255,255,0.85),
-        0 0 96px rgba(245,245,247,0.60),
-        0 0 200px rgba(210,210,216,0.45),
-        0 0 360px rgba(170,170,182,0.32);
-    transition: box-shadow 900ms var(--ease);
+        0 0 10px rgba(255,255,255,0.85),
+        0 0 28px rgba(255,255,255,0.42),
+        0 0 70px rgba(245,245,247,0.22);
+    z-index: 3;
+    transform-origin: 50% 50%;
+    will-change: transform, box-shadow;
+    transition:
+        box-shadow 800ms var(--ease-in-out),
+        transform  800ms var(--ease-in-out);
 }
 
-/* the flight to header slot. JS measures + applies inline transform. */
+/* WARMING + CHARGING — modulate intensity smoothly as the rotor accelerates.
+   Halo blooms, core brightens & swells. CSS-only escalation. */
+.intro-logo.is-warming  { --intensity: 1.6; }
+.intro-logo.is-warming .orb-core {
+    box-shadow:
+        0 0 16px rgba(255,255,255,0.95),
+        0 0 48px rgba(255,255,255,0.60),
+        0 0 120px rgba(245,245,247,0.32);
+}
+.intro-logo.is-charging { --intensity: 2.6; }
+.intro-logo.is-charging .orb-core {
+    box-shadow:
+        0 0 24px rgba(255,255,255,1),
+        0 0 80px  rgba(255,255,255,0.75),
+        0 0 200px rgba(245,245,247,0.45),
+        0 0 360px rgba(210,210,216,0.28);
+    transform: scale(1.08);
+}
+.intro-logo.is-bursting .orb-core {
+    box-shadow:
+        0 0 40px  rgba(255,255,255,1),
+        0 0 140px rgba(255,255,255,0.95),
+        0 0 320px rgba(245,245,247,0.65),
+        0 0 600px rgba(210,210,216,0.42);
+    transform: scale(1.25);
+    transition:
+        box-shadow 260ms cubic-bezier(.2, .9, .25, 1),
+        transform  260ms cubic-bezier(.2, .9, .25, 1);
+}
+
+/* lift-off: orb scales/translates to header slot; halo+frame+spinner dissolve
+   so only the core remains. The JS-set inline transform uses pure pixel-based
+   `translate(Xpx, Ypx) scale(s)` (no calc(), no percent mixing) so browsers
+   smoothly interpolate the transition every time — earlier calc()-based form
+   occasionally failed to animate in some browsers, freezing the intro. */
 .intro-logo.is-flying {
     transition:
-        transform 1500ms cubic-bezier(.55,.05,.2,1),
-        opacity 1500ms cubic-bezier(.55,.05,.2,1);
+        transform 1400ms cubic-bezier(.55,.05,.2,1),
+        opacity 1400ms cubic-bezier(.55,.05,.2,1);
 }
-.intro-logo.is-flying .intro-orbit { opacity: 0; transition: opacity 600ms var(--ease); }
-.intro-logo.is-flying .intro-core { opacity: 0; transition: opacity 600ms var(--ease); }
-.intro-logo.is-flying .intro-halo { opacity: 0; transition: opacity 400ms var(--ease); }
-.intro-logo.is-flying .intro-eclipse {
+.intro-logo.is-flying .orb-halo    { opacity: 0; transition: opacity 500ms var(--ease); }
+.intro-logo.is-flying .orb-frame   { opacity: 0; transition: opacity 500ms var(--ease); }
+.intro-logo.is-flying .orb-spinner { opacity: 0; transition: opacity 400ms var(--ease); }
+.intro-logo.is-flying .orb-core {
     box-shadow:
-        0 0 6px rgba(255,255,255,0.45),
-        0 0 18px rgba(245,245,247,0.35),
-        0 0 40px rgba(210,210,216,0.22),
-        0 0 72px rgba(170,170,182,0.14);
-    transition: box-shadow 1100ms var(--ease);
+        0 0 4px  rgba(255,255,255,0.7),
+        0 0 14px rgba(255,255,255,0.35);
+    transform: scale(1);
+    transition:
+        box-shadow 1000ms var(--ease),
+        transform 1000ms var(--ease);
+}
+
+/* shared @keyframes used by .hero-vis-orbit (and historically by the intro
+   orbit before it was migrated to JS rAF). Must live in the global CSS
+   scope — was accidentally purged in an earlier intro rewrite. */
+@keyframes orbit-spin {
+    from { transform: rotate(0deg);   }
+    to   { transform: rotate(360deg); }
 }
 
 /* page reveal */
@@ -381,7 +601,7 @@ section { position: relative; z-index: 2; }
     max-width: 640px;
 }
 .sect-head .note {
-    color: var(--fg-2);
+    color: var(--fg-3);
     font-size: 12px;
     line-height: 1.6;
     max-width: 320px;
@@ -440,6 +660,7 @@ section { position: relative; z-index: 2; }
     margin-bottom: 28px;
 }
 .hero-display .accent { color: var(--fg-2); font-weight: var(--w-light); }
+.hero-display .h1-line { display: block; white-space: nowrap; word-spacing: -0.0em; }
 
 .hero-tagline {
     color: var(--fg-2);
@@ -464,48 +685,56 @@ section { position: relative; z-index: 2; }
 }
 .hero-actions .btn { height: 52px; padding: 0 28px; }
 
-.hero-stats {
-    display: flex;
-    gap: 36px;
-    margin-top: 56px;
-    padding-top: 32px;
-    border-top: 1px solid var(--fg-4);
-    max-width: 600px;
-    flex-wrap: wrap;
-}
-.hero-stat .v {
-    display: block;
-    font-family: var(--font);
-    font-weight: var(--w-med);
-    font-size: 22px;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--fg);
-    margin-bottom: 6px;
-}
-.hero-stat .k {
-    display: block;
-    color: var(--fg-3);
-    font-size: 11px;
-    letter-spacing: var(--tracking-wide);
-    text-transform: lowercase;
-}
 
-/* ----- hero visualizer ----- */
+/* ----- hero visualizer -----
+   a centered pulsing white core with a wide soft halo and a few faint
+   concentric rings. the rings + orbiting dots add subtle motion without
+   taking attention from the headline. no corner ticks or labels — keeps
+   the vibe quiet and "expensive". hidden on tablet/mobile (< 880px) so
+   the headline owns the viewport. */
 .hero-vis {
     position: relative;
     aspect-ratio: 1 / 1;
     width: 100%;
-    max-width: 480px;
+    max-width: 460px;
     margin-left: auto;
-    padding: 36px;     /* room for the corner ticks */
+    align-self: start;                    /* push to top of grid cell */
+    margin-top: 24px;                     /* small breathing space */
+    isolation: isolate;                   /* contain the halo glow */
 }
-@media (max-width: 880px) { .hero-vis { margin: 0 auto; } }
+@media (max-width: 880px) {
+    .hero-vis { display: none; }          /* mobile/tablet: hide entirely */
+}
+
+/* soft halo behind the core — the "expensive" glow.
+   tuned smaller to match the smaller core; inset positive so the halo
+   sits inside the rings rather than spilling beyond the container. */
+.hero-vis-halo {
+    position: absolute;
+    inset: 22%;
+    border-radius: 50%;
+    background:
+        radial-gradient(circle at 50% 50%,
+            rgba(255,255,255,0.18) 0%,
+            rgba(255,255,255,0.09) 22%,
+            rgba(245,245,247,0.04) 44%,
+            rgba(0,0,0,0)         70%);
+    filter: blur(6px);
+    pointer-events: none;
+    z-index: 0;
+    animation: hero-halo-breathe 6.5s cubic-bezier(.4, 0, .4, 1) infinite;
+    will-change: transform, opacity;
+}
+@keyframes hero-halo-breathe {
+    0%, 100% { transform: scale(1);    opacity: 0.85; }
+    50%      { transform: scale(1.06); opacity: 1; }
+}
 
 .hero-vis-frame {
     position: absolute;
-    inset: 36px;
+    inset: 0;
     border-radius: 50%;
+    z-index: 1;
 }
 .hero-vis-frame .r {
     position: absolute;
@@ -515,9 +744,9 @@ section { position: relative; z-index: 2; }
     transform-origin: 50% 50%;
     opacity: 0.7;
 }
-.hero-vis-frame .r-1 { animation: hero-pulse 5.6s var(--ease) infinite; }
-.hero-vis-frame .r-2 { inset: 12%; opacity: 0.45; animation: hero-pulse 5.6s var(--ease) infinite 1s; }
-.hero-vis-frame .r-3 { inset: 24%; opacity: 0.30; animation: hero-pulse 5.6s var(--ease) infinite 2s; }
+.hero-vis-frame .r-1 { animation: hero-pulse 5.6s cubic-bezier(.3, 0, .3, 1) infinite; }
+.hero-vis-frame .r-2 { inset: 12%; opacity: 0.45; animation: hero-pulse 5.6s cubic-bezier(.3, 0, .3, 1) infinite 1s; }
+.hero-vis-frame .r-3 { inset: 24%; opacity: 0.30; animation: hero-pulse 5.6s cubic-bezier(.3, 0, .3, 1) infinite 2s; }
 .hero-vis-frame .r-4 { inset: 36%; opacity: 0.20; }
 
 @keyframes hero-pulse {
@@ -526,28 +755,49 @@ section { position: relative; z-index: 2; }
     100% { transform: scale(1.10); opacity: 0; }
 }
 
+/* the pulsing white core — heart of the visualizer.
+   ~16% of the container, with a moderate soft glow that breathes. */
 .hero-vis-core {
     position: absolute;
-    inset: calc(36px + 42%);
+    inset: 42%;
     border-radius: 50%;
-    background: var(--fg);
+    background: radial-gradient(circle at 50% 50%,
+        #ffffff 0%, #ffffff 38%, #e8e8ea 70%, #c8c8cc 100%);
     box-shadow:
-        0 0 10px rgba(255,255,255,0.65),
-        0 0 32px rgba(255,255,255,0.32),
-        0 0 80px rgba(255,255,255,0.18);
-    animation: core-breathe 3.4s var(--ease) infinite;
+        0 0 10px rgba(255,255,255,0.92),
+        0 0 24px rgba(255,255,255,0.50),
+        0 0 52px rgba(245,245,247,0.28),
+        0 0 100px rgba(210,210,216,0.16);
+    animation: hero-core-pulse 4.2s cubic-bezier(.45, 0, .35, 1) infinite;
+    z-index: 3;
+    will-change: transform, box-shadow;
 }
-@keyframes core-breathe {
-    0%, 100% { transform: scale(1); }
-    50%      { transform: scale(0.86); }
+@keyframes hero-core-pulse {
+    0%, 100% {
+        transform: scale(1);
+        box-shadow:
+            0 0 10px rgba(255,255,255,0.92),
+            0 0 24px rgba(255,255,255,0.50),
+            0 0 52px rgba(245,245,247,0.28),
+            0 0 100px rgba(210,210,216,0.16);
+    }
+    50% {
+        transform: scale(1.10);
+        box-shadow:
+            0 0 16px rgba(255,255,255,1),
+            0 0 40px rgba(255,255,255,0.68),
+            0 0 80px rgba(245,245,247,0.38),
+            0 0 140px rgba(210,210,216,0.22);
+    }
 }
 
 .hero-vis-orbit {
     position: absolute;
-    inset: 36px;
+    inset: 0;
     border-radius: 50%;
     border: 1px solid var(--fg-4);
     animation: orbit-spin 28s linear infinite;
+    z-index: 2;
 }
 .hero-vis-orbit::before {
     content: "";
@@ -560,34 +810,9 @@ section { position: relative; z-index: 2; }
     border-radius: 50%;
     transform: translateX(-50%);
 }
-.hero-vis-orbit.a { inset: calc(36px + 6%); }
-.hero-vis-orbit.b { inset: calc(36px + 18%); animation-duration: 18s; animation-direction: reverse; }
+.hero-vis-orbit.a { inset: 6%; }
+.hero-vis-orbit.b { inset: 18%; animation-duration: 18s; animation-direction: reverse; }
 .hero-vis-orbit.b::before { background: var(--signal); box-shadow: 0 0 8px rgba(200,200,204,0.55); }
-
-/* corner ticks — fixed to absolute corners of the .hero-vis box, not labels */
-.hero-vis-tick {
-    position: absolute;
-    width: 14px;
-    height: 14px;
-    border: 1px solid var(--fg-4);
-}
-.hero-vis-tick.tl { top: 0; left: 0; border-right: 0; border-bottom: 0; }
-.hero-vis-tick.tr { top: 0; right: 0; border-left: 0; border-bottom: 0; }
-.hero-vis-tick.bl { bottom: 0; left: 0; border-right: 0; border-top: 0; }
-.hero-vis-tick.br { bottom: 0; right: 0; border-left: 0; border-top: 0; }
-
-.hero-vis-corner-text {
-    position: absolute;
-    color: var(--fg-3);
-    font-size: 10px;
-    letter-spacing: var(--tracking-wide);
-    text-transform: lowercase;
-    line-height: 1;
-}
-.hero-vis-corner-text.tl { top: 4px;    left: 22px; }
-.hero-vis-corner-text.tr { top: 4px;    right: 22px; }
-.hero-vis-corner-text.bl { bottom: 4px; left: 22px; }
-.hero-vis-corner-text.br { bottom: 4px; right: 22px; }
 
 /* ============================================================================
    how it works
@@ -604,9 +829,9 @@ section { position: relative; z-index: 2; }
 
 .step {
     display: grid;
-    grid-template-columns: 56px 40px 1fr;
-    gap: 18px;
-    padding: 24px 0;
+    grid-template-columns: 52px 1fr;
+    gap: 8px;
+    padding: 24px 0 24px 24px;
     border-top: 1px solid var(--fg-4);
     cursor: pointer;
     transition: background var(--t-fast);
@@ -615,7 +840,6 @@ section { position: relative; z-index: 2; }
 }
 .step:last-child { border-bottom: 1px solid var(--fg-4); }
 .step:hover { background: rgba(255,255,255,0.012); }
-.step:hover .step-num { color: var(--fg-2); }
 
 .step.is-active::before {
     content: "";
@@ -626,29 +850,23 @@ section { position: relative; z-index: 2; }
     box-shadow: 0 0 8px rgba(255,255,255,0.5);
 }
 .step.is-active .step-title { color: var(--fg); }
-.step.is-active .step-num   { color: var(--fg); }
-.step.is-active .step-icon  { color: var(--fg); border-color: var(--fg-2); }
+.step.is-active .step-n     { color: var(--fg); }
 
-.step-num {
-    color: var(--fg-3);
-    font-size: 11px;
-    letter-spacing: var(--tracking-wide);
-    text-transform: lowercase;
-    padding-top: 4px;
-    transition: color var(--t-med);
-}
 .step-icon {
-    width: 32px;
-    height: 32px;
-    border: 1px solid var(--fg-4);
-    border-radius: 50%;
-    display: grid;
-    place-items: center;
-    color: var(--fg-3);
-    transition: color var(--t-med), border-color var(--t-med), background var(--t-med);
+    display: flex;
+    align-items: flex-start;
+    padding-top: 3px;
 }
-.step-icon svg { width: 16px; height: 16px; }
-.step.is-active .step-icon { background: var(--bg-1); }
+.step-n {
+    font-size: 22px;
+    font-weight: var(--w-light);
+    letter-spacing: -0.02em;
+    color: var(--fg-3);
+    line-height: 1;
+    transition: color var(--t-med);
+    font-variant-numeric: tabular-nums;
+}
+.step:hover .step-n { color: var(--fg-2); }
 
 .step-body { display: flex; flex-direction: column; gap: 8px; }
 .step-title {
@@ -1213,113 +1431,6 @@ section { position: relative; z-index: 2; }
     z-index: 4;
 }
 
-/* ----- room viz (former arcs row) — realistic room mock ----- */
-.room-vis {
-    height: 100%;
-    border: 1px solid var(--fg-4);
-    background: var(--bg-2);
-    border-radius: 2px;
-    position: relative;
-    display: grid;
-    grid-template-rows: 1fr auto;
-    overflow: hidden;
-}
-.room-stage {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 12px;
-    padding: 20px;
-    place-items: center;
-}
-.room-peer {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-}
-.room-peer .ring-wrap {
-    position: relative;
-    width: 68px;
-    height: 68px;
-}
-.room-peer .ring-wrap svg {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    transform: rotate(-90deg);
-}
-.room-peer .ring-wrap .av {
-    position: absolute;
-    inset: 10px;
-    border-radius: 50%;
-    background: var(--bg-1);
-    border: 1px solid var(--fg-4);
-    display: grid;
-    place-items: center;
-    color: var(--fg-2);
-    font-size: 13px;
-    letter-spacing: 0.04em;
-    text-transform: lowercase;
-    font-weight: var(--w-med);
-}
-.room-peer.live .av { color: var(--fg); border-color: var(--fg-2); }
-.room-peer.muted .av { color: var(--fg-3); }
-.room-peer .muted-pin {
-    position: absolute;
-    bottom: 0; right: 0;
-    width: 18px; height: 18px;
-    background: var(--bg-1);
-    border: 1px solid var(--fg-4);
-    border-radius: 50%;
-    display: grid;
-    place-items: center;
-    color: var(--signal-warn);
-}
-.room-peer .muted-pin svg { width: 10px; height: 10px; }
-.room-peer .nm {
-    color: var(--fg-3);
-    font-size: 10px;
-    letter-spacing: var(--tracking-wide);
-    text-transform: lowercase;
-    text-align: center;
-}
-.room-peer.live .nm { color: var(--fg-2); }
-
-/* the room control bar at the bottom of the mock */
-.room-bar {
-    border-top: 1px solid var(--fg-4);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 10px 16px;
-    background: var(--bg-1);
-}
-.room-bar .lh {
-    display: flex; align-items: center; gap: 10px;
-    color: var(--fg-3);
-    font-size: 10px;
-    letter-spacing: var(--tracking-wide);
-    text-transform: lowercase;
-}
-.room-bar .lh .code { color: var(--fg); font-weight: var(--w-med); letter-spacing: 0.08em; text-transform: uppercase; }
-.room-controls {
-    display: flex;
-    gap: 6px;
-}
-.room-ctrl {
-    width: 26px; height: 26px;
-    border: 1px solid var(--fg-4);
-    border-radius: 50%;
-    display: grid;
-    place-items: center;
-    color: var(--fg-3);
-    background: var(--bg-2);
-}
-.room-ctrl.active { color: var(--fg-2); border-color: var(--fg-3); }
-.room-ctrl.leave  { color: var(--signal-warn); border-color: var(--signal-warn); }
-.room-ctrl svg { width: 12px; height: 12px; }
 
 /* ============================================================================
    manifest / privacy
@@ -1574,20 +1685,51 @@ section { position: relative; z-index: 2; }
 }
 
 /* ============================================================================
-   reveal
+   reveal — initial hidden state lives on .reveal itself, so blocks don't
+   "blink" when the .in class is added with an animation-delay (previously
+   the keyframe's `both` fill-mode would snap the element back to opacity:0
+   for the delay window, then animate in — visually it looked like the
+   element flickered off for ~500ms before appearing).
+
+   transition (not animation) is used so the initial hidden state is
+   declarative, no fill-mode quirks; will-change keeps it composited.
    ============================================================================ */
-@keyframes reveal-in {
-    from { opacity: 0; transform: translateY(12px); }
-    to   { opacity: 1; transform: none; }
+.reveal {
+    opacity: 0;
+    transform: translateY(14px);
+    transition:
+        opacity 800ms cubic-bezier(.2, .65, .2, 1),
+        transform 900ms cubic-bezier(.2, .65, .2, 1);
+    will-change: opacity, transform;
 }
 .reveal.in {
-    animation: reveal-in 700ms var(--ease) both;
+    opacity: 1;
+    transform: none;
 }
-.reveal[data-delay="1"].in { animation-delay:  80ms; }
-.reveal[data-delay="2"].in { animation-delay: 160ms; }
-.reveal[data-delay="3"].in { animation-delay: 240ms; }
-.reveal[data-delay="4"].in { animation-delay: 320ms; }
-.reveal[data-delay="5"].in { animation-delay: 400ms; }
+.reveal[data-delay="1"] { transition-delay:  80ms; }
+.reveal[data-delay="2"] { transition-delay: 180ms; }
+.reveal[data-delay="3"] { transition-delay: 280ms; }
+.reveal[data-delay="4"] { transition-delay: 380ms; }
+.reveal[data-delay="5"] { transition-delay: 480ms; }
+
+/* typing cursor — used by [data-type="cursor"] reveal elements.
+   width matches a thin glyph so the line height doesn't jump when text
+   appears; steps(2) gives the hard on/off blink instead of a smooth fade. */
+.type-cursor {
+    display: inline-block;
+    width: 0.5ch;
+    color: var(--fg);
+    animation: cursor-blink 1s steps(2, end) infinite;
+    transform: translateY(-0.04em);
+    text-shadow:
+        0 0 1px rgba(255,255,255,0.6),
+        0 0 14px rgba(255,255,255,0.22);
+}
+.type-cursor::before { content: "|"; }
+@keyframes cursor-blink {
+    0%, 49% { opacity: 1; }
+    50%, 100% { opacity: 0; }
+}
 
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
@@ -1595,3 +1737,4 @@ section { position: relative; z-index: 2; }
         transition-duration: 0.001s !important;
     }
 }
+

@@ -1,6 +1,69 @@
 /* ============================================================================
-   void — landing behaviors
+void — landing behaviors
    ============================================================================ */
+
+/* ----------------------------------------------------------------------------
+   Smooth inertial scroll via Lenis (loaded from CDN in <head>).
+   Lenis is the industry-standard smooth-scroll lib used by Apple, Cuberto,
+   Studio Freight et al. — handles wheel/touch/keyboard with proper momentum
+   and frame-rate-independent easing. We just configure and start its rAF loop.
+
+   Skipped on prefers-reduced-motion. Touch uses native momentum (syncTouch
+   off — Lenis-smoothed touch can feel laggy vs. iOS rubber-band).
+   ---------------------------------------------------------------------------- */
+(function initLenis() {
+    function start() {
+        if (typeof Lenis === 'undefined') return;
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+        const lenis = new Lenis({
+            // lerp mode: position chases target each frame at a fixed fraction
+            // of the remaining distance. Lower = floatier + longer coast.
+            // 0.07 gives a clearly visible "doезжает at stop" coast without
+            // dragging on; combined with a wheelMultiplier > 1, each notch
+            // covers more ground so the page still feels responsive.
+            lerp: 0.07,
+            smoothWheel: true,
+            syncTouch: false,           // touch keeps native iOS momentum
+            wheelMultiplier: 1.35,      // each wheel notch covers more ground
+            touchMultiplier: 1.5,
+        });
+
+        function raf(time) {
+            lenis.raf(time);
+            requestAnimationFrame(raf);
+        }
+        requestAnimationFrame(raf);
+
+        // anchor links — route through Lenis so internal nav coasts smoothly too
+        document.addEventListener('click', (e) => {
+            const a = e.target.closest('a[href^="#"]');
+            if (!a) return;
+            const id = a.getAttribute('href').slice(1);
+            if (!id) return;
+            const el = document.getElementById(id);
+            if (!el) return;
+            e.preventDefault();
+            lenis.scrollTo(el, {
+                offset: 0,
+                duration: 1.8,
+                easing: (t) => 1 - Math.pow(1 - t, 4),  // quartic ease-out: silky landing
+            });
+            try { history.pushState(null, '', '#' + id); } catch (_) {}
+        });
+
+        window.__lenis = lenis;        // expose for debugging
+    }
+
+    // Lenis is loaded with `defer`, so it's ready by DOMContentLoaded.
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', start);
+    } else if (typeof Lenis !== 'undefined') {
+        start();
+    } else {
+        window.addEventListener('load', start);
+    }
+})();
 
 (function () {
     /* -------------------------------------------------- ambient background */
@@ -10,10 +73,13 @@
         const dpr = Math.min(window.devicePixelRatio || 1, 2);
         let W = 0, H = 0;
         function fit() {
-            W = bg.clientWidth = window.innerWidth;
-            H = bg.clientHeight = window.innerHeight;
-            bg.width  = W * dpr;
-            bg.height = H * dpr;
+            // clientWidth/Height of <html> matches what `inset: 0` covers
+            // (excludes scrollbar) — keeps buffer == CSS rect, no stretching
+            // (same fix as the intro canvas; see comments there).
+            W = document.documentElement.clientWidth  || window.innerWidth  || 0;
+            H = document.documentElement.clientHeight || window.innerHeight || 0;
+            bg.width  = Math.max(1, Math.round(W * dpr));
+            bg.height = Math.max(1, Math.round(H * dpr));
             ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         }
         fit();
@@ -59,22 +125,80 @@
         requestAnimationFrame((t) => { t0 = t; tick(t); });
     }
 
-    /* -------------------------------------------------- header scroll state */
-    const header = document.getElementById('header');
-    function onScroll() {
-        const y = window.scrollY || window.pageYOffset;
+    /* -------------------------------------------------- header scroll state +
+       hero scroll-fade. parallax via transform would fight the .reveal
+       transition (which also owns `transform`), so we only modulate opacity
+       — that composes cleanly and never causes a "snap back" flicker.
+       all writes batched in rAF to avoid layout thrash. */
+    const header   = document.getElementById('header');
+    const hero     = document.querySelector('.hero');
+    const heroCopy = document.querySelector('.hero-copy');
+    const heroVis  = document.querySelector('.hero-vis');
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    let scrollY = 0;
+    let scrollTicking = false;
+    let revealsSettled = false;
+    setTimeout(() => { revealsSettled = true; }, 1400); // after reveal transitions finish
+
+    function flushScroll() {
+        scrollTicking = false;
+        const y = scrollY;
+
         if (y > 20) header.classList.add('scrolled');
-        else header.classList.remove('scrolled');
+        else        header.classList.remove('scrolled');
+
+        if (prefersReducedMotion || !hero || !revealsSettled) return;
+        const heroH = hero.offsetHeight || 1;
+        const p = Math.max(0, Math.min(1, y / (heroH * 0.85)));
+        // soft fade on hero copy + vis as you leave the section — feels like
+        // the content is being absorbed into the void below.
+        if (heroCopy) heroCopy.style.opacity = `${1 - p * 0.55}`;
+        if (heroVis)  heroVis.style.opacity  = `${1 - p * 0.40}`;
+    }
+
+    function onScroll() {
+        scrollY = window.scrollY || window.pageYOffset;
+        if (!scrollTicking) {
+            scrollTicking = true;
+            requestAnimationFrame(flushScroll);
+        }
     }
     window.addEventListener('scroll', onScroll, { passive: true });
     onScroll();
 
-    /* -------------------------------------------------- scroll reveals */
+    /* -------------------------------------------------- scroll reveals.
+       Elements with [data-type="cursor"] also get a typing animation:
+       a blinking caret appears first, pauses, then types the text in. */
+    function triggerTyping(el) {
+        const text = el.textContent;
+        el.textContent = '';
+        const textNode = document.createTextNode('');
+        const cursor   = document.createElement('span');
+        cursor.className = 'type-cursor';
+        cursor.setAttribute('aria-hidden', 'true');
+        el.appendChild(textNode);
+        el.appendChild(cursor);
+
+        const CARET_PAUSE = 850;   // cursor blinks before any character appears
+        const PER_CHAR    = 145;   // typing cadence — feels deliberate, not rushed
+
+        setTimeout(() => {
+            let i = 0;
+            const id = setInterval(() => {
+                i++;
+                textNode.data = text.slice(0, i);
+                if (i >= text.length) clearInterval(id);
+            }, PER_CHAR);
+        }, CARET_PAUSE);
+    }
+
     const io = new IntersectionObserver((entries) => {
         for (const e of entries) {
             if (e.isIntersecting) {
                 e.target.classList.add('in');
                 io.unobserve(e.target);
+                if (e.target.dataset.type === 'cursor') triggerTyping(e.target);
             }
         }
     }, { rootMargin: '0px 0px -80px 0px', threshold: 0.05 });
@@ -136,10 +260,10 @@
 
     /* -------------------------------------------------- screen-share cursor — click / type / erase loop */
     (function () {
-        const cursor     = document.getElementById('screenCursor');
+        const cursor    = document.getElementById('screenCursor');
         const screenBody = document.getElementById('screenBody');
-        const liveLine   = document.getElementById('liveLine');
-        const liveText   = document.getElementById('liveText');
+        const liveLine  = document.getElementById('liveLine');
+        const liveText  = document.getElementById('liveText');
         if (!cursor || !screenBody || !liveLine || !liveText) return;
 
         const snippets = [
@@ -159,6 +283,7 @@
 
         async function click() {
             cursor.classList.remove('is-clicking');
+            // force reflow so the animation re-triggers
             void cursor.offsetWidth;
             cursor.classList.add('is-clicking');
             await wait(360);
@@ -169,6 +294,7 @@
             liveText.textContent = '';
             for (const ch of text) {
                 liveText.textContent += ch;
+                // small jitter so it doesn't feel mechanical
                 await wait(perChar + Math.random() * 40);
             }
         }
@@ -182,7 +308,7 @@
         function targetXY() {
             const br = screenBody.getBoundingClientRect();
             const lr = liveLine.getBoundingClientRect();
-            const tx = (lr.left - br.left) + 36;
+            const tx = (lr.left - br.left) + 36;   // a touch past the line number
             const ty = (lr.top  - br.top)  + 2;
             return { tx, ty, br };
         }
@@ -190,6 +316,7 @@
         let alive = true;
         async function loop() {
             const { br } = targetXY();
+            // start at a relaxed lower-right idle position
             cursor.style.transition = 'none';
             cursor.style.transform = `translate(${br.width * 0.7}px, ${br.height * 0.72}px)`;
             await wait(700);
@@ -208,6 +335,7 @@
                 await eraseAll();
                 await wait(420);
 
+                // drift cursor away briefly before next snippet
                 const { br: br2 } = targetXY();
                 await moveTo(br2.width * 0.62, br2.height * 0.78, 520);
                 await wait(420);
