@@ -62,8 +62,9 @@ app.use('/static/favicon', express.static(path.join(__dirname, 'public/static/fa
 /* /api/version — единственный источник правды для версии в UI.
    Лендинг (eyebrow в hero) и приложение могут фетчить это вместо того, чтобы
    хардкодить вручную и забывать бампить. Версия читается из package.json при
-   старте процесса (редеплой контейнера = новая версия). Кэширование на 1 час
-   на стороне клиента — версия меняется только при редеплое. */
+   старте процесса (редеплой контейнера = новая версия). Короткий клиентский
+   кэш (60s), чтобы после редеплоя версия на сайте обновлялась почти сразу,
+   но повторные хиты в рамках одной сессии не били сервер. */
 const PKG_VERSION = (() => {
     try {
         const pkg = JSON.parse(readFileSync(path.join(__dirname, "package.json"), "utf8"));
@@ -73,7 +74,7 @@ const PKG_VERSION = (() => {
     }
 })();
 app.get('/api/version', (req, res) => {
-    res.set('Cache-Control', 'public, max-age=3600');
+    res.set('Cache-Control', 'public, max-age=60');
     res.json({ version: PKG_VERSION });
 });
 
