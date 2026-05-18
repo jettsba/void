@@ -81,6 +81,16 @@ void — intro: supernova spin-up.
         W = v.w; H = v.h;
         canvas.width  = Math.max(1, Math.round(W * dpr));
         canvas.height = Math.max(1, Math.round(H * dpr));
+        // EXPLICITLY pin the canvas CSS render size to (W, H) CSS pixels.
+        // Without this, canvas is a replaced element whose intrinsic size = its
+        // buffer (W*dpr px). Per CSS 2.1 §10.4 (over-constrained absolutely-
+        // positioned replaced elements), `inset: 0` LOSES to the intrinsic size
+        // — the canvas ends up rendering at `W*dpr` CSS pixels wide (not at the
+        // viewport's `W` CSS pixels). The mismatch is proportional to (dpr - 1),
+        // which is why particles drifted right/down at dpr=1.25, were perfect
+        // at dpr=1.0 (intrinsic == viewport), and drifted left/up at dpr=0.875.
+        canvas.style.width  = W + 'px';
+        canvas.style.height = H + 'px';
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
     function safeResize() {

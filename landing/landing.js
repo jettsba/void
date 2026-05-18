@@ -74,12 +74,18 @@ void — landing behaviors
         let W = 0, H = 0;
         function fit() {
             // clientWidth/Height of <html> matches what `inset: 0` covers
-            // (excludes scrollbar) — keeps buffer == CSS rect, no stretching
-            // (same fix as the intro canvas; see comments there).
+            // (excludes scrollbar) — keeps buffer aligned with the layout
+            // viewport. We ALSO explicitly set CSS style.width/height in CSS
+            // pixels — without that, canvas (a replaced element) renders at its
+            // intrinsic size = bufferWidth, which differs from the viewport at
+            // dpr != 1, causing star positions to drift right/down at dpr>1 and
+            // left/up at dpr<1. (Same fix lives in intro.js — see comments there.)
             W = document.documentElement.clientWidth  || window.innerWidth  || 0;
             H = document.documentElement.clientHeight || window.innerHeight || 0;
             bg.width  = Math.max(1, Math.round(W * dpr));
             bg.height = Math.max(1, Math.round(H * dpr));
+            bg.style.width  = W + 'px';
+            bg.style.height = H + 'px';
             ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         }
         fit();
