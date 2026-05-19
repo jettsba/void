@@ -32,6 +32,7 @@ function skipIntroAndShowApp() {
     introQuestionDone = true;
     setTimeout(() => codeInput?.focus(), 120);
     enterLobby();
+    document.dispatchEvent(new CustomEvent("void:app-unlocked"));
 }
 
 function sleep(ms) {
@@ -147,5 +148,6 @@ function unlockApp() {
         intro.style.display = "none";
         app.classList.add("visible");
         enterLobby();
+        document.dispatchEvent(new CustomEvent("void:app-unlocked"));
     }, { once: true });
 }

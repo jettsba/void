@@ -18,6 +18,11 @@ let volumeMap = new Map();
 let audioGraph = null;
 
 let screenStream = null;
+/* Запомненные параметры активной screen-share: используется в
+   applyDirectScreenVideoParams (при добавлении screen-sender'а в новый peer,
+   например — re-join во время трансляции). Reset в stopScreenShare. */
+let screenTargetHeight = 1080;
+let screenTargetFps = 30;
 const videoMap = new Map();
 const screenSenders = new Map();
 
@@ -620,6 +625,11 @@ function createPeer(userId, isChatInitiator) {
         if (at) senders.push(peer.addTrack(at, screenStream));
         if (senders.length) screenSenders.set(userId, senders);
         applyScreenAudioParams(senders);
+        /* Без явного cap'а video-encoder Chrome держит ~2-2.5 Mbps на 1080p
+           даже при свободном канале — отсюда «мыло» на скролле/видео. Для
+           direct-peer'а ставим осмысленный потолок, чтобы encoder использовал
+           доступную полосу. Relay-режим имеет свой жёсткий cap (см. applyRelayBitrateLimits). */
+        if (!peer._isRelay) applyDirectScreenVideoParams(senders, screenTargetHeight, screenTargetFps);
     }
 
     peers.set(userId, peer);
@@ -1053,11 +1063,16 @@ async function startScreenShare(height = 1080, fps = 30, captureAudio = false) {
         sampleRate: 48000,
         channelCount: 2
     } : false;
+    /* frameRate.ideal — это лишь ХИНТ, источник может отдать меньше (Chrome
+       на десктопе часто пишет screen в 30fps если CPU/GPU нагружен, либо
+       источник не поддерживает 60). Ставим min/ideal/max — браузер обязан
+       уважать min если может. Плюс ниже жёстко клипуем encoder через
+       setParameters.maxFramerate. */
     const stream = await navigator.mediaDevices.getDisplayMedia({
         video: {
             width: { ideal: width },
             height: { ideal: height },
-            frameRate: { ideal: fps }
+            frameRate: { min: Math.min(fps, 30), ideal: fps, max: fps }
         },
         audio: audioConstraints
     });
@@ -1078,6 +1093,19 @@ async function startScreenShare(height = 1080, fps = 30, captureAudio = false) {
     if (audioTrack) {
         try { audioTrack.contentHint = "music"; } catch (_) {}
     }
+    /* contentHint="motion" — для скролла / видео / игр. Chrome даёт больше
+       частых ключевых кадров и аллоцирует доступный битрейт на плавность,
+       а не на сохранение деталей статичного текста. Без хинта дефолт —
+       баланс, который на 1080p60 motion даёт «мыло». */
+    if (videoTrack) {
+        try { videoTrack.contentHint = "motion"; } catch (_) {}
+    }
+    /* Запоминаем целевые параметры — applyDirectScreenVideoParams читает их
+       и для каждого peer'а пересчитывает encoder.maxBitrate/maxFramerate.
+       Также пригодится при добавлении нового screen-sender'а в новый peer
+       (если кто-то ре-джойнится посреди трансляции). */
+    screenTargetHeight = height;
+    screenTargetFps = fps;
     for (const [userId, peer] of peers) {
         const senders = [];
         if (videoTrack) senders.push(peer.addTrack(videoTrack, screenStream));
@@ -1088,6 +1116,7 @@ async function startScreenShare(height = 1080, fps = 30, captureAudio = false) {
            должен быть с capped-битрейтом — иначе 1080p60 положит канал.
            classifyConnection ставит флаг при переходе в connected. */
         if (peer._isRelay) applyRelayBitrateLimits(peer);
+        else applyDirectScreenVideoParams(senders, height, fps);
     }
     videoTrack.onended = () => {
         stopScreenShare();
@@ -1132,6 +1161,41 @@ async function applyScreenAudioParams(senders) {
     }
 }
 
+/**
+ * Поднять потолок битрейта video-encoder'а для direct-screen sender'а и
+ * жёстко закрепить maxFramerate. По дефолту libwebrtc держит ~2-2.5 Mbps
+ * на 1080p даже когда сеть свободна — на быстром скролле / видео это
+ * выдаёт пиксельные блоки. Цифры подобраны под P2P (LAN/обычный upload):
+ *
+ *   480p30/60   → 1.2 / 1.8 Mbps
+ *   720p30/60   → 2.5 / 4.0 Mbps
+ *   1080p30/60  → 5.0 / 8.0 Mbps
+ *
+ * networkPriority="high" — при congestion'е video не уйдёт ниже mic.
+ * maxFramerate — иначе encoder сам решает резать ли fps; на 60fps это
+ * частая причина «реальных 30fps» при ideal:60 в constraints.
+ */
+async function applyDirectScreenVideoParams(senders, height, fps) {
+    const videoSender = senders.find(s => s.track?.kind === "video");
+    if (!videoSender) return;
+    const base = height >= 1080 ? 5_000_000
+                : height >= 720  ? 2_500_000
+                : 1_200_000;
+    const maxBitrate = fps >= 60 ? Math.round(base * 1.6) : base;
+    try {
+        const params = videoSender.getParameters();
+        if (!params.encodings || !params.encodings.length) params.encodings = [{}];
+        const enc = params.encodings[0];
+        enc.maxBitrate = maxBitrate;
+        enc.maxFramerate = fps;
+        enc.networkPriority = "high";
+        await videoSender.setParameters(params);
+        log.info("rtc", "direct screen video bitrate set", { height, fps, maxBitrate });
+    } catch (err) {
+        log.warn("rtc", "direct screen video setParameters failed", { err: err?.message || String(err) });
+    }
+}
+
 function stopScreenShare() {
     for (const [userId, senders] of screenSenders) {
         const peer = peers.get(userId);
@@ -1142,6 +1206,8 @@ function stopScreenShare() {
     screenSenders.clear();
     screenStream?.getTracks().forEach(t => t.stop());
     screenStream = null;
+    screenTargetHeight = 1080;
+    screenTargetFps = 30;
 }
 
 /**

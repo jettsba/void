@@ -2274,14 +2274,34 @@ section {
    footer — minimal centered credit
    ============================================================================ */
 .footer {
-  padding: 16px var(--gutter) 46px;
+  padding: 16px var(--gutter) 18px;
   text-align: center;
   position: relative;
   z-index: 2;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 14px;
+  gap: 8px;
+}
+
+.footer-credit {
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.4;
+  letter-spacing: 0.18em;
+  text-transform: lowercase;
+  color: var(--fg-4);
+}
+.footer-credit-link {
+  color: var(--fg-3);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--fg-4);
+  padding-bottom: 1px;
+  transition: color var(--t-fast), border-color var(--t-fast);
+}
+.footer-credit-link:hover {
+  color: var(--fg);
+  border-bottom-color: var(--fg-3);
 }
 
 /* footer language link — manual override for the URL-based language pick.

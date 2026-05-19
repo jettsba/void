@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "0.8.4";
+    const APP_VERSION = "0.9.0";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
@@ -1599,7 +1599,16 @@
         applyLangToggleUI();
         applyStreamerToggleUI();
         applyNickInputUI();
-        buildSettingsHint();
+        /* Hint показываем ТОЛЬКО после того, как intro-экран ушёл и
+           пользователь увидел шапку с шестерёнкой. Иначе стрелка торчит
+           поверх intro и сбивает с толку. Event диспатчит intro.js из
+           unlockApp() и skipIntroAndShowApp(). Если app уже visible на
+           момент init (race / intro отключён) — строим сразу. */
+        if (document.querySelector(".app.visible")) {
+            buildSettingsHint();
+        } else {
+            document.addEventListener("void:app-unlocked", buildSettingsHint, { once: true });
+        }
     }
 
     if (document.readyState === "loading") {

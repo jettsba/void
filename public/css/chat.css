@@ -396,27 +396,22 @@
     text-decoration-color: var(--fg);
 }
 
-/* ===== Likes ===== */
-
-/* Маленький чип «♥ N» прилипает к нижнему краю бабла. По умолчанию приглушён,
-   собственный лайк подсвечивается ярче. user-select:none — иначе цифра
-   попадает в системное выделение слова при дабл-клике по сообщению. */
+/* ===== Likes =====
+   Бейдж — стопка сердечек, заезжающих друг на друга. Без цифры:
+   количество читается визуально. Cap = 5 (в чате максимум 5 юзеров —
+   совпадает с MAX_ROOM_USERS). */
 .chat-msg-likes {
     position: absolute;
     bottom: -10px;
     right: 8px;
     display: inline-flex;
     align-items: center;
-    gap: 3px;
     height: 18px;
-    padding: 0 7px 0 5px;
+    padding: 0 6px;
     background: rgba(20, 20, 22, 0.96);
     border: 1px solid var(--fg-4);
     border-radius: 999px;
-    color: var(--fg-2);
-    font-size: 10px;
     line-height: 1;
-    font-variant-numeric: tabular-nums;
     cursor: pointer;
     z-index: 1;
     user-select: none;
@@ -424,7 +419,6 @@
     transform-origin: 50% 50%;
     animation: like-badge-in 280ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
     transition:
-        color var(--t-fast),
         border-color var(--t-fast),
         background var(--t-fast);
 }
@@ -455,19 +449,32 @@
 }
 
 .chat-msg-likes:hover {
-    color: var(--fg);
     border-color: var(--fg-2);
 }
 
+/* Сердечко 11×11. Сосед заезжает на ~30% слева — margin-left отрицательный
+   на каждое сердце КРОМЕ первого. z-index растёт по DOM-порядку (более
+   поздние сердца сверху), чтобы стопка читалась как «нарастает вправо». */
 .chat-msg-likes-heart {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     width: 11px;
     height: 11px;
-    color: var(--fg-3);
-    transition: color var(--t-fast);
+    color: #e26b7a;
+    margin-left: -3px;
+    position: relative;
+    z-index: 1;
 }
+
+.chat-msg-likes-heart:first-child {
+    margin-left: 0;
+}
+
+.chat-msg-likes-heart:nth-child(2) { z-index: 2; }
+.chat-msg-likes-heart:nth-child(3) { z-index: 3; }
+.chat-msg-likes-heart:nth-child(4) { z-index: 4; }
+.chat-msg-likes-heart:nth-child(5) { z-index: 5; }
 
 .chat-msg-likes-heart svg {
     width: 100%;
@@ -476,18 +483,9 @@
     display: block;
 }
 
-.chat-msg-likes:hover .chat-msg-likes-heart {
-    color: var(--fg);
-}
-
 .chat-msg-likes.is-mine {
-    color: var(--fg);
     border-color: rgba(226, 107, 122, 0.45);
     background: rgba(50, 22, 28, 0.96);
-}
-
-.chat-msg-likes.is-mine .chat-msg-likes-heart {
-    color: #e26b7a;
 }
 
 /* Всплывашка по long-press: одиночное сердце над пальцем/курсором. */

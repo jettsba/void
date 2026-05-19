@@ -1420,10 +1420,13 @@
 
 /* ===== settings hint ===== */
 
+/* Стрелка хинта должна стоять РОВНО под центром логотипа-эклипса в шапке.
+   Считаем на десктопе:  padding 24 + translateX brand-lockup 12 + halfLogo 13 = 49px.
+   Минус halfArrow 5px = left: 44px. На мобиле header.padding 16px → 41-5 = 36px. */
 .settings-hint {
     position: fixed;
     top: 70px;
-    left: 43px;
+    left: 44px;
     z-index: 50;
     display: flex;
     align-items: center;
@@ -1463,7 +1466,7 @@
 @media (max-width: 480px) {
     .settings-hint {
         top: 84px;
-        left: 14px;
+        left: 36px;
     }
 }
 

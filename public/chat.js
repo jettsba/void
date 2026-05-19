@@ -911,6 +911,12 @@ function toggleOwnLike(msgId) {
     });
 }
 
+/* Визуально: вместо «♥ N» рендерим N сердечек подряд (cap = LIKE_MAX_HEARTS,
+   практически совпадает с MAX_ROOM_USERS=5). Сердечки заезжают друг на друга
+   ~30% (margin-left отрицательный, см. .chat-msg-likes-heart + heart в CSS),
+   так что бейдж не вытягивается шире, чем нужно. Цифру не показываем намеренно. */
+const LIKE_MAX_HEARTS = 5;
+
 function renderLikeBadge(msgId) {
     const wrap = chatMessagesEl.querySelector(`[data-msg-id="${cssEscape(msgId)}"]`);
     if (!wrap) return;
@@ -931,17 +937,6 @@ function renderLikeBadge(msgId) {
         badge.className = "chat-msg-likes";
         badge.title = _ct("chat.like");
         badge.setAttribute("aria-label", _ct("chat.like"));
-
-        const heart = document.createElement("span");
-        heart.className = "chat-msg-likes-heart";
-        heart.setAttribute("aria-hidden", "true");
-        heart.innerHTML = HEART_SVG;
-
-        const cnt = document.createElement("span");
-        cnt.className = "chat-msg-likes-count";
-
-        badge.appendChild(heart);
-        badge.appendChild(cnt);
         badge.addEventListener("click", (e) => {
             e.stopPropagation();
             toggleOwnLike(msgId);
@@ -952,17 +947,23 @@ function renderLikeBadge(msgId) {
     const isMine = likers.has(getSelfId());
     badge.classList.toggle("is-mine", isMine);
 
-    const cntEl = badge.querySelector(".chat-msg-likes-count");
-    const prevCount = Number(cntEl.textContent) || 0;
-    cntEl.textContent = String(count);
+    /* Ребилдим стопку сердечек на каждом изменении: новых = N (cap 5).
+       Дешевле, чем диффить — N ≤ 5. */
+    const shown = Math.min(count, LIKE_MAX_HEARTS);
+    const prev = badge.childElementCount;
+    badge.innerHTML = "";
+    for (let i = 0; i < shown; i++) {
+        const heart = document.createElement("span");
+        heart.className = "chat-msg-likes-heart";
+        heart.setAttribute("aria-hidden", "true");
+        heart.innerHTML = HEART_SVG;
+        badge.appendChild(heart);
+    }
     wrap.classList.add("has-likes");
 
-    /* «Пульс» при изменении счётчика — отдельная одноразовая анимация на чипе.
-       Класс снимаем после end, чтобы можно было запустить ещё раз. Первое
-       появление берёт другую анимацию (см. CSS .chat-msg-likes:initial). */
-    if (!isFirstAppearance && count !== prevCount) {
+    /* Пульс — лёгкая реакция на любое изменение количества (вверх или вниз). */
+    if (!isFirstAppearance && shown !== prev) {
         badge.classList.remove("is-pulsing");
-        // reflow — рестарт keyframes без него не сработает
         void badge.offsetWidth;
         badge.classList.add("is-pulsing");
     }

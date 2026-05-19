@@ -277,11 +277,17 @@
     cursor: pointer;
 }
 
+/* Hint висит АБСОЛЮТНО внутри .footer.footer-meta. На chat-open футер
+   получает padding-right: var(--chat-rail), но box-sizing: border-box
+   оставляет padding-box ту же ширину — left:50% указывает в центр
+   старого box'а, а флекс-контент уезжает влево вместе с уменьшившимся
+   content-area. Чтобы hint ехал ВМЕСТЕ с видимым контентом, вычитаем из
+   transform половину --chat-rail. На мобиле rail = 0px → no-op. */
 .invite-hint {
     position: absolute;
     bottom: calc(100% + 8px);
     left: 50%;
-    transform: translateX(-50%) translateY(-4px);
+    transform: translateX(calc(-50% - var(--chat-rail, 0px) / 2)) translateY(-4px);
     color: var(--fg-3);
     font-size: 11px;
     letter-spacing: var(--tracking-wide);
@@ -297,7 +303,7 @@
 .invite-hint.is-visible {
     opacity: 1;
     pointer-events: auto;
-    transform: translateX(-50%) translateY(0);
+    transform: translateX(calc(-50% - var(--chat-rail, 0px) / 2)) translateY(0);
 }
 
 .participant[data-conn="poor"]::after {
