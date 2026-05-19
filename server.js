@@ -22,6 +22,7 @@ import {
 } from "./lib/security.js";
 import { mountAdminStats } from "./lib/admin-stats.js";
 import { mountBugReport } from "./lib/bug-report.js";
+import { mountTurnEndpoint } from "./lib/turn.js";
 import {
     consumeToken,
     handleHello,
@@ -163,6 +164,10 @@ mountAdminStats(app);
    route (нет смысла парсить тело на каждом запросе статики). 256 KB cap —
    с запасом под полный log.bugReport() от Chrome (история + peer stats). */
 mountBugReport(app, express.json({ limit: "256kb" }));
+/* /api/turn-credentials — выдаёт клиенту короткие HMAC-credentials для
+   coturn-сервиса. Если TURN_HOST/TURN_SECRET пусты — endpoint молча 503,
+   клиент работает только со STUN. */
+mountTurnEndpoint(app);
 
 /**
  * Heartbeat. Без него мёртвый TCP-коннект (закрытая вкладка без FIN, спящий ноут,

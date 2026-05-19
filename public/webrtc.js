@@ -80,6 +80,15 @@ async function initMedia() {
 
     createVolumeAnalyser(localStream, clientId);
     log.debug("rtc", "mic granted");
+
+    /* Fire-and-forget: запрашиваем TURN-creds параллельно с поднятием UI.
+       К моменту первого `callUser` (после получения user-list по WS) обычно
+       успевает — peer создастся уже с TURN в iceServers. Если не успел —
+       первый peer стартует со STUN-only; при необходимости recovery state
+       machine пересоберёт его через ICE restart/rebuild уже с TURN.
+       Без await — getUserMedia уже отработал, блокировать UI на сетевом
+       запросе бессмысленно. */
+    ensureTurnCredentials();
 }
 
 function watchLocalMicTrack(stream) {
@@ -328,21 +337,87 @@ document.addEventListener("void:audio-in-device-changed", (e) => {
 });
 
 /**
- * Fallback-список STUN-серверов. WebRTC опрашивает их параллельно при сборе
- * ICE-кандидатов и берёт первый ответивший — если один лёг или заблокирован
- * провайдером, остальные подхватят. Чем разнообразнее провайдеры, тем устойчивее.
+ * STUN-серверы — fallback-список для NAT-discovery. WebRTC опрашивает их
+ * параллельно и берёт первый ответивший: если один лёг или заблокирован
+ * провайдером, остальные подхватят. Чем разнообразнее провайдеры — тем устойчивее.
  *
- * NOTE: для прода в РФ имеет смысл первым в списке поставить свой coturn —
- * это снижает зависимость от внешних сервисов и ускоряет ICE gathering.
- * Пока его нет — гугловые работают и в РФ, Cloudflare как страховка.
+ * Эти всегда присутствуют в iceServers. TURN-сервер (если сконфигурирован
+ * на бэке) добавляется отдельно — см. `ensureTurnCredentials` ниже.
  */
-const ICE_SERVERS = [
+const STATIC_STUN_SERVERS = [
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:stun1.l.google.com:19302" },
     { urls: "stun:stun2.l.google.com:19302" },
     { urls: "stun:stun.cloudflare.com:3478" },
     { urls: "stun:stun.nextcloud.com:443" }
 ];
+
+/**
+ * Кешированный iceServers-массив + время истечения TURN-credentials.
+ * createPeer читает _iceServersCached СИНХРОННО — это намеренно, чтобы
+ * не каскадить async по всем callsite (callUser/handleOffer/rebuildPeer).
+ *
+ * Заполняется через `ensureTurnCredentials`, которая вызывается из
+ * initMedia (один раз на сессию) и затем периодически refresh-таймером.
+ * До первого fetch'а массив = только STUN. Если бэк отдал 503 (TURN
+ * не настроен) — так и остаётся STUN-only до конца сессии.
+ */
+let _iceServersCached = STATIC_STUN_SERVERS;
+let _turnExpiresAt = 0;
+let _turnFetchInFlight = null;
+
+async function fetchTurnCredentials() {
+    if (_turnFetchInFlight) return _turnFetchInFlight;
+    _turnFetchInFlight = (async () => {
+        try {
+            const uid = typeof clientId !== "undefined" ? clientId : "anon";
+            const res = await fetch(`/api/turn-credentials?uid=${encodeURIComponent(uid)}`, {
+                credentials: "same-origin"
+            });
+            if (res.status === 503) {
+                // TURN не сконфигурирован на бэке — это норма для dev/portable.
+                // Молча остаёмся со STUN-only, не повторяем fetch до перезагрузки.
+                _turnExpiresAt = Number.MAX_SAFE_INTEGER;
+                return null;
+            }
+            if (!res.ok) {
+                log.warn("rtc", "turn creds fetch failed", { status: res.status });
+                return null;
+            }
+            const data = await res.json();
+            if (!Array.isArray(data.iceServers)) return null;
+            // Обновляемся за 5 минут до истечения — анти-race с активными звонками.
+            const expiresAt = Date.now() + (Math.max(60, data.ttl - 300)) * 1000;
+            return { iceServers: data.iceServers, expiresAt };
+        } catch (err) {
+            log.warn("rtc", "turn creds fetch error", { err: err?.message || String(err) });
+            return null;
+        } finally {
+            _turnFetchInFlight = null;
+        }
+    })();
+    return _turnFetchInFlight;
+}
+
+/**
+ * Гарантирует, что в `_iceServersCached` лежит свежий набор (STUN + TURN,
+ * если бэк его выдаёт). Зовётся:
+ *   - из initMedia (после getUserMedia, не блокируя его)
+ *   - из setInterval (раз в минуту, дёшево — fetch только при истечении)
+ * Идемпотентно: повторный вызов до истечения — no-op.
+ */
+async function ensureTurnCredentials() {
+    if (Date.now() < _turnExpiresAt) return;
+    const fresh = await fetchTurnCredentials();
+    if (fresh) {
+        _iceServersCached = [...STATIC_STUN_SERVERS, ...fresh.iceServers];
+        _turnExpiresAt = fresh.expiresAt;
+        log.info("rtc", "turn credentials loaded", { servers: fresh.iceServers.length });
+    }
+}
+
+// Периодический refresh. unref не нужен — это setInterval в браузере, не Node.
+setInterval(ensureTurnCredentials, 60_000);
 
 /**
  * Создать peer-соединение с пиром.
@@ -363,7 +438,7 @@ const ICE_SERVERS = [
 function createPeer(userId, isChatInitiator) {
 
     const peer = new RTCPeerConnection({
-        iceServers: ICE_SERVERS
+        iceServers: _iceServersCached
     });
 
     peer._userId = userId;
@@ -1009,6 +1084,10 @@ async function startScreenShare(height = 1080, fps = 30, captureAudio = false) {
         if (audioTrack) senders.push(peer.addTrack(audioTrack, screenStream));
         if (senders.length) screenSenders.set(userId, senders);
         applyScreenAudioParams(senders);
+        /* Если peer уже идёт через TURN-relay, новый video-sender тоже
+           должен быть с capped-битрейтом — иначе 1080p60 положит канал.
+           classifyConnection ставит флаг при переходе в connected. */
+        if (peer._isRelay) applyRelayBitrateLimits(peer);
     }
     videoTrack.onended = () => {
         stopScreenShare();
@@ -1229,7 +1308,9 @@ async function classifyConnection(peer) {
 
 /**
  * Один раз на peer-объект отправить отчёт об успешной связности.
- * Зовётся при переходе peer в "connected".
+ * Зовётся при переходе peer в "connected". Дополнительно — при relay
+ * понижает битрейт video-sender'ов (screencast) для экономии трафика
+ * на TURN-сервере; voice трогать нет смысла (Opus и так ~32-48 kbps).
  */
 async function reportConnectivity(peer) {
     if (peer._iceReported) return;
@@ -1238,4 +1319,41 @@ async function reportConnectivity(peer) {
     if (peer._iceReported) return; // мог измениться, пока ждали getStats
     peer._iceReported = true;
     sendSocket({ type: "ice-report", result });
+
+    if (result === "relay") {
+        peer._isRelay = true;
+        await applyRelayBitrateLimits(peer);
+    }
+}
+
+/**
+ * При connection через TURN-relay режем битрейт VIDEO-sender'ов.
+ *
+ * Зачем: voice (Opus, ~48 kbps) на TURN-сервере не нагружает канал; резать
+ * его не нужно. А screencast 1080p60 через relay = 2-4 Mbps на пару, при
+ * 100 одновременных таких пар = весь 1 Гбит канал VPS. Поэтому жёстко
+ * лимитируем именно video: 800 kbps + scale ÷ 2 + 15 fps. Качество для
+ * текста / интерфейса остаётся приемлемым, а трафик в 3-5× ниже.
+ *
+ * НЕ трогаем audio-sender'ы — ни mic (voice), ни screen-audio (music-mode
+ * 192 kbps, критично для качества демки и в общем балансе это копейки).
+ */
+async function applyRelayBitrateLimits(peer) {
+    const senders = peer.getSenders ? peer.getSenders() : [];
+    for (const sender of senders) {
+        if (!sender.track) continue;
+        if (sender.track.kind !== "video") continue;
+        try {
+            const params = sender.getParameters();
+            if (!params.encodings || !params.encodings.length) params.encodings = [{}];
+            const enc = params.encodings[0];
+            enc.maxBitrate = 800_000;
+            enc.scaleResolutionDownBy = 2;
+            enc.maxFramerate = 15;
+            await sender.setParameters(params);
+            log.info("rtc", "relay video bitrate capped", { userId: peer._userId });
+        } catch (err) {
+            log.warn("rtc", "relay video bitrate cap failed", { err: err?.message || String(err) });
+        }
+    }
 }

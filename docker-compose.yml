@@ -34,6 +34,12 @@ services:
       - BUG_SMTP_USER=${BUG_SMTP_USER:-}
       - BUG_SMTP_PASS=${BUG_SMTP_PASS:-}
       - BUG_SMTP_TO=${BUG_SMTP_TO:-}
+      # TURN endpoint (GET /api/turn-credentials) выдаёт клиенту HMAC-подписанные
+      # короткие credentials для coturn-сервиса ниже. Если TURN_HOST / TURN_SECRET
+      # пусты — endpoint возвращает 503, клиент работает только со STUN (legacy
+      # режим). Эти же значения используются coturn (как static-auth-secret).
+      - TURN_HOST=${TURN_HOST:-}
+      - TURN_SECRET=${TURN_SECRET:-}
     volumes:
       # Персистентная статистика beta-теста: stats.json лежит на хосте
       # и переживает docker compose up --build / restart. Папка ./data
@@ -63,3 +69,44 @@ services:
       options:
         max-size: "10m"
         max-file: "5"
+
+  # ===========================================================================
+  # TURN-сервер (опциональный). Поднимается ТОЛЬКО с `--profile turn`:
+  #   docker compose --profile turn up -d --build
+  # Без флага сервис не стартует — проект работает только со STUN, как раньше.
+  # Нужен для пользователей за симметричным NAT / CG-NAT (мобильные сети,
+  # некоторые домашние провайдеры). См. tasks/turn-plan.md.
+  # ===========================================================================
+  coturn:
+    profiles: ["turn"]
+    image: coturn/coturn:4.6-alpine
+    container_name: void-coturn
+    restart: unless-stopped
+    # network_mode: host — coturn анонсирует свой IP в ICE-candidates через
+    # --external-ip. Через docker NAT он бы анонсировал внутренний IP сети, и
+    # клиенты не смогли бы достучаться. На host-сети это решается естественно:
+    # coturn слушает 3478/udp и 49152-49251/udp прямо на хосте.
+    # Нужно открыть эти порты в firewall'е VPS (см. README).
+    network_mode: host
+    volumes:
+      - ./coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
+      - ./coturn/logs:/var/log/coturn
+    # secrets и realm — через CLI-флаги, чтобы статичный turnserver.conf
+    # был чистым (без секретов под git).
+    command: >
+      -c /etc/coturn/turnserver.conf
+      --static-auth-secret=${TURN_SECRET}
+      --realm=${TURN_REALM:-void-room.space}
+      --external-ip=${TURN_EXTERNAL_IP}
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.3"
+        reservations:
+          memory: 64M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

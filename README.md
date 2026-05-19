@@ -87,27 +87,103 @@ npm start
 
 ## ▸ деплой (vps)
 
+### первый раз, с нуля (только VPS + репозиторий)
+
 ```bash
-# 1. поднимаешь сервер
+# 1. клонируешь репо
+git clone <repo>
+cd void
+
+# 2. конфиг — копируешь шаблон и заполняешь свои значения
+cp .env.example .env
+nano .env   # или любой редактор
+
+# 3. поднимаешь сервис(ы)
+# вариант А — без TURN (только STUN, как раньше; ок для dev и MVP):
 docker compose up -d --build
 
-# 2. caddy уже знает про домен — просто:
+# вариант Б — с TURN (для пользователей за CG-NAT / симметричным NAT):
+# (предварительно: A-запись turn.your-domain.com → IP vps; firewall ниже)
+sudo ufw allow 3478/udp
+sudo ufw allow 49152:49251/udp
+docker compose --profile turn up -d --build
+
+# 4. caddy + домен (один раз)
+sudo cp Caddyfile /etc/caddy/Caddyfile
 sudo systemctl reload caddy
 
-# 3. готово — https://void-room.space
+# 5. готово — https://void-room.space
 ```
 
-caddy сам сходит за tls-сертификатом от let's encrypt и будет продлевать его раз в 60 дней без участия.
+caddy сам сходит за tls-сертификатом от let's encrypt и будет продлевать его раз в 60 дней без участия. для TURN caddy не нужен — coturn слушает UDP напрямую.
 
-переменные окружения (опционально, всё с дефолтами):
+### повторный деплой (после изменений в коде)
+
+```bash
+git pull
+docker compose --profile turn up -d --build
+# (без --profile turn если TURN не используется)
+```
+
+если меняешь только `.env` — `--build` не нужен:
+
+```bash
+docker compose --profile turn up -d
+```
+
+### переменные окружения
+
+полный шаблон с комментариями — в `.env.example`. ключевое:
 
 ```env
-ADMIN_STATS_PASSWORD=...     # пароль к /adminstats; без него — отключено
+# базовое — всё опционально, есть дефолты:
+ADMIN_STATS_PASSWORD=        # пароль к /adminstats; без него — отключено
 LOG_LEVEL=info               # error | warn | info | debug
-ALLOWED_ORIGINS=https://...  # через запятую
-BIND_HOST=127.0.0.1          # в docker — 0.0.0.0
+ALLOWED_ORIGINS=             # через запятую
 MAX_ROOM_USERS=5
+
+# багрепорты по почте — опционально:
+BUG_SMTP_USER=               # ящик-отправитель (Yandex)
+BUG_SMTP_PASS=               # app-password Яндекс.Почты
+
+# TURN — для прода с реальной аудиторией:
+TURN_HOST=turn.your-domain.com
+TURN_EXTERNAL_IP=1.2.3.4
+TURN_SECRET=                 # `openssl rand -base64 48`
+TURN_REALM=your-domain.com
 ```
+
+### TURN (для symmetric NAT / CG-NAT)
+
+опционально, но без TURN ~10-20% пар обламываются (CG-NAT, мобильные сети, корпоративные firewall). TURN добавляет relay-fallback. без TURN-инфры проект продолжает работать — клиент молча обходится STUN.
+
+подъём:
+
+1. **A-запись** для `turn.your-domain.com` → IP VPS (можно использовать прямой IP в `TURN_HOST`, но домен удобнее на случай миграции).
+2. **TURN_SECRET** — `openssl rand -base64 48`, положить в `.env`.
+3. **остальные TURN_* в .env**: `TURN_HOST`, `TURN_EXTERNAL_IP`, `TURN_REALM`.
+4. **firewall** на VPS:
+
+   ```bash
+   sudo ufw allow 3478/udp
+   sudo ufw allow 49152:49251/udp
+   ```
+
+   (если внешний firewall у хостера — там же открыть)
+
+5. **запуск с `--profile turn`**:
+
+   ```bash
+   docker compose --profile turn up -d --build
+   ```
+
+проверка:
+
+- `curl 'https://app.your-domain.com/api/turn-credentials?uid=test'` — должен вернуть JSON с `iceServers`, не 503.
+- открыть [trickle-ice tool](https://webrtc.github.io/samples/src/content/peerconnection/trickle-ice/), вставить `turn:turn.your-domain.com:3478` + `username/credential` из curl-ответа, нажать "Gather candidates" — должен появиться candidate `Type: relay` с IP VPS.
+- созвониться вдвоём с разных сетей, открыть `/adminstats` → виджет "connectivity" покажет долю `direct/relay/failed`. **failed должен быть 0%.**
+
+если не работает — `docker logs void-coturn`, проверить firewall, проверить `TURN_EXTERNAL_IP`.
 
 ---
 
