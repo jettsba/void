@@ -90,13 +90,18 @@ services:
     network_mode: host
     volumes:
       - ./coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
-    # secrets и realm — через CLI-флаги, чтобы статичный turnserver.conf
-    # был чистым (без секретов под git).
+    # secrets, realm и сетевые адреса — через CLI-флаги. Они привязаны к
+    # окружению (свой IP на каждом VPS), а turnserver.conf статичен и под git.
+    # --listening-ip / --relay-ip — без них coturn рекламирует ВСЕ интерфейсы
+    # хоста (включая docker-bridges 172.17.0.1, 172.18.0.1...), и клиент
+    # получает мусорные relay-кандидаты, которые ниоткуда не достижимы.
     command: >
       -c /etc/coturn/turnserver.conf
       --static-auth-secret=${TURN_SECRET}
       --realm=${TURN_REALM:-void-room.space}
       --external-ip=${TURN_EXTERNAL_IP}
+      --listening-ip=${TURN_EXTERNAL_IP}
+      --relay-ip=${TURN_EXTERNAL_IP}
     deploy:
       resources:
         limits:
