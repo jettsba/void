@@ -117,12 +117,17 @@ sudo systemctl reload caddy
 
 caddy сам сходит за tls-сертификатом от let's encrypt и будет продлевать его раз в 60 дней без участия. для TURN caddy не нужен — coturn слушает UDP напрямую.
 
-### повторный деплой (после изменений в коде)
+### повторный деплой
+
+на проде висит github actions `.github/workflows/deploy.yml` — он триггерится на push в `main` и сам делает `git pull --ff-only && docker compose --profile turn up -d --build` по SSH. ничего вручную делать не надо: запушил → через ~30 секунд новая версия на проде. логи деплоя — в actions-вкладке репо.
+
+ручной деплой (если actions упали или нужно проверить локально на VPS):
 
 ```bash
+ssh user@vps
+cd ~/void
 git pull
 docker compose --profile turn up -d --build
-# (без --profile turn если TURN не используется)
 ```
 
 если меняешь только `.env` — `--build` не нужен:
@@ -130,6 +135,8 @@ docker compose --profile turn up -d --build
 ```bash
 docker compose --profile turn up -d
 ```
+
+`.env` лежит только на сервере и в actions не передаётся — менять значения через ssh, рестарт компоуза подхватывает.
 
 ### переменные окружения
 

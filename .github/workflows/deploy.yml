@@ -41,10 +41,18 @@ jobs:
           ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
 
       - name: Pull and rebuild on VPS
+        # `--profile turn` поднимает coturn (опциональный сервис) вместе с void.
+        # Без флага coturn остаётся жить со старым конфигом — правки в
+        # coturn/turnserver.conf или в docker-compose.yml-секции coturn не
+        # подтянутся при пуше. На проде TURN включён всегда, поэтому профиль
+        # активируем безусловно. Если нужно временно отключить TURN — убрать
+        # `TURN_HOST`/`TURN_SECRET` из .env на сервере: тогда compose поднимет
+        # coturn, но он упадёт с понятной ошибкой, а Node-endpoint /api/turn-
+        # credentials начнёт отдавать 503 и клиент сам перейдёт в STUN-only.
         run: |
           ssh "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
             'set -euo pipefail
              cd ~/void
              git pull --ff-only
-             docker compose up -d --build
+             docker compose --profile turn up -d --build
              docker image prune -f'
