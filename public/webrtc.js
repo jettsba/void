@@ -1063,16 +1063,17 @@ async function startScreenShare(height = 1080, fps = 30, captureAudio = false) {
         sampleRate: 48000,
         channelCount: 2
     } : false;
-    /* frameRate.ideal — это лишь ХИНТ, источник может отдать меньше (Chrome
-       на десктопе часто пишет screen в 30fps если CPU/GPU нагружен, либо
-       источник не поддерживает 60). Ставим min/ideal/max — браузер обязан
-       уважать min если может. Плюс ниже жёстко клипуем encoder через
-       setParameters.maxFramerate. */
+    /* В getDisplayMedia спека ЗАПРЕЩАЕТ min/exact и не гарантирует max
+       (только ideal). Если поставить min — браузер бросит «min constraints
+       are not supported» ДО показа системного picker'а (так было в 0.9.0,
+       видно в багрепорте). Поэтому ideal — единственный source-level хинт;
+       реальный cap fps закрепляем на encoder через setParameters.maxFramerate
+       в applyDirectScreenVideoParams ниже. */
     const stream = await navigator.mediaDevices.getDisplayMedia({
         video: {
             width: { ideal: width },
             height: { ideal: height },
-            frameRate: { min: Math.min(fps, 30), ideal: fps, max: fps }
+            frameRate: { ideal: fps }
         },
         audio: audioConstraints
     });
