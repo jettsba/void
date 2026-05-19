@@ -90,7 +90,6 @@ services:
     network_mode: host
     volumes:
       - ./coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
-      - ./coturn/logs:/var/log/coturn
     # secrets и realm — через CLI-флаги, чтобы статичный turnserver.conf
     # был чистым (без секретов под git).
     command: >
