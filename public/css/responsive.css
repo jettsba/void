@@ -296,154 +296,132 @@ body {
    4K SCREENS (3840px+)
 =================================================== */
 
+/* 4K bumps. Цифры подобраны так, чтобы при типичном 27"-4K-мониторе и 100%
+   системном scale физический размер элементов был сопоставим с FHD@125%
+   (≈ 92 device-px/inch). При PPI ~163 у 4K элементы нужно тянуть в 1.8-2.0×
+   относительно FHD, чтобы был тот же физический размер. БЕЗ CSS zoom —
+   `zoom` на body ломал .app{height:100vh}: 100vh не пересчитывается с
+   учётом zoom, .app рос за пределы viewport, footer уезжал вниз. */
 @media (min-width: 3840px) {
     html, body {
-        font-size: 22px;
+        font-size: 28px;
     }
 
     .app {
-        --hdr-h: 120px;
-        --footer-row-h: 104px;
+        --hdr-h: 156px;
+        --footer-row-h: 132px;
     }
 
     .header {
-        padding: 0 56px;
-        font-size: 18px;
+        padding: 0 72px;
+        font-size: 22px;
     }
 
     .brand-logo {
-        width: 44px;
-        height: 44px;
+        width: 56px;
+        height: 56px;
     }
 
     .brand-lockup {
-        gap: 18px;
+        gap: 22px;
     }
 
     .brand-mark {
-        height: 44px;
-        font-size: 20px;
+        height: 56px;
+        font-size: 26px;
     }
 
     .footer-meta {
-        font-size: 17px;
-        gap: 24px;
+        font-size: 22px;
+        gap: 32px;
     }
 
     .conn-state {
-        font-size: 17px;
+        font-size: 22px;
     }
 
     .room-info {
-        font-size: 17px;
+        font-size: 22px;
     }
 
     .users-area {
-        --avatar-size: 144px;
+        --avatar-size: 184px;
     }
 
     .panel-area {
-        --panel-offset-y: 172px;
-        --panel-input-h: 70px;
-        --panel-h: calc(70px + 12px + 70px);
-        max-width: 720px;
-        margin-top: 40px;
+        --panel-offset-y: 220px;
+        --panel-input-h: 92px;
+        --panel-h: calc(92px + 14px + 92px);
+        max-width: 920px;
+        margin-top: 52px;
     }
 
     .panel-controls {
-        grid-template-columns: 70px 70px 70px;
-        gap: 14px;
+        grid-template-columns: 92px 92px 92px;
+        gap: 18px;
     }
 
     .control-btn {
-        width: 70px;
-        height: 70px;
+        width: 92px;
+        height: 92px;
     }
 
     .control-btn svg {
-        width: 28px;
-        height: 28px;
+        width: 36px;
+        height: 36px;
     }
 
     .leave-btn {
-        height: 70px;
-        font-size: 17px;
+        height: 92px;
+        font-size: 22px;
     }
 
     .btn {
-        height: 70px;
-        font-size: 17px;
+        height: 92px;
+        font-size: 22px;
     }
 
     .entry-code-field {
-        height: 70px;
-        width: 250px;
+        height: 92px;
+        width: 320px;
     }
 
     .entry-code {
-        font-size: 22px;
+        font-size: 28px;
         letter-spacing: 0.4em;
     }
 
     .entry-code::placeholder {
-        font-size: 16px;
+        font-size: 21px;
     }
 
     .entry-divider {
-        font-size: 17px;
+        font-size: 22px;
     }
 
     .chat-toggle {
-        height: 52px;
-        min-width: 150px;
-        font-size: 16px;
+        height: 66px;
+        min-width: 192px;
+        font-size: 20px;
     }
 
     .ping-panel {
-        min-width: 300px;
-        max-width: 400px;
-        font-size: 17px;
+        min-width: 380px;
+        max-width: 510px;
+        font-size: 22px;
     }
 
     .ping-row {
-        font-size: 17px;
+        font-size: 22px;
     }
 
     .intro-content {
-        gap: 48px;
+        gap: 62px;
     }
 
     .intro-input {
-        font-size: 24px;
-        height: 60px;
-        width: 380px;
+        font-size: 30px;
+        height: 76px;
+        width: 480px;
     }
-}
-
-/* ===================================================
-   HIGH-DPI SCALING — общий zoom для больших мониторов.
-
-   Точечные правила выше тюнят отдельные элементы (header, шрифт, контролы)
-   под 2K/4K, но десятки других мест (модалки, лайтбокс, settings-панель,
-   списки устройств и т.д.) остались с px-размерами от FHD. На 2K/4K без
-   системного scale всё это выглядит мелким.
-
-   CSS zoom — единственный нативный способ масштабировать UI целиком
-   (включая абсолютно позиционированные модалки), без рефакторинга всех px
-   в rem. Поддерживается всеми evergreen-браузерами (Firefox с 126, 2024).
-
-   Виден на FHD@100% (1920px CSS) как лёгкий +8%; на 2K (2560px) — +10%
-   поверх per-element правил выше; на 4K (3840px) — +30% поверх 4K-правил.
-=================================================== */
-
-@media (min-width: 1920px) and (max-width: 2559px) {
-    body { zoom: 1.08; }
-}
-
-@media (min-width: 2560px) and (max-width: 3839px) {
-    body { zoom: 1.10; }
-}
-
-@media (min-width: 3840px) {
-    body { zoom: 1.30; }
 }
