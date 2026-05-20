@@ -149,6 +149,15 @@ let screenOverlayUserId = null;
 let screenOverlayTrackCleanup = null;
 let pendingScreenOverlayUserId = null;
 let pendingScreenOverlayTimer = null;
+/* Запоминаем юзера, которого смотрели, на случай если peer пересоберётся
+   (WS reconnect стримера, rebuild peer'а). cleanupPeerSlot закрывает оверлей
+   и чистит videoMap, новый трек приедет через ontrack через 1-5 секунд —
+   за это окно авто-реоткрываемся. Иначе зритель видит закрытый оверлей,
+   жмёт «watch screen» руками — и попадает на ещё не размотанный BWE
+   (чёрный кадр / артефакты), что выглядит как «черный экран». */
+let lastWatchedUserId = null;
+let lastWatchedExpiresAt = 0;
+const _AUTO_REOPEN_TTL_MS = 30_000;
 
 // WebAudio routing for screen share audio — routes received screen audio
 // through AudioContext instead of native <video> element playback.
@@ -163,6 +172,19 @@ function _prepareScreenAudioCtx() {
     if (_screenShareAudioCtx) return;
     try {
         _screenShareAudioCtx = new AudioContext({ latencyHint: "playback" });
+        /* audioSession.type = "playback" — снимает классификацию контекста как
+           communications-session. По дефолту любой AudioContext, в который
+           подаётся MediaStreamTrack от WebRTC receiver'а, наследует comms-режим
+           источника. На Windows это включает comms-ducking: при голосовой
+           активности на mic'е (AEC double-talk detector) система режет
+           playback на 80%. Явный "playback" говорит ОС «это медиа, не звонок» —
+           ducking перестаёт срабатывать на демку.
+           API относительно новый (Chrome 124+, Safari 17+); на старых тихо
+           игнорится (try/catch ниже не нужен — присвоение неподдерживаемого
+           поля no-op, не throw'ает). */
+        if (_screenShareAudioCtx.audioSession) {
+            try { _screenShareAudioCtx.audioSession.type = "playback"; } catch (_) {}
+        }
         _screenShareGainNode = _screenShareAudioCtx.createGain();
         _screenShareGainNode.gain.value = (typeof isSoundOn !== "undefined" && !isSoundOn) ? 0 : 1;
         _screenShareGainNode.connect(_screenShareAudioCtx.destination);
@@ -217,14 +239,25 @@ function setScreenOverlayAudioMuted(muted) {
 
 /**
  * Вызывается из webrtc.js peer.ontrack после того, как видео-трек экрана
- * приехал и привязан к videoEl. Если пользователь уже кликнул «watch screen»
- * до прибытия трека — открываем оверлей сейчас.
+ * приехал и привязан к videoEl.
+ *
+ * Два сценария авто-открытия:
+ *   1. pending — юзер кликнул «watch screen» ДО прибытия трека (race на старте).
+ *   2. lastWatched — оверлей был открыт, peer пересобрался (WS reconnect стримера
+ *      или rebuild), cleanupPeerSlot закрыл оверлей; в окне 30 секунд после
+ *      закрытия — автоматически восстанавливаем просмотр, иначе зритель видит
+ *      «черный экран» (трек пересоздан, но никто не дёрнул srcObject у
+ *      screenOverlayVideo).
  */
 function notifyScreenVideoReady(userId) {
     if (pendingScreenOverlayUserId === userId) {
         pendingScreenOverlayUserId = null;
         clearTimeout(pendingScreenOverlayTimer);
         pendingScreenOverlayTimer = null;
+        openScreenOverlay(userId);
+        return;
+    }
+    if (lastWatchedUserId === userId && Date.now() < lastWatchedExpiresAt) {
         openScreenOverlay(userId);
     }
 }
@@ -254,6 +287,11 @@ function openScreenOverlay(userId) {
     const stream = videoEl.srcObject;
 
     screenOverlayUserId = userId;
+    /* Запоминаем для auto-reopen в notifyScreenVideoReady. TTL обновляется
+       при каждом успешном open — пока юзер смотрит, окно живёт; явное закрытие
+       (Esc, кнопка, screencast-state:false) обнулит. */
+    lastWatchedUserId = userId;
+    lastWatchedExpiresAt = Date.now() + _AUTO_REOPEN_TTL_MS;
     screenOverlayVideo.srcObject = stream;
     screenOverlayVideo.muted = true; // audio routed via WebAudio below (prevents comms ducking)
     _startScreenOverlayAudio(stream);
@@ -263,8 +301,13 @@ function openScreenOverlay(userId) {
 
     screenOverlayTrackCleanup?.();
     const videoTrack = stream.getVideoTracks?.()[0];
-    const onEnded = () => closeScreenOverlay();
-    const onRemoveTrack = e => { if (e.track?.kind === "video") closeScreenOverlay(); };
+    /* preserveAutoReopen: track может закончиться из-за пересборки peer'а;
+       не запрещаем будущий auto-reopen. Юзерское закрытие (Esc / button)
+       идёт через закрытия БЕЗ флага и сбрасывает lastWatched. */
+    const onEnded = () => closeScreenOverlay({ preserveAutoReopen: true });
+    const onRemoveTrack = e => {
+        if (e.track?.kind === "video") closeScreenOverlay({ preserveAutoReopen: true });
+    };
     videoTrack?.addEventListener("ended", onEnded);
     stream.addEventListener?.("removetrack", onRemoveTrack);
     screenOverlayTrackCleanup = () => {
@@ -273,7 +316,14 @@ function openScreenOverlay(userId) {
     };
 }
 
-function closeScreenOverlay() {
+/**
+ * @param {{preserveAutoReopen?: boolean}} [opts]
+ *   preserveAutoReopen=true означает «закрытие из-за teardown peer'а, не из-за
+ *   юзерского жеста» — оставляем lastWatchedUserId/Expires, чтобы новый трек
+ *   через notifyScreenVideoReady авто-реоткрыл оверлей. Дефолт false — юзер
+ *   закрыл сам (Esc, кнопка, fullscreen-close), реоткрывать не надо.
+ */
+function closeScreenOverlay(opts) {
     if (!screenOverlay) return;
     if (document.fullscreenElement === screenOverlay) {
         document.exitFullscreen?.();
@@ -287,6 +337,10 @@ function closeScreenOverlay() {
     screenOverlayTrackCleanup?.();
     screenOverlayTrackCleanup = null;
     screenOverlayUserId = null;
+    if (!opts || !opts.preserveAutoReopen) {
+        lastWatchedUserId = null;
+        lastWatchedExpiresAt = 0;
+    }
 }
 
 function toggleScreenFullscreen() {

@@ -33,6 +33,15 @@ const screenSenders = new Map();
  */
 const peerHealthTimers = new Map();
 
+/**
+ * Watchdog'и «черного экрана» по userId. Видео-трек приехал через ontrack,
+ * но frame'ы не декодируются (perfect negotiation race, codec mismatch,
+ * direction='inactive' из-за глюка SDP). Через 5s после ontrack проверяем
+ * inbound-rtp.framesDecoded — если 0, дёргаем ICE restart. Чистится в
+ * cleanupPeerSlot. */
+const videoDecodeWatchdogs = new Map();
+const VIDEO_DECODE_WATCHDOG_MS = 5000;
+
 /** Сколько ждём перед попыткой восстановления, если peer ушёл в "disconnected".
  *  За это время transient проблемы (NAT mapping refresh, кратковременная потеря
  *  пакетов) обычно сами рассасываются. */
@@ -502,9 +511,20 @@ function createPeer(userId, isChatInitiator) {
             event.track.onended = () => {
                 videoMap.delete(userId);
                 if (typeof closeScreenOverlay === 'function') {
-                    closeScreenOverlay();
+                    /* track.ended может быть «временно» (стример пересобирает peer);
+                       сохраняем lastWatchedUserId — если в течение 30s приедет
+                       новый трек, авто-реоткроемся. Если стример реально выключил
+                       демку, придёт screencast-state:false и lastWatched сбросится. */
+                    closeScreenOverlay({ preserveAutoReopen: true });
                 }
             };
+            /* Watchdog «черный экран»: бывает peer connected, screen-track
+               приехал, но frame'ы не декодируются (transceiver direction
+               перепутался, codec mismatch, BWE стартовал в 0). Через 5s
+               после первого ontrack проверяем framesDecoded; если 0 — дёргаем
+               ICE restart, что часто разлепляет негоциацию. Без watchdog'а
+               зритель сидит на черном экране, пока не нажмёт re-join. */
+            scheduleVideoDecodeWatchdog(peer, userId);
             /* Если пользователь успел кликнуть «watch screen» до того,
                как трек приехал — открыть оверлей сейчас. */
             if (typeof notifyScreenVideoReady === 'function') {
@@ -925,6 +945,49 @@ function clearPeerHealthTimer(userId) {
 }
 
 /**
+ * Через VIDEO_DECODE_WATCHDOG_MS после ontrack(video) проверяем, что декодер
+ * реально получил кадры. Если 0 — дёргаем `peer.restartIce()`: типичные
+ * причины (perfect negotiation race, направление transceiver'а уехало в
+ * inactive из-за гонки rollback'а) лечатся через restart. Если restart не
+ * помог за следующее окно — health-state-machine сама дойдёт до rebuild.
+ * Идемпотентно: повторный вызов сбрасывает таймер, чтобы не накапливать.
+ */
+function scheduleVideoDecodeWatchdog(peer, userId) {
+    const prev = videoDecodeWatchdogs.get(userId);
+    if (prev) clearTimeout(prev);
+    const timer = setTimeout(async () => {
+        videoDecodeWatchdogs.delete(userId);
+        const p = peers.get(userId);
+        if (!p || p !== peer) return;
+        if (p.connectionState !== "connected") return;
+        try {
+            const stats = await p.getStats();
+            let decoded = null;
+            stats.forEach(r => {
+                if (r.type === "inbound-rtp" && r.kind === "video") {
+                    decoded = (decoded || 0) + (r.framesDecoded || 0);
+                }
+            });
+            if (decoded === null) return; // нет inbound video — нечего лечить
+            if (decoded > 0) return;      // декодер ожил, всё ок
+            log.warn("rtc", "video decode stuck, restarting ice", { userId });
+            p.restartIce();
+        } catch (err) {
+            log.warn("rtc", "decode watchdog failed", { err: err?.message || String(err) });
+        }
+    }, VIDEO_DECODE_WATCHDOG_MS);
+    videoDecodeWatchdogs.set(userId, timer);
+}
+
+function clearVideoDecodeWatchdog(userId) {
+    const t = videoDecodeWatchdogs.get(userId);
+    if (t) {
+        clearTimeout(t);
+        videoDecodeWatchdogs.delete(userId);
+    }
+}
+
+/**
  * Полностью убрать всё, что связано с пиром: peer-соединение, audio-элемент,
  * video-элемент, screen-senders, анализатор громкости, health-timer.
  * Используется и для штатного выхода участника, и для rebuild peer-а.
@@ -946,12 +1009,17 @@ function cleanupPeerSlot(userId) {
     /* B5: videoMap чистился только в `event.track.onended`. При network drop /
        kill -9 / закрытии вкладки `onended` может не прийти — <video> с мёртвым
        stream'ом висит в map'е, а у наблюдателя остаётся открытый оверлей с
-       замороженной картинкой. Чистим явно здесь. */
+       замороженной картинкой. Чистим явно здесь.
+       preserveAutoReopen: cleanupPeerSlot часто срабатывает на пересборке
+       peer'а (WS reconnect стримера, rebuild) — оставляем lastWatchedUserId
+       чтобы notifyScreenVideoReady авто-открыл оверлей на новом треке. */
     const videoEl = videoMap.get(userId);
     if (videoEl) {
         videoEl.srcObject = null;
         videoMap.delete(userId);
-        if (typeof closeScreenOverlay === "function") closeScreenOverlay();
+        if (typeof closeScreenOverlay === "function") {
+            closeScreenOverlay({ preserveAutoReopen: true });
+        }
     }
 
     /* B4: screenSenders не очищался — после rebuild пира запись оставалась,
@@ -968,6 +1036,7 @@ function cleanupPeerSlot(userId) {
     }
 
     clearPeerHealthTimer(userId);
+    clearVideoDecodeWatchdog(userId);
     _pingCache.delete(userId);
 
     /* F20: peer ушёл — пересчитываем сводное здоровье. Если это был
@@ -1207,6 +1276,18 @@ async function applyScreenAudioParams(senders) {
  * networkPriority="high" — при congestion'е video не уйдёт ниже mic.
  * maxFramerate — иначе encoder сам решает резать ли fps; на 60fps это
  * частая причина «реальных 30fps» при ideal:60 в constraints.
+ *
+ * degradationPreference="maintain-resolution" — критично для скринкаста:
+ * по дефолту Chrome выбирает "balanced" для video (фактически — maintain-
+ * framerate с агрессивным даунскейлом разрешения при congestion'е). У зрителя
+ * это выглядит как «качество поднимается ступенями» — 320p→480p→720p→1080p
+ * за минуту-две, пока BWE достигает оценки. Для текстового контента скринкаста
+ * правильнее держать разрешение и подрезать fps; см. W3C MST § degradationPreference.
+ *
+ * minBitrate ≈ 40% от max — кикает BWE стартовать не с дефолтового ~200 kbps,
+ * а с разумного уровня. Без этого initial-bitrate libwebrtc устанавливает
+ * исходя из «cold start» эвристики, и нужно 30-60s probing'а чтобы достичь
+ * целевого качества. Chrome поддерживает encoding.minBitrate с ~M97.
  */
 async function applyDirectScreenVideoParams(senders, height, fps) {
     const videoSender = senders.find(s => s.track?.kind === "video");
@@ -1215,15 +1296,19 @@ async function applyDirectScreenVideoParams(senders, height, fps) {
                 : height >= 720  ? 2_500_000
                 : 1_200_000;
     const maxBitrate = fps >= 60 ? Math.round(base * 1.6) : base;
+    const minBitrate = Math.round(maxBitrate * 0.4);
     try {
         const params = videoSender.getParameters();
         if (!params.encodings || !params.encodings.length) params.encodings = [{}];
         const enc = params.encodings[0];
         enc.maxBitrate = maxBitrate;
+        enc.minBitrate = minBitrate;
         enc.maxFramerate = fps;
         enc.networkPriority = "high";
+        /* degradationPreference живёт на корне params, не на encoding. */
+        params.degradationPreference = "maintain-resolution";
         await videoSender.setParameters(params);
-        log.info("rtc", "direct screen video bitrate set", { height, fps, maxBitrate });
+        log.info("rtc", "direct screen video bitrate set", { height, fps, maxBitrate, minBitrate });
     } catch (err) {
         log.warn("rtc", "direct screen video setParameters failed", { err: err?.message || String(err) });
     }
@@ -1447,8 +1532,11 @@ async function applyRelayBitrateLimits(peer) {
             if (!params.encodings || !params.encodings.length) params.encodings = [{}];
             const enc = params.encodings[0];
             enc.maxBitrate = 800_000;
+            enc.minBitrate = 400_000;
             enc.scaleResolutionDownBy = 2;
             enc.maxFramerate = 15;
+            /* maintain-resolution даже на relay: текст важнее fps. */
+            params.degradationPreference = "maintain-resolution";
             await sender.setParameters(params);
             log.info("rtc", "relay video bitrate capped", { userId: peer._userId });
         } catch (err) {

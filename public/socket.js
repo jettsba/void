@@ -458,11 +458,17 @@ function handleSocketMessage(data) {
         case "participant-left":
             /* B15: если ушедший участник был активным скринкастером — сбрасываем
                roomScreencasterId, иначе у остальных кнопка screencast навсегда
-               остаётся «sc-btn-blocked» (лечилось только реджойном). */
+               остаётся «sc-btn-blocked» (лечилось только реджойном).
+               preserveAutoReopen: сервер шлёт participant-left и при «реальном»
+               уходе, и при WS-reconnect стримера (см. handlers.js handleJoinConfirm
+               при ws.readyState!==1). Не сбрасываем lastWatched — если это
+               реконнект, через секунду придёт new-participant + новый трек →
+               auto-reopen восстановит просмотр. Если ушёл реально — TTL
+               истечёт через 30s, ничего не сломается. */
             if (typeof roomScreencasterId !== "undefined" && roomScreencasterId === data.userId) {
                 roomScreencasterId = null;
                 if (typeof syncScreencastBtnBlocked === "function") syncScreencastBtnBlocked();
-                if (typeof closeScreenOverlay === "function") closeScreenOverlay();
+                if (typeof closeScreenOverlay === "function") closeScreenOverlay({ preserveAutoReopen: true });
             }
             removeParticipant(data.userId);
             // Закрываем peer + audio + analyser + health timer.

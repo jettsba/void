@@ -46,7 +46,7 @@ const USERNAME_ADJECTIVES = [
     "Restless","Distant","Echoing","Obscure","Ghostly","Cold","Blurred","Glitched","Static","Muted",
     "Hollow","Twisted","Shattered","Unknown","Ancient","Binary","Digital","Quantum","Parallel","Midnight",
     "Dusty","Fragmented","Encrypted","Corrupted","Drifting","Endless","Dim","Invisible","Flickering","Dead",
-    "Remote","Subtle","Abstract","Lonely","Shifting","Chaotic","Null","Cosmic","Spectral","Cursed"
+    "Remote","Subtle","Abstract","Lonely","Shifting","Chaotic","Null","Cosmic","Spectral","Cursed","Legendary"
 ];
 
 const USERNAME_NOUNS = [
@@ -54,7 +54,7 @@ const USERNAME_NOUNS = [
     "Matrix","Cluster","Sector","Portal","Fragment","Archive","Node","Protocol","Cipher","Spectrum",
     "Server","Module","Vector","Terminal","Resonance","Pixel","Zero","Commit","Process","Channel",
     "Flux","Noise","Loop","Packet","Dimension","Radius","Interface","Kernel","Sequence","Trace",
-    "Frame","Shard","Horizon","Code","Anomaly","Beacon","Circuit","Entity","Voidline","Nexus"
+    "Frame","Shard","Horizon","Code","Anomaly","Beacon","Circuit","Entity","Voidline","Nexus","Legend"
 ];
 
 /* Контрибьюторские ники — отображаются с золотистым сиянием в комнате.
@@ -63,7 +63,8 @@ const USERNAME_NOUNS = [
    в нижнем регистре. */
 const PREMIUM_NICKNAMES = new Set([
     "casheaterr",
-    "nakharaktere"
+    "nakharaktere",
+    "Legendary Legend"
 ]);
 
 function isPremiumNickname(nickname) {
