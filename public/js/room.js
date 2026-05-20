@@ -156,6 +156,7 @@ function tearDownRoomState() {
 
     isJoined = false;
     currentRoomCode = null;
+    _peerTrouble = false;
 
     if (roomCopyFeedbackTimer) {
         clearTimeout(roomCopyFeedbackTimer);
@@ -321,6 +322,23 @@ function retryCreateRoomAfterCollision() {
     sendCreateRoomAttempt();
 }
 
+/* F20: «peer-trouble» — наслаивается ПОВЕРХ ws-состояния "connected".
+   Когда сокет жив, но хотя бы один peer ушёл в failed / активно
+   восстанавливается, индикатор показывает warn-pulse, чтобы юзер не
+   видел зелёное "connected" пока его на самом деле не слышно. На
+   ws-уровни (reconnecting/error/ready) флаг не влияет — там свой
+   рендер с приоритетом. Обновляется из webrtc.js через setPeerTrouble. */
+let _peerTrouble = false;
+
+function setPeerTrouble(trouble) {
+    const next = !!trouble;
+    if (next === _peerTrouble) return;
+    _peerTrouble = next;
+    if (_lastConnState === "connected") {
+        setConnectionState("connected", _lastConnOpts);
+    }
+}
+
 function setConnectionState(state, opts = {}) {
     _lastConnState = state;
     _lastConnOpts = opts || {};
@@ -329,8 +347,13 @@ function setConnectionState(state, opts = {}) {
     connDot.classList.remove("live", "warn", "pulse");
 
     if (state === "connected") {
-        connDot.classList.add("live");
-        connLabel.textContent = _t("footer.connected");
+        if (_peerTrouble) {
+            connDot.classList.add("warn", "pulse");
+            connLabel.textContent = _t("footer.unstable");
+        } else {
+            connDot.classList.add("live");
+            connLabel.textContent = _t("footer.connected");
+        }
         return;
     }
 

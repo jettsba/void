@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "0.9.6";
+    const APP_VERSION = "0.9.7";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
@@ -104,6 +104,7 @@
             "footer.connecting": "подключение",
             "footer.reconnecting": "переподключение",
             "footer.reconnecting.attempt": "переподключение {attempt}/{total}",
+            "footer.unstable": "связь нестабильна",
             "footer.error": "ошибка",
             "footer.copy.title": "копировать код",
             "footer.copy.streamer": "скопировать код комнаты",
@@ -238,6 +239,7 @@
             "footer.connecting": "connecting",
             "footer.reconnecting": "reconnecting",
             "footer.reconnecting.attempt": "reconnecting {attempt}/{total}",
+            "footer.unstable": "connection unstable",
             "footer.error": "error",
             "footer.copy.title": "copy code",
             "footer.copy.streamer": "copy room code",

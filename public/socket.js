@@ -225,7 +225,7 @@ function connectSocket() {
             // Аварийное закрытие во время активной комнаты — пробуем восстановиться.
             // Если пользователь сам нажал leave / мы вне комнаты — просто молчим.
             if (!ws._intentional && typeof isJoined !== "undefined" && isJoined) {
-                scheduleReconnect();
+                scheduleReconnect(ws);
             } else if (typeof setConnectionState === "function") {
                 setConnectionState("ready");
             }
@@ -250,11 +250,16 @@ function connectSocket() {
  * Поставить следующую попытку реконнекта. Если попытки кончились — финальный фейл.
  * Вызывает onReconnectAttempt перед самой попыткой и onReconnectSuccess/Failed по результату.
  */
-function scheduleReconnect() {
-    /* F9: проверка теперь на текущий socket-флаг — глобала нет.
-       Если socket уже null (могли успеть закрыть resetSocketConnection),
-       сценарий «закрыли намеренно» = ничего реконнектить не надо. */
-    if (!socket || socket._intentional) return;
+function scheduleReconnect(closedWs) {
+    /* F19: раньше тут было `if (!socket || socket._intentional) return;` —
+       и это был мёртвый сценарий. close-handler нулит socket ДО вызова
+       scheduleReconnect, так что `!socket` всегда true → реконнект никогда
+       не запускался. Пользователь терял аудио молча и видел «connected» в
+       футере (setConnectionState("reconnecting") живёт только тут).
+       Проверяем флаг на самом закрытом ws, который пришёл явным аргументом.
+       attemptReconnect() ниже передаёт null — там проверять нечего,
+       cancelReconnect() из resetSocketConnection всё равно прибил бы таймер. */
+    if (closedWs && closedWs._intentional) return;
 
     reconnecting = true;
 

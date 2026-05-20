@@ -788,6 +788,7 @@ function handlePeerConnectionStateChange(userId) {
         clearPeerHealthTimer(userId);
         peer._recoveryPhase = "idle";
         reportConnectivity(peer);
+        reevaluatePeerHealth();
         return;
     }
 
@@ -823,8 +824,33 @@ function handlePeerConnectionStateChange(userId) {
            ICE state machine больше ничего сама не починит. */
         clearPeerHealthTimer(userId);
         attemptPeerRecovery(userId);
+        reevaluatePeerHealth();
         return;
     }
+}
+
+/**
+ * F20: пересчитать сводное здоровье mesh-связи и обновить футер-индикатор.
+ * Trouble = есть хоть один peer в failed или в активной фазе recovery
+ * (`restarting` / `passive-wait` — grace 5s пропускаем, это штатная
+ * дребезга ICE, не повод пугать юзера). При пустом peers — ok (мы одни в
+ * комнате). Если на странице нет setPeerTrouble (например, юнит-тест
+ * webrtc.js в отрыве) — просто молчим. */
+function reevaluatePeerHealth() {
+    if (typeof setPeerTrouble !== "function") return;
+    if (typeof isJoined === "undefined" || !isJoined) {
+        setPeerTrouble(false);
+        return;
+    }
+    let trouble = false;
+    for (const p of peers.values()) {
+        if (p.connectionState === "failed") { trouble = true; break; }
+        if (p._recoveryPhase === "restarting" || p._recoveryPhase === "passive-wait") {
+            trouble = true;
+            break;
+        }
+    }
+    setPeerTrouble(trouble);
 }
 
 /**
@@ -844,6 +870,7 @@ function attemptPeerRecovery(userId) {
         // Impolite — активная сторона.
         log.info("rtc", "ice restart", { userId });
         peer._recoveryPhase = "restarting";
+        reevaluatePeerHealth();
         try {
             peer.restartIce();
         } catch (err) {
@@ -864,6 +891,7 @@ function attemptPeerRecovery(userId) {
         // Polite — пассивная сторона. Даём impolite шанс починить.
         log.debug("rtc", "peer broken, waiting for impolite", { userId, ms: PEER_PASSIVE_REBUILD_TIMEOUT_MS });
         peer._recoveryPhase = "passive-wait";
+        reevaluatePeerHealth();
         const t = setTimeout(() => {
             const p = peers.get(userId);
             if (!p) return;
@@ -941,6 +969,10 @@ function cleanupPeerSlot(userId) {
 
     clearPeerHealthTimer(userId);
     _pingCache.delete(userId);
+
+    /* F20: peer ушёл — пересчитываем сводное здоровье. Если это был
+       единственный «трудный» peer — индикатор вернётся в зелёное. */
+    reevaluatePeerHealth();
 }
 
 /* ========= TEARDOWN ========= */
