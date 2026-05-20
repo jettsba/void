@@ -104,6 +104,8 @@ function addParticipant(userId, nickname) {
         const [w1, w2] = splitNicknameLines(nickname);
         if (lines[0]) lines[0].textContent = w1;
         if (lines[1]) lines[1].textContent = w2 || " ";
+        const nameEl = exists.querySelector(".participant-name");
+        nameEl?.classList.toggle("premium", isPremiumNickname(nickname));
         return;
     }
 
@@ -120,6 +122,9 @@ function addParticipant(userId, nickname) {
 
     const name = document.createElement("div");
     name.classList.add("participant-name");
+    if (isPremiumNickname(nickname)) {
+        name.classList.add("premium");
+    }
     const [word1, word2] = splitNicknameLines(nickname);
     const line1 = document.createElement("span");
     line1.className = "participant-name-line";

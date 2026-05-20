@@ -259,6 +259,53 @@
     color: var(--fg-4);
 }
 
+/* ---------- Premium nicks (contributors) ----------
+   Тёплое матовое золото с медленным мерцанием. Не сатурированное «цыганское»
+   жёлтое (#FFD700 запрещено), а пшенично-янтарная палитра. Свечение даём
+   через drop-shadow на filter — text-shadow не работает поверх
+   background-clip:text. Анимация 7s + cubic-bezier чтобы блик ощущался
+   живым, но не отвлекал в комнате на пять человек. */
+.participant-name.premium {
+    background: linear-gradient(
+        110deg,
+        #b89254 0%,
+        #e8c97a 28%,
+        #f6e4ad 50%,
+        #e8c97a 72%,
+        #b89254 100%
+    );
+    background-size: 220% 100%;
+    background-position: 0% 50%;
+    -webkit-background-clip: text;
+            background-clip: text;
+    -webkit-text-fill-color: transparent;
+            color: transparent;
+    filter:
+        drop-shadow(0 0 4px rgba(232, 201, 122, 0.35))
+        drop-shadow(0 0 12px rgba(232, 201, 122, 0.18));
+    animation: premium-shimmer 7s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+}
+
+@keyframes premium-shimmer {
+    0%, 100% { background-position:   0% 50%; }
+    50%      { background-position: 100% 50%; }
+}
+
+/* Muted/deaf: гасим премиум-блеск, чтобы статус «выключен» читался,
+   но золотой характер остаётся — это всё ещё контрибьютор. */
+.participant.muted .participant-name.premium,
+.participant.deaf  .participant-name.premium {
+    opacity: 0.5;
+    filter: drop-shadow(0 0 3px rgba(232, 201, 122, 0.18));
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .participant-name.premium {
+        animation: none;
+        background-position: 50% 50%;
+    }
+}
+
 .participant.muted .participant-avatar::before,
 .participant.deaf .participant-avatar::before {
     opacity: 0;

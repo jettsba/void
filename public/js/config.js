@@ -56,3 +56,17 @@ const USERNAME_NOUNS = [
     "Flux","Noise","Loop","Packet","Dimension","Radius","Interface","Kernel","Sequence","Trace",
     "Frame","Shard","Horizon","Code","Anomaly","Beacon","Circuit","Entity","Voidline","Nexus"
 ];
+
+/* Контрибьюторские ники — отображаются с золотистым сиянием в комнате.
+   Не покупается, не настраивается через UI — чистая визуальная пасхалка.
+   Сравнение case-insensitive по trim+toLowerCase, поэтому здесь храним
+   в нижнем регистре. */
+const PREMIUM_NICKNAMES = new Set([
+    "casheaterr",
+    "nakharaktere"
+]);
+
+function isPremiumNickname(nickname) {
+    if (typeof nickname !== "string") return false;
+    return PREMIUM_NICKNAMES.has(nickname.trim().toLowerCase());
+}
