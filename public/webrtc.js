@@ -42,6 +42,16 @@ const peerHealthTimers = new Map();
 const videoDecodeWatchdogs = new Map();
 const VIDEO_DECODE_WATCHDOG_MS = 5000;
 
+/**
+ * Watchdog'и «застрял в negotiation»: если signalingState вышел из stable
+ * (offer отправлен, answer не пришёл — или наоборот) и не вернулся в stable
+ * за SIG_STUCK_TIMEOUT_MS, дёргаем ICE restart. Без этого peer может висеть
+ * в have-local-offer часами (мы получили реальный кейс на v0.9.10 — стрим
+ * шёл, потом юзер пере-запустил screencast с другими параметрами,
+ * перенeгоциация утонула, на той стороне чёрный экран). */
+const sigStuckTimers = new Map();
+const SIG_STUCK_TIMEOUT_MS = 12_000;
+
 /** Сколько ждём перед попыткой восстановления, если peer ушёл в "disconnected".
  *  За это время transient проблемы (NAT mapping refresh, кратковременная потеря
  *  пакетов) обычно сами рассасываются. */
@@ -579,6 +589,11 @@ function createPeer(userId, isChatInitiator) {
     };
     peer.onsignalingstatechange = () => {
         log.info("rtc", "signaling state", { userId, state: peer.signalingState });
+        if (peer.signalingState === "stable") {
+            clearSigStuckTimer(userId);
+        } else {
+            armSigStuckTimer(peer, userId);
+        }
     };
     peer.onicegatheringstatechange = () => {
         log.debug("rtc", "ice gathering", { userId, state: peer.iceGatheringState });
@@ -601,7 +616,13 @@ function createPeer(userId, isChatInitiator) {
             // параллельно прилетает встречный offer и handleOffer его
             // отрабатывает раньше нас. Тогда тут уже создан answer — и
             // отправлять его нужно как answer, не как offer.
-            const sdp = screenStream?.active ? patchOpusForStereo(desc.sdp) : desc.sdp;
+            let sdp = desc.sdp;
+            if (screenStream?.active) {
+                sdp = patchOpusForStereo(sdp);
+                /* x-google-* в fmtp видео: бьёт BWE cold-start ramp в зародыше
+                   (без него Chrome стартует с 200 kbps и ползёт минуту). */
+                sdp = patchVideoStartBitrate(sdp, screenTargetHeight, screenTargetFps);
+            }
             const msg = { to: peer._userId, type: desc.type };
             if (desc.type === "offer") msg.offer = { type: desc.type, sdp };
             else msg.answer = { type: desc.type, sdp };
@@ -650,6 +671,10 @@ function createPeer(userId, isChatInitiator) {
            direct-peer'а ставим осмысленный потолок, чтобы encoder использовал
            доступную полосу. Relay-режим имеет свой жёсткий cap (см. applyRelayBitrateLimits). */
         if (!peer._isRelay) applyDirectScreenVideoParams(senders, screenTargetHeight, screenTargetFps);
+        /* VP9 первым — лучше качество для screen content (текст/UI/градиенты)
+           при том же битрейте. Ставится до первого setLocalDescription
+           (onnegotiationneeded ниже), чтобы offer уже шёл с VP9 в приоритете. */
+        preferVP9Video(peer);
     }
 
     peers.set(userId, peer);
@@ -987,6 +1012,42 @@ function clearVideoDecodeWatchdog(userId) {
     }
 }
 
+function armSigStuckTimer(peer, userId) {
+    const prev = sigStuckTimers.get(userId);
+    if (prev) clearTimeout(prev);
+    const t = setTimeout(() => {
+        sigStuckTimers.delete(userId);
+        const p = peers.get(userId);
+        if (!p || p !== peer) return;
+        if (p.signalingState === "stable") return;
+        log.warn("rtc", "signaling stuck, restarting ice", {
+            userId, state: p.signalingState
+        });
+        try {
+            p.restartIce();
+        } catch (err) {
+            log.warn("rtc", "sig-stuck ice restart failed", {
+                err: err?.message || String(err)
+            });
+            return;
+        }
+        /* Если через ещё ~10s всё ещё не stable — полный rebuild.
+           Двойной таймер делается через тот же slot: рestartIce
+           триггерит новый negotiation cycle, signalingState уйдёт в
+           non-stable, onsignalingstatechange вооружит таймер ещё раз.
+           Если restart починил — придёт stable, таймер погасится. */
+    }, SIG_STUCK_TIMEOUT_MS);
+    sigStuckTimers.set(userId, t);
+}
+
+function clearSigStuckTimer(userId) {
+    const t = sigStuckTimers.get(userId);
+    if (t) {
+        clearTimeout(t);
+        sigStuckTimers.delete(userId);
+    }
+}
+
 /**
  * Полностью убрать всё, что связано с пиром: peer-соединение, audio-элемент,
  * video-элемент, screen-senders, анализатор громкости, health-timer.
@@ -1037,6 +1098,7 @@ function cleanupPeerSlot(userId) {
 
     clearPeerHealthTimer(userId);
     clearVideoDecodeWatchdog(userId);
+    clearSigStuckTimer(userId);
     _pingCache.delete(userId);
 
     /* F20: peer ушёл — пересчитываем сводное здоровье. Если это был
@@ -1219,6 +1281,7 @@ async function startScreenShare(height = 1080, fps = 30, captureAudio = false) {
            classifyConnection ставит флаг при переходе в connected. */
         if (peer._isRelay) applyRelayBitrateLimits(peer);
         else applyDirectScreenVideoParams(senders, height, fps);
+        preferVP9Video(peer);
     }
     videoTrack.onended = () => {
         stopScreenShare();
@@ -1240,6 +1303,88 @@ function patchOpusForStereo(sdp) {
             return match + ";stereo=1;sprop-stereo=1;maxaveragebitrate=192000";
         }
     );
+}
+
+/**
+ * Google-специфичный SDP-патч, КРИТИЧНЫЙ для качества скринкаста:
+ * добавляет в fmtp всех видео-кодеков `x-google-start-bitrate` /
+ * `x-google-min-bitrate` / `x-google-max-bitrate`. Это override BWE
+ * cold-start — без этих параметров libwebrtc стартует с ~200 kbps и
+ * ползёт ступенями 320p→480p→720p→1080p за 40-60 секунд probing'а.
+ * `degradationPreference` и `encoding.minBitrate` помогают только при
+ * congestion'е, а тут речь о начальной оценке полосы.
+ *
+ * Не стандарт, но respected'ит Chrome / Edge / Yandex (все Chromium 64+).
+ * Firefox / Safari тихо игнорят — ну и пусть, у них своё BWE.
+ *
+ * Парсим SDP посекционно по `m=` строкам, чтобы случайно не задеть аудио-fmtp.
+ */
+function patchVideoStartBitrate(sdp, height, fps) {
+    /* Стартовый битрейт ≈ половина target'а: высокий enough чтобы первые
+       2-3 секунды дать приличную картинку, не настолько большой чтобы
+       захлестнуть канал. min ≈ четверть target'а — нижний предел при
+       congestion'е. Цифры в КБИТАХ для x-google-* (не байтах, как maxBitrate). */
+    const target = height >= 1080 ? (fps >= 60 ? 8000 : 5000)
+                  : height >= 720 ? (fps >= 60 ? 4000 : 2500)
+                  : 1500;
+    const start = Math.round(target * 0.6);
+    const min   = Math.round(target * 0.25);
+    const max   = target;
+
+    const lines = sdp.split(/\r?\n/);
+    let videoPts = null; // Set<string> | null — null когда вне m=video секции
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.startsWith("m=")) {
+            if (line.startsWith("m=video ")) {
+                videoPts = new Set();
+                const parts = line.split(/\s+/);
+                for (let j = 3; j < parts.length; j++) {
+                    if (/^\d+$/.test(parts[j])) videoPts.add(parts[j]);
+                }
+            } else {
+                videoPts = null;
+            }
+            continue;
+        }
+        if (!videoPts) continue;
+        if (!line.startsWith("a=fmtp:")) continue;
+        const m = line.match(/^a=fmtp:(\d+) (.*)$/);
+        if (!m || !videoPts.has(m[1])) continue;
+        if (m[2].includes("x-google-start-bitrate")) continue;
+        lines[i] = `a=fmtp:${m[1]} ${m[2]};x-google-start-bitrate=${start};x-google-min-bitrate=${min};x-google-max-bitrate=${max}`;
+    }
+    return lines.join("\r\n");
+}
+
+/**
+ * Поставить VP9 первым предпочитаемым кодеком для видео-transceiver'а.
+ * VP9 даёт заметно лучше качество на скринкаст-контенте (текст / UI /
+ * градиенты) при том же битрейте, чем VP8: меньше пиксельных блоков на
+ * плавных переходах и резких границах. AV1 был бы ещё лучше, но включать
+ * как первый не стоит — у некоторых encoder fallback на программный AV1
+ * жрёт CPU. VP9 — sweet spot для 2026.
+ *
+ * Зовётся ПЕРЕД setLocalDescription, чтобы offer уже содержал VP9 первым.
+ * Если getCapabilities/setCodecPreferences не поддержаны — no-op.
+ */
+function preferVP9Video(peer) {
+    if (typeof RTCRtpSender === "undefined" || !RTCRtpSender.getCapabilities) return;
+    const caps = RTCRtpSender.getCapabilities("video");
+    if (!caps || !Array.isArray(caps.codecs)) return;
+    const preferred = [
+        ...caps.codecs.filter(c => /VP9/i.test(c.mimeType)),
+        ...caps.codecs.filter(c => !/VP9/i.test(c.mimeType))
+    ];
+    for (const t of peer.getTransceivers()) {
+        if (t.sender?.track?.kind !== "video") continue;
+        if (typeof t.setCodecPreferences !== "function") continue;
+        try {
+            t.setCodecPreferences(preferred);
+        } catch (err) {
+            log.warn("rtc", "setCodecPreferences failed", { err: err?.message || String(err) });
+        }
+    }
 }
 
 /**

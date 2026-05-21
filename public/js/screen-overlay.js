@@ -159,12 +159,24 @@ let lastWatchedUserId = null;
 let lastWatchedExpiresAt = 0;
 const _AUTO_REOPEN_TTL_MS = 30_000;
 
-// WebAudio routing for screen share audio — routes received screen audio
-// through AudioContext instead of native <video> element playback.
-// Chrome's communications ducking only affects HTML media elements; AudioContext
-// uses a separate audio session type that isn't ducked when the viewer speaks.
+/* WebAudio routing for screen share audio. Цепочка такая:
+       <audio>.srcObject = stream → createMediaElementSource → GainNode → destination
+   Зачем именно `<audio>` element как источник, а не `createMediaStreamSource` напрямую:
+     - `createMediaStreamSource(remoteTrack)` наследует от WebRTC-receiver
+       классификацию "communications session". На Windows это означает, что AEC
+       зрителя засчитывает screen audio в свой "double-talk" анализатор и режет
+       playback на 80%, когда зритель говорит ("ducking демки при разговоре").
+     - HTMLMediaElement по дефолту классифицируется как "media" (не comms) —
+       AEC уже не видит его в reference signal так же агрессивно. Audio после
+       этого играет через AudioContext.destination, который мы пометили как
+       audioSession.type = "playback" (_prepareScreenAudioCtx ниже).
+   Не запутайтесь: `<audio>` element создаётся НЕ для воспроизведения нативно,
+   а как «обёртка-источник» — createMediaElementSource отбирает у него audio
+   pipeline; .muted / .volume на элементе ни на что не влияют. */
 let _screenShareAudioCtx = null;
 let _screenShareGainNode = null;
+let _screenShareAudioEl = null;     // <audio> wrapper, holds the MediaStream
+let _screenShareSourceNode = null;  // MediaElementAudioSourceNode
 
 // Called during a user gesture (click to open overlay) — creates AudioContext
 // and gain node while the gesture is still active. Safe to call multiple times.
@@ -207,8 +219,22 @@ function _startScreenOverlayAudio(stream) {
     }
     try {
         _screenShareGainNode.gain.value = (typeof isSoundOn !== "undefined" && !isSoundOn) ? 0 : 1;
-        const src = _screenShareAudioCtx.createMediaStreamSource(new MediaStream(audioTracks));
-        src.connect(_screenShareGainNode);
+        /* Создаём `<audio>` обёртку как media-category источник — снимает с
+           аудио-pipeline'а классификацию communications и спасает от AEC
+           double-talk ducking'а на Windows. Сам element не приcоединяется к
+           DOM и не играет нативно: createMediaElementSource «отбирает» у него
+           pipeline, аудио идёт через context. */
+        _screenShareAudioEl = document.createElement("audio");
+        _screenShareAudioEl.autoplay = true;
+        _screenShareAudioEl.muted = true;
+        _screenShareAudioEl.playsInline = true;
+        _screenShareAudioEl.srcObject = new MediaStream(audioTracks);
+        _screenShareSourceNode = _screenShareAudioCtx.createMediaElementSource(_screenShareAudioEl);
+        _screenShareSourceNode.connect(_screenShareGainNode);
+        /* Element.play() обязательно — без него Chrome не запустит pipeline
+           «забранного» элемента, даже если он подключён к context.destination. */
+        const playPromise = _screenShareAudioEl.play();
+        if (playPromise && playPromise.catch) playPromise.catch(() => {});
         // Resume in case context was created outside a gesture (fallback path).
         _screenShareAudioCtx.resume().catch(() => {
             if (screenOverlayVideo) screenOverlayVideo.muted = false;
@@ -217,10 +243,24 @@ function _startScreenOverlayAudio(stream) {
         if (screenOverlayVideo) screenOverlayVideo.muted = false;
         _screenShareAudioCtx = null;
         _screenShareGainNode = null;
+        _screenShareSourceNode = null;
+        if (_screenShareAudioEl) {
+            try { _screenShareAudioEl.srcObject = null; } catch (__) {}
+        }
+        _screenShareAudioEl = null;
     }
 }
 
 function _stopScreenOverlayAudio() {
+    if (_screenShareSourceNode) {
+        try { _screenShareSourceNode.disconnect(); } catch (_) {}
+        _screenShareSourceNode = null;
+    }
+    if (_screenShareAudioEl) {
+        try { _screenShareAudioEl.pause(); } catch (_) {}
+        try { _screenShareAudioEl.srcObject = null; } catch (_) {}
+        _screenShareAudioEl = null;
+    }
     if (_screenShareAudioCtx) {
         _screenShareAudioCtx.close();
         _screenShareAudioCtx = null;
