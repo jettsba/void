@@ -168,122 +168,17 @@ let lastWatchedUserId = null;
 let lastWatchedExpiresAt = 0;
 const _AUTO_REOPEN_TTL_MS = 5 * 60_000;
 
-/* WebAudio routing for screen share audio. Цепочка такая:
-       <audio>.srcObject = stream → createMediaElementSource → GainNode → destination
-   Зачем именно `<audio>` element как источник, а не `createMediaStreamSource` напрямую:
-     - `createMediaStreamSource(remoteTrack)` наследует от WebRTC-receiver
-       классификацию "communications session". На Windows это означает, что AEC
-       зрителя засчитывает screen audio в свой "double-talk" анализатор и режет
-       playback на 80%, когда зритель говорит ("ducking демки при разговоре").
-     - HTMLMediaElement по дефолту классифицируется как "media" (не comms) —
-       AEC уже не видит его в reference signal так же агрессивно. Audio после
-       этого играет через AudioContext.destination, который мы пометили как
-       audioSession.type = "playback" (_prepareScreenAudioCtx ниже).
-   Не запутайтесь: `<audio>` element создаётся НЕ для воспроизведения нативно,
-   а как «обёртка-источник» — createMediaElementSource отбирает у него audio
-   pipeline; .muted / .volume на элементе ни на что не влияют. */
-let _screenShareAudioCtx = null;
-let _screenShareGainNode = null;
-let _screenShareAudioEl = null;     // <audio> wrapper, holds the MediaStream
-let _screenShareSourceNode = null;  // MediaElementAudioSourceNode
-
-// Called during a user gesture (click to open overlay) — creates AudioContext
-// and gain node while the gesture is still active. Safe to call multiple times.
-function _prepareScreenAudioCtx() {
-    if (_screenShareAudioCtx) return;
-    try {
-        _screenShareAudioCtx = new AudioContext({ latencyHint: "playback" });
-        /* audioSession.type = "playback" — снимает классификацию контекста как
-           communications-session. По дефолту любой AudioContext, в который
-           подаётся MediaStreamTrack от WebRTC receiver'а, наследует comms-режим
-           источника. На Windows это включает comms-ducking: при голосовой
-           активности на mic'е (AEC double-talk detector) система режет
-           playback на 80%. Явный "playback" говорит ОС «это медиа, не звонок» —
-           ducking перестаёт срабатывать на демку.
-           API относительно новый (Chrome 124+, Safari 17+); на старых тихо
-           игнорится (try/catch ниже не нужен — присвоение неподдерживаемого
-           поля no-op, не throw'ает). */
-        if (_screenShareAudioCtx.audioSession) {
-            try { _screenShareAudioCtx.audioSession.type = "playback"; } catch (_) {}
-        }
-        _screenShareGainNode = _screenShareAudioCtx.createGain();
-        _screenShareGainNode.gain.value = (typeof isSoundOn !== "undefined" && !isSoundOn) ? 0 : 1;
-        _screenShareGainNode.connect(_screenShareAudioCtx.destination);
-    } catch (_) {
-        _screenShareAudioCtx = null;
-        _screenShareGainNode = null;
-    }
-}
-
-function _startScreenOverlayAudio(stream) {
-    const audioTracks = stream.getAudioTracks ? stream.getAudioTracks() : [];
-    if (!audioTracks.length) return;
-    // Reuse AudioContext prepared during the user gesture. If not prepared yet
-    // (video was already ready when user clicked, no pending path), create now —
-    // we're still inside the click handler, so the gesture is still active.
-    _prepareScreenAudioCtx();
-    if (!_screenShareAudioCtx) {
-        if (screenOverlayVideo) screenOverlayVideo.muted = false;
-        return;
-    }
-    try {
-        _screenShareGainNode.gain.value = (typeof isSoundOn !== "undefined" && !isSoundOn) ? 0 : 1;
-        /* Создаём `<audio>` обёртку как media-category источник — снимает с
-           аудио-pipeline'а классификацию communications и спасает от AEC
-           double-talk ducking'а на Windows. Сам element не приcоединяется к
-           DOM и не играет нативно: createMediaElementSource «отбирает» у него
-           pipeline, аудио идёт через context. */
-        _screenShareAudioEl = document.createElement("audio");
-        _screenShareAudioEl.autoplay = true;
-        _screenShareAudioEl.muted = true;
-        _screenShareAudioEl.playsInline = true;
-        _screenShareAudioEl.srcObject = new MediaStream(audioTracks);
-        _screenShareSourceNode = _screenShareAudioCtx.createMediaElementSource(_screenShareAudioEl);
-        _screenShareSourceNode.connect(_screenShareGainNode);
-        /* Element.play() обязательно — без него Chrome не запустит pipeline
-           «забранного» элемента, даже если он подключён к context.destination. */
-        const playPromise = _screenShareAudioEl.play();
-        if (playPromise && playPromise.catch) playPromise.catch(() => {});
-        // Resume in case context was created outside a gesture (fallback path).
-        _screenShareAudioCtx.resume().catch(() => {
-            if (screenOverlayVideo) screenOverlayVideo.muted = false;
-        });
-    } catch (_) {
-        if (screenOverlayVideo) screenOverlayVideo.muted = false;
-        _screenShareAudioCtx = null;
-        _screenShareGainNode = null;
-        _screenShareSourceNode = null;
-        if (_screenShareAudioEl) {
-            try { _screenShareAudioEl.srcObject = null; } catch (__) {}
-        }
-        _screenShareAudioEl = null;
-    }
-}
-
-function _stopScreenOverlayAudio() {
-    if (_screenShareSourceNode) {
-        try { _screenShareSourceNode.disconnect(); } catch (_) {}
-        _screenShareSourceNode = null;
-    }
-    if (_screenShareAudioEl) {
-        try { _screenShareAudioEl.pause(); } catch (_) {}
-        try { _screenShareAudioEl.srcObject = null; } catch (_) {}
-        _screenShareAudioEl = null;
-    }
-    if (_screenShareAudioCtx) {
-        _screenShareAudioCtx.close();
-        _screenShareAudioCtx = null;
-        _screenShareGainNode = null;
-    }
-    if (screenOverlayVideo) screenOverlayVideo.muted = false;
-}
-
+/* Screen-audio playback: ИГРАЕМ НАТИВНО через <video>.srcObject (без
+   AudioContext-роутинга и без `<audio>` обёрток). Это критично для Windows
+   ducking: Chrome специально пометил HTMLMediaElement playback с WebRTC
+   remote-audio как часть «ducking session» (Chromium codereview 281814/281483
+   от 2014) — Windows такой playback НЕ дакает на 80% при активном mic'е.
+   AudioContext.destination — отдельный render-stream вне этого opt-out, и
+   через него playback демки дакался при разговоре зрителя.
+   Громкость и mute контролируются прямыми свойствами screenOverlayVideo:
+   .volume, .muted, .setSinkId. */
 function setScreenOverlayAudioMuted(muted) {
-    if (_screenShareGainNode) {
-        _screenShareGainNode.gain.value = muted ? 0 : 1;
-    } else if (screenOverlayVideo) {
-        screenOverlayVideo.muted = muted;
-    }
+    if (screenOverlayVideo) screenOverlayVideo.muted = !!muted;
 }
 
 /**
@@ -335,9 +230,9 @@ function refreshOverlayStreamIfOpen(userId, stream) {
     if (screenOverlayVideo.srcObject === stream) return;
     log.info("rtc", "screen overlay hot-swap stream", { userId });
     screenOverlayVideo.srcObject = stream;
-    /* Audio тоже мог поменяться — перепривяжем через тот же путь. */
-    _stopScreenOverlayAudio();
-    _startScreenOverlayAudio(stream);
+    screenOverlayVideo.muted = (typeof isSoundOn !== "undefined" && !isSoundOn);
+    applyMasterVolumeToScreenOverlay();
+    applySinkIdToScreenOverlay();
     /* Обновим cleanup-листенеры на новый stream — старые висят на мёртвом. */
     screenOverlayTrackCleanup?.();
     const videoTrack = stream.getVideoTracks?.()[0];
@@ -353,21 +248,41 @@ function refreshOverlayStreamIfOpen(userId, stream) {
     };
 }
 
+/**
+ * Применить мастер-громкость к screenOverlayVideo. Зовётся при open и при
+ * изменении настроек громкости (event "void:audio-out-gain-changed").
+ */
+function applyMasterVolumeToScreenOverlay() {
+    if (!screenOverlayVideo) return;
+    const master = (typeof getMasterOutputGain === "function") ? getMasterOutputGain() : 1;
+    screenOverlayVideo.volume = Math.max(0, Math.min(1, master));
+}
+
+/**
+ * Применить выбранное output-устройство (settings → audio out device) к
+ * screenOverlayVideo. На Safari/старых браузерах setSinkId отсутствует —
+ * тихо игнорим. */
+async function applySinkIdToScreenOverlay() {
+    if (!screenOverlayVideo) return;
+    if (typeof screenOverlayVideo.setSinkId !== "function") return;
+    const id = window.VoidSettings?.getAudioOutId?.() || "";
+    try { await screenOverlayVideo.setSinkId(id); } catch (_) {}
+}
+
+document.addEventListener("void:audio-out-gain-changed", applyMasterVolumeToScreenOverlay);
+document.addEventListener("void:audio-out-device-changed", applySinkIdToScreenOverlay);
+
 function openScreenOverlay(userId) {
     const videoEl = videoMap.get(userId);
     if (!videoEl?.srcObject) {
         /* Race: socket «started sharing» прилетел, а WebRTC-трек ещё нет.
            Запоминаем намерение и ждём сигнала из ontrack. Таймаут 5 сек —
-           если трек не приедет, чистим pending.
-           _prepareScreenAudioCtx здесь — чтобы AudioContext создался в контексте
-           user gesture (клик), пока он активен, до прихода трека. */
-        _prepareScreenAudioCtx();
+           если трек не приедет, чистим pending. */
         pendingScreenOverlayUserId = userId;
         clearTimeout(pendingScreenOverlayTimer);
         pendingScreenOverlayTimer = setTimeout(() => {
             pendingScreenOverlayUserId = null;
             pendingScreenOverlayTimer = null;
-            _stopScreenOverlayAudio(); // clean up prepared context if track never arrived
         }, 5000);
         return;
     }
@@ -384,8 +299,18 @@ function openScreenOverlay(userId) {
     lastWatchedUserId = userId;
     lastWatchedExpiresAt = Date.now() + _AUTO_REOPEN_TTL_MS;
     screenOverlayVideo.srcObject = stream;
-    screenOverlayVideo.muted = true; // audio routed via WebAudio below (prevents comms ducking)
-    _startScreenOverlayAudio(stream);
+    /* Нативный playback аудио через video-элемент — попадает в Chrome WebRTC
+       ducking opt-out (codereview 281814), Windows не дакает на 80% при
+       активном mic'е. См. комментарий у setScreenOverlayAudioMuted выше. */
+    screenOverlayVideo.muted = (typeof isSoundOn !== "undefined" && !isSoundOn);
+    applyMasterVolumeToScreenOverlay();
+    applySinkIdToScreenOverlay();
+    /* Явный play() — autoplay attribute не всегда срабатывает после смены
+       srcObject (особенно на reopen с другим stream). Promise может отказать
+       если autoplay policy не позволяет unmuted playback без user gesture —
+       но openScreenOverlay всегда зовётся из click handler. */
+    const playPromise = screenOverlayVideo.play?.();
+    if (playPromise && playPromise.catch) playPromise.catch(() => {});
     screenOverlay.removeAttribute("inert");
     screenOverlay.setAttribute("aria-hidden", "false");
     screenOverlay.classList.add("is-visible");
@@ -423,8 +348,10 @@ function closeScreenOverlay(opts) {
     }
     screenOverlay.classList.remove("is-visible");
     hideOverlayElement(screenOverlay);
-    _stopScreenOverlayAudio();
-    if (screenOverlayVideo) screenOverlayVideo.srcObject = null;
+    if (screenOverlayVideo) {
+        screenOverlayVideo.srcObject = null;
+        screenOverlayVideo.muted = true;
+    }
     screenOverlayTrackCleanup?.();
     screenOverlayTrackCleanup = null;
     screenOverlayUserId = null;

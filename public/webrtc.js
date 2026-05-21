@@ -216,9 +216,13 @@ function applyAudioProcessing(rawStream) {
 
     const source = audioContext.createMediaStreamSource(rawStream);
 
+    /* Highpass 110Hz (раньше 85) — режет глубокий гул вентилятора /
+       холодильника / сабвуферный rumble сильнее, без потери body голоса
+       (мужской вокал начинается с ~85Hz, женский с ~165, но fundamentals
+       ниже 110 чаще шум, чем сигнал — для голос-чата). */
     const highpass = audioContext.createBiquadFilter();
     highpass.type = "highpass";
-    highpass.frequency.value = 85;
+    highpass.frequency.value = 110;
     highpass.Q.value = 0.7;
 
     const lowpass = audioContext.createBiquadFilter();
@@ -226,12 +230,68 @@ function applyAudioProcessing(rawStream) {
     lowpass.frequency.value = 8000;
     lowpass.Q.value = 0.7;
 
+    /* Compressor чуть агрессивнее (ratio 5 вместо 4, threshold -30 вместо
+       -28) — лучше выравнивает динамику, тихая речь не теряется на фоне
+       громких транзиентов. Не доводим до «wall of sound» — knee 12 даёт
+       плавный заход. */
     const compressor = audioContext.createDynamicsCompressor();
-    compressor.threshold.value = -28;
+    compressor.threshold.value = -30;
     compressor.knee.value = 12;
-    compressor.ratio.value = 4;
+    compressor.ratio.value = 5;
     compressor.attack.value = 0.005;
     compressor.release.value = 0.12;
+
+    /* Noise gate: AnalyserNode меряет RMS на выходе компрессора, отдельный
+       GainNode (gateGain) гасит сигнал ниже порога. Hysteresis (ON порог
+       выше OFF) + hold timer гасят флапание на коротких паузах между
+       словами. Лечит тихий фоновый шум (вентилятор, ambient) — то что Chrome
+       NS пропускает потому что считает «полезным сигналом». Громкий фон
+       (машина за окном, чужие голоса) gate не возьмёт — он выше порога. */
+    const analyser = audioContext.createAnalyser();
+    analyser.fftSize = 512;
+    analyser.smoothingTimeConstant = 0.2;
+    const analyserData = new Float32Array(analyser.fftSize);
+
+    const gateGain = audioContext.createGain();
+    gateGain.gain.value = 1;
+    const GATE_ON_LIN = Math.pow(10, -50 / 20);   // ~0.00316  (≈ -50 dBFS)
+    const GATE_OFF_LIN = Math.pow(10, -56 / 20);  // ~0.00158  (≈ -56 dBFS, hysteresis)
+    const GATE_HOLD_MS = 180;
+    const GATE_ATTACK_S = 0.01;   // быстро открыть (не cut начало слова)
+    const GATE_RELEASE_S = 0.20;  // медленно закрыть (не cut концы фраз)
+    const gateState = { open: true, lastSoundAt: performance.now(), running: true };
+
+    function gateTick() {
+        if (!gateState.running) return;
+        analyser.getFloatTimeDomainData(analyserData);
+        let sumSq = 0;
+        for (let i = 0; i < analyserData.length; i++) {
+            const v = analyserData[i];
+            sumSq += v * v;
+        }
+        const rms = Math.sqrt(sumSq / analyserData.length);
+        const now = performance.now();
+        if (rms > GATE_ON_LIN) {
+            gateState.lastSoundAt = now;
+            if (!gateState.open) {
+                gateState.open = true;
+                const t = audioContext.currentTime;
+                gateGain.gain.cancelScheduledValues(t);
+                gateGain.gain.setValueAtTime(gateGain.gain.value, t);
+                gateGain.gain.linearRampToValueAtTime(1, t + GATE_ATTACK_S);
+            }
+        } else if (rms < GATE_OFF_LIN && now - gateState.lastSoundAt > GATE_HOLD_MS) {
+            if (gateState.open) {
+                gateState.open = false;
+                const t = audioContext.currentTime;
+                gateGain.gain.cancelScheduledValues(t);
+                gateGain.gain.setValueAtTime(gateGain.gain.value, t);
+                gateGain.gain.linearRampToValueAtTime(0, t + GATE_RELEASE_S);
+            }
+        }
+        requestAnimationFrame(gateTick);
+    }
+    requestAnimationFrame(gateTick);
 
     /* GainNode в конце цепи — управляется ползунком «усиление» из настроек.
        1.0 = unity (нет изменений), <1 = тише, >1 = бустим. Меняется в
@@ -246,12 +306,15 @@ function applyAudioProcessing(rawStream) {
     source.connect(highpass);
     highpass.connect(lowpass);
     lowpass.connect(compressor);
-    compressor.connect(gain);
+    compressor.connect(analyser);
+    analyser.connect(gateGain);
+    gateGain.connect(gain);
     gain.connect(destination);
 
-    // Сохраняем ссылки для teardownAudioGraph(). Без этого ноды висят
-    // подключёнными к контексту → утечка на каждый join/leave.
-    audioGraph = { source, highpass, lowpass, compressor, gain, destination };
+    // Сохраняем ссылки для teardownAudioGraph(). gateState хранит флаг
+    // running — устанавливается в false при teardown, чтобы rAF-loop
+    // вышел сам, не плодя зомби-циклы.
+    audioGraph = { source, highpass, lowpass, compressor, analyser, gateGain, gain, destination, gateState };
 
     return destination.stream;
 }
@@ -263,7 +326,10 @@ function applyAudioProcessing(rawStream) {
  */
 function teardownAudioGraph() {
     if (!audioGraph) return;
-    for (const node of Object.values(audioGraph)) {
+    /* gateState — служебный объект (не AudioNode), останавливаем его rAF-loop. */
+    if (audioGraph.gateState) audioGraph.gateState.running = false;
+    for (const [key, node] of Object.entries(audioGraph)) {
+        if (key === "gateState") continue;
         try { node.disconnect(); } catch (_) {}
     }
     audioGraph = null;
