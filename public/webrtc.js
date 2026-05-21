@@ -493,6 +493,9 @@ function createPeer(userId, isChatInitiator) {
        чтобы по реальным данным понять — нужен ли TURN. rebuild создаёт новый
        peer-объект с чистым флагом → считается новой попыткой, так и задумано. */
     peer._iceReported = false;
+    /* Счётчик срабатываний sig-stuck watchdog. Tier 1 = restartIce, tier 2 =
+       rebuildPeer. Сбрасывается на возврате в stable. */
+    peer._sigStuckAttempts = 0;
 
     /* Хендлеры вешаем ДО addTrack: addTrack синхронно ставит negotiation-needed
        во флаг, который потом превратится в событие в следующем microtask.
@@ -591,6 +594,7 @@ function createPeer(userId, isChatInitiator) {
         log.info("rtc", "signaling state", { userId, state: peer.signalingState });
         if (peer.signalingState === "stable") {
             clearSigStuckTimer(userId);
+            peer._sigStuckAttempts = 0;
         } else {
             armSigStuckTimer(peer, userId);
         }
@@ -1012,6 +1016,19 @@ function clearVideoDecodeWatchdog(userId) {
     }
 }
 
+/**
+ * Двух-эшелонный watchdog застрявшей negotiation:
+ *   1-е срабатывание: peer.restartIce() — лёгкая попытка, ICE-restart
+ *      генерит новый offer с новыми кред'ми ICE.
+ *   2-е срабатывание (если за следующие 12с stable так и не пришёл):
+ *      rebuildPeer() — закрываем peer, создаём новый, помечаем
+ *      _signalRebuildOnNextOffer=true; противоположная сторона при
+ *      получении offer'а с rebuild:true тоже пересоздаст свой peer
+ *      (см. handleOffer). Это разлепляет ЛЮБУЮ застрявшую negotiation,
+ *      потому что начинаем с нуля.
+ *
+ * Счётчик попыток peer._sigStuckAttempts сбрасывается на stable.
+ */
 function armSigStuckTimer(peer, userId) {
     const prev = sigStuckTimers.get(userId);
     if (prev) clearTimeout(prev);
@@ -1020,22 +1037,39 @@ function armSigStuckTimer(peer, userId) {
         const p = peers.get(userId);
         if (!p || p !== peer) return;
         if (p.signalingState === "stable") return;
-        log.warn("rtc", "signaling stuck, restarting ice", {
-            userId, state: p.signalingState
-        });
-        try {
-            p.restartIce();
-        } catch (err) {
-            log.warn("rtc", "sig-stuck ice restart failed", {
-                err: err?.message || String(err)
+
+        const attempt = (p._sigStuckAttempts || 0) + 1;
+        p._sigStuckAttempts = attempt;
+
+        if (attempt === 1) {
+            /* Tier 1: restartIce. Если peer в have-local-offer — restartIce
+               сам по себе не разлепит (новый offer не сгенерится пока текущий
+               не разрешится). Но если peer в have-remote-offer / другом
+               состоянии — может помочь. Если не помог — пройдём в tier 2. */
+            log.warn("rtc", "signaling stuck (tier 1), restarting ice", {
+                userId, state: p.signalingState
             });
+            try {
+                p.restartIce();
+            } catch (err) {
+                log.warn("rtc", "sig-stuck ice restart failed", {
+                    err: err?.message || String(err)
+                });
+            }
+            /* Перевзводим таймер вручную — onsignalingstatechange может
+               не сработать, если signalingState не меняется при restartIce
+               на застрявшем have-local-offer. */
+            armSigStuckTimer(p, userId);
             return;
         }
-        /* Если через ещё ~10s всё ещё не stable — полный rebuild.
-           Двойной таймер делается через тот же slot: рestartIce
-           триггерит новый negotiation cycle, signalingState уйдёт в
-           non-stable, onsignalingstatechange вооружит таймер ещё раз.
-           Если restart починил — придёт stable, таймер погасится. */
+
+        /* Tier 2 (attempt >= 2): rebuildPeer. Гарантированно разлепляет —
+           создаём peer с нуля. Side effect: короткий разрыв медиа на ~1-2с
+           пока новый peer не дойдёт до connected. */
+        log.warn("rtc", "signaling stuck (tier 2), rebuilding peer", {
+            userId, state: p.signalingState
+        });
+        rebuildPeer(userId);
     }, SIG_STUCK_TIMEOUT_MS);
     sigStuckTimers.set(userId, t);
 }
@@ -1429,10 +1463,16 @@ async function applyScreenAudioParams(senders) {
  * за минуту-две, пока BWE достигает оценки. Для текстового контента скринкаста
  * правильнее держать разрешение и подрезать fps; см. W3C MST § degradationPreference.
  *
- * minBitrate ≈ 40% от max — кикает BWE стартовать не с дефолтового ~200 kbps,
- * а с разумного уровня. Без этого initial-bitrate libwebrtc устанавливает
- * исходя из «cold start» эвристики, и нужно 30-60s probing'а чтобы достичь
- * целевого качества. Chrome поддерживает encoding.minBitrate с ~M97.
+ * Старт-битрейт (выход из cold-start BWE) — через SDP-патч
+ * patchVideoStartBitrate (x-google-start-bitrate / -min-bitrate / -max-bitrate).
+ * Не используем encoding.minBitrate: оно нестандарт, Chromium 148 (Edge 148)
+ * считает поле read-only и валит весь setParameters → degradationPreference
+ * тоже не применяется. SDP-патч надёжнее и работает на всех Chromium-based.
+ *
+ * Defensive fallback: degradationPreference на корне params — в некоторых
+ * версиях Chromium тоже read-only. Если первый setParameters упал — пробуем
+ * без degradationPreference, чтобы хотя бы maxBitrate/maxFramerate
+ * применились.
  */
 async function applyDirectScreenVideoParams(senders, height, fps) {
     const videoSender = senders.find(s => s.track?.kind === "video");
@@ -1441,21 +1481,28 @@ async function applyDirectScreenVideoParams(senders, height, fps) {
                 : height >= 720  ? 2_500_000
                 : 1_200_000;
     const maxBitrate = fps >= 60 ? Math.round(base * 1.6) : base;
-    const minBitrate = Math.round(maxBitrate * 0.4);
-    try {
+
+    const apply = async (withDegradation) => {
         const params = videoSender.getParameters();
         if (!params.encodings || !params.encodings.length) params.encodings = [{}];
         const enc = params.encodings[0];
         enc.maxBitrate = maxBitrate;
-        enc.minBitrate = minBitrate;
         enc.maxFramerate = fps;
         enc.networkPriority = "high";
-        /* degradationPreference живёт на корне params, не на encoding. */
-        params.degradationPreference = "maintain-resolution";
+        if (withDegradation) params.degradationPreference = "maintain-resolution";
         await videoSender.setParameters(params);
-        log.info("rtc", "direct screen video bitrate set", { height, fps, maxBitrate, minBitrate });
-    } catch (err) {
-        log.warn("rtc", "direct screen video setParameters failed", { err: err?.message || String(err) });
+    };
+
+    try {
+        await apply(true);
+        log.info("rtc", "direct screen video bitrate set", { height, fps, maxBitrate });
+    } catch (err1) {
+        try {
+            await apply(false);
+            log.info("rtc", "direct screen video bitrate set (no degradation pref)", { height, fps, maxBitrate });
+        } catch (err2) {
+            log.warn("rtc", "direct screen video setParameters failed", { err: err2?.message || String(err2) });
+        }
     }
 }
 
@@ -1672,20 +1719,26 @@ async function applyRelayBitrateLimits(peer) {
     for (const sender of senders) {
         if (!sender.track) continue;
         if (sender.track.kind !== "video") continue;
-        try {
+        const apply = async (withDegradation) => {
             const params = sender.getParameters();
             if (!params.encodings || !params.encodings.length) params.encodings = [{}];
             const enc = params.encodings[0];
             enc.maxBitrate = 800_000;
-            enc.minBitrate = 400_000;
             enc.scaleResolutionDownBy = 2;
             enc.maxFramerate = 15;
-            /* maintain-resolution даже на relay: текст важнее fps. */
-            params.degradationPreference = "maintain-resolution";
+            if (withDegradation) params.degradationPreference = "maintain-resolution";
             await sender.setParameters(params);
+        };
+        try {
+            await apply(true);
             log.info("rtc", "relay video bitrate capped", { userId: peer._userId });
-        } catch (err) {
-            log.warn("rtc", "relay video bitrate cap failed", { err: err?.message || String(err) });
+        } catch (err1) {
+            try {
+                await apply(false);
+                log.info("rtc", "relay video bitrate capped (no degradation pref)", { userId: peer._userId });
+            } catch (err2) {
+                log.warn("rtc", "relay video bitrate cap failed", { err: err2?.message || String(err2) });
+            }
         }
     }
 }
