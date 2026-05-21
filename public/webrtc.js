@@ -525,12 +525,20 @@ function createPeer(userId, isChatInitiator) {
                 videoMap.delete(userId);
                 if (typeof closeScreenOverlay === 'function') {
                     /* track.ended может быть «временно» (стример пересобирает peer);
-                       сохраняем lastWatchedUserId — если в течение 30s приедет
-                       новый трек, авто-реоткроемся. Если стример реально выключил
-                       демку, придёт screencast-state:false и lastWatched сбросится. */
+                       сохраняем lastWatchedUserId — если в течение auto-reopen
+                       окна приедет новый трек, авто-реоткроемся. Если стример
+                       реально выключил демку, придёт screencast-state:false. */
                     closeScreenOverlay({ preserveAutoReopen: true });
                 }
             };
+            /* Hot-swap: оверлей уже открыт для этого user'а, но трек
+               пересоздался (sig-stuck rebuild, ICE restart с новым m-line'ом).
+               screenOverlayVideo всё ещё держит СТАРЫЙ stream-объект, кадры
+               по нему не идут → визуально чёрный экран. Подменяем srcObject
+               на новый стрим напрямую, не дожидаясь auto-reopen. */
+            if (typeof refreshOverlayStreamIfOpen === 'function') {
+                refreshOverlayStreamIfOpen(userId, event.streams[0]);
+            }
             /* Watchdog «черный экран»: бывает peer connected, screen-track
                приехал, но frame'ы не декодируются (transceiver direction
                перепутался, codec mismatch, BWE стартовал в 0). Через 5s
@@ -626,6 +634,14 @@ function createPeer(userId, isChatInitiator) {
                 /* x-google-* в fmtp видео: бьёт BWE cold-start ramp в зародыше
                    (без него Chrome стартует с 200 kbps и ползёт минуту). */
                 sdp = patchVideoStartBitrate(sdp, screenTargetHeight, screenTargetFps);
+            }
+            /* L6: warn если SDP подбирается к лимиту сервера (32 KB). Каждый
+               цикл stopScreenShare → startScreenShare может оставить
+               orphan-transceiver'ы → SDP пухнет m-line'ами. Если упрётся в
+               лимит, server тихо дропнет offer и negotiation залипнет
+               в have-local-offer. */
+            if (sdp.length > 24_000) {
+                log.warn("rtc", "large sdp", { bytes: sdp.length, type: desc.type, userId: peer._userId });
             }
             const msg = { to: peer._userId, type: desc.type };
             if (desc.type === "offer") msg.offer = { type: desc.type, sdp };

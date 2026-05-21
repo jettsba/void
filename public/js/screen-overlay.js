@@ -126,7 +126,12 @@ function handleScreencastStateMsg(data) {
         roomScreencasterId = userId;
     } else if (roomScreencasterId === userId) {
         roomScreencasterId = null;
-        closeScreenOverlay();
+        /* preserveAutoReopen: стример мог выключить демку чтобы тут же
+           пере-запустить с другим разрешением / без звука. Сохраняем
+           lastWatched 5 минут — если стример снова запустит, новый трек
+           через ontrack/notifyScreenVideoReady авто-реоткроет оверлей.
+           Если стример не вернётся за 5 минут, TTL истечёт сам. */
+        closeScreenOverlay({ preserveAutoReopen: true });
     }
     updateParticipantScreenState(userId, screen);
     syncScreencastBtnBlocked();
@@ -149,15 +154,19 @@ let screenOverlayUserId = null;
 let screenOverlayTrackCleanup = null;
 let pendingScreenOverlayUserId = null;
 let pendingScreenOverlayTimer = null;
-/* Запоминаем юзера, которого смотрели, на случай если peer пересоберётся
-   (WS reconnect стримера, rebuild peer'а). cleanupPeerSlot закрывает оверлей
-   и чистит videoMap, новый трек приедет через ontrack через 1-5 секунд —
-   за это окно авто-реоткрываемся. Иначе зритель видит закрытый оверлей,
-   жмёт «watch screen» руками — и попадает на ещё не размотанный BWE
-   (чёрный кадр / артефакты), что выглядит как «черный экран». */
+/* Запоминаем юзера, которого смотрели — для двух сценариев:
+   1) Peer пересоберётся (WS reconnect стримера, rebuild peer'а, sig-stuck) —
+      cleanupPeerSlot закроет оверлей с preserveAutoReopen, новый трек
+      придёт через ontrack через 1-5 секунд → auto-reopen.
+   2) Стример выключил демку и сразу запустил новую (другое разрешение/
+      без звука/etc) — screencast-state приходит false→true, новые tracks,
+      новый ontrack → auto-reopen.
+   TTL 5 минут — щедрый запас на случай задержек negotiation и того что
+   стример что-то возится. Сбрасывается ТОЛЬКО на явное закрытие
+   юзером (Esc / X-кнопка) или выходе из комнаты. */
 let lastWatchedUserId = null;
 let lastWatchedExpiresAt = 0;
-const _AUTO_REOPEN_TTL_MS = 30_000;
+const _AUTO_REOPEN_TTL_MS = 5 * 60_000;
 
 /* WebAudio routing for screen share audio. Цепочка такая:
        <audio>.srcObject = stream → createMediaElementSource → GainNode → destination
@@ -284,22 +293,64 @@ function setScreenOverlayAudioMuted(muted) {
  * Два сценария авто-открытия:
  *   1. pending — юзер кликнул «watch screen» ДО прибытия трека (race на старте).
  *   2. lastWatched — оверлей был открыт, peer пересобрался (WS reconnect стримера
- *      или rebuild), cleanupPeerSlot закрыл оверлей; в окне 30 секунд после
- *      закрытия — автоматически восстанавливаем просмотр, иначе зритель видит
- *      «черный экран» (трек пересоздан, но никто не дёрнул srcObject у
- *      screenOverlayVideo).
+ *      или rebuild), либо стример пере-запустил демку с другими настройками;
+ *      в окне auto-reopen TTL восстанавливаем просмотр сами, иначе зритель
+ *      видит «черный экран».
+ *
+ * Диагностические логи решений — чтобы при следующем баге сразу было видно,
+ * по какой причине оверлей открылся или НЕ открылся.
  */
 function notifyScreenVideoReady(userId) {
     if (pendingScreenOverlayUserId === userId) {
         pendingScreenOverlayUserId = null;
         clearTimeout(pendingScreenOverlayTimer);
         pendingScreenOverlayTimer = null;
+        log.info("rtc", "screen overlay auto-open: pending", { userId });
         openScreenOverlay(userId);
         return;
     }
     if (lastWatchedUserId === userId && Date.now() < lastWatchedExpiresAt) {
+        log.info("rtc", "screen overlay auto-open: lastWatched", { userId });
         openScreenOverlay(userId);
+        return;
     }
+    log.debug("rtc", "screen overlay auto-open skipped", {
+        userId,
+        reason: lastWatchedUserId !== userId ? "different-user" :
+                Date.now() >= lastWatchedExpiresAt ? "ttl-expired" : "no-pending"
+    });
+}
+
+/**
+ * Hot-swap srcObject у открытого оверлея, если новый видео-трек пришёл для
+ * того же user'а, кого уже смотрим. Без этого после sig-stuck rebuild или
+ * track-replace зритель видит чёрный экран: screenOverlayVideo держит
+ * ссылку на СТАРЫЙ stream-объект (у которого video-track уже удалён),
+ * новый stream висит в videoMap.get(userId).srcObject — но напрямую не
+ * привязан к видимому элементу.
+ */
+function refreshOverlayStreamIfOpen(userId, stream) {
+    if (screenOverlayUserId !== userId) return;
+    if (!screenOverlayVideo) return;
+    if (screenOverlayVideo.srcObject === stream) return;
+    log.info("rtc", "screen overlay hot-swap stream", { userId });
+    screenOverlayVideo.srcObject = stream;
+    /* Audio тоже мог поменяться — перепривяжем через тот же путь. */
+    _stopScreenOverlayAudio();
+    _startScreenOverlayAudio(stream);
+    /* Обновим cleanup-листенеры на новый stream — старые висят на мёртвом. */
+    screenOverlayTrackCleanup?.();
+    const videoTrack = stream.getVideoTracks?.()[0];
+    const onEnded = () => closeScreenOverlay({ preserveAutoReopen: true });
+    const onRemoveTrack = e => {
+        if (e.track?.kind === "video") closeScreenOverlay({ preserveAutoReopen: true });
+    };
+    videoTrack?.addEventListener("ended", onEnded);
+    stream.addEventListener?.("removetrack", onRemoveTrack);
+    screenOverlayTrackCleanup = () => {
+        videoTrack?.removeEventListener("ended", onEnded);
+        stream.removeEventListener?.("removetrack", onRemoveTrack);
+    };
 }
 
 function openScreenOverlay(userId) {
