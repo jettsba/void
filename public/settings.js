@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "0.9.17";
+    const APP_VERSION = "0.9.19";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
@@ -119,7 +119,10 @@
             "errors.mic-blocked": "нет доступа к микрофону",
             "errors.mic-blocked.title": "микрофон заблокирован",
             "errors.mic-blocked.body": "в адресной строке слева нажми на иконку микрофона и разреши доступ - после чего обнови страницу.",
+            "errors.mic-blocked.body.ios": "открой настройки iOS → safari → камера и микрофон, разреши доступ для этого сайта и обнови страницу",
+            "errors.mic-blocked.body.android": "открой меню браузера → настройки сайта → разрешения → микрофон, разреши доступ и обнови страницу",
             "errors.mic-blocked.cta": "понятно",
+            "hints.mic-permission-incoming": "сейчас браузер спросит разрешение на микрофон",
             "errors.create-failed": "не удалось создать комнату",
             "errors.code-taken": "не удалось подобрать свободный код — попробуй ещё раз",
             "errors.join-session-invalid": "сессия недействительна — попробуй ещё раз",
@@ -254,7 +257,10 @@
             "errors.mic-blocked": "microphone blocked",
             "errors.mic-blocked.title": "microphone is blocked",
             "errors.mic-blocked.body": "click the mic icon in the address bar and allow access, then reload the page.",
+            "errors.mic-blocked.body.ios": "open ios settings → safari → camera & microphone, allow access for this site and reload",
+            "errors.mic-blocked.body.android": "open browser menu → site settings → permissions → microphone, allow access and reload",
             "errors.mic-blocked.cta": "got it",
+            "hints.mic-permission-incoming": "browser will ask for microphone access",
             "errors.create-failed": "could not create room",
             "errors.code-taken": "could not pick a free code — try again",
             "errors.join-session-invalid": "session invalid — try again",

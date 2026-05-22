@@ -32,6 +32,23 @@ function init() {
     micBlockedCloseBtn?.addEventListener("click", closeMicBlockedModal);
     micBlockedBackdrop?.addEventListener("click", closeMicBlockedModal);
 
+    /* M3.3: на iOS/Android путь к разрешениям микрофона разный и совсем не
+       похож на десктоп («адресная строка → иконка микрофона» для телефона
+       просто не имеет смысла). Подменяем data-i18n ключ на платформенный
+       один раз — locale-changed потом сам подхватит правильный перевод. */
+    const _micBody = micBlockedModal?.querySelector(".mic-blocked-body");
+    if (_micBody) {
+        const ua = navigator.userAgent;
+        const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+        const isAndroid = /Android/.test(ua);
+        if (isIOS) _micBody.setAttribute("data-i18n", "errors.mic-blocked.body.ios");
+        else if (isAndroid) _micBody.setAttribute("data-i18n", "errors.mic-blocked.body.android");
+        /* settings.js init мог уже сделать applyI18n до нас (порядок
+           DOMContentLoaded-листенеров не гарантирован). Принудительный
+           re-apply подхватит новый ключ; функция идемпотентна. */
+        window.VoidI18n?.applyI18n?.();
+    }
+
     ambientSound = document.getElementById("ambientSound");
     welcomeSound = document.getElementById("welcomeSound");
     joinSound = document.getElementById("joinSound");

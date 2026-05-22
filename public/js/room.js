@@ -15,7 +15,7 @@ async function tryJoin() {
     currentRoomCode = code;
 
     try {
-        await initMedia();
+        await tryAcquireMic();
     } catch {
         abortJoinAttempt("mic-blocked");
         return;
@@ -35,6 +35,62 @@ async function tryJoin() {
         userId: clientId,
         nickname: currentUsername
     });
+}
+
+/**
+ * Обёртка над initMedia() с pre-flight проверкой permission state.
+ *
+ * Зачем: на Chrome / Firefox / Android Chrome можно узнать состояние ДО
+ * вызова getUserMedia — и реагировать осмысленно:
+ *   - "denied" → не дёргаем getUserMedia вообще (он бросит NotAllowedError
+ *     с дефолтным prompt-popup'ом дополнительно к нашей mic-blocked-модалке;
+ *     лишний UI), сразу проваливаемся в catch → mic-blocked.
+ *   - "prompt" → показываем info-тост «сейчас браузер спросит про микрофон»,
+ *     чтобы юзер ожидал системный prompt и не растерялся (особенно на телефоне,
+ *     где системный prompt появляется не у адресной строки).
+ *   - "granted" → молча через.
+ *
+ * Safari iOS не поддерживает Permissions API для микрофона (бросает или
+ * возвращает null) — тогда фоллбэк на старое поведение, прямой getUserMedia.
+ *
+ * User-gesture context: на iOS getUserMedia требует user-gesture в стеке.
+ * Но iOS API не поддерживается → ветка `prompt` не запускается → await на
+ * permissions.query не съест gesture. На Chrome activation окно ~5s,
+ * await на быстрый query внутри click handler'а не критичен.
+ */
+async function tryAcquireMic() {
+    let permState = null;
+    if (navigator.permissions?.query) {
+        try {
+            const status = await navigator.permissions.query({ name: "microphone" });
+            permState = status.state;
+        } catch (_) {
+            /* "microphone" name не поддержан (Safari) — фоллбэк на прямой getUserMedia. */
+        }
+    }
+
+    if (permState === "denied") {
+        throw new Error("mic-denied-preflight");
+    }
+
+    let previewToast = false;
+    if (permState === "prompt") {
+        window.VoidToast?.showToast(_t("hints.mic-permission-incoming"), {
+            priority: "info",
+            duration: 8000
+        });
+        previewToast = true;
+    }
+
+    try {
+        await initMedia();
+    } finally {
+        /* clearToast снимает только тост (если есть), invite-hint при этом
+           восстановится сам. Если другой код выставил свой тост между нами
+           и initMedia — мы его погасим, но это edge-case без последствий
+           (entry-флоу — единственный путь к tryAcquireMic). */
+        if (previewToast) window.VoidToast?.clearToast();
+    }
 }
 
 function hideEntryError() {
@@ -285,7 +341,7 @@ async function handleCreateClick() {
     hideEntryError();
 
     try {
-        await initMedia();
+        await tryAcquireMic();
     } catch {
         abortJoinAttempt("mic-blocked");
         return;
