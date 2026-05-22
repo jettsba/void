@@ -38,18 +38,43 @@ async function tryJoin() {
 }
 
 function hideEntryError() {
-    /* С v0.9.16 entryError живёт в unified toast-host. Свой таймер не нужен —
-       toast manager сам гасит через duration; здесь просто форсированно. */
-    window.VoidToast?.clearToast();
+    clearTimeout(entryErrorHideTimer);
+    entryErrorHideTimer = null;
+    if (entryErrorEl) {
+        entryErrorEl.classList.remove("is-visible");
+        entryErrorEl.setAttribute("aria-hidden", "true");
+    }
 }
 
 function showEntryError(reason) {
     const key = ENTRY_ERROR_KEYS.has(reason) ? reason : "unknown";
     const text = _t("errors." + key);
-    /* Та же эвристика, что была раньше: длинные тексты показываем дольше,
-       минимум 3 сек чтобы юзер успел прочитать «room-not-found» и т.п. */
+    if (!entryErrorEl || !entryErrorTextEl) return;
+
+    clearTimeout(entryErrorHideTimer);
+    entryErrorHideTimer = null;
+
+    entryErrorTextEl.textContent = text;
+    /* Double-rAF: меняем класс is-visible через два кадра после
+       removeClass+textContent, чтобы браузер успел применить «исходное»
+       состояние и затем плавно перейти в is-visible. Без этого при
+       повторном showEntryError'е (юзер несколько раз кликнул join до
+       того как тост сам угас) перехода нет — класс уже стоял. */
+    entryErrorEl.classList.remove("is-visible");
+    entryErrorEl.setAttribute("aria-hidden", "false");
+
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            entryErrorEl.classList.add("is-visible");
+        });
+    });
+
+    /* Эвристика длительности: длинные тексты показываем дольше, минимум
+       3 сек чтобы юзер успел прочитать «room-not-found» и т.п. */
     const displayMs = Math.max(3000, 1500 + text.length * 25);
-    window.VoidToast?.showToast(text, { priority: "error", duration: displayMs });
+    entryErrorHideTimer = setTimeout(() => {
+        hideEntryError();
+    }, displayMs);
 }
 
 function abortJoinAttempt(reason) {

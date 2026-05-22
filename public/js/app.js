@@ -59,6 +59,9 @@ function init() {
     roomInfo = document.getElementById("roomInfo");
     roomCodeText = document.getElementById("roomCodeText");
 
+    entryErrorEl = document.getElementById("entryError");
+    entryErrorTextEl = document.getElementById("entryErrorText");
+
     connState = document.getElementById("connState");
     pingPanel = document.getElementById("pingPanel");
     pingPanelList = document.getElementById("pingPanelList");

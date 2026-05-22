@@ -29,6 +29,13 @@ let screenOverlay, screenOverlayVideo;
 let micBlockedModal, micBlockedCloseBtn, micBlockedBackdrop;
 let _micBlockedEscHandler = null;
 
+/* Entry-флоу ошибки (mic-blocked / room-not-found / code-taken / ...).
+   Живут в собственном DOM-узле над полем ввода кода (v0.9.17 — вернули
+   из unified toast-host обратно для контекстной близости к инпуту). */
+let entryErrorEl;
+let entryErrorTextEl;
+let entryErrorHideTimer = null;
+
 let ambientSound;
 let welcomeSound;
 let joinSound;

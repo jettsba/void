@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "0.9.16";
+    const APP_VERSION = "0.9.17";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
@@ -118,7 +118,7 @@
             "errors.connection-failed": "не удалось подключиться к серверу",
             "errors.mic-blocked": "нет доступа к микрофону",
             "errors.mic-blocked.title": "микрофон заблокирован",
-            "errors.mic-blocked.body": "в адресной строке слева нажми на иконку микрофона и разреши доступ. потом обнови страницу.",
+            "errors.mic-blocked.body": "в адресной строке слева нажми на иконку микрофона и разреши доступ - после чего обнови страницу.",
             "errors.mic-blocked.cta": "понятно",
             "errors.create-failed": "не удалось создать комнату",
             "errors.code-taken": "не удалось подобрать свободный код — попробуй ещё раз",

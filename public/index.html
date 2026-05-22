@@ -26,7 +26,7 @@
     <link rel="stylesheet" href="css/app.css?v=17">
     <link rel="stylesheet" href="css/header.css?v=17">
     <link rel="stylesheet" href="css/stage.css?v=20">
-    <link rel="stylesheet" href="css/panel.css?v=18">
+    <link rel="stylesheet" href="css/panel.css?v=19">
     <link rel="stylesheet" href="css/volume-arc.css?v=17">
     <link rel="stylesheet" href="css/ping.css?v=17">
     <link rel="stylesheet" href="css/chat.css?v=20">
@@ -132,10 +132,20 @@
                 <!-- ТОЧКА B: панель. Фикс высоты, top:0 у обоих слоёв — input и controls на одной точке. -->
                 <div class="panel-area">
                     <div class="panel-input">
+                        <!-- Entry-флоу ошибки (mic-blocked, room-not-found, code-taken,
+                             connection-failed/lost, rate-limited и т.п.) живут ВНУТРИ
+                             panel-input, над полем кода — это контекстная ошибка про
+                             действие «войти», она должна быть рядом с инпутом, а не в
+                             общем toast-host над футером (v0.9.17). -->
+                        <div class="entry-error-toast" id="entryError" role="status" aria-live="polite"
+                            aria-hidden="true">
+                            <span class="entry-error-glyph" aria-hidden="true">×</span>
+                            <span class="entry-error-msg" id="entryErrorText"></span>
+                        </div>
                         <form class="entry-actions" id="entryForm" novalidate>
                             <div class="entry-code-field">
                                 <span class="entry-hash" aria-hidden="true">#</span>
-                                <input type="text" class="entry-code" id="codeInput" maxlength="8"
+                                <input type="text" class="entry-code" id="codeInput" maxlength="5"
                                     placeholder="enter code" data-i18n-placeholder="entry.placeholder"
                                     autocomplete="off" spellcheck="false"
                                     inputmode="text" enterkeyhint="go" />
@@ -300,7 +310,7 @@
                 </svg>
             </div>
             <h2 class="mic-blocked-title" id="micBlockedTitle" data-i18n="errors.mic-blocked.title">микрофон заблокирован</h2>
-            <p class="mic-blocked-body" data-i18n="errors.mic-blocked.body">нажми на иконку микрофона в адресной строке и разреши доступ. потом обнови страницу.</p>
+            <p class="mic-blocked-body" data-i18n="errors.mic-blocked.body">нажми на иконку микрофона в адресной строке и разреши доступ - после чего обнови страницу. </p>
             <button type="button" class="mic-blocked-cta" id="micBlockedClose" data-i18n="errors.mic-blocked.cta">понятно</button>
         </div>
     </div>
