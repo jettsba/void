@@ -232,6 +232,26 @@ function init() {
         initChat();
     }
 
+    /* M5.1: на мобильном при фокусе на инпут поднимается виртуальная клавиатура
+       и заслоняет сам инпут (особенно codeInput и chatInputEl, которые сидят
+       в нижней половине экрана). visualViewport не уведомляет нас о поднятии
+       клавиатуры синхронно — используем простой recipe: 300мс задержка
+       (≈ время анимации клавиатуры) → scrollIntoView в центр.
+       Только на тач-устройствах: на десктопе клавиатура виртуальная не
+       поднимается, скролл был бы лишним. */
+    if (matchMedia("(hover: none) and (pointer: coarse)").matches) {
+        const _scrollIntoCenter = (el) => {
+            setTimeout(() => {
+                try { el.scrollIntoView({ block: "center", behavior: "smooth" }); }
+                catch (_) { /* старые браузеры без options-form scrollIntoView */ }
+            }, 300);
+        };
+        [introInput, codeInput, chatInputEl].forEach(el => {
+            if (!el) return;
+            el.addEventListener("focus", () => _scrollIntoCenter(el));
+        });
+    }
+
     /* Кастомный ник из настроек: при сохранении — обновляем currentUsername,
        nicknameMap для самого себя, и self-blob в DOM (addParticipant идемпотентен
        и переписывает имя на месте). Если сидим в комнате — шлём `nickname-update`

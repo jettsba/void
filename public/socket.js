@@ -42,16 +42,22 @@ const _WAS_RECONNECT_WINDOW_MS = 10000;
 
 /**
  * F3: liveness watchdog. Сервер шлёт data-frame `{type:"keepalive"}` раз в
- * 30 секунд (HEARTBEAT_INTERVAL_MS на сервере). Если 45 секунд подряд от
- * сервера НИЧЕГО не пришло — значит TCP-туннель мёртв, хотя `readyState===1`
- * лжёт. Принудительно закрываем сокет, чтобы стандартный reconnect-флоу
- * подхватился.
+ * 30 секунд (HEARTBEAT_INTERVAL_MS на сервере). Если timeout секунд подряд
+ * от сервера НИЧЕГО не пришло — значит TCP-туннель мёртв, хотя
+ * `readyState===1` лжёт. Принудительно закрываем сокет, чтобы стандартный
+ * reconnect-флоу подхватился.
  *
- * 45s выбраны как 30s heartbeat + 15s страховки на сетевое дрожание.
- * Любое входящее сообщение (включая keepalive, signalling, broadcast'ы)
- * обнуляет таймер.
- */
-const LIVENESS_TIMEOUT_MS = 45_000;
+ * Desktop: 45s = 30s heartbeat + 15s страховки на сетевое дрожание.
+ * Mobile (M5.3, v0.9.21): 35s — 4G→5G handoff и переход между башнями
+ * рвут TCP-туннель чаще, чем стационарный Wi-Fi. Чем меньше timeout, тем
+ * быстрее юзер видит «reconnecting…» и быстрее восстанавливается связь.
+ * Меньше 35s не делаем: keepalive раз в 30s + jitter сети может дать
+ * 32-33s между пакетами, false-positive разрыва.
+ *
+ * Любое входящее сообщение (keepalive, signalling, broadcast'ы) обнуляет таймер. */
+const LIVENESS_TIMEOUT_MS = matchMedia("(hover: none) and (pointer: coarse)").matches
+    ? 35_000
+    : 45_000;
 const LIVENESS_CHECK_MS = 10_000;
 let _lastServerMsgAt = 0;
 let _livenessTimer = null;

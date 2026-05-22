@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "0.9.20";
+    const APP_VERSION = "0.9.21";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
@@ -1558,6 +1558,34 @@
         }, 1400);
     }
 
+    /* M5.6 (v0.9.21): focus trap внутри открытой панели. До этого Tab из
+       панели вылетал наружу — на скрытые под scrim'ом кнопки страницы.
+       Helper зацикливает Tab между первым и последним focusable элементом
+       внутри panelEl. Возвращает cleanup-функцию для closePanel. */
+    let _settingsTrapCleanup = null;
+
+    function trapSettingsFocus() {
+        if (!panelEl) return null;
+        const sel = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+        const onKey = (e) => {
+            if (e.key !== "Tab") return;
+            const items = Array.from(panelEl.querySelectorAll(sel))
+                .filter(n => !n.hasAttribute("disabled") && n.offsetParent !== null);
+            if (items.length === 0) return;
+            const first = items[0];
+            const last = items[items.length - 1];
+            if (e.shiftKey && document.activeElement === first) {
+                e.preventDefault();
+                last.focus();
+            } else if (!e.shiftKey && document.activeElement === last) {
+                e.preventDefault();
+                first.focus();
+            }
+        };
+        panelEl.addEventListener("keydown", onKey);
+        return () => panelEl.removeEventListener("keydown", onKey);
+    }
+
     function openPanel() {
         if (!panelEl) return;
         dismissSettingsHint();
@@ -1572,6 +1600,14 @@
         scrimEl.classList.add("is-open");
         scrimEl.setAttribute("aria-hidden", "false");
         if (gearBtn) gearBtn.setAttribute("aria-expanded", "true");
+        /* Tab-trap + начальный фокус на close-кнопку. Без начального фокуса
+           внутри панели Tab бы продолжил с gearBtn и вылетел за пределы
+           (DOM-порядок ≠ визуальный порядок). preventScroll — чтобы открытие
+           панели не дёргало основной layout. */
+        _settingsTrapCleanup = trapSettingsFocus();
+        requestAnimationFrame(() => {
+            panelEl.querySelector("#settingsClose")?.focus({ preventScroll: true });
+        });
     }
 
     function closePanel() {
@@ -1582,6 +1618,11 @@
         scrimEl.classList.remove("is-open");
         scrimEl.setAttribute("aria-hidden", "true");
         if (gearBtn) gearBtn.setAttribute("aria-expanded", "false");
+        _settingsTrapCleanup?.();
+        _settingsTrapCleanup = null;
+        /* Возвращаем фокус на gear-кнопку, с которой панель была открыта —
+           keyboard-only-юзер не теряет ориентацию. */
+        gearBtn?.focus({ preventScroll: true });
     }
 
     function bindBrandTrigger() {

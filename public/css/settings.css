@@ -1486,3 +1486,17 @@
         animation: none;
     }
 }
+
+/* M5.2 (v0.9.21): на мобильном выбор input/output device бесполезен —
+   браузер не даёт переключать mic программно (всегда системный default),
+   а setSinkId на iOS Safari отсутствует. Скрываем сами дропдауны и
+   permission-hint про «разреши доступ чтобы видеть имена устройств».
+   Mic-meter и оба gain-слайдера оставляем — они работают и полезны.
+   Test-кнопка спикера остаётся (играет в системный default — OK). */
+@media (hover: none) and (pointer: coarse) {
+    #settingsMicDropdown,
+    #settingsSpkDropdown,
+    #settingsAudioHint {
+        display: none;
+    }
+}

@@ -34,13 +34,18 @@
     <link rel="stylesheet" href="css/chat-overlay.css?v=17">
     <link rel="stylesheet" href="css/screencast.css?v=18">
     <link rel="stylesheet" href="css/responsive.css?v=20">
-    <link rel="stylesheet" href="css/settings.css?v=25">
+    <link rel="stylesheet" href="css/settings.css?v=26">
 
 <link rel="icon" type="image/png" href="/static/favicon/favicon-96x96.png" sizes="96x96" />
     <link rel="icon" type="image/svg+xml" href="/static/favicon/favicon.svg" />
     <link rel="shortcut icon" href="/static/favicon/favicon.ico" />
     <link rel="apple-touch-icon" sizes="180x180" href="/static/favicon/apple-touch-icon.png" />
     <meta name="apple-mobile-web-app-title" content="Void" />
+    <!-- iOS PWA: при добавлении на home screen открывать в standalone-режиме
+         (без Safari chrome) и держать тёмный translucent status bar — иначе
+         поверх ambient-фона нарисуется белая полоса. v0.9.21 (M5.4). -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <link rel="manifest" href="/static/favicon/site.webmanifest" />
 </head>
 
@@ -384,7 +389,7 @@
     </div>
 
     <script defer src="log.js"></script>
-    <script defer src="settings.js?v=11"></script>
+    <script defer src="settings.js?v=12"></script>
     <script defer src="webrtc.js"></script>
     <script defer src="socket.js"></script>
     <script defer src="chat.js"></script>
@@ -401,7 +406,7 @@
     <script defer src="js/screen-overlay.js?v=2"></script>
     <script defer src="js/intro.js?v=3"></script>
     <script defer src="js/room.js?v=3"></script>
-    <script defer src="js/app.js?v=3"></script>
+    <script defer src="js/app.js?v=4"></script>
 </body>
 
 </html>
