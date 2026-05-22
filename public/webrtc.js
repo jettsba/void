@@ -208,6 +208,24 @@ function getOrCreateAudioContext() {
     const Ctx = window.AudioContext || window.webkitAudioContext;
     if (!Ctx) return null;
     audioContext = new Ctx();
+    /* iOS Safari создаёт AudioContext в state="suspended"; destination.stream
+       при этом выдаёт ТИШИНУ, хотя mic-track active. Self-analyser сидит на
+       raw localStream — поэтому свой mic-индикатор работает, а собеседник не
+       слышит ничего. Лечится явным resume() после user-gesture;
+       getOrCreateAudioContext зовётся из initMedia, который запускается из
+       click-handler tryJoin / handleCreateClick → user-gesture в стеке.
+       statechange-листенер ловит interrupted (входящий звонок / Siri /
+       переключение приложений на iOS) и снова resume'ит на возврате. */
+    const resumeIfNeeded = () => {
+        if (!audioContext) return;
+        if (audioContext.state === "suspended" || audioContext.state === "interrupted") {
+            audioContext.resume().catch(err =>
+                log.warn("rtc", "audio context resume failed", { state: audioContext?.state, err: err?.message || String(err) })
+            );
+        }
+    };
+    resumeIfNeeded();
+    audioContext.addEventListener("statechange", resumeIfNeeded);
     return audioContext;
 }
 
@@ -424,6 +442,30 @@ document.addEventListener("void:audio-out-device-changed", applyOutputSinkToAll)
    rejoin). Тут только пишем подсказку в лог, без принудительного reconnect. */
 document.addEventListener("void:audio-in-device-changed", (e) => {
     log.info("rtc", "input device queued", { deviceId: e?.detail?.deviceId || "default" });
+});
+
+/* visibility recovery: при возврате вкладки в foreground на iOS контекст
+   часто остаётся в "interrupted" — statechange-листенер в
+   getOrCreateAudioContext должен это поймать, но на старых WebKit
+   событие иногда не стреляет, state «тихо» залипает. Здесь — страховка:
+   при visible форсим resume() и для каждого peer-<audio> элемента
+   повторно дёргаем play() (после background'а audio часто оказывается
+   paused, а play()-promise рапортует фейлом без user-gesture, поэтому
+   catch silenced).
+   Также: если M1.4 не сработает и звука всё ещё нет, юзер всегда может
+   тапнуть на любой контрол (mic/sound toggle) — это пере-эмитит
+   user-gesture, и следующий resume() гарантированно пройдёт. */
+document.addEventListener("visibilitychange", () => {
+    if (document.hidden) return;
+    if (audioContext && (audioContext.state === "suspended" || audioContext.state === "interrupted")) {
+        audioContext.resume().catch(() => {});
+    }
+    for (const audio of audioMap.values()) {
+        if (audio.paused) {
+            const p = audio.play?.();
+            if (p?.catch) p.catch(() => {});
+        }
+    }
 });
 
 /**
@@ -645,6 +687,19 @@ function createPeer(userId, isChatInitiator) {
            браузерах функция setSinkId отсутствует — `applyOutputSinkToAudio`
            тихо вернётся. */
         applyOutputSinkToAudio(audio);
+        /* iOS Safari часто игнорирует autoplay-атрибут на программно созданном
+           <audio> с srcObject, особенно при ICE-restart/rebuild (повторный
+           ontrack на существующем элементе). Без явного play() звук не пойдёт
+           даже когда контекст и track в порядке. ontrack срабатывает уже
+           после user-gesture (вход в комнату был кликом), autoplay-policy
+           обычно позволит. Если всё-таки откажет — log warn, и фикс M1.4
+           (visibility recovery) поднимет звук на следующем focus'е вкладки. */
+        const playPromise = audio.play?.();
+        if (playPromise?.catch) {
+            playPromise.catch(err =>
+                log.warn("rtc", "remote audio play blocked", { userId, err: err?.message || String(err) })
+            );
+        }
 
         // Старый analyser привязан к мёртвому source — пересоздаём.
         // Старый rAF-цикл сам остановится (см. monitorVolume).
