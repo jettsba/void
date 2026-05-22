@@ -69,10 +69,18 @@ function buildMicConstraints() {
     /* Если в настройках выбран конкретный микрофон — просим именно его.
        Иначе — системный default. Пустую строку в deviceId передавать
        нельзя, поэтому ветвим. */
+    /* M4.2: на дешёвых Android-микрофонах AGC вместе с AEC даёт эффект
+       «обрезанных слов» («при…ро…рот») — слышно у собеседника, потому что
+       AGC качает gain туда-сюда, а AEC при этом подавляет «эхо» собственной
+       речи. У нас в Web-Audio графе есть свой DynamicsCompressor (см.
+       applyAudioProcessing) — он берёт на себя выравнивание динамики
+       вместо браузерного AGC. NS и AEC оставляем: NS компенсирует фон,
+       AEC обязателен на спикерфоне, без него собеседник слышит своё эхо. */
+    const isAndroid = /Android/.test(navigator.userAgent);
     const audioConstraints = {
         echoCancellation: true,
         noiseSuppression: true,
-        autoGainControl: true,
+        autoGainControl: !isAndroid,
         channelCount: 1,
     };
     const savedMicId = window.VoidSettings?.getAudioInId?.() || "";
@@ -234,13 +242,16 @@ function applyAudioProcessing(rawStream) {
 
     const source = audioContext.createMediaStreamSource(rawStream);
 
-    /* Highpass 110Hz (раньше 85) — режет глубокий гул вентилятора /
-       холодильника / сабвуферный rumble сильнее, без потери body голоса
-       (мужской вокал начинается с ~85Hz, женский с ~165, но fundamentals
-       ниже 110 чаще шум, чем сигнал — для голос-чата). */
+    /* Highpass: 110Hz на десктопе режет гул вентилятора / холодильника /
+       сабвуферный rumble. На мобильном — 80Hz: iPhone в speakerphone-режиме
+       пишет голос с fundamental 90-110Hz (микрофон у нижней грани, далеко
+       от рта), и 110Hz делает голос «тонким, бубнящим». 80Hz держит body
+       голоса, при этом всё ещё режет rumble от тряски телефона в руке
+       (физическая дрожь обычно <60Hz, системные NS его не лечат). */
+    const _isMobile = matchMedia("(hover: none) and (pointer: coarse)").matches;
     const highpass = audioContext.createBiquadFilter();
     highpass.type = "highpass";
-    highpass.frequency.value = 110;
+    highpass.frequency.value = _isMobile ? 80 : 110;
     highpass.Q.value = 0.7;
 
     const lowpass = audioContext.createBiquadFilter();
