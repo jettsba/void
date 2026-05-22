@@ -53,11 +53,21 @@ body {
     transition: opacity 0.3s ease;
 }
 
-#background {
+#background,
+#background-stars,
+#background-grain {
     position: fixed;
     inset: 0;
     z-index: 0;
     pointer-events: none;
+}
+
+/* Тонкая плёнка SVG-шума поверх блобов и звёзд — добивает остатки бандинга
+   и даёт ощущение «материала». Inline data URI, чтобы не дёргать сеть. */
+#background-grain {
+    opacity: 0.04;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1   0 0 0 0 1   0 0 0 0 1   0 0 0 0.6 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
 }
 
 body::after {

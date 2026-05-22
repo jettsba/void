@@ -67,7 +67,9 @@ body {
      батарею телефона.
    В JS на этих же media-условиях rAF-цикл вообще не стартует. */
 @media (hover: none) and (pointer: coarse) {
-    #background {
+    #background,
+    #background-stars,
+    #background-grain {
         display: none;
     }
 

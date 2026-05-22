@@ -66,6 +66,78 @@ void — landing behaviors
 })();
 
 (function () {
+    /* -------------------------------------------------- deep-field blobs
+       Тот же приём, что и в app/public/js/background.js:
+       - 4 пятна с лёгкими холодными/тёплыми тонами;
+       - `globalCompositeOperation = 'lighter'` — пересечения просто светлеют,
+         не дают видимых границ;
+       - 4-стоповый eased градиент вместо линейного — без mach band у края.
+       Слой лежит ПОД bgCanvas (звёзды) — DOM-порядок задаёт стопку. */
+    const blob = document.getElementById('bgBlobs');
+    if (blob) {
+        const bctx = blob.getContext('2d');
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const TINTS = [
+            [200, 205, 220],
+            [205, 195, 180],
+            [185, 195, 210],
+            [220, 220, 224],
+        ];
+        let BW = 0, BH = 0;
+        let blobs = [];
+
+        function bfit() {
+            BW = document.documentElement.clientWidth  || window.innerWidth  || 0;
+            BH = document.documentElement.clientHeight || window.innerHeight || 0;
+            blob.width  = Math.max(1, Math.round(BW * dpr));
+            blob.height = Math.max(1, Math.round(BH * dpr));
+            blob.style.width  = BW + 'px';
+            blob.style.height = BH + 'px';
+            bctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+        function bseed() {
+            blobs = [];
+            for (let i = 0; i < 4; i++) {
+                blobs.push({
+                    x: Math.random() * BW,
+                    y: Math.random() * BH,
+                    r: 320 + Math.random() * 280,
+                    vx: (Math.random() - 0.5) * 0.05,
+                    vy: (Math.random() - 0.5) * 0.05,
+                    a: 0.022 + Math.random() * 0.014,
+                    tint: TINTS[i % TINTS.length],
+                });
+            }
+        }
+        bfit(); bseed();
+        window.addEventListener('resize', () => { bfit(); bseed(); });
+
+        function bpaint() {
+            bctx.clearRect(0, 0, BW, BH);
+            bctx.globalCompositeOperation = 'lighter';
+            for (const b of blobs) {
+                b.x += b.vx; b.y += b.vy;
+                if (b.x < -b.r) b.x = BW + b.r;
+                if (b.x > BW + b.r) b.x = -b.r;
+                if (b.y < -b.r) b.y = BH + b.r;
+                if (b.y > BH + b.r) b.y = -b.r;
+                const [r, g, bl] = b.tint;
+                const grad = bctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.r);
+                grad.addColorStop(0.0, `rgba(${r},${g},${bl},${b.a})`);
+                grad.addColorStop(0.35, `rgba(${r},${g},${bl},${b.a * 0.55})`);
+                grad.addColorStop(0.7, `rgba(${r},${g},${bl},${b.a * 0.15})`);
+                grad.addColorStop(1.0, `rgba(${r},${g},${bl},0)`);
+                bctx.fillStyle = grad;
+                bctx.beginPath();
+                bctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+                bctx.fill();
+            }
+            bctx.globalCompositeOperation = 'source-over';
+            requestAnimationFrame(bpaint);
+        }
+        requestAnimationFrame(bpaint);
+    }
+
     /* -------------------------------------------------- ambient background */
     const bg = document.getElementById('bgCanvas');
     if (bg) {
