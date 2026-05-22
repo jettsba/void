@@ -324,17 +324,22 @@
     cursor: pointer;
 }
 
-/* Hint висит АБСОЛЮТНО внутри .footer.footer-meta. На chat-open футер
+/* Unified toast/hint host: одна позиционная точка для всех неблокирующих
+   уведомлений (бывший invite-hint, entryError, roomToast). Висит
+   АБСОЛЮТНО внутри .footer.footer-meta над футером. На chat-open футер
    получает padding-right: var(--chat-rail), но box-sizing: border-box
-   оставляет padding-box ту же ширину — left:50% указывает в центр
-   старого box'а, а флекс-контент уезжает влево вместе с уменьшившимся
-   content-area. Чтобы hint ехал ВМЕСТЕ с видимым контентом, вычитаем из
-   transform половину --chat-rail. На мобиле rail = 0px → no-op. */
-.invite-hint {
+   оставляет padding-box ту же ширину — left:50% указывает в центр старого
+   box'а, а флекс-контент уезжает влево вместе с уменьшившимся
+   content-area. Чтобы плашка ехала ВМЕСТЕ с видимым контентом, вычитаем
+   из transform половину --chat-rail. На мобиле rail = 0px → no-op.
+   Стейт-машина — в js/toasts.js: data-kind="hint"|"toast",
+   data-priority="error|warn|info" варьирует цвет. */
+.toast-host {
     position: absolute;
     bottom: calc(100% + 8px);
     left: 50%;
     transform: translateX(calc(-50% - var(--chat-rail, 0px) / 2)) translateY(-4px);
+    max-width: calc(100% - 32px);
     color: var(--fg-3);
     font-size: 11px;
     letter-spacing: var(--tracking-wide);
@@ -342,15 +347,37 @@
     white-space: nowrap;
     opacity: 0;
     pointer-events: none;
-    transition: opacity var(--t-med), transform var(--t-med);
-    cursor: pointer;
+    transition: opacity var(--t-med), transform var(--t-med), color var(--t-fast);
     z-index: 1;
 }
 
-.invite-hint.is-visible {
+.toast-host.is-visible {
     opacity: 1;
-    pointer-events: auto;
     transform: translateX(calc(-50% - var(--chat-rail, 0px) / 2)) translateY(0);
+}
+
+.toast-host.is-clickable {
+    pointer-events: auto;
+    cursor: pointer;
+}
+
+.toast-host[data-kind="toast"] {
+    font-size: 12px;
+    text-transform: lowercase;
+}
+
+.toast-host[data-priority="error"] {
+    color: var(--signal-warn);
+}
+
+.toast-host[data-priority="warn"] {
+    color: var(--fg-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .toast-host {
+        transition-duration: 0.01ms;
+    }
 }
 
 .participant[data-conn="poor"]::after {

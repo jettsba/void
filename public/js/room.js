@@ -38,36 +38,18 @@ async function tryJoin() {
 }
 
 function hideEntryError() {
-    clearTimeout(entryErrorHideTimer);
-    entryErrorHideTimer = null;
-    if (entryErrorEl) {
-        entryErrorEl.classList.remove("is-visible");
-        entryErrorEl.setAttribute("aria-hidden", "true");
-    }
+    /* С v0.9.16 entryError живёт в unified toast-host. Свой таймер не нужен —
+       toast manager сам гасит через duration; здесь просто форсированно. */
+    window.VoidToast?.clearToast();
 }
 
 function showEntryError(reason) {
     const key = ENTRY_ERROR_KEYS.has(reason) ? reason : "unknown";
     const text = _t("errors." + key);
-    if (!entryErrorEl || !entryErrorTextEl) return;
-
-    clearTimeout(entryErrorHideTimer);
-    entryErrorHideTimer = null;
-
-    entryErrorTextEl.textContent = text;
-    entryErrorEl.classList.remove("is-visible");
-    entryErrorEl.setAttribute("aria-hidden", "false");
-
-    requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-            entryErrorEl.classList.add("is-visible");
-        });
-    });
-
+    /* Та же эвристика, что была раньше: длинные тексты показываем дольше,
+       минимум 3 сек чтобы юзер успел прочитать «room-not-found» и т.п. */
     const displayMs = Math.max(3000, 1500 + text.length * 25);
-    entryErrorHideTimer = setTimeout(() => {
-        hideEntryError();
-    }, displayMs);
+    window.VoidToast?.showToast(text, { priority: "error", duration: displayMs });
 }
 
 function abortJoinAttempt(reason) {
@@ -86,8 +68,8 @@ function abortJoinAttempt(reason) {
 
     /* mic-blocked — особый кейс: пользователь не понимает что произошло
        и что делать. Короткий тост ему не объяснит. Открываем sticky-диалог
-       с инструкцией; короткий тост в entryError тоже оставляем (как
-       подложку, если модалку не получится открыть). */
+       с инструкцией; короткий тост через showEntryError тоже оставляем
+       (как подложку, если модалку не получится открыть). */
     if (reason === "mic-blocked") {
         openMicBlockedModal();
     }

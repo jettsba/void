@@ -24,20 +24,10 @@ function _onAnimationEndOrFallback(el, onDone) {
     const timer = setTimeout(fire, 500);
 }
 
-/* ===== Invite hint ===== */
-
-let _inviteHintEl = null;
-
-function _getOrCreateInviteHintEl() {
-    if (_inviteHintEl) return _inviteHintEl;
-    _inviteHintEl = document.createElement("div");
-    _inviteHintEl.className = "invite-hint";
-    _inviteHintEl.setAttribute("role", "status");
-    _inviteHintEl.addEventListener("click", () => dismissInviteHint(true));
-    const footer = document.querySelector(".footer.footer-meta");
-    if (footer) footer.appendChild(_inviteHintEl);
-    return _inviteHintEl;
-}
+/* ===== Invite hint =====
+   С v0.9.16 — поверх unified toast-host (см. public/js/toasts.js). Сам
+   hint остался прежним: показывается, когда юзер один в комнате и не
+   видел его раньше; persist'ится в localStorage по клику. */
 
 function updateInviteHint() {
     if (!isJoined) return;
@@ -48,27 +38,23 @@ function updateInviteHint() {
         ? [...participantsContainer.querySelectorAll(".participant:not(.pop-out)")].length
         : 0;
     if (count === 1) {
-        const el = _getOrCreateInviteHintEl();
-        el.textContent = _t("invite.hint");
-        el.classList.add("is-visible");
+        window.VoidToast?.showHint(_t("invite.hint"), {
+            onClick: () => dismissInviteHint(true)
+        });
     } else {
-        _inviteHintEl?.classList.remove("is-visible");
+        window.VoidToast?.clearHint();
     }
 }
 
 function dismissInviteHint(persist) {
-    _inviteHintEl?.classList.remove("is-visible");
+    window.VoidToast?.clearHint();
     if (persist) {
         try { localStorage.setItem("void:invite-hint-seen", "1"); } catch (_) {}
     }
 }
 
 function resetInviteHint() {
-    if (_inviteHintEl) {
-        _inviteHintEl.classList.remove("is-visible");
-        _inviteHintEl.remove();
-        _inviteHintEl = null;
-    }
+    window.VoidToast?.clearHint();
 }
 
 function removeAllParticipants() {

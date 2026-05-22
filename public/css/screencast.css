@@ -376,26 +376,4 @@
     display: inline-block;
 }
 
-.room-toast {
-    position: fixed;
-    bottom: 80px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: var(--bg-2);
-    border: 1px solid var(--fg-4);
-    color: var(--fg-2);
-    font-size: 0.8rem;
-    font-family: inherit;
-    letter-spacing: var(--tracking);
-    padding: 8px 16px;
-    border-radius: 8px;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.2s ease;
-    z-index: 95;
-    white-space: nowrap;
-}
-
-.room-toast.is-visible {
-    opacity: 1;
-}
+/* room-toast вытащен в общий toast-host (stage.css .toast-host). v0.9.16. */

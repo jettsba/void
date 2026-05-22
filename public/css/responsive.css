@@ -82,9 +82,14 @@ body {
     }
 }
 
-/* Mobile submit button: простая SVG-стрелка под инпутом, без обводки */
+/* Submit-стрелка intro: видна ВСЕГДА (с v0.9.16). До этого пряталась на
+   десктопе media-query'ем `(hover:none)`, но мы упирались в две беды:
+   (1) Samsung S21 в Samsung Internet с принудительным «desktop site»
+   терял match и не показывал кнопку — юзер не мог войти; (2) на десктопе
+   её явный «войти»-affordance тоже не лишний. SVG-стрелка под инпутом,
+   без обводки. */
 .intro-submit-btn {
-    display: none;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
     width: 40px;
@@ -107,17 +112,16 @@ body {
     fill: none;
 }
 
+.intro-submit-btn:hover {
+    color: var(--fg);
+}
+
 .intro-submit-btn:active {
     color: var(--fg);
     transform: translateX(2px);
 }
 
 @media (hover: none) and (pointer: coarse) {
-    /* Submit button shown only on touch devices */
-    .intro-submit-btn {
-        display: inline-flex;
-    }
-
     /* iOS auto-zooms inputs with font-size < 16px on focus */
     .intro-input,
     .entry-code {

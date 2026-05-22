@@ -25,15 +25,15 @@
     <link rel="stylesheet" href="css/intro.css?v=17">
     <link rel="stylesheet" href="css/app.css?v=17">
     <link rel="stylesheet" href="css/header.css?v=17">
-    <link rel="stylesheet" href="css/stage.css?v=19">
-    <link rel="stylesheet" href="css/panel.css?v=17">
+    <link rel="stylesheet" href="css/stage.css?v=20">
+    <link rel="stylesheet" href="css/panel.css?v=18">
     <link rel="stylesheet" href="css/volume-arc.css?v=17">
     <link rel="stylesheet" href="css/ping.css?v=17">
     <link rel="stylesheet" href="css/chat.css?v=20">
     <link rel="stylesheet" href="css/chat-attach.css?v=17">
     <link rel="stylesheet" href="css/chat-overlay.css?v=17">
-    <link rel="stylesheet" href="css/screencast.css?v=17">
-    <link rel="stylesheet" href="css/responsive.css?v=19">
+    <link rel="stylesheet" href="css/screencast.css?v=18">
+    <link rel="stylesheet" href="css/responsive.css?v=20">
     <link rel="stylesheet" href="css/settings.css?v=25">
 
 <link rel="icon" type="image/png" href="/static/favicon/favicon-96x96.png" sizes="96x96" />
@@ -59,15 +59,17 @@
                 <span class="intro-title-text" id="introTitleText"></span><span class="intro-cursor" id="introCursor"
                     aria-hidden="true">|</span>
             </h1>
-            <div class="intro-field">
-                <input type="text" id="introInput" class="intro-input" autocomplete="off" disabled />
-                <button type="button" class="intro-submit-btn" id="introSubmitBtn" aria-label="submit">
+            <form class="intro-field" id="introForm" novalidate>
+                <input type="text" id="introInput" class="intro-input"
+                    autocomplete="off" spellcheck="false"
+                    inputmode="text" enterkeyhint="go" disabled />
+                <button type="submit" class="intro-submit-btn" id="introSubmitBtn" aria-label="submit">
                     <svg viewBox="0 0 24 24" aria-hidden="true">
                         <path d="M9 6l6 6-6 6" />
                     </svg>
                 </button>
                 <div class="intro-error" id="introError" aria-live="polite">+</div>
-            </div>
+            </form>
         </div>
     </div>
 
@@ -130,20 +132,16 @@
                 <!-- ТОЧКА B: панель. Фикс высоты, top:0 у обоих слоёв — input и controls на одной точке. -->
                 <div class="panel-area">
                     <div class="panel-input">
-                        <div class="entry-error-toast" id="entryError" role="status" aria-live="polite"
-                            aria-hidden="true">
-                            <span class="entry-error-glyph" aria-hidden="true">×</span>
-                            <span class="entry-error-msg" id="entryErrorText"></span>
-                        </div>
-                        <div class="entry-actions">
+                        <form class="entry-actions" id="entryForm" novalidate>
                             <div class="entry-code-field">
                                 <span class="entry-hash" aria-hidden="true">#</span>
                                 <input type="text" class="entry-code" id="codeInput" maxlength="8"
                                     placeholder="enter code" data-i18n-placeholder="entry.placeholder"
-                                    autocomplete="off" spellcheck="false" />
+                                    autocomplete="off" spellcheck="false"
+                                    inputmode="text" enterkeyhint="go" />
                             </div>
-                            <button type="button" class="btn primary" id="joinBtn" data-i18n="entry.join">join</button>
-                        </div>
+                            <button type="submit" class="btn primary" id="joinBtn" data-i18n="entry.join">join</button>
+                        </form>
                     </div>
 
                     <div class="panel-controls" id="controls">
@@ -286,8 +284,6 @@
         </footer>
     </div>
 
-    <div class="room-toast" id="roomToast" aria-live="polite" aria-atomic="true"></div>
-
     <!-- Микрофон заблокирован: sticky-диалог с инструкцией. Закрывается
          кнопкой / Esc / кликом по backdrop. См. U1 в tasks/audit.md. -->
     <div class="mic-blocked-modal" id="micBlockedModal" aria-hidden="true" inert role="dialog"
@@ -383,18 +379,19 @@
     <script defer src="socket.js"></script>
     <script defer src="chat.js"></script>
     <script defer src="js/config.js?v=2"></script>
-    <script defer src="js/state.js?v=1"></script>
+    <script defer src="js/state.js?v=2"></script>
+    <script defer src="js/toasts.js?v=1"></script>
     <script defer src="js/background.js?v=1"></script>
     <script defer src="js/audio.js?v=1"></script>
     <script defer src="js/username.js?v=1"></script>
     <script defer src="js/controls.js?v=1"></script>
-    <script defer src="js/participants.js?v=2"></script>
+    <script defer src="js/participants.js?v=3"></script>
     <script defer src="js/volume-arc.js?v=1"></script>
     <script defer src="js/ping-panel.js?v=1"></script>
-    <script defer src="js/screen-overlay.js?v=1"></script>
-    <script defer src="js/intro.js?v=2"></script>
-    <script defer src="js/room.js?v=1"></script>
-    <script defer src="js/app.js?v=1"></script>
+    <script defer src="js/screen-overlay.js?v=2"></script>
+    <script defer src="js/intro.js?v=3"></script>
+    <script defer src="js/room.js?v=2"></script>
+    <script defer src="js/app.js?v=2"></script>
 </body>
 
 </html>

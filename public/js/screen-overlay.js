@@ -386,9 +386,8 @@ function handleScreencastRejected() {
 }
 
 function showRoomToast(text) {
-    if (!roomToastEl) return;
-    roomToastEl.textContent = text;
-    roomToastEl.classList.add("is-visible");
-    clearTimeout(_toastTimer);
-    _toastTimer = setTimeout(() => roomToastEl.classList.remove("is-visible"), 3000);
+    /* С v0.9.16 — поверх unified toast-host (public/js/toasts.js). priority
+       "warn" — это уведомления вроде screencast.busy / mic-lost: не
+       критичная ошибка, но нужно внимание юзера. */
+    window.VoidToast?.showToast(text, { priority: "warn" });
 }

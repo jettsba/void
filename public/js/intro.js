@@ -93,12 +93,16 @@ function isIntroPasswordAccepted(input) {
     return candidates.some((p) => normalizeText(String(p)) === userValue);
 }
 
-function handleKeyPress(e) {
+function handleIntroSubmit(e) {
+    /* С v0.9.16 intro живёт в <form id="introForm">; Enter и тап по
+       стрелке оба отправляют форму. Это лечит Samsung Keyboard / Gboard
+       IME-режим, где keydown('Enter') приходит как key="Unidentified"
+       / keyCode=229 — старая проверка `=== "Enter"` мимо. submit-event
+       стреляет от любой клавиатуры универсально. */
+    e.preventDefault();
     if (!INTRO_ENABLED) return;
     if (!introQuestionDone) return;
-    if (e.key === "Enter") {
-        checkPassword();
-    }
+    checkPassword();
 }
 
 async function checkPassword() {

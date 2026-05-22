@@ -25,7 +25,6 @@ function init() {
 
     screenOverlay = document.getElementById("screenOverlay");
     screenOverlayVideo = document.getElementById("screenOverlayVideo");
-    roomToastEl = document.getElementById("roomToast");
 
     micBlockedModal      = document.getElementById("micBlockedModal");
     micBlockedCloseBtn   = document.getElementById("micBlockedClose");
@@ -59,9 +58,6 @@ function init() {
 
     roomInfo = document.getElementById("roomInfo");
     roomCodeText = document.getElementById("roomCodeText");
-
-    entryErrorEl = document.getElementById("entryError");
-    entryErrorTextEl = document.getElementById("entryErrorText");
 
     connState = document.getElementById("connState");
     pingPanel = document.getElementById("pingPanel");
@@ -107,9 +103,13 @@ function init() {
     if (!matchMedia("(hover: none) and (pointer: coarse)").matches) {
         window.addEventListener("resize", sizeCanvas);
     }
-    introInput.addEventListener("keydown", handleKeyPress);
+    /* M2.2: intro теперь <form id="introForm">. Submit-event универсален
+       для любой клавиатуры (включая Android IME, где keydown('Enter')
+       приходит как key="Unidentified"). Стрелка-кнопка type="submit"
+       внутри формы — её клик тоже триггерит submit, отдельный handler
+       на ней не нужен. */
+    document.getElementById("introForm")?.addEventListener("submit", handleIntroSubmit);
     introInput.addEventListener("input", tryStartAudio);
-    document.getElementById("introSubmitBtn")?.addEventListener("click", checkPassword);
 
     micBtn.addEventListener("click", toggleMic);
     soundBtn.addEventListener("click", toggleSound);
@@ -172,7 +172,12 @@ function init() {
     setConnectionState("ready");
 
     createBtn.addEventListener("click", handleCreateClick);
-    joinBtn.addEventListener("click", () => {
+    /* M2.2: entry теперь <form id="entryForm">. Submit-event ловит и
+       клик по joinBtn (type="submit"), и Enter в codeInput с любой
+       клавиатуры — в т.ч. Android IME, где keydown('Enter') не приходит
+       как "Enter". */
+    document.getElementById("entryForm")?.addEventListener("submit", (e) => {
+        e.preventDefault();
         if (!isJoined) tryJoin();
     });
     leaveBtn.addEventListener("click", () => {
@@ -186,9 +191,6 @@ function init() {
 
     codeInput.closest(".entry-code-field")?.addEventListener("click", () => {
         codeInput.focus();
-    });
-    codeInput.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") tryJoin();
     });
 
     roomInfo.addEventListener("click", async () => {

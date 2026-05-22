@@ -24,8 +24,7 @@ let isScreencasting = false;
 let roomScreencasterId = null;
 
 let scModal, scNextBtn;
-let screenOverlay, screenOverlayVideo, roomToastEl;
-let _toastTimer = null;
+let screenOverlay, screenOverlayVideo;
 
 let micBlockedModal, micBlockedCloseBtn, micBlockedBackdrop;
 let _micBlockedEscHandler = null;
@@ -125,9 +124,6 @@ function renderRoomCodeLabel(code) {
 let _lastConnState = "ready";
 let _lastConnOpts = {};
 
-let entryErrorEl;
-let entryErrorTextEl;
-let entryErrorHideTimer = null;
 let roomCopyFeedbackTimer = null;
 
 let connState;
