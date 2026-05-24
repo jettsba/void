@@ -22,21 +22,27 @@
     <link rel="alternate" hreflang="en"        href="https://void-room.space/en/" />
     <link rel="alternate" hreflang="x-default" href="https://void-room.space/en/" />
 
-    <!-- Language auto-detect (mirror of /). If a manual choice exists in
-         localStorage, honor it. Otherwise: russian-locale users get sent home
-         to /; everyone else stays on /en/. -->
+    <!-- Language auto-detect (mirror of /). Same rule as the russian root:
+         the URL wins. If a preference is pinned, sync it to 'en' (the user
+         explicitly landed on /en/) and stay. Locale-based redirect runs only
+         for first-time visitors with no saved pref. See the long comment in
+         landing/index.html for the full reasoning. -->
     <script>
     (function () {
         try {
             var saved = null;
             try { saved = localStorage.getItem('void.lang'); } catch (_) {}
             if (saved === 'ru' || saved === 'en') {
-                if (saved === 'ru') location.replace('/' + location.search + location.hash);
+                if (saved !== 'en') {
+                    try { localStorage.setItem('void.lang', 'en'); } catch (_) {}
+                }
                 return;
             }
             var lang = (navigator.language || navigator.userLanguage || 'en').toLowerCase();
             if (lang.indexOf('ru') === 0) {
                 location.replace('/' + location.search + location.hash);
+            } else {
+                try { localStorage.setItem('void.lang', 'en'); } catch (_) {}
             }
         } catch (_) { /* never block render */ }
     })();
@@ -204,12 +210,34 @@
             </div>
         </section>
 
+        <!-- WHAT — a short, centred definition between hero and how-it-works -->
+        <section class="what" id="what">
+            <div class="shell">
+                <div class="what-stage reveal">
+                    <div class="what-eyebrow">— 01 / what is void</div>
+
+                    <div class="what-term" aria-label="void">
+                        <span class="what-word" aria-hidden="true">void</span>
+                        <span class="what-meta">/vɔɪd/ · <em>n.</em></span>
+                    </div>
+
+                    <p class="what-def" data-type-once>a voice service with nothing extra.</p>
+
+                    <div class="what-rule" aria-hidden="true"></div>
+
+                    <p class="what-sub">everywhere else wants an account, an install, a checkbox for trackers, a phone number. not here. open it, share a code, talk. no account, no history, no traces.</p>
+
+                    <p class="what-coda">nothing you'll need to delete later.</p>
+                </div>
+            </div>
+        </section>
+
         <!-- HOW -->
         <section class="sect" id="how">
             <div class="shell">
                 <div class="sect-head nobottom reveal">
                     <div>
-                        <div class="num">— 01 / how it works</div>
+                        <div class="num">— 02 / how it works</div>
                         <h2>just three steps.</h2>
                     </div>
                     <p class="note"># 73 69 6c 65 6e 63 65</p>
@@ -326,7 +354,7 @@
             <div class="shell">
                 <div class="sect-head reveal">
                     <div>
-                        <div class="num">— 02 / why void</div>
+                        <div class="num">— 03 / why void</div>
                         <h2>six simple reasons.</h2>
                     </div>
                     <p class="note">/ 74 68 65 2d 76 6f 69 64 2d 65 67 67</p>
@@ -433,7 +461,7 @@
             <div class="shell">
                 <div class="sect-head nobottom reveal">
                     <div>
-                        <div class="num">— 03 / what it does</div>
+                        <div class="num">— 04 / what it does</div>
                         <h2>what's inside?</h2>
                     </div>
                     <p class="note">/ NO RELAY</p>
@@ -594,7 +622,7 @@
         <!-- MANIFEST / PRIVACY -->
         <section class="manifest" id="privacy">
             <div class="shell">
-                <div class="lead reveal">— 04 / nothing extra</div>
+                <div class="lead reveal">— 05 / nothing extra</div>
                 <h2 class="reveal" data-delay="1">void is about <em>what isn't here.</em><br/>that's all that matters.</h2>
 
                 <ul class="deny-list reveal" data-delay="2">
@@ -632,7 +660,7 @@
             <div class="shell">
                 <div class="sect-head nobottom reveal">
                     <div>
-                        <div class="num">— 05 / platforms</div>
+                        <div class="num">— 06 / platforms</div>
                         <h2>from a browser or your desktop.</h2>
                     </div>
                     <p class="note">pick whichever feels easier. it's the same void inside.</p>
@@ -668,6 +696,48 @@
                         </ul>
                         <div class="actions">
                             <a class="btn" href="#">download void</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- CONTRIBUTORS — credits crawl + announcer + persistent CTA -->
+        <section class="sect contrib" id="contributors">
+            <div class="shell">
+                <div class="sect-head nobottom reveal">
+                    <div>
+                        <div class="num">— 07 / contributors</div>
+                        <h2>the people behind it.</h2>
+                    </div>
+                    <p class="note">/ thank you</p>
+                </div>
+
+                <div class="contrib-stage reveal" data-delay="1">
+                    <div class="contrib-frame">
+                        <div class="contrib-eyebrow">
+                            <span class="dot" aria-hidden="true"></span>
+                            <span>roll · <span id="contribCount">0</span> in list · helping void</span>
+                        </div>
+
+                        <div class="contrib-marquee">
+                            <ul class="contrib-track" id="contribList" aria-live="polite" data-placeholder="your_name">
+                                <!-- populated by injectContributors() in landing.js, fed by /api/contributors;
+                                     a "+ your_name" placeholder slot is appended at the end of each pass -->
+                            </ul>
+                        </div>
+
+                        <div class="contrib-foot">
+                            <div class="contrib-announcer">
+                                <span class="contrib-line" id="contribAnnouncer"
+                                      data-line1="> next on the list: ___________ ?"
+                                      data-line2="> next on the list: ___________ ?"
+                                      data-line3="> next on the list: ___________ ?"></span><span class="contrib-caret" aria-hidden="true">▮</span>
+                            </div>
+                            <a class="contrib-cta"
+                               href="https://t.me/mtbibltww"
+                               target="_blank"
+                               rel="noopener noreferrer">get in touch ↗</a>
                         </div>
                     </div>
                 </div>

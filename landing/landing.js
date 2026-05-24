@@ -325,6 +325,41 @@ void — landing behaviors
     }, { rootMargin: '0px 0px -80px 0px', threshold: 0.05 });
     document.querySelectorAll('.reveal').forEach((el) => io.observe(el));
 
+    /* -------------------------------------------------- one-shot typewriter
+       Distinct from triggerTyping above: no permanent caret, no lead-in pause,
+       fires once when an element with [data-type-once] enters the viewport,
+       then leaves the static text in place. Used on the `what` section's
+       definition line — a quiet "the void writes itself" detail that the
+       visitor only catches the first time. Skipped if prefers-reduced-motion
+       is set (the global `transition-duration: 0.001s` rule would race the
+       interval and produce visible flicker — cleaner to just no-op). */
+    const reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    function triggerTypeOnce(el) {
+        if (reducedMotion) return;
+        const text = el.textContent;
+        if (!text) return;
+        el.textContent = '';
+        const PER_CHAR = 22;
+        let i = 0;
+        const id = setInterval(() => {
+            i++;
+            el.textContent = text.slice(0, i);
+            if (i >= text.length) clearInterval(id);
+        }, PER_CHAR);
+    }
+
+    const typeIo = new IntersectionObserver((entries) => {
+        for (const e of entries) {
+            if (e.isIntersecting) {
+                typeIo.unobserve(e.target);
+                triggerTypeOnce(e.target);
+            }
+        }
+    }, { rootMargin: '0px 0px -10% 0px', threshold: 0.6 });
+    document.querySelectorAll('[data-type-once]').forEach((el) => typeIo.observe(el));
+
+
     /* -------------------------------------------------- howto step cycle */
     const steps = Array.from(document.querySelectorAll('.step'));
     const flowDots = {
@@ -487,6 +522,147 @@ void — landing behaviors
                 slots.forEach(el => { el.textContent = text; });
             })
             .catch(() => { /* keep data-version-fallback as-is */ });
+    })();
+
+    /* -------------------------------------------------- contributors section
+       Three responsibilities:
+
+       1. fetchContributors()  primary `/api/contributors` (server parses
+                               PREMIUM_NICKNAMES at boot, filters casheaterr).
+                               Fallback: live-server / file:// has no node, so
+                               we re-parse public/js/config.js client-side with
+                               the identical regex. In production the API
+                               always succeeds first — fallback never runs.
+
+       2. renderMarquee()      builds <li>name + "/"-separator</li> items and
+                               appends them TWICE into #contribList so the CSS
+                               `translateX(-50%)` infinite-loop lands on an
+                               identical item — visually seamless. Also writes
+                               the count into #contribCount.
+
+       3. startAnnouncer()     cycles 1..3 lines from #contribAnnouncer's
+                               data-line-N attributes (per-locale copy lives in
+                               HTML, JS stays language-agnostic). ~36ms/char
+                               typewriter with 3.2s hold between lines.
+                               Bails on prefers-reduced-motion — leaves the
+                               first line statically visible.
+
+       Empty list (both fetch paths failed) → section.hidden = true. A
+       "people who help" block with no people reads worse than no section. */
+    async function fetchContributors() {
+        try {
+            const r = await fetch('/api/contributors', { cache: 'default' });
+            if (r.ok) {
+                const data = await r.json();
+                if (data && Array.isArray(data.names) && data.names.length) return data.names;
+            }
+        } catch (_) { /* fall through to dev parse */ }
+        try {
+            const r = await fetch('/public/js/config.js', { cache: 'default' });
+            if (r.ok) {
+                const src = await r.text();
+                const block = src.match(/PREMIUM_NICKNAMES\s*=\s*new\s+Set\s*\(\s*\[([\s\S]*?)\]\s*\)/);
+                if (block) {
+                    return [...block[1].matchAll(/["']([^"']+)["']/g)]
+                        .map(m => m[1].trim().toLowerCase())
+                        .filter(Boolean)
+                        .filter(n => n !== 'casheaterr');
+                }
+            }
+        } catch (_) { /* both paths failed */ }
+        return [];
+    }
+
+    function renderMarquee(names) {
+        const list  = document.getElementById('contribList');
+        const count = document.getElementById('contribCount');
+        if (!list) return;
+        list.innerHTML = '';
+        if (count) count.textContent = String(names.length);
+
+        // placeholder copy is locale-specific, lives on the <ul>'s
+        // data-placeholder attr ("+ ваше_имя" / "+ your_name"); skipped if
+        // absent so the function stays defensive about partial markup.
+        const placeholder = list.dataset.placeholder || '';
+
+        const buildItem = (name, isPlaceholder) => {
+            const li  = document.createElement('li');
+            const nm  = document.createElement('span');
+            const sep = document.createElement('span');
+            nm.className  = isPlaceholder ? 'contrib-name placeholder' : 'contrib-name';
+            sep.className = 'contrib-sep';
+            nm.textContent  = name;
+            sep.textContent = '/';
+            sep.setAttribute('aria-hidden', 'true');
+            li.appendChild(nm);
+            li.appendChild(sep);
+            return li;
+        };
+
+        // Two passes: original + aria-hidden duplicate. The CSS animation
+        // translateX(-50%) ends on the duplicate's first item — identical to
+        // the original's first item, so the loop is visually seamless. The
+        // placeholder slot sits at the end of each pass — "next seat in the
+        // list" reads as an open invitation to contribute.
+        const frag = document.createDocumentFragment();
+        names.forEach((n) => frag.appendChild(buildItem(n, false)));
+        if (placeholder) frag.appendChild(buildItem(placeholder, true));
+        names.forEach((n) => {
+            const li = buildItem(n, false);
+            li.setAttribute('aria-hidden', 'true');
+            frag.appendChild(li);
+        });
+        if (placeholder) {
+            const ph = buildItem(placeholder, true);
+            ph.setAttribute('aria-hidden', 'true');
+            frag.appendChild(ph);
+        }
+        list.appendChild(frag);
+    }
+
+    function startAnnouncer() {
+        const el = document.getElementById('contribAnnouncer');
+        if (!el) return;
+        const lines = [el.dataset.line1, el.dataset.line2, el.dataset.line3].filter(Boolean);
+        if (!lines.length) return;
+
+        if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            el.textContent = lines[0];
+            return;
+        }
+
+        let cancelled = false;
+        let timer = null;
+        const wait = (ms) => new Promise((res) => { timer = setTimeout(res, ms); });
+
+        (async () => {
+            while (!cancelled) {
+                for (const line of lines) {
+                    for (let i = 0; i <= line.length; i++) {
+                        if (cancelled) return;
+                        el.textContent = line.slice(0, i);
+                        await wait(36);
+                    }
+                    await wait(3200);
+                    if (cancelled) return;
+                }
+            }
+        })();
+
+        window.addEventListener('pagehide', () => {
+            cancelled = true;
+            if (timer) clearTimeout(timer);
+        }, { once: true });
+    }
+
+    (function injectContributors() {
+        const section = document.getElementById('contributors');
+        if (!section) return;
+        fetchContributors().then((names) => {
+            if (!names.length) { section.hidden = true; return; }
+            renderMarquee(names);
+            startAnnouncer();
+        });
     })();
 
     /* -------------------------------------------------- footer language link.

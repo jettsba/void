@@ -79,6 +79,33 @@ app.get('/api/version', (req, res) => {
     res.json({ version: PKG_VERSION });
 });
 
+/* /api/contributors — единственный источник правды для списка контрибьюторов
+   в лендинге. PREMIUM_NICKNAMES живёт в public/js/config.js (он же — источник
+   золотого shimmer'а в комнате), и единая переменная управляет обоими местами:
+   добавил ник в Set — он и подсветится в комнате, и появится на лендинге.
+   Парсим текстуально, без eval/import (config.js — не ESM-модуль, грузится в
+   браузер тегом <script>, а попытка `await import()` здесь дала бы ESM-фейл
+   на "const X" в module scope). Исключаем casheaterr — это автор, не контр.
+   Кэш 5 минут (список меняется только при редеплое — частить смысла нет). */
+const CONTRIBUTORS = (() => {
+    try {
+        const src = readFileSync(path.join(__dirname, 'public/js/config.js'), 'utf8');
+        const block = src.match(/PREMIUM_NICKNAMES\s*=\s*new\s+Set\s*\(\s*\[([\s\S]*?)\]\s*\)/);
+        if (!block) return [];
+        return [...block[1].matchAll(/["']([^"']+)["']/g)]
+            .map(m => m[1].trim().toLowerCase())
+            .filter(Boolean)
+            .filter(n => n !== 'casheaterr');
+    } catch (e) {
+        log.warn('boot', 'failed to parse PREMIUM_NICKNAMES from config.js', { error: e.message });
+        return [];
+    }
+})();
+app.get('/api/contributors', (req, res) => {
+    res.set('Cache-Control', 'public, max-age=300');
+    res.json({ names: CONTRIBUTORS });
+});
+
 // Маршрутизация по поддомену: app.* → приложение, всё остальное → лендинг
 app.use((req, res, next) => {
     const isApp = req.hostname === 'app.void-room.space'

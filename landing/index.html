@@ -24,26 +24,36 @@
     <link rel="alternate" hreflang="x-default" href="https://void-room.space/en/" />
 
     <!-- Language auto-detect. Runs synchronously in <head> BEFORE any render so
-         the user never sees a flash of the wrong language. Logic:
-         1. If user has clicked the footer language link before (localStorage
-            `void.lang` = 'ru' or 'en'), honor that choice — never redirect.
-         2. Otherwise, if navigator.language starts with `ru`, stay on /.
-         3. Anything else (including unknown/exotic locales) → redirect to /en/.
-         The script intentionally does NOT run when opened over file:// or via
-         VSCode Live Server (those use http://127.0.0.1 — fine — or file:, where
-         location.replace to /en/ would 404). It also bails on any throw. -->
+         the user never sees a flash of the wrong language.
+
+         Rule: the URL is the source of truth. If a preference is already pinned
+         in localStorage `void.lang`, we sync it to match THIS page (the user
+         explicitly navigated to /) and stay — we never auto-redirect away from
+         the URL the user requested. The previous behavior (pref redirects to
+         /en/ even on a typed `/` URL) made it impossible to switch languages
+         via the address bar — only the footer switcher worked.
+
+         The locale-based auto-redirect runs only for first-time visitors (no
+         saved pref): non-russian browsers get sent to /en/, russian browsers
+         stay. Trade-off: a returning visitor who previously pinned EN will see
+         RU when they hit the bare host, and must use the footer switcher to
+         go back. We accept this in exchange for deterministic URL navigation. -->
     <script>
     (function () {
         try {
             var saved = null;
             try { saved = localStorage.getItem('void.lang'); } catch (_) {}
             if (saved === 'ru' || saved === 'en') {
-                if (saved === 'en') location.replace('/en/' + location.search + location.hash);
+                if (saved !== 'ru') {
+                    try { localStorage.setItem('void.lang', 'ru'); } catch (_) {}
+                }
                 return;
             }
             var lang = (navigator.language || navigator.userLanguage || 'en').toLowerCase();
             if (lang.indexOf('ru') !== 0) {
                 location.replace('/en/' + location.search + location.hash);
+            } else {
+                try { localStorage.setItem('void.lang', 'ru'); } catch (_) {}
             }
         } catch (_) { /* never block render */ }
     })();
@@ -219,12 +229,34 @@
             </div>
         </section>
 
+        <!-- WHAT — короткое определение, центр, без рамки -->
+        <section class="what" id="what">
+            <div class="shell">
+                <div class="what-stage reveal">
+                    <div class="what-eyebrow">— 01 / что такое void</div>
+
+                    <div class="what-term" aria-label="void">
+                        <span class="what-word" aria-hidden="true">void</span>
+                        <span class="what-meta">/vɔɪd/ · <em>сущ.</em></span>
+                    </div>
+
+                    <p class="what-def" data-type-once>сервис голосовой связи, в котором нет лишнего.</p>
+
+                    <div class="what-rule" aria-hidden="true"></div>
+
+                    <p class="what-sub">везде нужно зарегистрироваться, скачать приложение, согласиться на трекеры, оставить номер. здесь — нет. открыл, отправил код, поговорил. ни аккаунта, ни истории, ни следов.</p>
+
+                    <p class="what-coda">ничего, что потом нужно удалять.</p>
+                </div>
+            </div>
+        </section>
+
         <!-- HOW -->
         <section class="sect" id="how">
             <div class="shell">
                 <div class="sect-head nobottom reveal">
                     <div>
-                        <div class="num" data-i18n="how.num">— 01 / как работает</div>
+                        <div class="num" data-i18n="how.num">— 02 / как работает</div>
                         <h2 data-i18n="how.title">всего три шага.</h2>
                     </div>
                     <p class="note" data-i18n="how.note"># 73 69 6c 65 6e 63 65</p>
@@ -341,7 +373,7 @@
             <div class="shell">
                 <div class="sect-head reveal">
                     <div>
-                        <div class="num" data-i18n="why.num">— 02 / почему именно void</div>
+                        <div class="num" data-i18n="why.num">— 03 / почему именно void</div>
                         <h2 data-i18n="why.title">шесть простых причин.</h2>
                     </div>
                     <p class="note" data-i18n="why.note">/ 74 68 65 2d 76 6f 69 64 2d 65 67 67</p>
@@ -448,7 +480,7 @@
             <div class="shell">
                 <div class="sect-head nobottom reveal">
                     <div>
-                        <div class="num" data-i18n="inside.num">— 03 / что умеет void</div>
+                        <div class="num" data-i18n="inside.num">— 04 / что умеет void</div>
                         <h2 data-i18n="inside.title">что внутри?</h2>
                     </div>
                     <p class="note" data-i18n="inside.note">/ NO RELAY</p>
@@ -609,7 +641,7 @@
         <!-- MANIFEST / PRIVACY -->
         <section class="manifest" id="privacy">
             <div class="shell">
-                <div class="lead reveal" data-i18n="privacy.lead">— 04 / ничего лишнего</div>
+                <div class="lead reveal" data-i18n="privacy.lead">— 05 / ничего лишнего</div>
                 <h2 class="reveal" data-delay="1" data-i18n-html="privacy.title">void — про то, чего <em>здесь нет.</em><br/>и это всё, что нужно знать.</h2>
 
                 <ul class="deny-list reveal" data-delay="2">
@@ -647,7 +679,7 @@
             <div class="shell">
                 <div class="sect-head nobottom reveal">
                     <div>
-                        <div class="num" data-i18n="plat.num">— 05 / платформы</div>
+                        <div class="num" data-i18n="plat.num">— 06 / платформы</div>
                         <h2 data-i18n="plat.title">web или desktop приложение.</h2>
                     </div>
                     <p class="note" data-i18n="plat.note">выбирай то, что удобнее. внутри — один и тот же void.</p>
@@ -683,6 +715,48 @@
                         </ul>
                         <div class="actions">
                             <a class="btn" href="#" data-i18n="plat.desk.cta">скачать void</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- CONTRIBUTORS — credits crawl + announcer + persistent CTA -->
+        <section class="sect contrib" id="contributors">
+            <div class="shell">
+                <div class="sect-head nobottom reveal">
+                    <div>
+                        <div class="num">— 07 / сообщество</div>
+                        <h2>те, кто причастен к развитию void.</h2>
+                    </div>
+                    <p class="note">/ thank you</p>
+                </div>
+
+                <div class="contrib-stage reveal" data-delay="1">
+                    <div class="contrib-frame">
+                        <div class="contrib-eyebrow">
+                            <span class="dot" aria-hidden="true"></span>
+                            <span>roll · <span id="contribCount">0</span> in list · helping void</span>
+                        </div>
+
+                        <div class="contrib-marquee">
+                            <ul class="contrib-track" id="contribList" aria-live="polite" data-placeholder="твое_имя">
+                                <!-- populated by injectContributors() in landing.js, fed by /api/contributors;
+                                     a "+ ваше_имя" placeholder slot is appended at the end of each pass -->
+                            </ul>
+                        </div>
+
+                        <div class="contrib-foot">
+                            <div class="contrib-announcer">
+                                <span class="contrib-line" id="contribAnnouncer"
+                                      data-line1="> next on the list: ___________ ?"
+                                      data-line2="> next on the list: ___________ ?"
+                                      data-line3="> next on the list: ___________ ?"></span><span class="contrib-caret" aria-hidden="true">▮</span>
+                            </div>
+                            <a class="contrib-cta"
+                               href="https://t.me/mtbibltww"
+                               target="_blank"
+                               rel="noopener noreferrer">свяжись со мной ↗</a>
                         </div>
                     </div>
                 </div>
