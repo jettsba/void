@@ -469,7 +469,7 @@
     border-radius: 3px;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 14px;
     opacity: 0;
     pointer-events: none;
     transition:
@@ -525,23 +525,45 @@
     color: var(--fg);
 }
 
-/* Кнопка «скопировать ссылку»: центрированная, в стиле .btn / .leave-btn. */
+/* Кнопка «скопировать ссылку»: на всю ширину попапа, в стиле .btn /
+   .leave-btn. Шрифт нарочно меньше, чтобы русское «скопировать ссылку»
+   гарантированно влезало в одну строку. */
 .invite-link-btn {
     position: relative;
-    align-self: center;
-    min-width: 160px;
-    padding: 8px 14px;
+    display: block;
+    width: 100%;
+    padding: 8px 12px;
     background: transparent;
     border: 1px solid var(--fg-4);
     border-radius: 2px;
     color: var(--fg-2);
     font: inherit;
-    font-size: 12px;
+    font-size: 11px;
     line-height: 1.2;
     text-transform: lowercase;
-    letter-spacing: var(--tracking-wide);
+    letter-spacing: var(--tracking);
     cursor: pointer;
     transition: border-color var(--t-fast), color var(--t-fast);
+}
+
+.invite-link-btn-inner {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+}
+
+.invite-link-btn-icon {
+    width: 12px;
+    height: 12px;
+    flex-shrink: 0;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    opacity: 0.75;
 }
 
 .invite-link-btn:hover {
@@ -577,7 +599,7 @@
 
 .invite-code-row.is-copied .invite-code-row-label,
 .invite-code-row.is-copied .invite-code-row-value,
-.invite-link-btn.is-copied .invite-link-btn-label {
+.invite-link-btn.is-copied .invite-link-btn-inner {
     opacity: 0;
 }
 
