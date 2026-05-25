@@ -64,7 +64,8 @@ const USERNAME_NOUNS = [
 const PREMIUM_NICKNAMES = new Set([
     "casheaterr",
     "nakharaktere",
-    "fergjo"
+    "fergjo",
+    "michael"
 ]);
 
 function isPremiumNickname(nickname) {

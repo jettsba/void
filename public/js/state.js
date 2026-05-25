@@ -95,16 +95,31 @@ async function enterLobby() {
 let roomInfo;
 let roomCodeText;
 
+/* Invite-попап над футер-кнопкой #roomInfo. Открывается по клику, внутри —
+   копирование кода и копирование invite-ссылки. */
+let invitePanel;
+let inviteCopyCode;
+let inviteCopyLink;
+let inviteCodeValue;
+let inviteOpen = false;
+let inviteOutsideHandler = null;
+const inviteCopyFeedbackTimers = new Map();
+
 /**
  * Рисует лейбл кода комнаты в #roomCodeText. Префикс «комната »/«room »
  * остаётся в lowercase-стилистике футера, сам код заворачивается в .room-code-id
  * чтобы его поднять в uppercase через CSS — без буллшита со склейкой строк.
+ *
+ * Параллельно обновляет значение кода в строке инвайт-попапа: оно должно
+ * всегда совпадать с тем, что показывает футер. В streamer mode значение в
+ * попапе тоже маскируется (заменяем на «—»).
  */
 function renderRoomCodeLabel(code) {
     if (!roomCodeText) return;
 
     if (window.VoidSettings?.getStreamer?.()) {
         roomCodeText.textContent = _t("footer.copy.streamer");
+        if (inviteCodeValue) inviteCodeValue.textContent = "—";
         return;
     }
 
@@ -126,12 +141,12 @@ function renderRoomCodeLabel(code) {
     codeSpan.textContent = segment;
     roomCodeText.append(codeSpan);
     if (suffix) roomCodeText.append(document.createTextNode(suffix));
+
+    if (inviteCodeValue) inviteCodeValue.textContent = segment;
 }
 
 let _lastConnState = "ready";
 let _lastConnOpts = {};
-
-let roomCopyFeedbackTimer = null;
 
 let connState;
 let pingPanel;

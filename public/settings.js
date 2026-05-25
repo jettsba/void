@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "0.9.34";
+    const APP_VERSION = "0.9.35";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
@@ -106,9 +106,7 @@
             "footer.reconnecting.attempt": "переподключение {attempt}/{total}",
             "footer.unstable": "связь нестабильна",
             "footer.error": "ошибка",
-            "footer.copy.title": "копировать код",
             "footer.copy.streamer": "скопировать код комнаты",
-            "footer.copied": "скопировано!",
             "footer.roomCode": "комната #{code}",
 
             "ping.empty": "нет участников",
@@ -192,7 +190,11 @@
             "bug.thanks.body": "заявка отправлена. постараюсь разобраться как можно скорее.",
             "bug.thanks.close": "закрыть",
 
-            "invite.hint": "пригласи друзей войти, используя код ниже"
+            "invite.hint": "нажми на код внизу — там код и ссылка для друзей",
+            "invite.button-title": "пригласить",
+            "invite.code-label": "код",
+            "invite.copy-link": "скопировать ссылку",
+            "invite.copied": "скопировано"
         },
         en: {
             "intro.question": "what is the music of life?",
@@ -244,9 +246,7 @@
             "footer.reconnecting.attempt": "reconnecting {attempt}/{total}",
             "footer.unstable": "connection unstable",
             "footer.error": "error",
-            "footer.copy.title": "copy code",
             "footer.copy.streamer": "copy room code",
-            "footer.copied": "copied!",
             "footer.roomCode": "room #{code}",
 
             "ping.empty": "no peers",
@@ -330,7 +330,11 @@
             "bug.thanks.body": "your report is on its way. i'll look into it as soon as i can.",
             "bug.thanks.close": "close",
 
-            "invite.hint": "invite friends with the code below"
+            "invite.hint": "tap the code below — share it or copy a link",
+            "invite.button-title": "invite",
+            "invite.code-label": "code",
+            "invite.copy-link": "copy link",
+            "invite.copied": "copied"
         }
     };
 

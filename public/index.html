@@ -26,7 +26,7 @@
     <link rel="stylesheet" href="css/app.css?v=17">
     <link rel="stylesheet" href="css/header.css?v=17">
     <link rel="stylesheet" href="css/stage.css?v=20">
-    <link rel="stylesheet" href="css/panel.css?v=19">
+    <link rel="stylesheet" href="css/panel.css?v=20">
     <link rel="stylesheet" href="css/volume-arc.css?v=17">
     <link rel="stylesheet" href="css/ping.css?v=17">
     <link rel="stylesheet" href="css/chat.css?v=20">
@@ -290,13 +290,23 @@
                 </div>
             </span>
             <span class="footer-divider">·</span>
-            <div class="room-info hidden" id="roomInfo" title="copy code"
-                data-i18n-attr="title:footer.copy.title">
+            <div class="room-info hidden" id="roomInfo" role="button" tabindex="0"
+                aria-haspopup="true" aria-expanded="false"
+                title="пригласить" data-i18n-attr="title:invite.button-title">
                 <span class="room-code-view">
-                    <span id="roomCodeText" class="room-code-panel room-code-panel--code">room #XXXXX</span>
-                    <span class="room-code-panel room-code-panel--copied" aria-hidden="true"
-                        data-i18n="footer.copied">copied!</span>
+                    <span id="roomCodeText" class="room-code-panel">room #XXXXX</span>
                 </span>
+                <div class="invite-panel" id="invitePanel" aria-hidden="true" role="menu">
+                    <div class="invite-row invite-row-code" id="inviteCopyCode" role="menuitem" tabindex="0">
+                        <span class="invite-row-label" data-i18n="invite.code-label">код</span>
+                        <span class="invite-row-value" id="inviteCodeValue">XXXXX</span>
+                        <span class="invite-row-copied" data-i18n="invite.copied">скопировано</span>
+                    </div>
+                    <button class="invite-row invite-row-link" id="inviteCopyLink" type="button" role="menuitem">
+                        <span class="invite-row-label" data-i18n="invite.copy-link">скопировать ссылку</span>
+                        <span class="invite-row-copied" data-i18n="invite.copied">скопировано</span>
+                    </button>
+                </div>
             </div>
         </footer>
     </div>
@@ -391,12 +401,12 @@
     </div>
 
     <script defer src="log.js"></script>
-    <script defer src="settings.js?v=12"></script>
+    <script defer src="settings.js?v=13"></script>
     <script defer src="webrtc.js"></script>
     <script defer src="socket.js"></script>
     <script defer src="chat.js"></script>
     <script defer src="js/config.js?v=2"></script>
-    <script defer src="js/state.js?v=3"></script>
+    <script defer src="js/state.js?v=4"></script>
     <script defer src="js/toasts.js?v=1"></script>
     <script defer src="js/background.js?v=2"></script>
     <script defer src="js/audio.js?v=1"></script>
@@ -407,8 +417,8 @@
     <script defer src="js/ping-panel.js?v=1"></script>
     <script defer src="js/screen-overlay.js?v=2"></script>
     <script defer src="js/intro.js?v=3"></script>
-    <script defer src="js/room.js?v=3"></script>
-    <script defer src="js/app.js?v=4"></script>
+    <script defer src="js/room.js?v=4"></script>
+    <script defer src="js/app.js?v=5"></script>
 </body>
 
 </html>

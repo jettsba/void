@@ -221,12 +221,8 @@ function tearDownRoomState() {
     currentRoomCode = null;
     _peerTrouble = false;
 
-    if (roomCopyFeedbackTimer) {
-        clearTimeout(roomCopyFeedbackTimer);
-        roomCopyFeedbackTimer = null;
-    }
+    if (typeof closeInvitePanel === "function") closeInvitePanel();
     if (roomInfo) {
-        roomInfo.classList.remove("room-info--copied");
         roomInfo.classList.add("hidden");
     }
 

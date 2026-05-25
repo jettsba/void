@@ -75,6 +75,10 @@ function init() {
 
     roomInfo = document.getElementById("roomInfo");
     roomCodeText = document.getElementById("roomCodeText");
+    invitePanel = document.getElementById("invitePanel");
+    inviteCopyCode = document.getElementById("inviteCopyCode");
+    inviteCopyLink = document.getElementById("inviteCopyLink");
+    inviteCodeValue = document.getElementById("inviteCodeValue");
 
     entryErrorEl = document.getElementById("entryError");
     entryErrorTextEl = document.getElementById("entryErrorText");
@@ -213,19 +217,41 @@ function init() {
         codeInput.focus();
     });
 
-    roomInfo.addEventListener("click", async () => {
-        try {
-            await navigator.clipboard.writeText(currentRoomCode);
-            dismissInviteHint(true);
-            roomInfo.classList.add("room-info--copied");
-            if (roomCopyFeedbackTimer) clearTimeout(roomCopyFeedbackTimer);
-            roomCopyFeedbackTimer = setTimeout(() => {
-                roomInfo.classList.remove("room-info--copied");
-                roomCopyFeedbackTimer = null;
-            }, 1000);
-        } catch (e) {
-            log.warn("ui", "copy to clipboard failed", { err: e?.message || String(e) });
+    roomInfo.addEventListener("click", (e) => {
+        e.stopPropagation();
+        toggleInvitePanel();
+    });
+    roomInfo.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            toggleInvitePanel();
         }
+        if (e.key === "Escape" && inviteOpen) {
+            closeInvitePanel();
+            roomInfo.focus();
+        }
+    });
+
+    inviteCopyCode.addEventListener("click", (e) => {
+        e.stopPropagation();
+        copyInviteValue(inviteCopyCode, currentRoomCode || "");
+    });
+    inviteCopyCode.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            copyInviteValue(inviteCopyCode, currentRoomCode || "");
+        }
+    });
+    inviteCopyLink.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (!currentRoomCode) return;
+        const link = `${location.origin}/?room=${encodeURIComponent(currentRoomCode)}`;
+        copyInviteValue(inviteCopyLink, link);
+    });
+    invitePanel.addEventListener("click", (e) => {
+        /* Клик по самой панели (между кнопками, по пустому padding'у) не должен
+           всплывать до outside-handler и закрывать попап. */
+        e.stopPropagation();
     });
 
     if (typeof initChat === "function") {
@@ -274,6 +300,15 @@ function init() {
         }
     });
 
+    /* Invite-link auto-join: ?room=KX7A2 в адресе → подставить код и сразу
+       запустить tryJoin(). Адрес чистим ДО входа — F5 после отказа от
+       микрофона не должен снова дёргать auto-join (юзер залипнет). Сам
+       tryJoin вешаем на void:app-unlocked, чтобы он сработал и при
+       включённом intro (после прохождения вопроса), и при отключённом
+       (сразу после skipIntroAndShowApp). Невалидный код игнорируем — попадёт
+       в обычное лобби, как будто пришли по чистой ссылке. */
+    consumeInviteLinkFromUrl();
+
     if (!INTRO_ENABLED) {
         skipIntroAndShowApp();
     } else if (isIntroUnlockedInBrowser()) {
@@ -282,4 +317,109 @@ function init() {
         introInput.disabled = true;
         runIntroQuestionTyping();
     }
+}
+
+/* ===== Invite popup ===== */
+
+function toggleInvitePanel() {
+    if (inviteOpen) closeInvitePanel();
+    else openInvitePanel();
+}
+
+function openInvitePanel() {
+    if (inviteOpen || !invitePanel || !roomInfo) return;
+    if (!isJoined || !currentRoomCode) return;
+
+    inviteOpen = true;
+    invitePanel.classList.add("is-visible");
+    invitePanel.setAttribute("aria-hidden", "false");
+    roomInfo.setAttribute("aria-expanded", "true");
+
+    /* Открыли попап — значит пригласительная подсказка свою роль отыграла. */
+    if (typeof dismissInviteHint === "function") dismissInviteHint(true);
+
+    inviteOutsideHandler = (e) => {
+        if (roomInfo && roomInfo.contains(e.target)) return;
+        closeInvitePanel();
+    };
+    setTimeout(() => {
+        document.addEventListener("click", inviteOutsideHandler);
+    }, 0);
+}
+
+function closeInvitePanel() {
+    if (!inviteOpen) return;
+    inviteOpen = false;
+
+    if (invitePanel) {
+        invitePanel.classList.remove("is-visible");
+        invitePanel.setAttribute("aria-hidden", "true");
+    }
+    if (roomInfo) {
+        roomInfo.setAttribute("aria-expanded", "false");
+    }
+
+    if (inviteOutsideHandler) {
+        document.removeEventListener("click", inviteOutsideHandler);
+        inviteOutsideHandler = null;
+    }
+
+    /* Все feedback-таймеры сбрасываем — иначе при следующем открытии «скопировано»
+       мигнёт сразу, потому что таймер только-только успеет снять класс. */
+    for (const [el, id] of inviteCopyFeedbackTimers) {
+        clearTimeout(id);
+        el.classList.remove("is-copied");
+    }
+    inviteCopyFeedbackTimers.clear();
+}
+
+async function copyInviteValue(rowEl, value) {
+    if (!rowEl || !value) return;
+    try {
+        await navigator.clipboard.writeText(value);
+    } catch (e) {
+        log.warn("ui", "copy to clipboard failed", { err: e?.message || String(e) });
+        return;
+    }
+    rowEl.classList.add("is-copied");
+    const prev = inviteCopyFeedbackTimers.get(rowEl);
+    if (prev) clearTimeout(prev);
+    inviteCopyFeedbackTimers.set(rowEl, setTimeout(() => {
+        rowEl.classList.remove("is-copied");
+        inviteCopyFeedbackTimers.delete(rowEl);
+    }, 1000));
+}
+
+/* ===== Invite-link auto-join =====
+   1. Прочитать ?room=...
+   2. Если валидный код — почистить URL через replaceState (важно: ДО tryJoin,
+      чтобы F5 после mic-deny не повторил auto-join).
+   3. Поставить код в codeInput, пометить has-value (визуально как ручной ввод).
+   4. Подписаться на void:app-unlocked one-shot и оттуда дёрнуть tryJoin(). */
+function consumeInviteLinkFromUrl() {
+    let raw = null;
+    try {
+        raw = new URLSearchParams(location.search).get("room");
+    } catch (_) {
+        return;
+    }
+    if (!raw) return;
+
+    /* Чистим URL независимо от валидности кода — мусор не должен висеть. */
+    try { history.replaceState({}, "", location.pathname); } catch (_) {}
+
+    const normalized = raw.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (!ROOM_CODE_RX.test(normalized)) return;
+
+    if (codeInput) {
+        codeInput.value = normalized;
+        codeInput.closest(".entry-code-field")?.classList.add("has-value");
+    }
+
+    document.addEventListener("void:app-unlocked", () => {
+        /* Двойной защитный пояс: если за время intro юзер уже сам вошёл —
+           ничего не делаем. tryJoin сам себя проверит, но дешевле не дёргать. */
+        if (isJoined) return;
+        tryJoin();
+    }, { once: true });
 }
