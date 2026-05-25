@@ -330,6 +330,9 @@ function openInvitePanel() {
     if (inviteOpen || !invitePanel || !roomInfo) return;
     if (!isJoined || !currentRoomCode) return;
 
+    /* Один попап за раз — закрываем соседний (ping) если он открыт. */
+    if (typeof closePingPanel === "function") closePingPanel();
+
     inviteOpen = true;
     invitePanel.classList.add("is-visible");
     invitePanel.setAttribute("aria-hidden", "false");

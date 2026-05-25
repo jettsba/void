@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "0.9.35";
+    const APP_VERSION = "0.9.36";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
@@ -192,7 +192,7 @@
 
             "invite.hint": "нажми на код внизу — там код и ссылка для друзей",
             "invite.button-title": "пригласить",
-            "invite.code-label": "код",
+            "invite.code-label": "комната:",
             "invite.copy-link": "скопировать ссылку",
             "invite.copied": "скопировано"
         },
@@ -332,7 +332,7 @@
 
             "invite.hint": "tap the code below — share it or copy a link",
             "invite.button-title": "invite",
-            "invite.code-label": "code",
+            "invite.code-label": "room code:",
             "invite.copy-link": "copy link",
             "invite.copied": "copied"
         }

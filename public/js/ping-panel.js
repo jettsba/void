@@ -7,6 +7,10 @@ function togglePingPanel() {
 
 function openPingPanel() {
     if (pingPanelOpen || !pingPanel) return;
+
+    /* Один попап за раз — закрываем соседний (invite) если он открыт. */
+    if (typeof closeInvitePanel === "function") closeInvitePanel();
+
     pingPanelOpen = true;
     pingPanel.classList.add("is-visible");
     pingPanel.setAttribute("aria-hidden", "false");

@@ -455,22 +455,23 @@
     letter-spacing: 0.04em;
 }
 
-/* ===== Invite-попап (всплывает над .room-info) ===== */
+/* ===== Invite-попап (всплывает над «room #XXXXX», по тому же лекалу, что
+   ping-panel над .conn-state: центрирование через left:50% + translateX). ===== */
 .invite-panel {
     position: absolute;
     bottom: calc(100% + 12px);
-    right: 0;
+    left: 50%;
+    transform: translateX(-50%) translateY(6px);
     min-width: 220px;
-    padding: 6px;
+    padding: 10px 12px 12px;
     background: var(--bg-1);
     border: 1px solid var(--fg-4);
     border-radius: 3px;
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 10px;
     opacity: 0;
     pointer-events: none;
-    transform: translateY(6px);
     transition:
         opacity var(--t-med),
         transform var(--t-med);
@@ -482,54 +483,79 @@
 
 .invite-panel.is-visible {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateX(-50%) translateY(0);
     pointer-events: auto;
 }
 
-.invite-row {
+/* Строка с кодом: вся строка кликабельна (копирует), но фоном на hover не
+   мигаем — подсвечиваем только сам код, чтобы было ясно, что «нажми = код
+   попадёт в буфер». */
+.invite-code-row {
     position: relative;
     display: flex;
-    align-items: center;
+    align-items: baseline;
     justify-content: space-between;
-    gap: 16px;
-    padding: 8px 10px;
-    border-radius: 2px;
-    background: transparent;
-    border: 0;
+    gap: 12px;
+    padding: 4px 2px;
     color: var(--fg-2);
-    font: inherit;
     font-size: 12px;
     line-height: 1.4;
     cursor: pointer;
-    text-align: left;
-    width: 100%;
-    transition: background var(--t-fast), color var(--t-fast);
 }
 
-.invite-row:hover {
-    background: rgba(255, 255, 255, 0.04);
+.invite-code-row:focus-visible {
+    outline: 1px dashed var(--fg-3);
+    outline-offset: 2px;
+}
+
+.invite-code-row-label {
+    color: var(--fg-3);
+}
+
+.invite-code-row-value {
+    flex-shrink: 0;
+    color: var(--fg-2);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    transition: color var(--t-fast);
+}
+
+.invite-code-row:hover .invite-code-row-value,
+.invite-code-row:focus-visible .invite-code-row-value {
     color: var(--fg);
 }
 
-.invite-row:focus-visible {
+/* Кнопка «скопировать ссылку»: центрированная, в стиле .btn / .leave-btn. */
+.invite-link-btn {
+    position: relative;
+    align-self: center;
+    min-width: 160px;
+    padding: 8px 14px;
+    background: transparent;
+    border: 1px solid var(--fg-4);
+    border-radius: 2px;
+    color: var(--fg-2);
+    font: inherit;
+    font-size: 12px;
+    line-height: 1.2;
+    text-transform: lowercase;
+    letter-spacing: var(--tracking-wide);
+    cursor: pointer;
+    transition: border-color var(--t-fast), color var(--t-fast);
+}
+
+.invite-link-btn:hover {
+    border-color: var(--fg-3);
+    color: var(--fg);
+}
+
+.invite-link-btn:focus-visible {
     outline: 1px dashed var(--fg-3);
-    outline-offset: -2px;
+    outline-offset: 2px;
 }
 
-.invite-row-label {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.invite-row-value {
-    flex-shrink: 0;
-    color: var(--fg-3);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-}
-
+/* Фидбэк «скопировано» — общий для обоих action-узлов. Перекрывает контент
+   на 1 секунду. */
 .invite-row-copied {
     position: absolute;
     inset: 0;
@@ -544,21 +570,28 @@
     transition: opacity var(--t-fast);
 }
 
-.invite-row.is-copied .invite-row-copied {
+.invite-code-row.is-copied .invite-row-copied,
+.invite-link-btn.is-copied .invite-row-copied {
     opacity: 1;
 }
 
-.invite-row.is-copied .invite-row-label,
-.invite-row.is-copied .invite-row-value {
+.invite-code-row.is-copied .invite-code-row-label,
+.invite-code-row.is-copied .invite-code-row-value,
+.invite-link-btn.is-copied .invite-link-btn-label {
     opacity: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {
     .invite-panel {
         transition-duration: 0.01ms;
-        transform: none;
+        transform: translateX(-50%);
     }
-    .invite-row-copied {
+    .invite-panel.is-visible {
+        transform: translateX(-50%);
+    }
+    .invite-row-copied,
+    .invite-code-row-value,
+    .invite-link-btn {
         transition-duration: 0.01ms;
     }
 }
