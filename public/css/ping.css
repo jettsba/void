@@ -1,12 +1,12 @@
 /* ===== Ping panel (всплывает над .conn-state) ===== */
 .ping-panel {
     position: absolute;
-    bottom: calc(100% + 12px);
+    bottom: calc(100% + 0.86rem);
     left: 50%;
-    transform: translateX(-50%) translateY(6px);
-    min-width: 200px;
-    max-width: 260px;
-    padding: 8px 10px;
+    transform: translateX(-50%) translateY(0.43rem);
+    min-width: 14.29rem;
+    max-width: 18.57rem;
+    padding: 0.57rem 0.71rem;
     background: var(--bg-1);
     border: 1px solid var(--fg-4);
     border-radius: 3px;
@@ -30,16 +30,16 @@
 .ping-panel-list {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 0.29rem;
 }
 
 .ping-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 16px;
+    gap: 1.14rem;
     color: var(--fg-2);
-    font-size: 11px;
+    font-size: 0.79rem;
     line-height: 1.4;
     white-space: nowrap;
 }

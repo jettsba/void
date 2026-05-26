@@ -15,7 +15,7 @@
 
 .volume-arc.is-visible {
     opacity: 1;
-    transform: translateX(7px);
+    transform: translateX(0.5rem);
 }
 
 .volume-arc svg {
@@ -87,9 +87,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 14px;
+    gap: 1rem;
     color: var(--fg-3);
-    font-size: 11px;
+    font-size: 0.79rem;
     letter-spacing: var(--tracking-wide);
     text-transform: lowercase;
     transition: padding-right var(--t-med);

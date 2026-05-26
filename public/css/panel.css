@@ -1,19 +1,19 @@
 /* ---------- ТОЧКА B: панель ---------- */
 
 .panel-area {
-    --panel-h: calc(44px + 8px + 44px);
+    --panel-h: calc(3.14rem + 0.57rem + 3.14rem);
     /* высота под controls (две строки) */
-    --panel-input-h: 44px;
-    --panel-gap-input-tail: 16px;
+    --panel-input-h: 3.14rem;
+    --panel-gap-input-tail: 1.14rem;
     /* === Сдвиг панели ВНИЗ от ripple. Через transform — не меняет высоту стека,
            поэтому ripple остаётся на месте, а панель уезжает ниже. === */
-    --panel-offset-y: 100px;
+    --panel-offset-y: 7.14rem;
 
     position: relative;
-    margin-top: 24px;
+    margin-top: 1.71rem;
     /* минимальный layout-зазор от users-area */
     width: 100%;
-    max-width: 420px;
+    max-width: 30rem;
     height: var(--panel-h);
     transform: translateY(var(--panel-offset-y));
 }
@@ -37,7 +37,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 14px;
+    gap: 1rem;
     white-space: nowrap;
 }
 
@@ -60,20 +60,20 @@
     position: absolute;
     left: 0;
     right: 0;
-    bottom: calc(100% + 10px);
+    bottom: calc(100% + 0.71rem);
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    padding: 0 8px;
+    gap: 0.57rem;
+    padding: 0 0.57rem;
     color: var(--signal-warn);
-    font-size: 12px;
+    font-size: 0.86rem;
     letter-spacing: var(--tracking);
     line-height: 1.45;
     text-transform: lowercase;
     pointer-events: none;
     opacity: 0;
-    transform: translateY(12px);
+    transform: translateY(0.86rem);
     transition:
         opacity 0.38s cubic-bezier(.2, .6, .2, 1),
         transform 0.38s cubic-bezier(.2, .6, .2, 1);
@@ -86,7 +86,7 @@
 
 .entry-error-glyph {
     flex-shrink: 0;
-    font-size: 14px;
+    font-size: 1rem;
     line-height: 1;
     opacity: 0.85;
 }
@@ -131,20 +131,20 @@
     position: relative;
     background: var(--bg-1);
     border: 1px solid var(--fg-4);
-    padding: 28px 28px 22px;
-    max-width: 380px;
-    width: calc(100% - 32px);
+    padding: 2rem 2rem 1.57rem;
+    max-width: 27.14rem;
+    width: calc(100% - 2.29rem);
     text-align: center;
-    transform: translateY(8px) scale(0.98);
+    transform: translateY(0.57rem) scale(0.98);
     transition: transform var(--t-med);
 }
 .mic-blocked-modal.is-open .mic-blocked-card {
     transform: translateY(0) scale(1);
 }
 .mic-blocked-glyph {
-    width: 44px;
-    height: 44px;
-    margin: 0 auto 14px;
+    width: 3.14rem;
+    height: 3.14rem;
+    margin: 0 auto 1rem;
     color: var(--signal-warn);
 }
 .mic-blocked-glyph svg {
@@ -159,28 +159,28 @@
 .mic-blocked-glyph .strike-bg { stroke: var(--bg-1); stroke-width: 4; }
 .mic-blocked-glyph .strike    { stroke: currentColor; stroke-width: 1.6; }
 .mic-blocked-title {
-    font-size: 13px;
+    font-size: 0.93rem;
     letter-spacing: var(--tracking-wide);
     text-transform: lowercase;
     color: var(--fg);
-    margin-bottom: 10px;
+    margin-bottom: 0.71rem;
     font-weight: 500;
 }
 .mic-blocked-body {
-    font-size: 12px;
+    font-size: 0.86rem;
     letter-spacing: var(--tracking);
     line-height: 1.55;
     color: var(--fg-2);
     text-transform: lowercase;
-    margin-bottom: 20px;
+    margin-bottom: 1.43rem;
 }
 .mic-blocked-cta {
     display: inline-block;
-    padding: 8px 22px;
+    padding: 0.57rem 1.57rem;
     background: transparent;
     border: 1px solid var(--fg-3);
     color: var(--fg);
-    font-size: 12px;
+    font-size: 0.86rem;
     letter-spacing: var(--tracking-wide);
     text-transform: lowercase;
     cursor: pointer;
@@ -195,7 +195,7 @@
 
 .entry-actions {
     display: flex;
-    gap: 12px;
+    gap: 0.86rem;
     align-items: center;
     justify-content: center;
     width: fit-content;
@@ -207,10 +207,10 @@
     align-items: center;
     justify-content: center;
     gap: 0.22em;
-    height: 44px;
-    width: 160px;
+    height: 3.14rem;
+    width: 11.43rem;
     max-width: 100%;
-    padding: 0 14px;
+    padding: 0 1rem;
     box-sizing: border-box;
     background: var(--bg-1);
     border: 1px solid var(--fg-4);
@@ -230,7 +230,7 @@
     display: none;
     flex-shrink: 0;
     color: var(--fg-3);
-    font-size: 14px;
+    font-size: 1rem;
     line-height: 1;
     pointer-events: none;
     user-select: none;
@@ -253,7 +253,7 @@
     text-align: center;
     letter-spacing: 0.35em;
     text-transform: uppercase;
-    font-size: 14px;
+    font-size: 1rem;
 }
 
 .entry-code:focus {
@@ -264,19 +264,19 @@
     color: var(--fg-3);
     letter-spacing: var(--tracking-wide);
     text-transform: lowercase;
-    font-size: 12px;
+    font-size: 0.86rem;
 }
 
 .btn {
-    height: 44px;
-    padding: 0 22px;
+    height: 3.14rem;
+    padding: 0 1.57rem;
     background: transparent;
     color: var(--fg);
     border: 1px solid var(--fg-4);
     border-radius: 2px;
     letter-spacing: var(--tracking-wide);
     text-transform: lowercase;
-    font-size: 12px;
+    font-size: 0.86rem;
     transition:
         border-color var(--t-fast),
         color var(--t-fast),
@@ -318,14 +318,14 @@
 
 .entry-divider {
     color: var(--fg-3);
-    font-size: 11px;
+    font-size: 0.79rem;
     letter-spacing: var(--tracking-wide);
 }
 
 .panel-controls {
     display: grid;
-    grid-template-columns: 44px 44px 44px;
-    gap: 8px;
+    grid-template-columns: 3.14rem 3.14rem 3.14rem;
+    gap: 0.57rem;
     justify-content: center;
 }
 
@@ -334,8 +334,8 @@
 }
 
 .control-btn {
-    width: 44px;
-    height: 44px;
+    width: 3.14rem;
+    height: 3.14rem;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -357,8 +357,8 @@
 }
 
 .control-btn svg {
-    width: 18px;
-    height: 18px;
+    width: 1.29rem;
+    height: 1.29rem;
     stroke: currentColor;
     stroke-width: 1.4;
     fill: none;
@@ -403,14 +403,14 @@
 }
 
 .leave-btn {
-    height: 44px;
-    padding: 0 18px;
+    height: 3.14rem;
+    padding: 0 1.29rem;
     border: 1px solid var(--fg-4);
     border-radius: 2px;
     color: var(--fg-2);
     letter-spacing: var(--tracking-wide);
     text-transform: lowercase;
-    font-size: 12px;
+    font-size: 0.86rem;
     background: transparent;
     cursor: pointer;
     transition: border-color var(--t-fast), color var(--t-fast);
@@ -426,7 +426,7 @@
     cursor: pointer;
     transition: color var(--t-fast);
     text-transform: lowercase;
-    font-size: 12px;
+    font-size: 0.86rem;
     position: relative;
 }
 
@@ -459,17 +459,17 @@
    ping-panel над .conn-state: центрирование через left:50% + translateX). ===== */
 .invite-panel {
     position: absolute;
-    bottom: calc(100% + 12px);
+    bottom: calc(100% + 0.86rem);
     left: 50%;
-    transform: translateX(-50%) translateY(6px);
-    min-width: 220px;
-    padding: 10px 12px 12px;
+    transform: translateX(-50%) translateY(0.43rem);
+    min-width: 15.71rem;
+    padding: 0.71rem 0.86rem 0.86rem;
     background: var(--bg-1);
     border: 1px solid var(--fg-4);
     border-radius: 3px;
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 1rem;
     opacity: 0;
     pointer-events: none;
     transition:
@@ -495,10 +495,10 @@
     display: flex;
     align-items: baseline;
     justify-content: space-between;
-    gap: 12px;
-    padding: 4px 2px;
+    gap: 0.86rem;
+    padding: 0.29rem 0.14rem;
     color: var(--fg-2);
-    font-size: 12px;
+    font-size: 0.86rem;
     line-height: 1.4;
     cursor: pointer;
 }
@@ -532,13 +532,13 @@
     position: relative;
     display: block;
     width: 100%;
-    padding: 8px 12px;
+    padding: 0.57rem 0.86rem;
     background: transparent;
     border: 1px solid var(--fg-4);
     border-radius: 2px;
     color: var(--fg-2);
     font: inherit;
-    font-size: 11px;
+    font-size: 0.79rem;
     line-height: 1.2;
     text-transform: lowercase;
     letter-spacing: var(--tracking);
@@ -550,13 +550,13 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
+    gap: 0.43rem;
     width: 100%;
 }
 
 .invite-link-btn-icon {
-    width: 12px;
-    height: 12px;
+    width: 0.86rem;
+    height: 0.86rem;
     flex-shrink: 0;
     fill: none;
     stroke: currentColor;

@@ -94,8 +94,8 @@ body {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 40px;
-    height: 40px;
+    width: 2.86rem;
+    height: 2.86rem;
     margin: 0 auto;
     background: transparent;
     border: none;
@@ -105,8 +105,8 @@ body {
 }
 
 .intro-submit-btn svg {
-    width: 22px;
-    height: 22px;
+    width: 1.57rem;
+    height: 1.57rem;
     stroke: currentColor;
     stroke-width: 1.6;
     stroke-linecap: round;
@@ -172,262 +172,12 @@ body {
 }
 
 /* ===================================================
-   2K SCREENS (2560px+)
-=================================================== */
-
-@media (min-width: 2560px) {
-    html, body {
-        font-size: 17px;
-    }
-
-    .app {
-        --hdr-h: 90px;
-        --footer-row-h: 78px;
-    }
-
-    .header {
-        padding: 0 36px;
-        font-size: 14px;
-    }
-
-    .brand-logo {
-        width: 32px;
-        height: 32px;
-    }
-
-    .brand-lockup {
-        gap: 14px;
-    }
-
-    .brand-mark {
-        height: 32px;
-        font-size: 15px;
-    }
-
-    .footer-meta {
-        font-size: 13px;
-        gap: 18px;
-    }
-
-    .conn-state {
-        font-size: 13px;
-    }
-
-    .room-info {
-        font-size: 13px;
-    }
-
-    .users-area {
-        --avatar-size: 108px;
-    }
-
-    .panel-area {
-        --panel-offset-y: 128px;
-        --panel-input-h: 54px;
-        --panel-h: calc(54px + 10px + 54px);
-        max-width: 540px;
-        margin-top: 30px;
-    }
-
-    .panel-controls {
-        grid-template-columns: 54px 54px 54px;
-        gap: 10px;
-    }
-
-    .control-btn {
-        width: 54px;
-        height: 54px;
-    }
-
-    .control-btn svg {
-        width: 22px;
-        height: 22px;
-    }
-
-    .leave-btn {
-        height: 54px;
-        font-size: 13px;
-    }
-
-    .btn {
-        height: 54px;
-        font-size: 13px;
-    }
-
-    .entry-code-field {
-        height: 54px;
-        width: 190px;
-    }
-
-    .entry-code {
-        font-size: 16px;
-    }
-
-    .entry-code::placeholder {
-        font-size: 13px;
-    }
-
-    .entry-divider {
-        font-size: 13px;
-    }
-
-    .chat-toggle {
-        height: 38px;
-        font-size: 12px;
-        min-width: 110px;
-    }
-
-    .ping-panel {
-        min-width: 240px;
-        max-width: 300px;
-        font-size: 13px;
-    }
-
-    .ping-row {
-        font-size: 13px;
-    }
-
-    .intro-content {
-        gap: 36px;
-    }
-
-    .intro-input {
-        font-size: 18px;
-        height: 48px;
-        width: 300px;
-    }
-}
-
-/* ===================================================
-   4K SCREENS (3840px+)
-=================================================== */
-
-/* 4K bumps. Цифры подобраны так, чтобы при типичном 27"-4K-мониторе и 100%
-   системном scale физический размер элементов был сопоставим с FHD@125%
-   (≈ 92 device-px/inch). При PPI ~163 у 4K элементы нужно тянуть в 1.8-2.0×
-   относительно FHD, чтобы был тот же физический размер. БЕЗ CSS zoom —
-   `zoom` на body ломал .app{height:100vh}: 100vh не пересчитывается с
-   учётом zoom, .app рос за пределы viewport, footer уезжал вниз. */
-@media (min-width: 3840px) {
-    html, body {
-        font-size: 28px;
-    }
-
-    .app {
-        --hdr-h: 156px;
-        --footer-row-h: 132px;
-    }
-
-    .header {
-        padding: 0 72px;
-        font-size: 22px;
-    }
-
-    .brand-logo {
-        width: 56px;
-        height: 56px;
-    }
-
-    .brand-lockup {
-        gap: 22px;
-    }
-
-    .brand-mark {
-        height: 56px;
-        font-size: 26px;
-    }
-
-    .footer-meta {
-        font-size: 22px;
-        gap: 32px;
-    }
-
-    .conn-state {
-        font-size: 22px;
-    }
-
-    .room-info {
-        font-size: 22px;
-    }
-
-    .users-area {
-        --avatar-size: 184px;
-    }
-
-    .panel-area {
-        --panel-offset-y: 220px;
-        --panel-input-h: 92px;
-        --panel-h: calc(92px + 14px + 92px);
-        max-width: 920px;
-        margin-top: 52px;
-    }
-
-    .panel-controls {
-        grid-template-columns: 92px 92px 92px;
-        gap: 18px;
-    }
-
-    .control-btn {
-        width: 92px;
-        height: 92px;
-    }
-
-    .control-btn svg {
-        width: 36px;
-        height: 36px;
-    }
-
-    .leave-btn {
-        height: 92px;
-        font-size: 22px;
-    }
-
-    .btn {
-        height: 92px;
-        font-size: 22px;
-    }
-
-    .entry-code-field {
-        height: 92px;
-        width: 320px;
-    }
-
-    .entry-code {
-        font-size: 28px;
-        letter-spacing: 0.4em;
-    }
-
-    .entry-code::placeholder {
-        font-size: 21px;
-    }
-
-    .entry-divider {
-        font-size: 22px;
-    }
-
-    .chat-toggle {
-        height: 66px;
-        min-width: 192px;
-        font-size: 20px;
-    }
-
-    .ping-panel {
-        min-width: 380px;
-        max-width: 510px;
-        font-size: 22px;
-    }
-
-    .ping-row {
-        font-size: 22px;
-    }
-
-    .intro-content {
-        gap: 62px;
-    }
-
-    .intro-input {
-        font-size: 30px;
-        height: 76px;
-        width: 480px;
-    }
-}
+   2K / 4K SCREENS — снесены в v0.10.0
+   ===================================================
+   Раньше тут были блоки @media (min-width: 2560px) и (min-width: 3840px)
+   с точечными бампами шрифтов, аватаров, панели и т.п. С переездом
+   корневого font-size на clamp() в base.css и переводом всех размеров на
+   rem — эти блоки стали избыточны: элементы растут пропорционально
+   корневому шрифту, и больше нет «whack-a-mole»-ситуации, когда одна
+   ширина починена, а на другой что-то отвалилось. См. CONTEXT.md и
+   tasks/todo.md (v0.10.0). */

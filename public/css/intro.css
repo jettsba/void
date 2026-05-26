@@ -15,8 +15,8 @@
     flex-direction: column;
     align-items: center;
     text-align: center;
-    gap: 28px;
-    max-width: min(920px, 96vw);
+    gap: 2rem;
+    max-width: min(65.71rem, 96vw);
     margin: 0 auto;
 }
 
@@ -24,7 +24,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 10px;
+    gap: 0.71rem;
 }
 
 .intro-title {
@@ -36,7 +36,7 @@
     width: 100%;
     margin: 0;
     font-family: "DotGothic16", ui-monospace, monospace;
-    font-size: clamp(24px, 3.2vw, 40px);
+    font-size: clamp(1.71rem, 3.2vw, 2.86rem);
     font-weight: 400;
     color: var(--fg-2);
     letter-spacing: 0.04em;
@@ -83,15 +83,15 @@
 }
 
 .intro-input {
-    width: 250px;
+    width: 17.86rem;
     max-width: 72vw;
-    height: 40px;
+    height: 2.86rem;
     border: none;
     background: transparent;
     text-align: center;
     text-transform: lowercase;
     font-family: "DotGothic16", ui-monospace, monospace;
-    font-size: 15px;
+    font-size: 1.07rem;
     letter-spacing: 0.06em;
     color: var(--fg-2);
     caret-color: var(--fg-2);
@@ -106,12 +106,12 @@
 .intro-error {
     margin-top: 0;
     color: var(--fg-2);
-    font-size: 22px;
+    font-size: 1.57rem;
     line-height: 1;
     font-weight: 300;
     opacity: 0;
     transition: opacity var(--t-fast), transform var(--t-fast);
-    transform: translateY(4px) rotate(45deg);
+    transform: translateY(0.29rem) rotate(45deg);
 }
 
 .intro-error.visible {

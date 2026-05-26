@@ -1387,8 +1387,16 @@ function closeLightbox() {
 function autoResizeInput() {
     if (!chatInputEl) return;
     chatInputEl.style.height = "auto";
-    const next = Math.min(chatInputEl.scrollHeight, 120);
-    chatInputEl.style.height = Math.max(34, next) + "px";
+    // CSS даёт инпуту height: 2.43rem (≡ 34px на дефолтном font-size).
+    // Корневой font-size — clamp() (fluid scaling), поэтому считаем
+    // минимум и максимум динамически от текущего rem, а не от 34/120 в px.
+    // Иначе на 4K-экране кнопки send/attach растут с font-size, а инпут
+    // остаётся жёсткие 34px — нарушается визуальный baseline.
+    const rootPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 14;
+    const minH = 2.43 * rootPx;
+    const maxH = 8.57 * rootPx;
+    const next = Math.min(chatInputEl.scrollHeight, maxH);
+    chatInputEl.style.height = Math.max(minH, next) + "px";
 }
 
 function showChatToast(text) {

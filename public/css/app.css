@@ -3,12 +3,12 @@
 }
 
 .app {
-    --hdr-h: 72px;
-    --footer-row-h: 64px;
-    --chat-panel-w: min(400px, calc(100vw - 32px));
+    --hdr-h: 5.14rem;
+    --footer-row-h: 4.57rem;
+    --chat-panel-w: min(28.57rem, calc(100vw - 32px));
     --chat-rail: 0px;
-    --chat-sheet-h: min(780px, calc(66.667vh + env(safe-area-inset-bottom, 0px)));
-    --chat-v-inset: 12px;
+    --chat-sheet-h: min(55.71rem, calc(66.667vh + env(safe-area-inset-bottom, 0px)));
+    --chat-v-inset: 0.86rem;
     position: relative;
     z-index: 2;
     height: 100vh;
@@ -19,7 +19,7 @@
 }
 
 body.chat-open .app {
-    --chat-rail: calc(var(--chat-panel-w) + 16px);
+    --chat-rail: calc(var(--chat-panel-w) + 1.14rem);
 }
 
 /* Комнату смещаем влево, шапку — никогда: toggle остаётся в углу экрана. */

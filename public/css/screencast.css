@@ -6,15 +6,15 @@
 
 .watch-screen-btn {
     position: absolute;
-    top: calc(100% + 14px);
+    top: calc(100% + 1rem);
     left: 50%;
     transform: translateX(-50%);
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 2px;
+    gap: 0.14rem;
     color: var(--screen);
-    font-size: 11px;
+    font-size: 0.79rem;
     letter-spacing: var(--tracking-wide);
     text-transform: lowercase;
     text-align: center;
@@ -52,8 +52,8 @@
 }
 
 .sc-btn-icon svg {
-    width: 18px;
-    height: 18px;
+    width: 1.29rem;
+    height: 1.29rem;
     stroke: currentColor;
     stroke-width: 1.4;
     fill: none;
@@ -112,16 +112,16 @@
     position: relative;
     background: var(--bg-1);
     border: 1px solid rgba(230, 230, 232, 0.07);
-    border-radius: 14px;
-    padding: 28px 28px 24px;
-    width: 360px;
+    border-radius: 1rem;
+    padding: 2rem 2rem 1.71rem;
+    width: 25.71rem;
     display: flex;
     flex-direction: column;
-    gap: 22px;
+    gap: 1.57rem;
     box-shadow:
         0 0 0 1px rgba(255, 255, 255, 0.03) inset,
         0 32px 80px rgba(0, 0, 0, 0.7);
-    transform: translateY(6px) scale(0.97);
+    transform: translateY(0.43rem) scale(0.97);
     transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -130,7 +130,7 @@
 }
 
 .sc-modal-title {
-    font-size: 11px;
+    font-size: 0.79rem;
     letter-spacing: var(--tracking-wide);
     text-transform: lowercase;
     color: var(--fg-3);
@@ -139,11 +139,11 @@
 .sc-section {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 0.71rem;
 }
 
 .sc-section-label {
-    font-size: 10px;
+    font-size: 0.71rem;
     letter-spacing: 0.12em;
     text-transform: lowercase;
     color: var(--fg-4);
@@ -151,7 +151,7 @@
 
 .sc-tiles {
     display: flex;
-    gap: 8px;
+    gap: 0.57rem;
 }
 
 .sc-tile {
@@ -160,10 +160,10 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 3px;
-    padding: 16px 10px 14px;
+    gap: 0.21rem;
+    padding: 1.14rem 0.71rem 1rem;
     border: 1px solid var(--fg-4);
-    border-radius: 10px;
+    border-radius: 0.71rem;
     background: var(--bg-2);
     cursor: pointer;
     font-family: inherit;
@@ -184,7 +184,7 @@
 }
 
 .sc-tile-num {
-    font-size: 26px;
+    font-size: 1.86rem;
     font-weight: 300;
     letter-spacing: -0.03em;
     line-height: 1;
@@ -197,7 +197,7 @@
 }
 
 .sc-tile-sub {
-    font-size: 10px;
+    font-size: 0.71rem;
     letter-spacing: 0.1em;
     text-transform: lowercase;
     color: var(--fg-4);
@@ -221,8 +221,8 @@
 .sc-switch {
     position: relative;
     display: inline-block;
-    width: 34px;
-    height: 18px;
+    width: 2.43rem;
+    height: 1.29rem;
     flex-shrink: 0;
     cursor: pointer;
 }
@@ -237,7 +237,7 @@
 .sc-switch-track {
     position: absolute;
     inset: 0;
-    border-radius: 9px;
+    border-radius: 0.64rem;
     border: 1px solid var(--fg-4);
     background: transparent;
     transition: border-color 0.18s, background 0.18s;
@@ -246,10 +246,10 @@
 .sc-switch-track::after {
     content: '';
     position: absolute;
-    top: 2px;
-    left: 2px;
-    width: 12px;
-    height: 12px;
+    top: 0.14rem;
+    left: 0.14rem;
+    width: 0.86rem;
+    height: 0.86rem;
     border-radius: 50%;
     background: var(--fg-4);
     transition: transform 0.18s, background 0.18s;
@@ -261,19 +261,19 @@
 }
 
 .sc-switch input:checked+.sc-switch-track::after {
-    transform: translateX(16px);
+    transform: translateX(1.14rem);
     background: var(--screen);
 }
 
 .sc-next-btn {
     width: 100%;
-    padding: 12px;
-    margin-top: 2px;
-    border-radius: 8px;
+    padding: 0.86rem;
+    margin-top: 0.14rem;
+    border-radius: 0.57rem;
     border: 1px solid rgba(95, 170, 122, 0.4);
     background: rgba(95, 170, 122, 0.06);
     color: var(--screen);
-    font-size: 12px;
+    font-size: 0.86rem;
     font-family: inherit;
     letter-spacing: 0.14em;
     text-transform: lowercase;
@@ -326,7 +326,7 @@
     border: 1px solid var(--fg-4);
     color: var(--fg-2);
     cursor: pointer;
-    border-radius: 4px;
+    border-radius: 0.29rem;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -342,23 +342,23 @@
 }
 
 .screen-overlay-close {
-    top: 16px;
-    right: 20px;
-    width: 36px;
-    height: 36px;
+    top: 1.14rem;
+    right: 1.43rem;
+    width: 2.57rem;
+    height: 2.57rem;
     font-size: 1rem;
 }
 
 .screen-overlay-fullscreen {
-    bottom: 20px;
-    right: 20px;
-    width: 36px;
-    height: 36px;
+    bottom: 1.43rem;
+    right: 1.43rem;
+    width: 2.57rem;
+    height: 2.57rem;
 }
 
 .screen-overlay-fullscreen svg {
-    width: 16px;
-    height: 16px;
+    width: 1.14rem;
+    height: 1.14rem;
     stroke: currentColor;
     stroke-width: 1.5;
     fill: none;

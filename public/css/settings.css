@@ -23,7 +23,7 @@
     left: 0;
     bottom: 0;
     z-index: 61;
-    width: min(360px, 88vw);
+    width: min(25.71rem, 88vw);
     background: rgba(16, 16, 18, 0.96);
     border-right: 1px solid rgba(255, 255, 255, 0.06);
     box-shadow: 0 0 60px rgba(0, 0, 0, 0.65);
@@ -41,8 +41,8 @@
     display: flex;
     flex-direction: column;
     height: 100%;
-    padding: 24px 22px 0 22px;
-    gap: 22px;
+    padding: 1.71rem 1.57rem 0 1.57rem;
+    gap: 1.57rem;
     overflow-y: auto;
 }
 
@@ -50,7 +50,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding-bottom: 14px;
+    padding-bottom: 1rem;
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
@@ -58,7 +58,7 @@
     color: var(--fg);
     text-transform: lowercase;
     letter-spacing: var(--tracking-wide);
-    font-size: 13px;
+    font-size: 0.93rem;
     font-weight: 500;
 }
 
@@ -67,12 +67,12 @@
     border: 0;
     cursor: pointer;
     color: var(--fg-2);
-    width: 28px;
-    height: 28px;
+    width: 2rem;
+    height: 2rem;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border-radius: 6px;
+    border-radius: 0.43rem;
     transition: color var(--t-fast), background var(--t-fast);
 }
 
@@ -82,8 +82,8 @@
 }
 
 .settings-close svg {
-    width: 16px;
-    height: 16px;
+    width: 1.14rem;
+    height: 1.14rem;
     fill: none;
     stroke: currentColor;
     stroke-width: 1.6;
@@ -94,8 +94,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 16px;
-    padding: 4px 2px;
+    gap: 1.14rem;
+    padding: 0.29rem 0.14rem;
 }
 
 /* Для строки с никнеймом — стекуем подпись и форму вертикально, чтобы поле
@@ -103,26 +103,26 @@
 .settings-row--stack {
     flex-direction: column;
     align-items: stretch;
-    gap: 10px;
+    gap: 0.71rem;
 }
 
 .settings-row-text {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 0.29rem;
     min-width: 0;
 }
 
 .settings-row-label {
     color: var(--fg);
-    font-size: 13px;
+    font-size: 0.93rem;
     text-transform: lowercase;
     letter-spacing: var(--tracking);
 }
 
 .settings-row-hint {
     color: var(--fg-3);
-    font-size: 11px;
+    font-size: 0.79rem;
     text-transform: lowercase;
 }
 
@@ -137,7 +137,7 @@
 .settings-seg {
     display: inline-flex;
     border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 8px;
+    border-radius: 0.57rem;
     overflow: hidden;
     background: rgba(255, 255, 255, 0.02);
 }
@@ -145,11 +145,11 @@
 .settings-seg-btn {
     background: transparent;
     border: 0;
-    padding: 7px 14px;
+    padding: 0.5rem 1rem;
     color: var(--fg-2);
     cursor: pointer;
     letter-spacing: var(--tracking-wide);
-    font-size: 11px;
+    font-size: 0.79rem;
     text-transform: uppercase;
     transition: color var(--t-fast), background var(--t-fast);
 }
@@ -177,9 +177,9 @@
 
 .settings-seg--full .settings-seg-btn {
     flex: 1;
-    padding: 8px 6px;
+    padding: 0.57rem 0.43rem;
     text-align: center;
-    font-size: 10.5px;
+    font-size: 0.75rem;
     /* Длинный лейбл вроде «туманность» аккуратно эллипсится, а не ломает
        раскладку. */
     overflow: hidden;
@@ -188,8 +188,8 @@
 }
 
 .settings-switch {
-    --sw-w: 36px;
-    --sw-h: 20px;
+    --sw-w: 2.57rem;
+    --sw-h: 1.43rem;
     position: relative;
     display: inline-block;
     width: var(--sw-w);
@@ -218,9 +218,9 @@
     content: "";
     position: absolute;
     top: 50%;
-    left: 2px;
-    width: calc(var(--sw-h) - 6px);
-    height: calc(var(--sw-h) - 6px);
+    left: 0.14rem;
+    width: calc(var(--sw-h) - 0.43rem);
+    height: calc(var(--sw-h) - 0.43rem);
     border-radius: 50%;
     background: var(--fg-2);
     transform: translateY(-50%);
@@ -247,7 +247,7 @@
 .settings-nick-form {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 0.57rem;
     position: relative;
 }
 
@@ -256,10 +256,10 @@
     min-width: 0;
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 6px;
-    padding: 8px 12px;
+    border-radius: 0.43rem;
+    padding: 0.57rem 0.86rem;
     color: var(--fg);
-    font-size: 13px;
+    font-size: 0.93rem;
     letter-spacing: var(--tracking);
     transition: border-color var(--t-fast), background var(--t-fast);
     outline: none;
@@ -276,10 +276,10 @@
 
 .settings-nick-save {
     flex-shrink: 0;
-    width: 34px;
-    height: 34px;
+    width: 2.43rem;
+    height: 2.43rem;
     border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 6px;
+    border-radius: 0.43rem;
     background: rgba(255, 255, 255, 0.02);
     color: var(--fg-2);
     cursor: pointer;
@@ -298,8 +298,8 @@
 }
 
 .settings-nick-save svg {
-    width: 16px;
-    height: 16px;
+    width: 1.14rem;
+    height: 1.14rem;
     fill: none;
     stroke: currentColor;
     stroke-width: 2;
@@ -312,13 +312,13 @@
 .settings-nick-saved {
     position: absolute;
     right: 0;
-    top: -18px;
-    font-size: 10px;
+    top: -1.29rem;
+    font-size: 0.71rem;
     letter-spacing: var(--tracking-wide);
     text-transform: lowercase;
     color: var(--fg-3);
     opacity: 0;
-    transform: translateY(4px);
+    transform: translateY(0.29rem);
     transition: opacity var(--t-fast), transform var(--t-fast);
     pointer-events: none;
 }
@@ -333,15 +333,15 @@
 .settings-section {
     display: flex;
     flex-direction: column;
-    gap: 14px;
-    padding: 12px 0 4px;
+    gap: 1rem;
+    padding: 0.86rem 0 0.29rem;
     border-top: 1px solid rgba(255, 255, 255, 0.05);
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
     margin: 2px -2px;
 }
 
 .settings-section-title {
-    font-size: 10px;
+    font-size: 0.71rem;
     letter-spacing: var(--tracking-wide);
     text-transform: lowercase;
     color: var(--fg-3);
@@ -351,7 +351,7 @@
 .settings-audio-block {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 0.57rem;
     padding: 0 2px;
 }
 
@@ -359,13 +359,13 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    min-height: 22px;
+    gap: 0.86rem;
+    min-height: 1.57rem;
 }
 
 .settings-audio-label {
     color: var(--fg);
-    font-size: 13px;
+    font-size: 0.93rem;
     text-transform: lowercase;
     letter-spacing: var(--tracking);
 }
@@ -373,8 +373,8 @@
 /* live mic level meter */
 .settings-mic-meter {
     flex: 1;
-    max-width: 120px;
-    height: 4px;
+    max-width: 8.57rem;
+    height: 0.29rem;
     border-radius: 2px;
     background: rgba(255, 255, 255, 0.06);
     overflow: hidden;
@@ -395,10 +395,10 @@
 
 /* test button (для динамиков) */
 .settings-test-btn {
-    width: 26px;
-    height: 26px;
+    width: 1.86rem;
+    height: 1.86rem;
     border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 5px;
+    border-radius: 0.36rem;
     background: rgba(255, 255, 255, 0.02);
     color: var(--fg-2);
     cursor: pointer;
@@ -427,8 +427,8 @@
 }
 
 .settings-test-btn svg {
-    width: 11px;
-    height: 11px;
+    width: 0.79rem;
+    height: 0.79rem;
     fill: currentColor;
     transform: translateX(0.5px); /* визуально центруем «play» */
 }
@@ -447,15 +447,15 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 10px;
+    gap: 0.71rem;
     width: 100%;
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 6px;
-    padding: 8px 12px;
+    border-radius: 0.43rem;
+    padding: 0.57rem 0.86rem;
     color: var(--fg);
     font-family: inherit;
-    font-size: 12px;
+    font-size: 0.86rem;
     text-align: left;
     letter-spacing: var(--tracking);
     cursor: pointer;
@@ -493,8 +493,8 @@
 
 .settings-dropdown-chevron {
     flex-shrink: 0;
-    width: 12px;
-    height: 12px;
+    width: 0.86rem;
+    height: 0.86rem;
     fill: none;
     stroke: var(--fg-3);
     stroke-width: 1.6;
@@ -512,21 +512,21 @@
    мягкая тень, скрол если очень много устройств. */
 .settings-dropdown-menu {
     position: absolute;
-    top: calc(100% + 6px);
+    top: calc(100% + 0.43rem);
     left: 0;
     right: 0;
     z-index: 5;
     margin: 0;
-    padding: 4px;
+    padding: 0.29rem;
     list-style: none;
     background: var(--bg-1);
     border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 6px;
+    border-radius: 0.43rem;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
-    max-height: 240px;
+    max-height: 17.14rem;
     overflow-y: auto;
     opacity: 0;
-    transform: translateY(-4px);
+    transform: translateY(-0.29rem);
     pointer-events: none;
     transition: opacity var(--t-fast), transform var(--t-fast);
 }
@@ -538,9 +538,9 @@
 }
 
 .settings-dropdown-option {
-    padding: 7px 10px;
+    padding: 0.5rem 0.71rem;
     border-radius: 4px;
-    font-size: 12px;
+    font-size: 0.86rem;
     letter-spacing: var(--tracking);
     color: var(--fg-2);
     cursor: pointer;
@@ -572,8 +572,8 @@
     content: "";
     display: inline-block;
     width: 2px;
-    height: 10px;
-    margin-right: 8px;
+    height: 0.71rem;
+    margin-right: 0.57rem;
     vertical-align: -1px;
     background: var(--fg);
     border-radius: 1px;
@@ -599,22 +599,22 @@
     display: grid;
     grid-template-columns: auto 1fr auto;
     align-items: center;
-    gap: 12px;
+    gap: 0.86rem;
     padding-left: 2px;
 }
 
 .settings-slider-label {
-    font-size: 11px;
+    font-size: 0.79rem;
     letter-spacing: var(--tracking);
     text-transform: lowercase;
     color: var(--fg-3);
 }
 
 .settings-slider-value {
-    font-size: 11px;
+    font-size: 0.79rem;
     color: var(--fg-2);
     font-variant-numeric: tabular-nums;
-    min-width: 36px;
+    min-width: 2.57rem;
     text-align: right;
 }
 
@@ -624,7 +624,7 @@
     -webkit-appearance: none;
     appearance: none;
     width: 100%;
-    height: 18px;
+    height: 1.29rem;
     background: transparent;
     cursor: pointer;
     margin: 0;
@@ -676,7 +676,7 @@
 /* footer-hint для аудио (permission / no setSinkId / apply-on-rejoin) */
 .settings-audio-hint {
     display: block;
-    font-size: 11px;
+    font-size: 0.79rem;
     color: var(--fg-3);
     text-transform: lowercase;
     line-height: 1.4;
@@ -689,20 +689,20 @@
 
 .settings-audio-hint.is-visible {
     opacity: 1;
-    max-height: 80px;
+    max-height: 5.71rem;
 }
 
 /* ========= FOOTER ========= */
 
 .settings-footer {
     margin-top: auto;
-    padding: 12px 0;
+    padding: 0.86rem 0;
     border-top: 1px solid rgba(255, 255, 255, 0.05);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    font-size: 11px;
+    gap: 0.86rem;
+    font-size: 0.79rem;
     line-height: 1;
     text-transform: lowercase;
     letter-spacing: var(--tracking);
@@ -714,16 +714,16 @@
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 6px;
+    gap: 0.43rem;
     min-width: 0;
 }
 
 .settings-footer-pill {
     color: var(--fg-2);
     font-variant-numeric: tabular-nums;
-    padding: 2px 8px;
+    padding: 0.14rem 0.57rem;
     border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 5px;
+    border-radius: 0.36rem;
     background: rgba(255, 255, 255, 0.02);
     letter-spacing: var(--tracking-wide);
     line-height: 1.4;
@@ -748,15 +748,15 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 3px;
-    padding: 6px 12px;
-    min-height: 44px;
-    border-radius: 8px;
+    gap: 0.21rem;
+    padding: 0.43rem 0.86rem;
+    min-height: 3.14rem;
+    border-radius: 0.57rem;
     border: 1px solid rgba(226, 107, 122, 0.45);
     background: rgba(226, 107, 122, 0.06);
     color: #e26b7a;
     font: inherit;
-    font-size: 10.5px;
+    font-size: 0.75rem;
     text-transform: lowercase;
     letter-spacing: var(--tracking);
     cursor: pointer;
@@ -773,8 +773,8 @@
 .settings-support-btn:active { transform: scale(0.97); }
 
 .settings-support-heart {
-    width: 14px;
-    height: 14px;
+    width: 1rem;
+    height: 1rem;
     fill: currentColor;
 }
 
@@ -790,7 +790,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 24px;
+    padding: 1.71rem;
     /* Bg + blur кладём прямо на корень модалки (как у .chat-lightbox).
        Если оставить blur на дочернем .support-backdrop, родительский opacity:0
        заставляет браузер откладывать композитинг блюра — он «проявляется»
@@ -828,12 +828,12 @@
 
 .support-card {
     position: relative;
-    width: min(420px, 100%);
-    max-height: calc(100vh - 48px);
+    width: min(30rem, 100%);
+    max-height: calc(100vh - 3.43rem);
     overflow: hidden;
     background: rgba(18, 18, 21, 0.98);
     border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 14px;
+    border-radius: 1rem;
     box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
     transform: scale(0.96);
     transition: transform var(--t-med);
@@ -844,27 +844,27 @@
 .support-content {
     position: relative;
     z-index: 1;
-    padding: 28px 24px 22px 24px;
+    padding: 2rem 1.71rem 1.57rem 1.71rem;
     display: flex;
     flex-direction: column;
-    gap: 16px;
-    max-height: calc(100vh - 48px);
+    gap: 1.14rem;
+    max-height: calc(100vh - 3.43rem);
     overflow-y: auto;
 }
 
 .support-close {
     position: absolute;
-    top: 10px;
-    right: 10px;
+    top: 0.71rem;
+    right: 0.71rem;
     z-index: 2;
-    width: 30px;
-    height: 30px;
+    width: 2.14rem;
+    height: 2.14rem;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     background: transparent;
     border: 0;
-    border-radius: 7px;
+    border-radius: 0.5rem;
     cursor: pointer;
     color: var(--fg-3);
     transition: color var(--t-fast), background var(--t-fast);
@@ -878,8 +878,8 @@
 }
 
 .support-close svg {
-    width: 14px;
-    height: 14px;
+    width: 1rem;
+    height: 1rem;
     fill: none;
     stroke: currentColor;
     stroke-width: 1.7;
@@ -889,20 +889,20 @@
 .support-head {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding-right: 28px;
+    gap: 0.71rem;
+    padding-right: 2rem;
 }
 
 .support-head-heart {
     flex-shrink: 0;
-    width: 22px;
-    height: 22px;
+    width: 1.57rem;
+    height: 1.57rem;
     fill: #e26b7a;
 }
 
 .support-title {
     margin: 0;
-    font-size: 15px;
+    font-size: 1.07rem;
     font-weight: 500;
     color: var(--fg);
     text-transform: lowercase;
@@ -913,7 +913,7 @@
 .support-body {
     margin: 0;
     color: var(--fg-2);
-    font-size: 12.5px;
+    font-size: 0.89rem;
     line-height: 1.55;
     text-transform: lowercase;
 }
@@ -921,18 +921,18 @@
 .support-coins {
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    margin-top: 4px;
+    gap: 0.86rem;
+    margin-top: 0.29rem;
 }
 
 .support-coin {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 0.43rem;
 }
 
 .support-coin-label {
-    font-size: 10.5px;
+    font-size: 0.75rem;
     text-transform: lowercase;
     letter-spacing: var(--tracking-wide);
     color: var(--fg-3);
@@ -940,7 +940,7 @@
 
 .support-coin-row {
     display: flex;
-    gap: 8px;
+    gap: 0.57rem;
     align-items: stretch;
 }
 
@@ -950,13 +950,13 @@
     min-width: 0;
     display: flex;
     align-items: center;
-    padding: 8px 12px;
+    padding: 0.57rem 0.86rem;
     border: 1px solid rgba(255, 255, 255, 0.08);
     background: rgba(255, 255, 255, 0.03);
-    border-radius: 8px;
+    border-radius: 0.57rem;
     color: var(--fg-2);
     font: inherit;
-    font-size: 11.5px;
+    font-size: 0.82rem;
     cursor: pointer;
     text-align: left;
     transition: background var(--t-fast), border-color var(--t-fast);
@@ -989,16 +989,16 @@
     color: var(--fg);
     text-transform: lowercase;
     letter-spacing: var(--tracking-wide);
-    font-size: 11.5px;
+    font-size: 0.82rem;
     opacity: 0;
-    transform: translateY(5px);
+    transform: translateY(0.36rem);
     pointer-events: none;
     transition: opacity 160ms ease, transform 160ms ease;
 }
 
 .support-coin-addr.is-copied .support-coin-addr-text {
     opacity: 0;
-    transform: translateY(-5px);
+    transform: translateY(-0.36rem);
 }
 .support-coin-addr.is-copied .support-coin-copied {
     opacity: 1;
@@ -1007,13 +1007,13 @@
 
 .support-coin-qr {
     flex-shrink: 0;
-    width: 38px;
+    width: 2.71rem;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     border: 1px solid rgba(255, 255, 255, 0.08);
     background: rgba(255, 255, 255, 0.03);
-    border-radius: 8px;
+    border-radius: 0.57rem;
     color: var(--fg-2);
     cursor: pointer;
     transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
@@ -1028,8 +1028,8 @@
 }
 
 .support-coin-qr svg {
-    width: 16px;
-    height: 16px;
+    width: 1.14rem;
+    height: 1.14rem;
     fill: currentColor;
 }
 
@@ -1041,13 +1041,13 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 14px;
-    padding: 24px 22px 20px 22px;
+    gap: 1rem;
+    padding: 1.71rem 1.57rem 1.43rem 1.57rem;
     background: rgba(18, 18, 21, 0.98);
     border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 14px;
+    border-radius: 1rem;
     box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
-    max-width: min(300px, 100%);
+    max-width: min(21.43rem, 100%);
     transform: scale(0.96);
     transition: transform var(--t-med);
 }
@@ -1056,16 +1056,16 @@
 
 .support-qr-close {
     position: absolute;
-    top: 8px;
-    right: 8px;
-    width: 28px;
-    height: 28px;
+    top: 0.57rem;
+    right: 0.57rem;
+    width: 2rem;
+    height: 2rem;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     background: transparent;
     border: 0;
-    border-radius: 6px;
+    border-radius: 0.43rem;
     cursor: pointer;
     color: var(--fg-3);
     transition: color var(--t-fast), background var(--t-fast);
@@ -1079,8 +1079,8 @@
 }
 
 .support-qr-close svg {
-    width: 14px;
-    height: 14px;
+    width: 1rem;
+    height: 1rem;
     fill: none;
     stroke: currentColor;
     stroke-width: 1.7;
@@ -1088,20 +1088,20 @@
 }
 
 .support-qr-title {
-    font-size: 11px;
+    font-size: 0.79rem;
     text-transform: lowercase;
     letter-spacing: var(--tracking-wide);
     color: var(--fg-3);
-    padding-right: 22px;
+    padding-right: 1.57rem;
     text-align: center;
 }
 
 .support-qr-figure {
-    width: 220px;
-    height: 220px;
+    width: 15.71rem;
+    height: 15.71rem;
     background: #ffffff;
-    border-radius: 8px;
-    padding: 8px;
+    border-radius: 0.57rem;
+    padding: 0.57rem;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1122,12 +1122,12 @@
 
 .support-qr-addr {
     font-family: "JetBrains Mono", monospace;
-    font-size: 10.5px;
+    font-size: 0.75rem;
     color: var(--fg-3);
     text-align: center;
     word-break: break-all;
     line-height: 1.4;
-    max-width: 240px;
+    max-width: 17.14rem;
 }
 
 /* ========= STREAMER MODE ========= */
@@ -1147,15 +1147,15 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
+    gap: 0.57rem;
     width: 100%;
-    padding: 10px 12px;
+    padding: 0.71rem 0.86rem;
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 8px;
+    border-radius: 0.57rem;
     color: var(--fg-2);
     font: inherit;
-    font-size: 12px;
+    font-size: 0.86rem;
     text-transform: lowercase;
     letter-spacing: var(--tracking);
     cursor: pointer;
@@ -1171,8 +1171,8 @@
 }
 
 .settings-bug-icon {
-    width: 15px;
-    height: 15px;
+    width: 1.07rem;
+    height: 1.07rem;
     fill: none;
     stroke: currentColor;
     stroke-width: 1.7;
@@ -1191,7 +1191,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 24px;
+    padding: 1.71rem;
     /* См. комментарий у .support-modal: bg+blur на корне, не на дочернем. */
     background: rgba(0, 0, 0, 0);
     backdrop-filter: blur(0px);
@@ -1221,13 +1221,13 @@
 .bug-card {
     position: relative;
     z-index: 1;
-    width: min(440px, 100%);
-    max-height: calc(100vh - 48px);
+    width: min(31.43rem, 100%);
+    max-height: calc(100vh - 3.43rem);
     overflow-y: auto;
-    padding: 28px 24px 22px 24px;
+    padding: 2rem 1.71rem 1.57rem 1.71rem;
     background: rgba(18, 18, 21, 0.98);
     border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 14px;
+    border-radius: 1rem;
     box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
     transform: scale(0.96);
     transition: transform var(--t-med);
@@ -1237,17 +1237,17 @@
 
 .bug-close {
     position: absolute;
-    top: 10px;
-    right: 10px;
+    top: 0.71rem;
+    right: 0.71rem;
     z-index: 2;
-    width: 30px;
-    height: 30px;
+    width: 2.14rem;
+    height: 2.14rem;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     background: transparent;
     border: 0;
-    border-radius: 7px;
+    border-radius: 0.5rem;
     cursor: pointer;
     color: var(--fg-3);
     transition: color var(--t-fast), background var(--t-fast);
@@ -1261,8 +1261,8 @@
 }
 
 .bug-close svg {
-    width: 14px;
-    height: 14px;
+    width: 1rem;
+    height: 1rem;
     fill: none;
     stroke: currentColor;
     stroke-width: 1.7;
@@ -1272,19 +1272,19 @@
 .bug-view {
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 1rem;
 }
 
 .bug-view--success {
     align-items: center;
     text-align: center;
-    padding: 12px 0 4px 0;
+    padding: 0.86rem 0 0.29rem 0;
 }
 
 .bug-title {
     margin: 0;
-    padding-right: 28px;
-    font-size: 15px;
+    padding-right: 2rem;
+    font-size: 1.07rem;
     font-weight: 500;
     color: var(--fg);
     text-transform: lowercase;
@@ -1297,7 +1297,7 @@
 .bug-body {
     margin: 0;
     color: var(--fg-2);
-    font-size: 12.5px;
+    font-size: 0.89rem;
     line-height: 1.55;
     text-transform: lowercase;
 }
@@ -1305,25 +1305,25 @@
 .bug-form {
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    margin-top: 4px;
+    gap: 0.86rem;
+    margin-top: 0.29rem;
 }
 
 .bug-field {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 0.29rem;
 }
 
 .bug-input {
     width: 100%;
-    padding: 10px 12px;
+    padding: 0.71rem 0.86rem;
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 8px;
+    border-radius: 0.57rem;
     color: var(--fg);
     font: inherit;
-    font-size: 12.5px;
+    font-size: 0.89rem;
     line-height: 1.4;
     resize: vertical;
     transition: border-color var(--t-fast), background var(--t-fast);
@@ -1347,22 +1347,22 @@
 }
 
 .bug-input--desc {
-    min-height: 110px;
-    max-height: 280px;
+    min-height: 7.86rem;
+    max-height: 20rem;
     font-family: inherit;
 }
 
 .bug-hint {
-    font-size: 11px;
+    font-size: 0.79rem;
     color: var(--fg-3);
     text-transform: lowercase;
     letter-spacing: var(--tracking);
-    padding-left: 4px;
+    padding-left: 0.29rem;
 }
 
 .bug-error {
     color: #e26b7a;
-    font-size: 12px;
+    font-size: 0.86rem;
     text-transform: lowercase;
     line-height: 1.4;
     min-height: 0;
@@ -1374,18 +1374,18 @@
 
 .bug-error.is-visible {
     opacity: 1;
-    max-height: 60px;
+    max-height: 4.29rem;
 }
 
 .bug-submit {
-    margin-top: 2px;
-    padding: 11px 16px;
+    margin-top: 0.14rem;
+    padding: 0.79rem 1.14rem;
     background: var(--fg);
     color: #0a0a0b;
     border: 0;
-    border-radius: 8px;
+    border-radius: 0.57rem;
     font: inherit;
-    font-size: 12.5px;
+    font-size: 0.89rem;
     font-weight: 500;
     text-transform: lowercase;
     letter-spacing: var(--tracking-wide);
@@ -1402,10 +1402,10 @@
 }
 
 .bug-success-heart {
-    width: 42px;
-    height: 42px;
+    width: 3rem;
+    height: 3rem;
     fill: #e26b7a;
-    margin-bottom: 4px;
+    margin-bottom: 0.29rem;
     animation: bug-heart-pop 360ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
@@ -1416,14 +1416,14 @@
 }
 
 .bug-success-close {
-    margin-top: 6px;
-    padding: 9px 22px;
+    margin-top: 0.43rem;
+    padding: 0.64rem 1.57rem;
     background: transparent;
     border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 8px;
+    border-radius: 0.57rem;
     color: var(--fg-2);
     font: inherit;
-    font-size: 12px;
+    font-size: 0.86rem;
     text-transform: lowercase;
     letter-spacing: var(--tracking);
     cursor: pointer;
@@ -1445,15 +1445,15 @@
    Минус halfArrow 5px = left: 44px. На мобиле header.padding 16px → 41-5 = 36px. */
 .settings-hint {
     position: fixed;
-    top: 70px;
-    left: 44px;
+    top: 5rem;
+    left: 3.14rem;
     z-index: 50;
     display: flex;
     align-items: center;
-    gap: 7px;
+    gap: 0.5rem;
     pointer-events: none;
     opacity: 0;
-    transform: translateY(-4px);
+    transform: translateY(-0.29rem);
     transition: opacity 400ms ease, transform 400ms ease;
 }
 
@@ -1464,14 +1464,14 @@
 
 .settings-hint-arrow {
     color: var(--fg-3);
-    width: 10px;
-    height: 14px;
+    width: 0.71rem;
+    height: 1rem;
     flex-shrink: 0;
     animation: hint-float 1.8s ease-in-out infinite;
 }
 
 .settings-hint-text {
-    font-size: 11px;
+    font-size: 0.79rem;
     color: var(--fg-3);
     letter-spacing: var(--tracking-wide);
     text-transform: lowercase;
@@ -1480,13 +1480,13 @@
 
 @keyframes hint-float {
     0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-4px); }
+    50% { transform: translateY(-0.29rem); }
 }
 
 @media (max-width: 480px) {
     .settings-hint {
-        top: 84px;
-        left: 36px;
+        top: 6rem;
+        left: 2.57rem;
     }
 }
 

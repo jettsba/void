@@ -44,7 +44,7 @@
 /* ---------- ТОЧКА A: пользователи ---------- */
 
 .users-area {
-    --avatar-size: 84px;
+    --avatar-size: 6rem;
 
     width: 100%;
     height: var(--avatar-size);
@@ -75,7 +75,7 @@
 }
 
 .lobby-ripple-ring {
-    --ring-start: 14px;
+    --ring-start: 1rem;
     grid-area: 1 / 1;
     box-sizing: border-box;
     width: var(--ring-start);
@@ -111,7 +111,7 @@
     flex-wrap: nowrap;
     align-items: center;
     justify-content: center;
-    gap: 34px;
+    gap: 2.43rem;
     /* контейнер занимает только высоту slot, аватары ровно в центре */
 }
 
@@ -196,8 +196,8 @@
     position: absolute;
     left: 50%;
     top: 50%;
-    width: 10px;
-    height: 10px;
+    width: 0.71rem;
+    height: 0.71rem;
     margin: 0;
     border-radius: 50%;
     background: var(--fg-2);
@@ -229,19 +229,19 @@
 .participant-name {
     /* абсолютно под аватаром — НЕ сдвигает его центр */
     position: absolute;
-    top: calc(100% + 14px);
+    top: calc(100% + 1rem);
     left: 50%;
     transform: translateX(-50%);
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 2px;
+    gap: 0.14rem;
     color: var(--fg-2);
-    font-size: 11px;
+    font-size: 0.79rem;
     letter-spacing: var(--tracking-wide);
     text-transform: lowercase;
     text-align: center;
-    max-width: 140px;
+    max-width: 10rem;
 }
 
 .participant-name-line {
@@ -336,12 +336,12 @@
    data-priority="error|warn|info" варьирует цвет. */
 .toast-host {
     position: absolute;
-    bottom: calc(100% + 8px);
+    bottom: calc(100% + 0.57rem);
     left: 50%;
-    transform: translateX(calc(-50% - var(--chat-rail, 0px) / 2)) translateY(-4px);
-    max-width: calc(100% - 32px);
+    transform: translateX(calc(-50% - var(--chat-rail, 0px) / 2)) translateY(-0.29rem);
+    max-width: calc(100% - 2.29rem);
     color: var(--fg-3);
-    font-size: 11px;
+    font-size: 0.79rem;
     letter-spacing: var(--tracking-wide);
     text-align: center;
     white-space: nowrap;
@@ -362,7 +362,7 @@
 }
 
 .toast-host[data-kind="toast"] {
-    font-size: 12px;
+    font-size: 0.86rem;
     text-transform: lowercase;
 }
 
@@ -385,8 +385,8 @@
     position: absolute;
     top: -2px;
     right: -2px;
-    width: 8px;
-    height: 8px;
+    width: 0.57rem;
+    height: 0.57rem;
     border-radius: 50%;
     background: var(--warn);
     z-index: 3;

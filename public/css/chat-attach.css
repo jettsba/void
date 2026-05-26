@@ -1,16 +1,16 @@
 .chat-attach {
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    min-width: 160px;
-    max-width: 280px;
+    gap: 0.43rem;
+    min-width: 11.43rem;
+    max-width: 20rem;
 }
 
 .chat-attach-image {
     display: block;
     width: 100%;
     height: auto;
-    max-height: 280px;
+    max-height: 20rem;
     object-fit: cover;
     border-radius: 4px;
     background: var(--bg-1);
@@ -19,15 +19,15 @@
 }
 
 .chat-attach-image.is-loading {
-    min-height: 120px;
+    min-height: 8.57rem;
     opacity: 0.4;
 }
 
 .chat-attach-file {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 8px 10px;
+    gap: 0.71rem;
+    padding: 0.57rem 0.71rem;
     background: var(--bg-1);
     border: 1px solid var(--fg-4);
     border-radius: 4px;
@@ -36,7 +36,7 @@
 .chat-attach-file-ico {
     flex-shrink: 0;
     color: var(--fg-2);
-    font-size: 16px;
+    font-size: 1.14rem;
     line-height: 1;
 }
 
@@ -47,7 +47,7 @@
 
 .chat-attach-file-name {
     color: var(--fg);
-    font-size: 12px;
+    font-size: 0.86rem;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -55,7 +55,7 @@
 
 .chat-attach-file-size {
     color: var(--fg-3);
-    font-size: 10px;
+    font-size: 0.71rem;
     letter-spacing: var(--tracking-wide);
     text-transform: lowercase;
 }
@@ -65,13 +65,13 @@
     display: none;
     align-items: center;
     justify-content: center;
-    width: 26px;
-    height: 26px;
+    width: 1.86rem;
+    height: 1.86rem;
     border: 1px solid var(--fg-4);
     border-radius: 2px;
     color: var(--fg-2);
     text-decoration: none;
-    font-size: 14px;
+    font-size: 1rem;
     line-height: 1;
     transition: color var(--t-fast), border-color var(--t-fast);
 }
@@ -127,9 +127,9 @@
 
 .chat-pending {
     display: flex;
-    gap: 8px;
+    gap: 0.57rem;
     flex-wrap: wrap;
-    padding: 8px 12px;
+    padding: 0.57rem 0.86rem;
     border-top: 1px solid var(--fg-4);
     background: rgba(0, 0, 0, 0.18);
 }
@@ -142,19 +142,19 @@
     position: relative;
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 4px 4px 4px 6px;
+    gap: 0.43rem;
+    padding: 0.29rem 0.29rem 0.29rem 0.43rem;
     background: var(--bg-2);
     border: 1px solid var(--fg-4);
     border-radius: 3px;
     color: var(--fg-2);
-    font-size: 11px;
-    max-width: 180px;
+    font-size: 0.79rem;
+    max-width: 12.86rem;
 }
 
 .chat-pending-thumb {
-    width: 28px;
-    height: 28px;
+    width: 2rem;
+    height: 2rem;
     border-radius: 2px;
     object-fit: cover;
     background: var(--bg-1);
@@ -162,12 +162,12 @@
 }
 
 .chat-pending-glyph {
-    width: 28px;
-    height: 28px;
+    width: 2rem;
+    height: 2rem;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 14px;
+    font-size: 1rem;
     color: var(--fg-3);
     background: var(--bg-1);
     border-radius: 2px;
@@ -183,14 +183,14 @@
 }
 
 .chat-pending-remove {
-    width: 18px;
-    height: 18px;
+    width: 1.29rem;
+    height: 1.29rem;
     flex-shrink: 0;
     background: transparent;
     border: none;
     border-radius: 2px;
     color: var(--fg-3);
-    font-size: 14px;
+    font-size: 1rem;
     line-height: 1;
     cursor: pointer;
     transition: color var(--t-fast), background var(--t-fast);
@@ -203,9 +203,9 @@
 
 .chat-toast {
     height: 0;
-    padding: 0 14px;
+    padding: 0 1rem;
     color: var(--signal-warn);
-    font-size: 11px;
+    font-size: 0.79rem;
     letter-spacing: var(--tracking);
     text-transform: lowercase;
     overflow: hidden;
@@ -214,15 +214,15 @@
 }
 
 .chat-toast.is-visible {
-    height: 20px;
-    padding: 3px 14px 3px;
+    height: 1.43rem;
+    padding: 0.21rem 1rem 0.21rem;
 }
 
 .chat-input-row {
     display: flex;
     align-items: flex-end;
-    gap: 6px;
-    padding: 8px 10px 10px;
+    gap: 0.43rem;
+    padding: 0.57rem 0.71rem 0.71rem;
     border-top: 1px solid var(--fg-4);
     background: rgba(0, 0, 0, 0.22);
 }
@@ -230,8 +230,8 @@
 .chat-attach-btn,
 .chat-send {
     flex-shrink: 0;
-    width: 34px;
-    height: 34px;
+    width: 2.43rem;
+    height: 2.43rem;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -261,8 +261,8 @@
 
 .chat-attach-btn svg,
 .chat-send svg {
-    width: 16px;
-    height: 16px;
+    width: 1.14rem;
+    height: 1.14rem;
     stroke: currentColor;
     stroke-width: 1.4;
     stroke-linecap: round;
@@ -274,14 +274,14 @@
     flex: 1;
     min-width: 0;
     resize: none;
-    height: 34px;
-    max-height: 120px;
-    padding: 7px 20px 7px 10px;
+    height: 2.43rem;
+    max-height: 8.57rem;
+    padding: 0.5rem 1.43rem 0.5rem 0.71rem;
     background: var(--bg-1);
     color: var(--fg);
     border: 1px solid var(--fg-4);
     border-radius: 2px;
-    font-size: 13px;
+    font-size: 0.93rem;
     line-height: 1.4;
     font-family: inherit;
     letter-spacing: var(--tracking);

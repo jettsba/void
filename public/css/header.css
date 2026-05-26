@@ -1,29 +1,29 @@
 .header {
     position: relative;
-    height: 84px;
+    height: 6rem;
     z-index: 52;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 16px;
-    padding: 0 24px;
+    gap: 1.14rem;
+    padding: 0 1.71rem;
     color: var(--fg-3);
-    font-size: 12px;
+    font-size: 0.86rem;
     text-transform: lowercase;
 }
 
 .brand {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 0.86rem;
 }
 
 .brand-lockup {
     display: inline-flex;
     align-items: center;
-    gap: 10px;
+    gap: 0.71rem;
     cursor: pointer;
-    transform: translateX(12px);
+    transform: translateX(0.86rem);
     background: transparent;
     border: 0;
     padding: 0;
@@ -38,8 +38,8 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 26px;
-    height: 26px;
+    width: 1.86rem;
+    height: 1.86rem;
     flex-shrink: 0;
 }
 
@@ -123,7 +123,7 @@
     letter-spacing: var(--tracking-wide);
     text-transform: lowercase;
     line-height: 1;
-    height: 26px;
+    height: 1.86rem;
     display: inline-flex;
     align-items: center;
 }
@@ -131,14 +131,14 @@
 .brand-tag {
     color: var(--fg-3);
     letter-spacing: var(--tracking-wide);
-    font-size: 11px;
+    font-size: 0.79rem;
 }
 
 .conn-state {
     position: relative;
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: 0.57rem;
     color: var(--fg-2);
     cursor: default;
     outline: none;
@@ -149,8 +149,8 @@
 }
 
 .conn-dot {
-    width: 5px;
-    height: 5px;
+    width: 0.36rem;
+    height: 0.36rem;
     border-radius: 50%;
     background: var(--fg-3);
     transition: background var(--t-med);
