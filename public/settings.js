@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "0.9.37";
+    const APP_VERSION = "0.9.40";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
@@ -27,8 +27,13 @@
         audioInId: "",
         audioOutId: "",
         audioInGain: 1.0,
-        audioOutGain: 1.0
+        audioOutGain: 1.0,
+        /* Тема амбиентного фона приложения. См. public/js/background.js —
+           three themes registry. На лендинг не влияет. */
+        bgTheme: "silence"
     };
+
+    const BG_THEMES = ["silence", "nebula", "void-grid"];
 
     const AUDIO_IN_GAIN_MIN = 0;
     const AUDIO_IN_GAIN_MAX = 1.5;
@@ -161,6 +166,8 @@
             "settings.audio.permHint": "разреши доступ к микрофону, чтобы видеть имена устройств",
             "settings.audio.noSinkId": "выбор колонок недоступен в этом браузере — звук идёт в системное устройство по умолчанию",
             "settings.audio.applyOnRejoin": "новый микрофон подключится при следующем входе в комнату",
+
+            "settings.bg": "фон",
 
             "settings.support": "поддержать",
             "settings.hint": "нажми, чтобы открыть настройки",
@@ -302,6 +309,8 @@
             "settings.audio.noSinkId": "speaker selection isn't supported in this browser — using system default",
             "settings.audio.applyOnRejoin": "the new microphone will be picked up the next time you join a room",
 
+            "settings.bg": "background",
+
             "settings.support": "support",
             "settings.hint": "tap to open settings",
             "support.title": "thanks for being here",
@@ -362,6 +371,9 @@
                 }
                 if (typeof parsed.audioOutGain === "number" && isFinite(parsed.audioOutGain)) {
                     state.audioOutGain = clampGain(parsed.audioOutGain, AUDIO_OUT_GAIN_MIN, AUDIO_OUT_GAIN_MAX);
+                }
+                if (typeof parsed.bgTheme === "string" && BG_THEMES.indexOf(parsed.bgTheme) !== -1) {
+                    state.bgTheme = parsed.bgTheme;
                 }
             }
         } catch {
@@ -456,6 +468,17 @@
     function getAudioOutId() { return state.audioOutId || ""; }
     function getAudioInGain() { return state.audioInGain; }
     function getAudioOutGain() { return state.audioOutGain; }
+    function getBgTheme() { return state.bgTheme; }
+
+    function setBgTheme(name) {
+        if (BG_THEMES.indexOf(name) === -1) return;
+        if (state.bgTheme === name) return;
+        state.bgTheme = name;
+        saveState();
+        applyBgThemeSegUI();
+        /* background.js слушает это событие и плавно переключает фон. */
+        document.dispatchEvent(new CustomEvent("void:bg-theme-changed", { detail: { theme: name } }));
+    }
 
     function setAudioInId(id) {
         const next = typeof id === "string" ? id.slice(0, 200) : "";
@@ -540,7 +563,7 @@
 
     /* ===== panel UI ===== */
 
-    let panelEl, scrimEl, gearBtn, langSegEl, streamerInputEl;
+    let panelEl, scrimEl, gearBtn, langSegEl, streamerInputEl, bgThemeSegEl;
     let nickFormEl, nickInputEl, nickSavedEl, nickSavedTimer = null;
     let micDropdown, spkDropdown,
         micGainEl, spkGainEl,
@@ -718,6 +741,18 @@
                     </div>
                 </div>
 
+                <div class="settings-row settings-row--stack" id="settingsBgThemeRow">
+                    <div class="settings-row-text">
+                        <span class="settings-row-label" data-i18n="settings.bg">${t("settings.bg")}</span>
+                    </div>
+                    <div class="settings-seg settings-seg--full" id="settingsBgThemeSeg" role="tablist">
+                        <!-- Названия тем намеренно НЕ локализованы — техника фона, не интерфейс. -->
+                        <button type="button" class="settings-seg-btn" data-val="silence" role="tab">silence</button>
+                        <button type="button" class="settings-seg-btn" data-val="nebula" role="tab">nebula</button>
+                        <button type="button" class="settings-seg-btn" data-val="void-grid" role="tab">grid</button>
+                    </div>
+                </div>
+
                 <button type="button" class="settings-bug-btn" id="settingsBugBtn"
                     aria-haspopup="dialog" aria-controls="bugModal"
                     data-i18n-attr="title:settings.bug;aria-label:settings.bug"
@@ -753,6 +788,7 @@
         document.body.appendChild(panelEl);
 
         langSegEl = panelEl.querySelector("#settingsLangSeg");
+        bgThemeSegEl = panelEl.querySelector("#settingsBgThemeSeg");
         streamerInputEl = panelEl.querySelector("#settingsStreamerInput");
         nickFormEl = panelEl.querySelector("#settingsNickForm");
         nickInputEl = panelEl.querySelector("#settingsNickInput");
@@ -782,6 +818,12 @@
             const btn = e.target.closest(".settings-seg-btn");
             if (!btn) return;
             setLang(btn.dataset.val);
+        });
+
+        bgThemeSegEl?.addEventListener("click", e => {
+            const btn = e.target.closest(".settings-seg-btn");
+            if (!btn) return;
+            setBgTheme(btn.dataset.val);
         });
 
         streamerInputEl.addEventListener("change", () => {
@@ -1182,6 +1224,13 @@
     function applyStreamerToggleUI() {
         if (!streamerInputEl) return;
         streamerInputEl.checked = !!state.streamer;
+    }
+
+    function applyBgThemeSegUI() {
+        if (!bgThemeSegEl) return;
+        bgThemeSegEl.querySelectorAll(".settings-seg-btn").forEach(b => {
+            b.classList.toggle("is-active", b.dataset.val === state.bgTheme);
+        });
     }
 
     /* ===== AUDIO devices / sliders ===== */
@@ -1651,6 +1700,7 @@
         bindBrandTrigger();
         applyLangToggleUI();
         applyStreamerToggleUI();
+        applyBgThemeSegUI();
         applyNickInputUI();
         /* Hint показываем ТОЛЬКО после того, как intro-экран ушёл и
            пользователь увидел шапку с шестерёнкой. Иначе стрелка торчит
@@ -1675,8 +1725,10 @@
     window.VoidSettings = {
         getLang, getStreamer, getNickname,
         getAudioInId, getAudioOutId, getAudioInGain, getAudioOutGain,
+        getBgTheme,
         setLang, setStreamer, setNickname,
         setAudioInId, setAudioOutId, setAudioInGain, setAudioOutGain,
+        setBgTheme,
         openPanel, closePanel
     };
 })();

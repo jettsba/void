@@ -167,6 +167,26 @@
     background: rgba(255, 255, 255, 0.08);
 }
 
+/* Полноширинный сегмент (3 кнопки делят панель поровну) — для выбора темы
+   фона. С обычным inline-flex три лейбла («туманность» и т.п.) переполняют
+   ширину панели. */
+.settings-seg--full {
+    display: flex;
+    width: 100%;
+}
+
+.settings-seg--full .settings-seg-btn {
+    flex: 1;
+    padding: 8px 6px;
+    text-align: center;
+    font-size: 10.5px;
+    /* Длинный лейбл вроде «туманность» аккуратно эллипсится, а не ломает
+       раскладку. */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .settings-switch {
     --sw-w: 36px;
     --sw-h: 20px;
@@ -1497,6 +1517,12 @@
     #settingsMicDropdown,
     #settingsSpkDropdown,
     #settingsAudioHint {
+        display: none;
+    }
+
+    /* Фон-canvas на тач-устройствах скрыт (см. responsive.css), переключатель
+       темы там не на что применять — убираем сам ряд. */
+    #settingsBgThemeRow {
         display: none;
     }
 }
