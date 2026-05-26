@@ -610,6 +610,27 @@
     grid-template-columns: 1fr auto;
 }
 
+/* Обёртка вокруг slider'a — нужна, чтобы поверх него положить tick-метку
+   на 100% (визуальный anchor дефолтного значения). */
+.settings-slider-wrap {
+    position: relative;
+    width: 100%;
+}
+
+/* Tick-метка на положении value=100 (uiScale slider 70..150 → 100 = 37.5%
+   от левого края track'a). Тонкая вертикальная линия за thumb'ом —
+   pointer-events:none, чтобы не мешать drag'у. */
+.settings-slider-tick {
+    position: absolute;
+    left: 37.5%;
+    top: 50%;
+    width: 1px;
+    height: 0.71rem;
+    transform: translate(-50%, -50%);
+    background: rgba(255, 255, 255, 0.32);
+    pointer-events: none;
+}
+
 .settings-slider-label {
     font-size: 0.79rem;
     letter-spacing: var(--tracking);

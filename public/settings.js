@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "0.10.1";
+    const APP_VERSION = "0.10.2";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
@@ -787,13 +787,16 @@
                         <span class="settings-row-hint" data-i18n="settings.uiScale.hint">${t("settings.uiScale.hint")}</span>
                     </div>
                     <div class="settings-slider-row settings-slider-row--solo">
-                        <input
-                            type="range"
-                            id="settingsUiScale"
-                            class="settings-slider"
-                            min="70" max="150" step="5"
-                            aria-label="${t("settings.uiScale")}"
-                        />
+                        <div class="settings-slider-wrap">
+                            <input
+                                type="range"
+                                id="settingsUiScale"
+                                class="settings-slider"
+                                min="70" max="150" step="5"
+                                aria-label="${t("settings.uiScale")}"
+                            />
+                            <span class="settings-slider-tick" aria-hidden="true"></span>
+                        </div>
                         <span class="settings-slider-value" id="settingsUiScaleValue">100%</span>
                     </div>
                 </div>
@@ -1307,7 +1310,15 @@
         });
 
         if (uiScaleEl) {
+            /* input — live во время drag'а: обновляем только цифру справа,
+               НЕ применяя scale. Иначе во время drag'а размеры всего
+               интерфейса (включая сам слайдер) пересчитываются, и thumb
+               уезжает из-под курсора — управлять невозможно.
+               change — apply при отпускании: scale применяется один раз. */
             uiScaleEl.addEventListener("input", () => {
+                if (uiScaleValueEl) uiScaleValueEl.textContent = uiScaleEl.value + "%";
+            });
+            uiScaleEl.addEventListener("change", () => {
                 setUiScale(Number(uiScaleEl.value) / 100);
             });
         }

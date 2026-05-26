@@ -27,6 +27,13 @@ let _rafId = null;
 let _theme = null;
 let _themeInited = false;
 
+/* Запоминаем последнюю CSS-ширину/высоту, чтобы при resize пересчитать
+   позиции блобов пропорционально новому viewport (а не просто clamp'ить
+   в правый/нижний край). Без этого при браузерном zoom-out блобы остаются
+   в верхнем-левом углу — выглядит как «обрезанный фон». */
+let _lastCssW = 0;
+let _lastCssH = 0;
+
 /* ===== shared canvases ===== */
 
 let _starsCanvas = null;
@@ -95,26 +102,37 @@ function smoothRadialGradient(ctx, x, y, r, rgb, alphaMax, stops, easeExp) {
 
 function sizeCanvas() {
     const dpr = Math.max(1, window.devicePixelRatio || 1);
-    canvas.width = window.innerWidth * dpr;
-    canvas.height = window.innerHeight * dpr;
-    canvas.style.width = window.innerWidth + "px";
-    canvas.style.height = window.innerHeight + "px";
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    canvas.style.width = w + "px";
+    canvas.style.height = h + "px";
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     _starsCanvas = _starsCanvas || document.getElementById("background-stars");
     if (_starsCanvas) {
         _starsCtx = _starsCtx || _starsCanvas.getContext("2d");
-        _starsCanvas.width = window.innerWidth * dpr;
-        _starsCanvas.height = window.innerHeight * dpr;
-        _starsCanvas.style.width = window.innerWidth + "px";
-        _starsCanvas.style.height = window.innerHeight + "px";
+        _starsCanvas.width = w * dpr;
+        _starsCanvas.height = h * dpr;
+        _starsCanvas.style.width = w + "px";
+        _starsCanvas.style.height = h + "px";
         _starsCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
 
-    /* Перегенерируем зависимое от размера состояние текущей темы. */
+    /* Пропорциональное масштабирование позиций — чтобы при заметном изменении
+       viewport (браузерный zoom, перетаскивание окна между мониторами)
+       блобы/звёзды распределялись по новому холсту, а не оставались в углу. */
+    const ratioX = _lastCssW > 0 ? w / _lastCssW : 1;
+    const ratioY = _lastCssH > 0 ? h / _lastCssH : 1;
+    _rescaleStars(ratioX, ratioY);
     if (_themeInited && _theme && THEMES[_theme]?.resize) {
-        THEMES[_theme].resize();
+        THEMES[_theme].resize(ratioX, ratioY);
     }
+
+    _lastCssW = w;
+    _lastCssH = h;
 }
 
 function clearAllCanvases() {
@@ -142,11 +160,16 @@ function setupSilence() {
     _seedStars(70);
 }
 
-function resizeSilence() {
-    /* Уносим блобы за пределы — пусть мягко вплывают на новой раскладке. */
+function resizeSilence(ratioX, ratioY) {
+    /* Двигаем блобы пропорционально новому viewport — иначе при zoom-out
+       они остаются в левом-верхнем углу, и большая часть экрана пустует. */
+    const w = window.innerWidth;
+    const h = window.innerHeight;
     blobs.forEach(b => {
-        b.x = Math.min(b.x, window.innerWidth);
-        b.y = Math.min(b.y, window.innerHeight);
+        if (ratioX && ratioX !== 1) b.x *= ratioX;
+        if (ratioY && ratioY !== 1) b.y *= ratioY;
+        b.x = Math.min(Math.max(0, b.x), w);
+        b.y = Math.min(Math.max(0, b.y), h);
     });
 }
 
@@ -211,10 +234,14 @@ function setupNebula() {
     _seedStars(70);
 }
 
-function resizeNebula() {
+function resizeNebula(ratioX, ratioY) {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
     blobs.forEach(b => {
-        b.x = Math.min(b.x, window.innerWidth);
-        b.y = Math.min(b.y, window.innerHeight);
+        if (ratioX && ratioX !== 1) b.x *= ratioX;
+        if (ratioY && ratioY !== 1) b.y *= ratioY;
+        b.x = Math.min(Math.max(0, b.x), w);
+        b.y = Math.min(Math.max(0, b.y), h);
     });
 }
 
@@ -450,6 +477,22 @@ function _seedStars(targetAt1080) {
             speed: 0.4 + Math.random() * 0.8,
         });
     }
+}
+
+/* Пропорциональное масштабирование позиций звёзд при resize viewport.
+   _seedStars фиксирует координаты один раз — без этого после zoom'а звёзды
+   тоже остаются в углу, как блобы. */
+function _rescaleStars(ratioX, ratioY) {
+    if (!_stars || !_stars.length) return;
+    if ((!ratioX || ratioX === 1) && (!ratioY || ratioY === 1)) return;
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    _stars.forEach(s => {
+        if (ratioX && ratioX !== 1) s.x *= ratioX;
+        if (ratioY && ratioY !== 1) s.y *= ratioY;
+        s.x = Math.min(Math.max(0, s.x), w);
+        s.y = Math.min(Math.max(0, s.y), h);
+    });
 }
 
 function _drawStars(t) {
