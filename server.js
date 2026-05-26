@@ -23,6 +23,7 @@ import {
 import { mountAdminStats } from "./lib/admin-stats.js";
 import { mountBugReport } from "./lib/bug-report.js";
 import { mountTurnEndpoint } from "./lib/turn.js";
+import { mountLeaveBeaconEndpoint } from "./lib/leave-beacon.js";
 import {
     consumeToken,
     handleHello,
@@ -195,6 +196,11 @@ mountBugReport(app, express.json({ limit: "256kb" }));
    coturn-сервиса. Если TURN_HOST/TURN_SECRET пусты — endpoint молча 503,
    клиент работает только со STUN. */
 mountTurnEndpoint(app);
+/* T1.1: /api/leave-room — приём navigator.sendBeacon на pagehide. Гарантирует
+   быстрое (до 1s) исчезновение «призрака» в комнате при закрытии вкладки,
+   когда WS leave-room не успевает уйти из TCP-буфера. 256 байт лимит — body
+   это `{code, userId}`, ничего больше не ждём. */
+mountLeaveBeaconEndpoint(app, express.json({ limit: "256b" }));
 
 /**
  * Heartbeat. Без него мёртвый TCP-коннект (закрытая вкладка без FIN, спящий ноут,

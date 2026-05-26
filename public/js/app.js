@@ -196,15 +196,40 @@ function init() {
         if (e.key === "Escape" && screenOverlay.classList.contains("is-visible")) closeScreenOverlay();
     });
 
-    /* F2: pagehide — единственный надёжный сигнал «вкладка уходит» (закрытие,
-       reload, навигация назад на iOS Safari, перевод в bfcache). beforeunload
-       блокирует bfcache и часто не стреляет на мобильных. Если мы в комнате —
-       шлём leave-room синхронно, чтобы сервер сразу разослал participant-left,
-       а не ждал 60 секунд heartbeat'а. */
+    /* F2 + T1.1: pagehide — единственный надёжный сигнал «вкладка уходит»
+       (закрытие, reload, навигация назад на iOS Safari, перевод в bfcache).
+       beforeunload блокирует bfcache и часто не стреляет на мобильных.
+
+       Два канала уведомления сервера, оба best-effort:
+       1. `navigator.sendBeacon` POST /api/leave-room — спека гарантирует
+          доставку одного HTTP-запроса перед смертью документа. Это лечит
+          сценарий, когда WS уже в полу-мёртвом состоянии и `socket.send`
+          молча no-op'ит (наблюдалось в логах от 2026-05-25: peer-призрак
+          друга висел до 60s heartbeat'а).
+       2. WS leave-room — старый путь как duplicate-fallback. Серверный
+          handleBeaconLeave идемпотентен: если beacon придёт первым,
+          последующий handleDisconnect от закрытия WS увидит roomCode=undef
+          и выйдет рано. */
     window.addEventListener("pagehide", () => {
         if (!isJoined) return;
-        if (typeof socket === "undefined" || !socket || socket.readyState !== 1) return;
-        try { socket.send(JSON.stringify({ type: "leave-room" })); } catch (_) {}
+
+        if (typeof navigator !== "undefined"
+            && navigator.sendBeacon
+            && currentRoomCode
+            && clientId) {
+            try {
+                const payload = JSON.stringify({
+                    code: currentRoomCode,
+                    userId: clientId
+                });
+                const blob = new Blob([payload], { type: "application/json" });
+                navigator.sendBeacon("/api/leave-room", blob);
+            } catch (_) {}
+        }
+
+        if (typeof socket !== "undefined" && socket && socket.readyState === 1) {
+            try { socket.send(JSON.stringify({ type: "leave-room" })); } catch (_) {}
+        }
     });
 
     document.body.style.opacity = "1";

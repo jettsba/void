@@ -34,6 +34,28 @@ const screenSenders = new Map();
 const peerHealthTimers = new Map();
 
 /**
+ * T1.2: zombie peer watchdog. Когда peer в `connected`, ожидаем непрерывный
+ * поток audio-пакетов (Chromium шлёт comfort-noise RTP даже при mute, т.е.
+ * `track.enabled = false` не обнуляет packetsReceived). Если счётчик не растёт
+ * 5+ сек — peer truly dead (kill -9 / BSOD / выдернули LAN ДО pagehide).
+ * Не дожидаемся ICE-таймаута (до 13+ сек), сразу rebuildPeer.
+ *
+ * peerZombieWatchers: userId → { timer, lastCount, lastGrowthAt, startedAt }
+ * peerZombieRebuilds: userId → { count, firstAt } — circuit breaker, чтобы
+ *   при структурном баге не уйти в бесконечный rebuild-loop.
+ */
+const peerZombieWatchers = new Map();
+const peerZombieRebuilds = new Map();
+const ZOMBIE_CHECK_INTERVAL_MS = 2000;
+const ZOMBIE_THRESHOLD_MS = 5000;
+/* Не триггерим watchdog в первые секунды после connected — нужно дать времени
+   первым audio-пакетам долететь и поднять счётчик с нуля. На быстром direct'е
+   первый inbound-rtp.packetsReceived появляется за <500мс, на TURN-relay'е
+   через high-latency путь может быть до 2 сек. */
+const ZOMBIE_WARMUP_MS = 3000;
+const ZOMBIE_MAX_REBUILDS_PER_MINUTE = 2;
+
+/**
  * Watchdog'и «черного экрана» по userId. Видео-трек приехал через ontrack,
  * но frame'ы не декодируются (perfect negotiation race, codec mismatch,
  * direction='inactive' из-за глюка SDP). Через 5s после ontrack проверяем
@@ -986,6 +1008,10 @@ function handlePeerConnectionStateChange(userId) {
         peer._recoveryPhase = "idle";
         reportConnectivity(peer);
         reevaluatePeerHealth();
+        /* T1.2: peer ожил — стартуем zombie watchdog. Если он был запущен
+           ранее (например, после ICE flap connected→disconnected→connected),
+           startZombieWatcher сначала остановит предыдущий. */
+        startZombieWatcher(userId);
         return;
     }
 
@@ -1004,6 +1030,10 @@ function handlePeerConnectionStateChange(userId) {
         if (peer._recoveryPhase === "restarting" || peer._recoveryPhase === "passive-wait") {
             return;
         }
+        /* T1.2: вышли из connected — гасим zombie watchdog. Recovery state
+           machine берёт управление; если восстановимся обратно в connected,
+           watchdog запустится заново. */
+        stopZombieWatcher(userId);
         clearPeerHealthTimer(userId);
         peer._recoveryPhase = "grace";
         const t = setTimeout(() => {
@@ -1019,6 +1049,7 @@ function handlePeerConnectionStateChange(userId) {
     if (state === "failed") {
         /* failed — терминал, recovery без задержки независимо от фазы.
            ICE state machine больше ничего сама не починит. */
+        stopZombieWatcher(userId);
         clearPeerHealthTimer(userId);
         attemptPeerRecovery(userId);
         reevaluatePeerHealth();
@@ -1118,6 +1149,114 @@ function clearPeerHealthTimer(userId) {
     if (t) {
         clearTimeout(t);
         peerHealthTimers.delete(userId);
+    }
+}
+
+/**
+ * T1.2: запустить zombie watchdog. Старт при переходе peer'а в `connected`.
+ * Полный idempotent: повторный вызов сначала стопает предыдущий.
+ *
+ * Каждые ZOMBIE_CHECK_INTERVAL_MS снимаем `getStats()`, суммируем
+ * `inbound-rtp.packetsReceived` по audio-секциям (mic — единственная
+ * audio-секция в обычной сессии; screen-audio тоже учитывается, что ок —
+ * любой растущий счётчик доказывает живость канала).
+ *
+ * Если в течение ZOMBIE_THRESHOLD_MS после WARMUP'а счётчик не вырос —
+ * считаем peer мёртвым и зовём rebuildPeer. Circuit breaker не даёт уйти
+ * в бесконечный rebuild-loop при структурном баге.
+ */
+function startZombieWatcher(userId) {
+    stopZombieWatcher(userId);
+    const peer = peers.get(userId);
+    if (!peer) return;
+
+    const state = {
+        lastCount: -1,
+        lastGrowthAt: Date.now(),
+        startedAt: Date.now(),
+        timer: null
+    };
+
+    state.timer = setInterval(async () => {
+        const p = peers.get(userId);
+        if (!p || p.connectionState !== "connected") {
+            stopZombieWatcher(userId);
+            return;
+        }
+
+        let total = 0;
+        try {
+            const stats = await p.getStats();
+            stats.forEach(r => {
+                if (r.type === "inbound-rtp" && r.kind === "audio") {
+                    total += r.packetsReceived || 0;
+                }
+            });
+        } catch (_) {
+            /* getStats может упасть на закрывающемся peer'е — пропускаем тик,
+               следующая итерация (или connectionstatechange) разрулит. */
+            return;
+        }
+
+        const now = Date.now();
+
+        /* WARMUP: первые ZOMBIE_WARMUP_MS просто захватываем baseline.
+           До этого момента 0 пакетов — норма (handshake завершился, RTP
+           поток ещё не приехал). */
+        if (now - state.startedAt < ZOMBIE_WARMUP_MS) {
+            state.lastCount = total;
+            state.lastGrowthAt = now;
+            return;
+        }
+
+        if (total > state.lastCount) {
+            state.lastCount = total;
+            state.lastGrowthAt = now;
+            return;
+        }
+
+        if (now - state.lastGrowthAt <= ZOMBIE_THRESHOLD_MS) return;
+
+        /* Circuit breaker: ≤2 rebuild'а в минуту на userId. Дальше — peer
+           видимо структурно сломан (signalling рассинхрон / NAT не
+           переключается / etc.), очередной rebuild только продлит агонию.
+           Логируем error и сдаёмся. UI зафиксирует это через peer-trouble
+           индикатор когда recovery state machine переведёт peer в failed. */
+        const now2 = Date.now();
+        let rebuilds = peerZombieRebuilds.get(userId);
+        if (!rebuilds || now2 - rebuilds.firstAt > 60_000) {
+            rebuilds = { count: 0, firstAt: now2 };
+            peerZombieRebuilds.set(userId, rebuilds);
+        }
+        rebuilds.count += 1;
+
+        if (rebuilds.count > ZOMBIE_MAX_REBUILDS_PER_MINUTE) {
+            log.error("rtc", "zombie watchdog exhausted, peer unrecoverable", {
+                userId, attempts: rebuilds.count
+            });
+            stopZombieWatcher(userId);
+            return;
+        }
+
+        log.warn("rtc", "zombie peer (no inbound audio), rebuilding", {
+            userId,
+            staleMs: now - state.lastGrowthAt,
+            attempt: rebuilds.count
+        });
+        stopZombieWatcher(userId);
+        rebuildPeer(userId);
+        /* rebuildPeer создаст новый peer; его connectionstatechange запустит
+           следующий watcher уже на свежем объекте, когда дойдёт до connected. */
+    }, ZOMBIE_CHECK_INTERVAL_MS);
+
+    peerZombieWatchers.set(userId, state);
+}
+
+function stopZombieWatcher(userId) {
+    const s = peerZombieWatchers.get(userId);
+    if (s) {
+        clearInterval(s.timer);
+        peerZombieWatchers.delete(userId);
     }
 }
 
@@ -1237,6 +1376,12 @@ function clearSigStuckTimer(userId) {
  * Локальный микрофон и self-анализатор НЕ трогаются.
  */
 function cleanupPeerSlot(userId) {
+    /* T1.2: стопаем zombie watchdog первым делом — он держит setInterval
+       и getStats() на peer'е, который мы сейчас закроем. peerZombieRebuilds
+       НЕ чистим: счётчик переживает rebuild внутри сессии (это и есть
+       circuit breaker против infinite loop'а). Очищается по TTL 60s в
+       startZombieWatcher или просто остаётся висеть до выхода из комнаты. */
+    stopZombieWatcher(userId);
     const peer = peers.get(userId);
     if (peer) {
         peer.close();
@@ -1295,6 +1440,13 @@ function closeAllConnections() {
     [...peers.keys()].forEach(userId => {
         cleanupPeerSlot(userId);
     });
+
+    /* T1.2: при выходе из комнаты сбрасываем zombie-rebuild счётчики. Иначе при
+       быстром leave→join в той же комнате старый счётчик сразу заклинит
+       circuit breaker, и watchdog не сможет починить новый peer. Внутри
+       сессии счётчик жив (60s TTL), и это правильно — там он работает как
+       защита от бесконечного rebuild-loop'а. */
+    peerZombieRebuilds.clear();
 
     if (localStream) {
         localStream.getTracks().forEach(track => {
