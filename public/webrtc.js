@@ -314,6 +314,23 @@ function applyAudioProcessing(rawStream) {
 
     function gateTick() {
         if (!gateState.running) return;
+        /* T2-bg-fix: rAF в свёрнутой вкладке Chromium троттлится до 1 Гц или
+           вовсе паузится. Если gate в этот момент был закрыт (юзер молчал) —
+           он залипает до возврата вкладки, и собеседник не слышит ничего,
+           даже когда юзер начинает говорить (gate не успевает оценить и
+           открыться, пока rAF замёрз). Пока вкладка hidden — форс-открываем
+           gate и пропускаем оценку. visibilitychange→hidden ниже делает то
+           же самое превентивно (до того как rAF успеет затроттлиться). */
+        if (typeof document !== "undefined" && document.hidden) {
+            if (!gateState.open) {
+                gateState.open = true;
+                const t = audioContext.currentTime;
+                gateGain.gain.cancelScheduledValues(t);
+                gateGain.gain.setValueAtTime(1, t);
+            }
+            requestAnimationFrame(gateTick);
+            return;
+        }
         analyser.getFloatTimeDomainData(analyserData);
         let sumSq = 0;
         for (let i = 0; i < analyserData.length; i++) {
@@ -489,10 +506,53 @@ document.addEventListener("void:audio-in-device-changed", (e) => {
    тапнуть на любой контрол (mic/sound toggle) — это пере-эмитит
    user-gesture, и следующий resume() гарантированно пройдёт. */
 document.addEventListener("visibilitychange", () => {
-    if (document.hidden) return;
+    if (document.hidden) {
+        /* T2-bg-fix: превентивно форс-открываем mic gate ДО того как rAF
+           успеет затроттлиться. Если бы оставили оценку — gate мог закрыться
+           в последнем тике и залипнуть, пока вкладка свёрнута: rAF в hidden
+           tab у Chromium идёт ~1 Гц или паузится, gate не может оценить и
+           открыться. gateTick тоже проверяет document.hidden как safety net. */
+        forceOpenMicGate();
+        return;
+    }
+
     if (audioContext && (audioContext.state === "suspended" || audioContext.state === "interrupted")) {
         audioContext.resume().catch(() => {});
     }
+
+    /* T2-bg-fix: gate уже принудительно открыт в hidden-ветке, но если был
+       какой-то race (visibilitychange→hidden не выстрелил, сразу пришло
+       visible) — на возврате тоже форс-открываем. Безопасно: если юзер
+       молчит, gateTick через ~200мс закроет gate обратно. */
+    forceOpenMicGate();
+
+    /* Диагностика на случай если есть ещё какие-то невидимые баги с mic'ом
+       на возврате из background'а — track.muted = true указывал бы на
+       Yandex/Energy Saver killed mic, processedStream.active = false на
+       отвалившийся audio graph, audioContext.state ≠ "running" на failed
+       resume. Все три — повод для toast'а или авто-reinit'а. */
+    if (typeof isJoined !== "undefined" && isJoined && localStream) {
+        const t = localStream.getAudioTracks?.()[0];
+        if (t) {
+            log.debug("rtc", "visibility-visible audio check", {
+                track: t.readyState,
+                muted: t.muted,
+                enabled: t.enabled,
+                ctx: audioContext?.state || "none",
+                processed: processedStream?.active ?? null
+            });
+            /* Если track реально умер за время фоновой работы (выдернули
+               USB, OS прибила сессию) — onLocalMicEnded мог не выстрелить,
+               пока вкладка была hidden (event loop тоже мог тормозить).
+               Триггерим reinit вручную через тот же путь — там стоит
+               _micReinitInFlight guard, повторный no-op безопасен. */
+            if (t.readyState === "ended" && typeof onLocalMicEnded === "function") {
+                log.warn("rtc", "mic track ended during background, reiniting");
+                onLocalMicEnded();
+            }
+        }
+    }
+
     for (const audio of audioMap.values()) {
         if (audio.paused) {
             const p = audio.play?.();
@@ -500,6 +560,27 @@ document.addEventListener("visibilitychange", () => {
         }
     }
 });
+
+/**
+ * T2-bg-fix: мгновенно открыть mic gate (без ramp'а). Используется в
+ * visibilitychange handler'ах — gate-loop с rAF в hidden-tab'е не может
+ * сам это сделать. Безопасно вызывать когда graph ещё/уже не создан
+ * (early return на null'ах). audioGraph пересоздаётся в applyAudioProcessing
+ * на каждый initMedia/reinitLocalMic — текущая ссылка всегда указывает
+ * на актуальный live граф.
+ */
+function forceOpenMicGate() {
+    if (!audioGraph || !audioGraph.gateGain || !audioContext) return;
+    try {
+        const t = audioContext.currentTime;
+        audioGraph.gateGain.gain.cancelScheduledValues(t);
+        audioGraph.gateGain.gain.setValueAtTime(1, t);
+        if (audioGraph.gateState) {
+            audioGraph.gateState.open = true;
+            audioGraph.gateState.lastSoundAt = performance.now();
+        }
+    } catch (_) {}
+}
 
 /**
  * STUN-серверы — fallback-список для NAT-discovery. WebRTC опрашивает их
