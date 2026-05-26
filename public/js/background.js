@@ -100,8 +100,17 @@ function smoothRadialGradient(ctx, x, y, r, rgb, alphaMax, stops, easeExp) {
 
 /* ===== canvases ===== */
 
+/* DPR cap для canvas — амбиентный фон не нуждается в native retina
+   разрешении. На high-DPI мониторах (1.5/2.0 в Windows, 2-3 на Retina/4K)
+   рендер в native умножает pixel-fillrate квадратично. nebula с 12
+   fillRect(0,0,w,h) на полный canvas + screen blend mode + 12-stop radial
+   gradient на 2K-144Hz моник давал ~14 ГИГА pixel-fills/sec и грузил
+   2070 Super на 40%. Cap на 1.5 + 30fps throttle (см. paint()) снижает
+   нагрузку ~4-6× при незаметной для глаза потере чёткости фоновых блобов. */
+const CANVAS_MAX_DPR = 1.5;
+
 function sizeCanvas() {
-    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    const dpr = Math.min(CANVAS_MAX_DPR, Math.max(1, window.devicePixelRatio || 1));
     const w = window.innerWidth;
     const h = window.innerHeight;
 
@@ -574,18 +583,35 @@ function seedBlobs() {
     applyBackgroundTheme(saved || DEFAULT_THEME, /*animate*/ false);
 }
 
+/* === rAF throttle 30fps ===
+   rAF без throttle крутится на native refresh монитора (60/144/240Hz).
+   Для амбиентного фона с блобами, которые двигаются ~0.05px/frame, разница
+   между 30 и 144fps визуально неотличима, а GPU-нагрузка снижается в 5×.
+   Особенно критично для nebula (12 full-screen fillRect/frame на screen
+   blend mode) — без throttle на 2K-144Hz моник давал ~14 ГИГА pixel-fills/sec
+   и подвешивал весь браузер (другие вкладки в воздухе, спиннеры лагают).
+   Реализация — gate по wall-clock: рисуем кадр, только если прошло
+   >= FRAME_MIN_MS с предыдущего. rAF-цикл сам по себе остаётся: браузеру
+   нужен hook для естественной паузы при сворачивании / переходе вкладки. */
+const TARGET_FPS = 30;
+const FRAME_MIN_MS = 1000 / TARGET_FPS;
+let _lastFrameMs = 0;
+
 function paint() {
     if (_rafId !== null) return;          // уже крутимся
-    const loop = () => {
+    const loop = (now) => {
         if (_canvasPaused) {
             /* Visible-pause: тормозим rAF, но не стопаем — на показ страницы
                вернёмся без переинициализации. */
             setTimeout(() => { _rafId = requestAnimationFrame(loop); }, 200);
             return;
         }
-        const t = performance.now() * 0.001;
-        const handler = _theme ? THEMES[_theme]?.frame : null;
-        if (handler) handler(t);
+        if (now - _lastFrameMs >= FRAME_MIN_MS) {
+            _lastFrameMs = now;
+            const t = now * 0.001;
+            const handler = _theme ? THEMES[_theme]?.frame : null;
+            if (handler) handler(t);
+        }
         _rafId = requestAnimationFrame(loop);
     };
     _rafId = requestAnimationFrame(loop);
