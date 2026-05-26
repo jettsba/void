@@ -603,6 +603,13 @@
     padding-left: 2px;
 }
 
+/* Модификатор для слайдеров без левого label'a — слайдер ползёт от левого
+   края, % значение остаётся справа. Используется для «масштаб интерфейса»,
+   где текстовое описание уже стоит выше в row-text. */
+.settings-slider-row--solo {
+    grid-template-columns: 1fr auto;
+}
+
 .settings-slider-label {
     font-size: 0.79rem;
     letter-spacing: var(--tracking);

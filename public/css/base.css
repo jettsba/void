@@ -21,11 +21,23 @@
     --t-med: 320ms cubic-bezier(.2, .6, .2, 1);
     --t-slow: 800ms cubic-bezier(.2, .6, .2, 1);
 
-    /* === Fluid UI scaling ===
-       Корневой font-size = единственный регулятор размеров. Всё, что должно
-       расти с экраном (аватары, кнопки, шапка, отступы) — в rem. На FHD ≈17px,
-       2K ≈26px, 4K ≈44px. Mobile / маленькие ноуты пегается на 14px.
-       --ui-scale — задел под слайдер «масштаб интерфейса» в настройках. */
+    /* === UI scaling ===
+       Корневой font-size = 14px * --auto-scale * --ui-scale. Всё, что должно
+       расти с экраном (аватары, кнопки, шапка, отступы) — в rem.
+
+       --auto-scale: автоматический коэффициент по физической ширине монитора
+                     (screen.width). Выставляется inline-скриптом в <head>
+                     index.html ДО загрузки CSS — без FOUC. На FHD ≈1.21,
+                     на 2K ≈1.86, на 4K ≈3.14. На малых экранах = 1.
+                     ВАЖНО: НЕ используем vw, потому что vw реагирует на
+                     браузерный zoom — и fluid-формула перекомпенсировала
+                     zoom (Ctrl+Minus делал интерфейс крупнее, а не мельче).
+                     screen.width к zoom иммунен, поэтому zoom работает
+                     ортогонально нашему scaling.
+
+       --ui-scale: пользовательский множитель из настроек («масштаб
+                   интерфейса», слайдер). По дефолту 1.0. */
+    --auto-scale: 1;
     --ui-scale: 1;
 }
 
@@ -41,7 +53,7 @@ body {
     background: var(--bg-0);
     color: var(--fg);
     font-family: var(--font);
-    font-size: calc(clamp(14px, 1.4vw - 10px, 44px) * var(--ui-scale));
+    font-size: calc(14px * var(--auto-scale) * var(--ui-scale));
     letter-spacing: var(--tracking);
     line-height: 1.5;
     overflow: hidden;

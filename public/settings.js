@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "0.10.0";
+    const APP_VERSION = "0.10.1";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
@@ -30,7 +30,12 @@
         audioOutGain: 1.0,
         /* Тема амбиентного фона приложения. См. public/js/background.js —
            three themes registry. На лендинг не влияет. */
-        bgTheme: "silence"
+        bgTheme: "silence",
+        /* Пользовательский масштаб интерфейса. Применяется как множитель
+           к корневому font-size поверх auto-scale (см. base.css :root).
+           inline-скрипт в <head> index.html читает это ДО загрузки CSS,
+           чтобы избежать FOUC. Слайдер в панели — 70..150%. */
+        uiScale: 1.0
     };
 
     const BG_THEMES = ["silence", "nebula", "void-grid"];
@@ -39,6 +44,9 @@
     const AUDIO_IN_GAIN_MAX = 1.5;
     const AUDIO_OUT_GAIN_MIN = 0;
     const AUDIO_OUT_GAIN_MAX = 1.0;
+
+    const UI_SCALE_MIN = 0.7;
+    const UI_SCALE_MAX = 1.5;
 
     /** Лимит длины кастомного ника — синхронизирован с серверным
      *  `NICKNAME_MAX_LEN` в lib/security.js. Управляющие символы
@@ -168,6 +176,8 @@
             "settings.audio.applyOnRejoin": "новый микрофон подключится при следующем входе в комнату",
 
             "settings.bg": "фон",
+            "settings.uiScale": "масштаб интерфейса",
+            "settings.uiScale.hint": "размер всех элементов: текста, кнопок, аватаров",
 
             "settings.support": "поддержать",
             "settings.hint": "нажми, чтобы открыть настройки",
@@ -310,6 +320,8 @@
             "settings.audio.applyOnRejoin": "the new microphone will be picked up the next time you join a room",
 
             "settings.bg": "background",
+            "settings.uiScale": "interface scale",
+            "settings.uiScale.hint": "size of all elements: text, buttons, avatars",
 
             "settings.support": "support",
             "settings.hint": "tap to open settings",
@@ -374,6 +386,9 @@
                 }
                 if (typeof parsed.bgTheme === "string" && BG_THEMES.indexOf(parsed.bgTheme) !== -1) {
                     state.bgTheme = parsed.bgTheme;
+                }
+                if (typeof parsed.uiScale === "number" && isFinite(parsed.uiScale)) {
+                    state.uiScale = clampGain(parsed.uiScale, UI_SCALE_MIN, UI_SCALE_MAX);
                 }
             }
         } catch {
@@ -469,6 +484,7 @@
     function getAudioInGain() { return state.audioInGain; }
     function getAudioOutGain() { return state.audioOutGain; }
     function getBgTheme() { return state.bgTheme; }
+    function getUiScale() { return state.uiScale; }
 
     function setBgTheme(name) {
         if (BG_THEMES.indexOf(name) === -1) return;
@@ -478,6 +494,17 @@
         applyBgThemeSegUI();
         /* background.js слушает это событие и плавно переключает фон. */
         document.dispatchEvent(new CustomEvent("void:bg-theme-changed", { detail: { theme: name } }));
+    }
+
+    function setUiScale(v) {
+        const next = clampGain(v, UI_SCALE_MIN, UI_SCALE_MAX);
+        if (state.uiScale === next) return;
+        state.uiScale = next;
+        saveState();
+        /* Применяем сразу: --ui-scale на :root → font-size пересчитается,
+           всё, что в rem, перерисуется в новом масштабе без перезагрузки. */
+        document.documentElement.style.setProperty("--ui-scale", next);
+        applyUiScaleSliderUI();
     }
 
     function setAudioInId(id) {
@@ -565,6 +592,7 @@
 
     let panelEl, scrimEl, gearBtn, langSegEl, streamerInputEl, bgThemeSegEl;
     let nickFormEl, nickInputEl, nickSavedEl, nickSavedTimer = null;
+    let uiScaleEl, uiScaleValueEl;
     let micDropdown, spkDropdown,
         micGainEl, spkGainEl,
         micGainValueEl, spkGainValueEl,
@@ -753,6 +781,23 @@
                     </div>
                 </div>
 
+                <div class="settings-row settings-row--stack" id="settingsUiScaleRow">
+                    <div class="settings-row-text">
+                        <span class="settings-row-label" data-i18n="settings.uiScale">${t("settings.uiScale")}</span>
+                        <span class="settings-row-hint" data-i18n="settings.uiScale.hint">${t("settings.uiScale.hint")}</span>
+                    </div>
+                    <div class="settings-slider-row settings-slider-row--solo">
+                        <input
+                            type="range"
+                            id="settingsUiScale"
+                            class="settings-slider"
+                            min="70" max="150" step="5"
+                            aria-label="${t("settings.uiScale")}"
+                        />
+                        <span class="settings-slider-value" id="settingsUiScaleValue">100%</span>
+                    </div>
+                </div>
+
                 <button type="button" class="settings-bug-btn" id="settingsBugBtn"
                     aria-haspopup="dialog" aria-controls="bugModal"
                     data-i18n-attr="title:settings.bug;aria-label:settings.bug"
@@ -800,6 +845,8 @@
         micMeterFillEl = panelEl.querySelector("#settingsMicMeterFill");
         spkTestBtnEl = panelEl.querySelector("#settingsSpkTest");
         audioHintEl = panelEl.querySelector("#settingsAudioHint");
+        uiScaleEl = panelEl.querySelector("#settingsUiScale");
+        uiScaleValueEl = panelEl.querySelector("#settingsUiScaleValue");
 
         micDropdown = createDropdown(panelEl.querySelector("#settingsMicDropdown"), {
             onChange: (v) => {
@@ -1226,6 +1273,16 @@
         streamerInputEl.checked = !!state.streamer;
     }
 
+    /** Синхронизирует слайдер «масштаб интерфейса» с текущим state.uiScale.
+     *  Вызывается на init и после программных изменений (например, если
+     *  setUiScale зовётся из консоли). */
+    function applyUiScaleSliderUI() {
+        if (!uiScaleEl) return;
+        const pct = Math.round(state.uiScale * 100);
+        uiScaleEl.value = String(pct);
+        if (uiScaleValueEl) uiScaleValueEl.textContent = pct + "%";
+    }
+
     function applyBgThemeSegUI() {
         if (!bgThemeSegEl) return;
         bgThemeSegEl.querySelectorAll(".settings-seg-btn").forEach(b => {
@@ -1248,6 +1305,12 @@
             setAudioOutGain(v);
             updateGainLabels();
         });
+
+        if (uiScaleEl) {
+            uiScaleEl.addEventListener("input", () => {
+                setUiScale(Number(uiScaleEl.value) / 100);
+            });
+        }
 
         spkTestBtnEl?.addEventListener("click", playTestTone);
 
@@ -1701,7 +1764,13 @@
         applyLangToggleUI();
         applyStreamerToggleUI();
         applyBgThemeSegUI();
+        applyUiScaleSliderUI();
         applyNickInputUI();
+        /* Применяем сохранённый uiScale на корень. Inline-скрипт в <head>
+           уже сделал это до загрузки CSS (без FOUC), но дублируем для
+           случая, когда state.uiScale пришёл из дефолтов / был перезаписан
+           в loadState нормализацией. */
+        document.documentElement.style.setProperty("--ui-scale", state.uiScale);
         /* Hint показываем ТОЛЬКО после того, как intro-экран ушёл и
            пользователь увидел шапку с шестерёнкой. Иначе стрелка торчит
            поверх intro и сбивает с толку. Event диспатчит intro.js из
@@ -1725,10 +1794,10 @@
     window.VoidSettings = {
         getLang, getStreamer, getNickname,
         getAudioInId, getAudioOutId, getAudioInGain, getAudioOutGain,
-        getBgTheme,
+        getBgTheme, getUiScale,
         setLang, setStreamer, setNickname,
         setAudioInId, setAudioOutId, setAudioInGain, setAudioOutGain,
-        setBgTheme,
+        setBgTheme, setUiScale,
         openPanel, closePanel
     };
 })();

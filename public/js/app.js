@@ -126,7 +126,22 @@ function init() {
 
     if (!matchMedia("(hover: none) and (pointer: coarse)").matches) {
         window.addEventListener("resize", sizeCanvas);
+        /* visualViewport.resize срабатывает при браузерном zoom (Ctrl+/-) —
+           обычный window.resize при zoom не диспатчится надёжно. Без этого
+           canvas остаётся в старом масштабе и превращается в прямоугольник
+           в верхнем углу до ручного refresh страницы. */
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener("resize", sizeCanvas);
+        }
     }
+
+    /* === UI auto-scale resize hook ===
+       Когда пользователь перетаскивает окно между мониторами разной
+       плотности — screen.width меняется → пересчитываем --auto-scale.
+       Inline-скрипт в <head> делает это один раз при загрузке, тут
+       поддерживаем актуальность в живой сессии. */
+    updateAutoScale();
+    window.addEventListener("resize", updateAutoScale);
     /* M2.2: intro теперь <form id="introForm">. Submit-event универсален
        для любой клавиатуры (включая Android IME, где keydown('Enter')
        приходит как key="Unidentified"). Стрелка-кнопка type="submit"
@@ -425,4 +440,19 @@ function consumeInviteLinkFromUrl() {
         if (isJoined) return;
         tryJoin();
     }, { once: true });
+}
+
+/* === UI auto-scale ===
+   Пересчитывает корневой --auto-scale по screen.width (физическая CSS-ширина
+   монитора). Используется при init() и на window.resize (если юзер
+   перетащил окно между мониторами разной плотности).
+   Формула — линейная, та же что в inline-скрипте <head>: на FHD ≈1.21,
+   2K ≈1.86, 4K ≈3.14, пегается на 1.0/3.14 по краям.
+   Браузерный zoom screen.width не трогает, поэтому zoom работает чисто. */
+function updateAutoScale() {
+    const w = (window.screen && window.screen.width) || window.innerWidth || 1920;
+    let t = 1.4 * (w / 100) - 10;
+    if (t < 14) t = 14;
+    if (t > 44) t = 44;
+    document.documentElement.style.setProperty("--auto-scale", (t / 14).toFixed(3));
 }

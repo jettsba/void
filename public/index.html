@@ -21,7 +21,34 @@
     <meta name="twitter:description" content="ephemeral voice spaces. no accounts. no history. P2P.">
     <meta name="twitter:image"       content="https://void-room.space/static/favicon/web-app-manifest-512x512.png">
 
-    <link rel="stylesheet" href="css/base.css?v=20">
+    <!-- ===== UI scale bootstrap (v0.10.1) =====
+         Считаем масштаб ДО загрузки CSS, чтобы избежать FOUC. Источник —
+         screen.width (физическая CSS-ширина монитора, иммунна к zoom браузера).
+         Если бы использовали vw в clamp() — браузерный zoom менял бы vw и
+         перекомпенсировал scaling (Ctrl+Minus → интерфейс становился крупнее).
+         JS-based подход делает zoom ортогональным нашему scaling. -->
+    <script>
+        (function () {
+            try {
+                var w = (window.screen && window.screen.width) || window.innerWidth || 1920;
+                var t = 1.4 * (w / 100) - 10;
+                if (t < 14) t = 14;
+                if (t > 44) t = 44;
+                document.documentElement.style.setProperty('--auto-scale', (t / 14).toFixed(3));
+
+                var raw = localStorage.getItem('void:settings');
+                if (raw) {
+                    var s = JSON.parse(raw);
+                    var ui = parseFloat(s && s.uiScale);
+                    if (isFinite(ui) && ui >= 0.5 && ui <= 2.0) {
+                        document.documentElement.style.setProperty('--ui-scale', ui);
+                    }
+                }
+            } catch (e) { /* приватный режим, мусор в storage — оставляем дефолты */ }
+        })();
+    </script>
+
+    <link rel="stylesheet" href="css/base.css?v=21">
     <link rel="stylesheet" href="css/intro.css?v=18">
     <link rel="stylesheet" href="css/app.css?v=18">
     <link rel="stylesheet" href="css/header.css?v=18">
@@ -34,7 +61,7 @@
     <link rel="stylesheet" href="css/chat-overlay.css?v=18">
     <link rel="stylesheet" href="css/screencast.css?v=19">
     <link rel="stylesheet" href="css/responsive.css?v=21">
-    <link rel="stylesheet" href="css/settings.css?v=28">
+    <link rel="stylesheet" href="css/settings.css?v=29">
 
 <link rel="icon" type="image/png" href="/static/favicon/favicon-96x96.png" sizes="96x96" />
     <link rel="icon" type="image/svg+xml" href="/static/favicon/favicon.svg" />
@@ -407,7 +434,7 @@
     </div>
 
     <script defer src="log.js"></script>
-    <script defer src="settings.js?v=16"></script>
+    <script defer src="settings.js?v=17"></script>
     <script defer src="webrtc.js"></script>
     <script defer src="socket.js"></script>
     <script defer src="chat.js?v=2"></script>
@@ -424,7 +451,7 @@
     <script defer src="js/screen-overlay.js?v=2"></script>
     <script defer src="js/intro.js?v=3"></script>
     <script defer src="js/room.js?v=4"></script>
-    <script defer src="js/app.js?v=6"></script>
+    <script defer src="js/app.js?v=7"></script>
 </body>
 
 </html>
