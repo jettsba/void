@@ -1,0 +1,8 @@
+# https://app.void-room.space/robots.txt
+# The app subdomain is the runtime web app, not marketing surface.
+# Only the landing (void-room.space) is indexed. App pages are a thin JS
+# shell with no per-URL content, and room URLs (?room=XXXX) are ephemeral —
+# we don't want search engines caching dead room codes.
+
+User-agent: *
+Disallow: /
