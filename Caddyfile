@@ -66,6 +66,13 @@ void-room.space {
         -Server
     }
 
+    # Скрытая страница: подкреплённый HTTP-заголовком noindex для путей
+    # /the-void-egg и /en/the-void-egg. Дублирует <meta name="robots"> внутри
+    # HTML — пояс с подтяжками. Поисковики не должны её индексировать, даже
+    # если внезапно найдут (в sitemap её нет, в robots.txt не упомянута).
+    @egg path /the-void-egg /en/the-void-egg
+    header @egg X-Robots-Tag "noindex, nofollow, noarchive, nosnippet"
+
     reverse_proxy localhost:3000
 }
 

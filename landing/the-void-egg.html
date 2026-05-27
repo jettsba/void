@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+    <title>void :: ты нашёл</title>
+    <meta name="robots" content="noindex, nofollow, noarchive, nosnippet" />
+    <meta name="theme-color" content="#0a0a0b" />
+    <meta name="color-scheme" content="dark" />
+
+    <link rel="icon"             type="image/svg+xml" href="/static/favicon/favicon.svg" />
+    <link rel="shortcut icon"                          href="/static/favicon/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180"      href="/static/favicon/apple-touch-icon.png" />
+
+    <link rel="stylesheet" href="/landing.css" />
+
+    <style>
+        /* Самодостаточная страница. Все стили инлайн — чтобы в shared
+           landing.css не светились классы вида .crown / .letter и не
+           подсказывали любопытному, что на сайте есть скрытая страница. */
+        .shell {
+            max-width: 720px;
+            margin: 0 auto;
+            padding: clamp(72px, 12vw, 140px) var(--gutter, 24px) clamp(72px, 14vw, 140px);
+            position: relative;
+            z-index: 2;
+        }
+        .eyebrow {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 11px;
+            letter-spacing: 0.22em;
+            text-transform: lowercase;
+            color: var(--fg-4);
+            margin-bottom: 28px;
+        }
+
+        /* Золотая надпись — палитра 1-в-1 с .participant-name.premium
+           (public/css/stage.css) и .contrib-name (landing.css). Тёплое
+           матовое золото, не #FFD700. Свечение — drop-shadow на filter,
+           text-shadow поверх background-clip:text не виден. */
+        .crown {
+            font-family: var(--font);
+            font-weight: 400;
+            font-size: clamp(48px, 9vw, 104px);
+            line-height: 1.04;
+            letter-spacing: -0.02em;
+            margin: 0 0 clamp(48px, 7vw, 80px);
+            display: inline-block;
+
+            background: linear-gradient(
+                110deg,
+                #b89254 0%,
+                #e8c97a 28%,
+                #f6e4ad 50%,
+                #e8c97a 72%,
+                #b89254 100%
+            );
+            background-size: 200% 100%;
+            background-position: 0% 50%;
+            -webkit-background-clip: text;
+                    background-clip: text;
+            -webkit-text-fill-color: transparent;
+                    color: transparent;
+            filter:
+                drop-shadow(0 0 6px  rgba(232, 201, 122, 0.40))
+                drop-shadow(0 0 16px rgba(232, 201, 122, 0.22))
+                drop-shadow(0 0 32px rgba(232, 201, 122, 0.10));
+            animation: crown-shimmer 8s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+        }
+        @keyframes crown-shimmer {
+            0%, 100% { background-position:   0% 50%; }
+            50%      { background-position: 100% 50%; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .crown {
+                animation: none;
+                background-position: 50% 50%;
+            }
+        }
+
+        /* Письмо — узкая колонка, тёплый цвет, тот же ритм что у privacy. */
+        .letter {
+            max-width: 540px;
+            font-size: 16px;
+            line-height: 1.7;
+            color: var(--fg-2);
+        }
+        .letter p { margin: 0 0 18px; }
+        .letter p:last-of-type { margin-bottom: 32px; }
+        .letter strong { color: var(--fg); font-weight: 400; }
+        .author {
+            font-style: italic;
+            color: var(--fg-3);
+            font-size: 14px;
+            letter-spacing: 0.04em;
+        }
+    </style>
+</head>
+<body>
+    <div class="header-wrap">
+        <header class="header">
+            <a class="brand-lockup" href="/">
+                <span class="brand-logo-slot" aria-hidden="true">
+                    <span class="logo-eclipse"></span>
+                </span>
+                <span class="brand-mark">void</span>
+            </a>
+        </header>
+    </div>
+
+    <main class="shell">
+        <div class="eyebrow">/ the-void-egg</div>
+        <h1 class="crown">ты нашёл?</h1>
+
+        <div class="letter">
+            <p>привет</p>
+
+            <p>
+            в интернете всё стало слишком шумным.
+            слишком обязующим.
+            все о чем-то кричат, продают себя, строят витрины.
+            а мне просто хотелось сделать место, где не будет лишнего.
+            только голос, пока он необходим - и ничего больше.
+            </p>
+
+            <p>
+            раз уж ты сюда добрался —
+            значит, ты тоже всматриваешься в вещи чуть пристальнее остальных.
+            это редкое качество.
+            не теряй его.
+            </p>
+
+            <p class="author">
+            — casheaterr
+            </p>
+        </div>
+    </main>
+</body>
+</html>
