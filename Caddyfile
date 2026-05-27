@@ -103,7 +103,7 @@ app.void-room.space {
         X-Content-Type-Options    "nosniff"
         X-Frame-Options           "DENY"
         Referrer-Policy           "strict-origin-when-cross-origin"
-        Permissions-Policy        "microphone=(self), camera=(), geolocation=(), display-capture=(self), interest-cohort=()"
+        Permissions-Policy        "microphone=(self), camera=(self), geolocation=(), display-capture=(self), interest-cohort=()"
         Content-Security-Policy   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' wss://app.void-room.space; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
         -Server
     }
