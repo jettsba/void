@@ -22,31 +22,10 @@
     <link rel="alternate" hreflang="en"        href="https://void-room.space/en/" />
     <link rel="alternate" hreflang="x-default" href="https://void-room.space/en/" />
 
-    <!-- Language auto-detect (mirror of /). Same rule as the russian root:
-         the URL wins. If a preference is pinned, sync it to 'en' (the user
-         explicitly landed on /en/) and stay. Locale-based redirect runs only
-         for first-time visitors with no saved pref. See the long comment in
-         landing/index.html for the full reasoning. -->
-    <script>
-    (function () {
-        try {
-            var saved = null;
-            try { saved = localStorage.getItem('void.lang'); } catch (_) {}
-            if (saved === 'ru' || saved === 'en') {
-                if (saved !== 'en') {
-                    try { localStorage.setItem('void.lang', 'en'); } catch (_) {}
-                }
-                return;
-            }
-            var lang = (navigator.language || navigator.userLanguage || 'en').toLowerCase();
-            if (lang.indexOf('ru') === 0) {
-                location.replace('/' + location.search + location.hash);
-            } else {
-                try { localStorage.setItem('void.lang', 'en'); } catch (_) {}
-            }
-        } catch (_) { /* never block render */ }
-    })();
-    </script>
+    <!-- No client-side language redirect. See landing/index.html for the full
+         reasoning: hreflang lets search engines route users to the correct
+         language version directly from the SERP. A JS redirect here would
+         confuse Googlebot's indexing and pollute language-specific snippets. -->
 
     <!-- ====== OPEN GRAPH ====== -->
     <meta property="og:type"             content="website" />

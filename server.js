@@ -107,6 +107,39 @@ app.get('/api/contributors', (req, res) => {
     res.json({ names: CONTRIBUTORS });
 });
 
+/* Bot UA pattern — поисковики, AI-краулеры, и unfurl-боты соцсетей
+   (Telegram/Twitter/Discord фетчат OG-метатеги для превью в чатах).
+   Все они должны видеть контент по URL как есть, а не редиректиться по
+   Accept-Language: иначе Googlebot со стандартным `en-US` уведёт `/` в
+   индекс под /en/, а Telegram-превью русской ссылки покажется английским. */
+const BOT_UA_PATTERN = /googlebot|bingbot|yandex|duckduckbot|baiduspider|applebot|gptbot|chatgpt-user|oai-searchbot|claudebot|claude-web|perplexitybot|amazonbot|facebookexternalhit|telegrambot|twitterbot|slackbot|discordbot|whatsapp|linkedinbot|skypeuripreview|pinterestbot|bytespider|ccbot|crawler|spider/i;
+
+/* Language router. Срабатывает ТОЛЬКО на корень `/` лендинг-домена.
+   `/en/` — статика, тут не трогается. Решение:
+     1. Bot UA → отдать RU (бот индексирует / как русскую страницу).
+     2. Accept-Language пуст или начинается с 'ru' → отдать RU.
+     3. Иначе → 302 на /en/ (en, es, fr, ja, любой не-RU юзер).
+   Vary: Accept-Language обязательно, иначе CDN/прокси может закэшировать
+   ответ для одного языка и отдать другому. */
+app.use((req, res, next) => {
+    if (req.path !== '/') return next();
+
+    const isApp = req.hostname === 'app.void-room.space'
+               || req.hostname === 'localhost'
+               || req.hostname === '127.0.0.1';
+    if (isApp) return next();
+
+    res.set('Vary', 'Accept-Language');
+
+    const ua = req.headers['user-agent'] || '';
+    if (BOT_UA_PATTERN.test(ua)) return next();
+
+    const acceptLang = (req.headers['accept-language'] || '').toLowerCase();
+    if (!acceptLang || acceptLang.startsWith('ru')) return next();
+
+    res.redirect(302, '/en/');
+});
+
 // Маршрутизация по поддомену: app.* → приложение, всё остальное → лендинг
 app.use((req, res, next) => {
     const isApp = req.hostname === 'app.void-room.space'

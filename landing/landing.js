@@ -665,15 +665,4 @@ void — landing behaviors
         });
     })();
 
-    /* -------------------------------------------------- footer language link.
-       Pins the user's choice in localStorage BEFORE navigating, so the inline
-       auto-detect script in the destination's <head> sees the saved preference
-       and doesn't bounce them back. Without this, clicking "english" from /
-       would land on /en/ — and then the en page's auto-detect would see a
-       ru-locale browser and immediately redirect back to /. */
-    document.querySelectorAll('.footer-lang[data-set-lang]').forEach((a) => {
-        a.addEventListener('click', () => {
-            try { localStorage.setItem('void.lang', a.getAttribute('data-set-lang')); } catch (_) {}
-        });
-    });
 })();

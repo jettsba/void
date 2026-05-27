@@ -23,41 +23,13 @@
     <link rel="alternate" hreflang="en"        href="https://void-room.space/en/" />
     <link rel="alternate" hreflang="x-default" href="https://void-room.space/en/" />
 
-    <!-- Language auto-detect. Runs synchronously in <head> BEFORE any render so
-         the user never sees a flash of the wrong language.
-
-         Rule: the URL is the source of truth. If a preference is already pinned
-         in localStorage `void.lang`, we sync it to match THIS page (the user
-         explicitly navigated to /) and stay — we never auto-redirect away from
-         the URL the user requested. The previous behavior (pref redirects to
-         /en/ even on a typed `/` URL) made it impossible to switch languages
-         via the address bar — only the footer switcher worked.
-
-         The locale-based auto-redirect runs only for first-time visitors (no
-         saved pref): non-russian browsers get sent to /en/, russian browsers
-         stay. Trade-off: a returning visitor who previously pinned EN will see
-         RU when they hit the bare host, and must use the footer switcher to
-         go back. We accept this in exchange for deterministic URL navigation. -->
-    <script>
-    (function () {
-        try {
-            var saved = null;
-            try { saved = localStorage.getItem('void.lang'); } catch (_) {}
-            if (saved === 'ru' || saved === 'en') {
-                if (saved !== 'ru') {
-                    try { localStorage.setItem('void.lang', 'ru'); } catch (_) {}
-                }
-                return;
-            }
-            var lang = (navigator.language || navigator.userLanguage || 'en').toLowerCase();
-            if (lang.indexOf('ru') !== 0) {
-                location.replace('/en/' + location.search + location.hash);
-            } else {
-                try { localStorage.setItem('void.lang', 'ru'); } catch (_) {}
-            }
-        } catch (_) { /* never block render */ }
-    })();
-    </script>
+    <!-- No client-side language redirect. hreflang annotations above let Google
+         and Yandex serve the right language version directly in SERPs based on
+         the user's system language. A JS redirect here would cause Googlebot
+         (headless Chromium, navigator.language='en-US') to index EN content
+         under the / URL, polluting RU snippets with English descriptions.
+         Direct visitors who type the bare host get RU; if they want EN, the
+         footer switcher takes them to /en/. -->
 
     <!-- ====== OPEN GRAPH (Facebook, LinkedIn, Telegram, Slack, Discord) ====== -->
     <meta property="og:type"             content="website" />
