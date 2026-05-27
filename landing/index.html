@@ -86,7 +86,7 @@
           ],
           "inLanguage": ["ru", "en"],
           "isAccessibleForFree": true,
-          "softwareVersion": "0.5"
+          "softwareVersion": "{{VERSION}}"
         },
         {
           "@type": "Organization",
@@ -98,11 +98,7 @@
           "@type": "WebSite",
           "name": "void",
           "url": "https://void-room.space/",
-          "inLanguage": "ru-RU",
-          "potentialAction": {
-            "@type": "Action",
-            "target": "https://app.void-room.space/"
-          }
+          "inLanguage": "ru-RU"
         }
       ]
     }
@@ -172,7 +168,7 @@
                     <div class="hero-copy">
                         <div class="hero-eyebrow reveal">
                             <span class="line"></span>
-                            <span class="app-version" data-version-fallback="v0.7.8">v0.7.8</span>
+                            <span class="app-version" data-version-fallback="v{{VERSION}}">v{{VERSION}}</span>
                         </div>
                         <h1 class="hero-display reveal" data-delay="1" data-i18n-html="hero.h1">
                             ничего лишнего.
@@ -686,7 +682,7 @@
                             <li><span data-i18n="plat.desk.spec.keys">горячие клавиши</span> <b data-i18n="plat.desk.spec.keys.v">глобальные</b></li>
                         </ul>
                         <div class="actions">
-                            <a class="btn" href="#" data-i18n="plat.desk.cta">скачать void</a>
+                            <a class="btn" href="#0" data-i18n="plat.desk.cta" aria-disabled="true">скачать · скоро</a>
                         </div>
                     </div>
                 </div>
@@ -757,8 +753,8 @@
     </div>
 
     <footer class="footer">
-        <p class="footer-copy"><a class="footer-credit-link" href="https://t.me/mtbibltww" target="_blank" rel="noopener noreferrer">void by casheaterr</a> · <span id="year">2026</span> · all rights reserved</p>
-        <a class="footer-lang" href="/en/" data-set-lang="en" hreflang="en" lang="en">switch to english</a>
+        <p class="footer-copy"><a class="footer-credit-link" href="https://t.me/mtbibltww" target="_blank" rel="noopener noreferrer">void by casheaterr</a> · <span id="year">2026</span> · <a class="footer-credit-link internal" href="/privacy">privacy</a></p>
+        <a class="footer-lang" href="/en/" hreflang="en" lang="en">switch to english</a>
     </footer>
 
     <script src="intro.js" defer></script>

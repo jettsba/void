@@ -79,7 +79,7 @@
           ],
           "inLanguage": ["en", "ru"],
           "isAccessibleForFree": true,
-          "softwareVersion": "0.5"
+          "softwareVersion": "{{VERSION}}"
         },
         {
           "@type": "Organization",
@@ -91,11 +91,7 @@
           "@type": "WebSite",
           "name": "void",
           "url": "https://void-room.space/en/",
-          "inLanguage": "en-US",
-          "potentialAction": {
-            "@type": "Action",
-            "target": "https://app.void-room.space/"
-          }
+          "inLanguage": "en-US"
         }
       ]
     }
@@ -160,7 +156,7 @@
                     <div class="hero-copy">
                         <div class="hero-eyebrow reveal">
                             <span class="line"></span>
-                            <span class="app-version" data-version-fallback="v0.7.8">v0.7.8</span>
+                            <span class="app-version" data-version-fallback="v{{VERSION}}">v{{VERSION}}</span>
                         </div>
                         <h1 class="hero-display reveal" data-delay="1">
                             <span class="h1-line">leaves</span><span class="h1-line">no trace.</span>
@@ -674,7 +670,7 @@
                             <li><span>hotkeys</span> <b>global</b></li>
                         </ul>
                         <div class="actions">
-                            <a class="btn" href="#">download void</a>
+                            <a class="btn" href="#0" aria-disabled="true">download · soon</a>
                         </div>
                     </div>
                 </div>
@@ -737,7 +733,7 @@
                             <span>launch web</span>
                             <svg class="btn-arrow" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h10"/><path d="M9 4l4 4-4 4"/></svg>
                         </a>
-                        <a class="btn" href="#">download desktop</a>
+                        <a class="btn" href="#download">download desktop</a>
                     </div>
                 </div>
             </div>
@@ -745,8 +741,8 @@
     </div>
 
     <footer class="footer">
-        <p class="footer-copy"><a href="https://t.me/mtbibltww" target="_blank" rel="noopener noreferrer">void by casheaterr</a> · <span id="year">2026</span> · all rights reserved</p>
-        <a class="footer-lang" href="/" data-set-lang="ru" hreflang="ru" lang="ru">switch to russian</a>
+        <p class="footer-copy"><a class="footer-credit-link" href="https://t.me/mtbibltww" target="_blank" rel="noopener noreferrer">void by casheaterr</a> · <span id="year">2026</span> · <a class="footer-credit-link internal" href="/en/privacy">privacy</a></p>
+        <a class="footer-lang" href="/" hreflang="ru" lang="ru">switch to russian</a>
     </footer>
 
     <script src="/intro.js" defer></script>

@@ -4,7 +4,7 @@
 
   <url>
     <loc>https://void-room.space/</loc>
-    <lastmod>2026-05-18</lastmod>
+    <lastmod>2026-05-27</lastmod>
     <changefreq>monthly</changefreq>
     <priority>1.0</priority>
     <xhtml:link rel="alternate" hreflang="ru"        href="https://void-room.space/"/>
@@ -14,7 +14,7 @@
 
   <url>
     <loc>https://void-room.space/en/</loc>
-    <lastmod>2026-05-18</lastmod>
+    <lastmod>2026-05-27</lastmod>
     <changefreq>monthly</changefreq>
     <priority>1.0</priority>
     <xhtml:link rel="alternate" hreflang="ru"        href="https://void-room.space/"/>
@@ -22,14 +22,20 @@
     <xhtml:link rel="alternate" hreflang="x-default" href="https://void-room.space/en/"/>
   </url>
 
-  <!-- The app itself is on a separate subdomain; some search engines respect
-       a cross-host sitemap entry if both hosts share ownership. Yandex and
-       Google both honor it when the destination resolves to the same org. -->
   <url>
-    <loc>https://app.void-room.space/</loc>
-    <lastmod>2026-05-18</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
+    <loc>https://void-room.space/privacy</loc>
+    <lastmod>2026-05-27</lastmod>
+    <xhtml:link rel="alternate" hreflang="ru"        href="https://void-room.space/privacy"/>
+    <xhtml:link rel="alternate" hreflang="en"        href="https://void-room.space/en/privacy"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://void-room.space/en/privacy"/>
+  </url>
+
+  <url>
+    <loc>https://void-room.space/en/privacy</loc>
+    <lastmod>2026-05-27</lastmod>
+    <xhtml:link rel="alternate" hreflang="ru"        href="https://void-room.space/privacy"/>
+    <xhtml:link rel="alternate" hreflang="en"        href="https://void-room.space/en/privacy"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://void-room.space/en/privacy"/>
   </url>
 
 </urlset>

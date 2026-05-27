@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+    <title>void :: privacy</title>
+    <meta name="description" content="what void processes, what isn't here, and how the conversation travels between participants. short and direct." />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="theme-color" content="#0a0a0b" />
+    <meta name="color-scheme" content="dark" />
+
+    <link rel="canonical" href="https://void-room.space/en/privacy" />
+    <link rel="alternate" hreflang="ru"        href="https://void-room.space/privacy" />
+    <link rel="alternate" hreflang="en"        href="https://void-room.space/en/privacy" />
+    <link rel="alternate" hreflang="x-default" href="https://void-room.space/en/privacy" />
+
+    <link rel="icon"             type="image/svg+xml" href="/static/favicon/favicon.svg" />
+    <link rel="shortcut icon"                          href="/static/favicon/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180"      href="/static/favicon/apple-touch-icon.png" />
+
+    <link rel="stylesheet" href="/landing.css" />
+
+    <style>
+        /* Privacy page — static document. No canvas, no intro, no heavy
+           animations. Reuses landing.css base palette and variables but lays
+           out content locally (its own text width, padding). */
+        .privacy-shell {
+            max-width: 680px;
+            margin: 0 auto;
+            padding: clamp(48px, 9vw, 96px) var(--gutter, 24px) clamp(64px, 12vw, 120px);
+            position: relative;
+            z-index: 2;
+        }
+        .privacy-eyebrow {
+            font-size: 11px;
+            letter-spacing: 0.22em;
+            text-transform: lowercase;
+            color: var(--fg-3);
+            margin-bottom: 18px;
+        }
+        .privacy-title {
+            font-family: var(--font);
+            font-weight: 400;
+            font-size: clamp(28px, 4.4vw, 44px);
+            line-height: 1.18;
+            letter-spacing: -0.01em;
+            color: var(--fg);
+            margin: 0 0 14px;
+        }
+        .privacy-meta {
+            font-size: 11px;
+            letter-spacing: 0.18em;
+            text-transform: lowercase;
+            color: var(--fg-4);
+            margin: 0 0 56px;
+        }
+        .privacy-block {
+            padding: 28px 0;
+            border-top: 1px solid var(--fg-5, rgba(230,230,232,0.08));
+        }
+        .privacy-block:first-of-type {
+            border-top: none;
+            padding-top: 0;
+        }
+        .privacy-block h2 {
+            font-family: var(--font);
+            font-weight: 400;
+            font-size: 13px;
+            letter-spacing: 0.18em;
+            text-transform: lowercase;
+            color: var(--fg-2);
+            margin: 0 0 14px;
+        }
+        .privacy-block p {
+            font-size: 15px;
+            line-height: 1.65;
+            color: var(--fg-2);
+            margin: 0 0 12px;
+        }
+        .privacy-block p:last-child { margin-bottom: 0; }
+        .privacy-block strong {
+            color: var(--fg);
+            font-weight: 400;
+        }
+        .privacy-block a {
+            color: var(--fg);
+            text-decoration: none;
+            border-bottom: 1px dotted var(--fg-3);
+            transition: border-color var(--t-fast);
+        }
+        .privacy-block a:hover {
+            border-bottom-color: var(--fg);
+        }
+    </style>
+</head>
+<body>
+    <div class="header-wrap">
+        <header class="header">
+            <a class="brand-lockup" href="/en/">
+                <span class="brand-logo-slot" aria-hidden="true">
+                    <span class="logo-eclipse"></span>
+                </span>
+                <span class="brand-mark">void</span>
+            </a>
+        </header>
+    </div>
+
+    <main class="privacy-shell">
+        <div class="privacy-eyebrow">— privacy</div>
+        <h1 class="privacy-title">what void processes, and what isn't here.</h1>
+        <p class="privacy-meta">updated 2026-05-27</p>
+
+        <section class="privacy-block">
+            <h2>what isn't here</h2>
+            <p>no accounts, no email, no passwords. no message or call history. no tracking cookies, no analytics, no advertising partners. void doesn't sell data and doesn't share it with third parties — there's nothing to share.</p>
+        </section>
+
+        <section class="privacy-block">
+            <h2>what is processed</h2>
+            <p>the server sees your IP address — technically required to set up the connection and to defend against abuse (rate limiting, anti-bruteforce). the IP is kept only in the server's memory and is wiped a few minutes after you disconnect. it isn't written to persistent storage and isn't shared with anyone.</p>
+        </section>
+
+        <section class="privacy-block">
+            <h2>what stays in your browser</h2>
+            <p>localStorage keeps your settings: language, nickname, microphone and speaker choice, volume levels. these never leave your device — they exist only so your browser can remember your choices between sessions. clear them by clearing site data.</p>
+        </section>
+
+        <section class="privacy-block">
+            <h2>how the conversation travels</h2>
+            <p>voice, chat, and files travel <strong>directly</strong> between participants over WebRTC. the server only helps you find each other at the start (this is called signalling) — after that, it's not in the path. all content is encrypted with DTLS-SRTP; the server does not hold any keys.</p>
+        </section>
+
+        <section class="privacy-block">
+            <h2>when relay kicks in</h2>
+            <p>sometimes a direct connection between participants isn't possible — usually because of corporate networks or mobile carriers with CG-NAT. in these rare cases, encrypted packets pass through our relay server (TURN). the relay sees only connection metadata: IP addresses, session duration. <strong>the content stays encrypted</strong> — the relay cannot decrypt voice or messages, the keys live only with you and the other person.</p>
+        </section>
+
+        <section class="privacy-block">
+            <h2>bug reports</h2>
+            <p>there's an optional "report a bug" form in settings. if you use it, the email includes your browser's technical log and (if you provide one) your contact email. without submitting the form, nothing goes anywhere.</p>
+        </section>
+
+        <section class="privacy-block">
+            <h2>contact</h2>
+            <p>privacy questions — on telegram: <a href="https://t.me/mtbibltww" target="_blank" rel="noopener noreferrer">@mtbibltww</a></p>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <p class="footer-copy"><a class="footer-credit-link" href="https://t.me/mtbibltww" target="_blank" rel="noopener noreferrer">void by casheaterr</a> · <span>2026</span> · <a class="footer-credit-link internal" href="/en/">back to home</a></p>
+        <a class="footer-lang" href="/privacy" hreflang="ru" lang="ru">switch to russian</a>
+    </footer>
+</body>
+</html>

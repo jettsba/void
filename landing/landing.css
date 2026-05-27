@@ -249,6 +249,15 @@ p {
   color: var(--fg);
 }
 
+/* Disabled state — для CTA, которые показывают будущую функциональность
+   ("скачать · скоро"). pointer-events:none гарантирует, что href="#0" не
+   сработает даже на тач-устройствах, где :active мог бы дать ложное эхо. */
+.btn[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 /* arrow — proper SVG glyph that scales with currentColor */
 .btn-arrow {
   width: 14px;
@@ -2723,12 +2732,22 @@ section.contrib[hidden] { display: none; }
   transform: translate(5px, calc(-50% - 0.06em));
 }
 
+/* Internal links in the footer (e.g. /privacy) — skip the slide+↗ animation
+   that's meant to telegraph "leaving the site". For same-origin pages we want
+   the standard subtle hover, not the external-link departure visual. */
+.footer-copy a.internal::after {
+  content: none;
+}
+.footer-copy a.internal:hover {
+  transform: none;
+  color: var(--fg-2);
+}
+
 /* footer language link — manual override for the URL-based language pick.
    Intentionally quiet (low-contrast, small caps) so it doesn't compete with
    the copyright line, but still discoverable for anyone whose system locale
-   landed them on the wrong variant. Clicking pins the choice in localStorage
-   so the auto-detect in <head> stops overriding on subsequent visits — the
-   click handler that writes the storage lives in landing.js. */
+   landed them on the wrong variant (e.g. an English-speaker who got the
+   Russian page from a direct social-media share). */
 .footer-lang {
   font-size: 10px;
   letter-spacing: 0.18em;

@@ -107,6 +107,24 @@ app.get('/api/contributors', (req, res) => {
     res.json({ names: CONTRIBUTORS });
 });
 
+/* Рантайм-инъекция версии в лендинг.
+   Лендинг ссылается на актуальную версию в двух местах: softwareVersion в
+   JSON-LD и data-version-fallback на hero-eyebrow. Чтобы не держать четыре
+   синхронных хардкода (package.json + public/settings.js + RU html + EN html),
+   один источник истины — package.json. При старте читаем лендинг-HTML,
+   подставляем {{VERSION}} → PKG_VERSION, кэшируем результат в памяти.
+   Редеплой контейнера = новая версия везде. */
+const LANDING_HTML = (() => {
+    try {
+        const ru = readFileSync(path.join(__dirname, 'landing/index.html'), 'utf8').replaceAll('{{VERSION}}', PKG_VERSION);
+        const en = readFileSync(path.join(__dirname, 'landing/en/index.html'), 'utf8').replaceAll('{{VERSION}}', PKG_VERSION);
+        return { ru, en };
+    } catch (e) {
+        log.error('boot', 'failed to load landing HTML', { error: e.message });
+        return { ru: '', en: '' };
+    }
+})();
+
 /* Bot UA pattern — поисковики, AI-краулеры, и unfurl-боты соцсетей
    (Telegram/Twitter/Discord фетчат OG-метатеги для превью в чатах).
    Все они должны видеть контент по URL как есть, а не редиректиться по
@@ -140,12 +158,33 @@ app.use((req, res, next) => {
     res.redirect(302, '/en/');
 });
 
-// Маршрутизация по поддомену: app.* → приложение, всё остальное → лендинг
+/* Лендинг-HTML с инъектированной версией. Перехватываем только корни /
+   и /en/ на лендинг-домене — остальные пути (privacy, статика, ассеты)
+   уходят дальше в express.static. */
+function isLandingHost(req) {
+    return !(req.hostname === 'app.void-room.space'
+          || req.hostname === 'localhost'
+          || req.hostname === '127.0.0.1');
+}
+app.get('/', (req, res, next) => {
+    if (!isLandingHost(req)) return next();
+    res.set('Content-Type', 'text/html; charset=utf-8');
+    res.send(LANDING_HTML.ru);
+});
+app.get('/en/', (req, res, next) => {
+    if (!isLandingHost(req)) return next();
+    res.set('Content-Type', 'text/html; charset=utf-8');
+    res.send(LANDING_HTML.en);
+});
+
+/* Маршрутизация по поддомену: app.* → приложение, всё остальное → лендинг.
+   extensions:['html'] позволяет /privacy матчить landing/privacy.html без
+   trailing slash и без вынужденной /privacy/index.html структуры. */
 app.use((req, res, next) => {
     const isApp = req.hostname === 'app.void-room.space'
                || req.hostname === 'localhost'
                || req.hostname === '127.0.0.1';
-    express.static(path.join(__dirname, isApp ? 'public' : 'landing'))(req, res, next);
+    express.static(path.join(__dirname, isApp ? 'public' : 'landing'), { extensions: ['html'] })(req, res, next);
 });
 
 const server = http.createServer(app);
