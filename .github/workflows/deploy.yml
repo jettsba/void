@@ -75,3 +75,29 @@ jobs:
 
              docker compose --profile turn up -d --build
              docker image prune -f'
+
+      - name: Ping IndexNow (Bing + Yandex)
+        # IndexNow — открытый протокол от Bing и Yandex для push-уведомления
+        # поисковиков о новых/изменённых URL. Без него Bing/Yandex реагируют
+        # на правки 1-2 недели; с ним — обычно 1-2 дня. Google IndexNow не
+        # использует, для него — Search Console.
+        #
+        # Ключ — публичный токен (не секрет), лежит в landing/<key>.txt и в
+        # этом workflow. Меняется через регенерацию обоих мест синхронно.
+        # API rate-limit ~10k URL/день/хост — наши 4 URL влезают без проблем.
+        # Шлём на каждый деплой; IndexNow не наказывает за лишние ping'и.
+        if: success()
+        run: |
+          curl -fsS -X POST "https://api.indexnow.org/indexnow" \
+            -H "Content-Type: application/json; charset=utf-8" \
+            -d '{
+              "host": "void-room.space",
+              "key": "9a613f86280d93bde756b725d1737563",
+              "keyLocation": "https://void-room.space/9a613f86280d93bde756b725d1737563.txt",
+              "urlList": [
+                "https://void-room.space/",
+                "https://void-room.space/en/",
+                "https://void-room.space/privacy",
+                "https://void-room.space/en/privacy"
+              ]
+            }' || echo "IndexNow ping failed (non-fatal)"

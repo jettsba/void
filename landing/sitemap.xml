@@ -5,8 +5,6 @@
   <url>
     <loc>https://void-room.space/</loc>
     <lastmod>{{LASTMOD}}</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>1.0</priority>
     <xhtml:link rel="alternate" hreflang="ru"        href="https://void-room.space/"/>
     <xhtml:link rel="alternate" hreflang="en"        href="https://void-room.space/en/"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://void-room.space/en/"/>
@@ -15,8 +13,6 @@
   <url>
     <loc>https://void-room.space/en/</loc>
     <lastmod>{{LASTMOD}}</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>1.0</priority>
     <xhtml:link rel="alternate" hreflang="ru"        href="https://void-room.space/"/>
     <xhtml:link rel="alternate" hreflang="en"        href="https://void-room.space/en/"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://void-room.space/en/"/>

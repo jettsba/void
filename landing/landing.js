@@ -85,6 +85,10 @@ void — landing behaviors
         ];
         let BW = 0, BH = 0;
         let blobs = [];
+        /* prefers-reduced-motion: рендерим blob'ы статично (один кадр), без
+           рАФ-цикла. Юзеры с включённой настройкой "уменьшить движение" в
+           OS видят фон, но без анимации — vestibular-safe. */
+        const blobReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
         function bfit() {
             BW = document.documentElement.clientWidth  || window.innerWidth  || 0;
@@ -110,17 +114,20 @@ void — landing behaviors
             }
         }
         bfit(); bseed();
-        window.addEventListener('resize', () => { bfit(); bseed(); });
+        /* Под reduced-motion — на resize только перерисовать (без анимации). */
+        window.addEventListener('resize', () => { bfit(); bseed(); if (blobReducedMotion) bpaint(); });
 
         function bpaint() {
             bctx.clearRect(0, 0, BW, BH);
             bctx.globalCompositeOperation = 'lighter';
             for (const b of blobs) {
-                b.x += b.vx; b.y += b.vy;
-                if (b.x < -b.r) b.x = BW + b.r;
-                if (b.x > BW + b.r) b.x = -b.r;
-                if (b.y < -b.r) b.y = BH + b.r;
-                if (b.y > BH + b.r) b.y = -b.r;
+                if (!blobReducedMotion) {
+                    b.x += b.vx; b.y += b.vy;
+                    if (b.x < -b.r) b.x = BW + b.r;
+                    if (b.x > BW + b.r) b.x = -b.r;
+                    if (b.y < -b.r) b.y = BH + b.r;
+                    if (b.y > BH + b.r) b.y = -b.r;
+                }
                 const [r, g, bl] = b.tint;
                 const grad = bctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.r);
                 grad.addColorStop(0.0, `rgba(${r},${g},${bl},${b.a})`);
@@ -133,7 +140,7 @@ void — landing behaviors
                 bctx.fill();
             }
             bctx.globalCompositeOperation = 'source-over';
-            requestAnimationFrame(bpaint);
+            if (!blobReducedMotion) requestAnimationFrame(bpaint);
         }
         requestAnimationFrame(bpaint);
     }

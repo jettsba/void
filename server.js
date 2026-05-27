@@ -46,6 +46,11 @@ import { readFileSync } from "node:fs";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
+/* Скрываем `X-Powered-By: Express`. Заголовок не несёт пользы для клиентов,
+   но раскрывает стек атакующим — упрощает таргетинг известных CVE Express'а.
+   Caddy и так срезает `Server: Caddy` (см. -Server в Caddyfile), это парная
+   мера на уровне приложения. */
+app.disable('x-powered-by');
 const PORT = process.env.PORT || 3000;
 /**
  * BIND_HOST — какой интерфейс слушать. По умолчанию 127.0.0.1, чтобы случайный
@@ -206,6 +211,21 @@ app.use((req, res, next) => {
                || req.hostname === 'localhost'
                || req.hostname === '127.0.0.1';
     express.static(path.join(__dirname, isApp ? 'public' : 'landing'), { extensions: ['html'] })(req, res, next);
+});
+
+/* Кастомный 404. Лендинг получает стилизованную страницу в тоне сайта
+   (landing/404.html для RU, landing/en/404.html для EN-путей). App-сабдомен
+   обычно SPA — все маршруты сводятся к /, поэтому отдаём минимум.
+   Важно: эта middleware идёт ПОСЛЕ express.static — срабатывает только
+   когда статика не нашла файл. */
+app.use((req, res) => {
+    if (!isLandingHost(req)) {
+        res.status(404).type('text/plain').send('Not Found');
+        return;
+    }
+    const isEn = req.path.startsWith('/en/') || req.path === '/en';
+    const file = isEn ? 'landing/en/404.html' : 'landing/404.html';
+    res.status(404).sendFile(path.join(__dirname, file));
 });
 
 const server = http.createServer(app);
