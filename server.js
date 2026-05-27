@@ -125,6 +125,27 @@ const LANDING_HTML = (() => {
     }
 })();
 
+/* Рантайм-инъекция lastmod в sitemap.xml.
+   Sitemap содержит {{LASTMOD}} плейсхолдер для всех <lastmod> полей; при
+   старте контейнера подставляется текущая дата в формате YYYY-MM-DD. Это
+   автоматически делает sitemap «свежим» при каждом деплое — поисковики
+   видят актуальные даты модификации без ручного редактирования файла.
+   Кэшируем результат, отдаём через /sitemap.xml. */
+const SITEMAP_XML = (() => {
+    try {
+        const today = new Date().toISOString().slice(0, 10);
+        return readFileSync(path.join(__dirname, 'landing/sitemap.xml'), 'utf8').replaceAll('{{LASTMOD}}', today);
+    } catch (e) {
+        log.error('boot', 'failed to load sitemap', { error: e.message });
+        return '';
+    }
+})();
+app.get('/sitemap.xml', (req, res, next) => {
+    if (!isLandingHost(req)) return next();
+    res.set('Content-Type', 'application/xml; charset=utf-8');
+    res.send(SITEMAP_XML);
+});
+
 /* Bot UA pattern — поисковики, AI-краулеры, и unfurl-боты соцсетей
    (Telegram/Twitter/Discord фетчат OG-метатеги для превью в чатах).
    Все они должны видеть контент по URL как есть, а не редиректиться по

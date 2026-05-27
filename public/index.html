@@ -21,32 +21,10 @@
     <meta name="twitter:description" content="ephemeral voice spaces. no accounts. no history. P2P.">
     <meta name="twitter:image"       content="https://void-room.space/static/favicon/web-app-manifest-512x512.png">
 
-    <!-- ===== UI scale bootstrap (v0.10.1) =====
-         Считаем масштаб ДО загрузки CSS, чтобы избежать FOUC. Источник —
-         screen.width (физическая CSS-ширина монитора, иммунна к zoom браузера).
-         Если бы использовали vw в clamp() — браузерный zoom менял бы vw и
-         перекомпенсировал scaling (Ctrl+Minus → интерфейс становился крупнее).
-         JS-based подход делает zoom ортогональным нашему scaling. -->
-    <script>
-        (function () {
-            try {
-                var w = (window.screen && window.screen.width) || window.innerWidth || 1920;
-                var t = 1.4 * (w / 100) - 10;
-                if (t < 14) t = 14;
-                if (t > 44) t = 44;
-                document.documentElement.style.setProperty('--auto-scale', (t / 14).toFixed(3));
-
-                var raw = localStorage.getItem('void:settings');
-                if (raw) {
-                    var s = JSON.parse(raw);
-                    var ui = parseFloat(s && s.uiScale);
-                    if (isFinite(ui) && ui >= 0.5 && ui <= 2.0) {
-                        document.documentElement.style.setProperty('--ui-scale', ui);
-                    }
-                }
-            } catch (e) { /* приватный режим, мусор в storage — оставляем дефолты */ }
-        })();
-    </script>
+    <!-- UI scale bootstrap. Внешний файл (а не inline) чтобы не требовать
+         'unsafe-inline' в CSP. Блокирующий script — должен выполниться ДО
+         CSS, иначе FOUC на больших мониторах. -->
+    <script src="ui-scale-bootstrap.js?v=1"></script>
 
     <link rel="stylesheet" href="css/base.css?v=21">
     <link rel="stylesheet" href="css/intro.css?v=18">
@@ -434,7 +412,7 @@
     </div>
 
     <script defer src="log.js"></script>
-    <script defer src="settings.js?v=24"></script>
+    <script defer src="settings.js?v=25"></script>
     <script defer src="webrtc.js"></script>
     <script defer src="socket.js"></script>
     <script defer src="chat.js?v=2"></script>

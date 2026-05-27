@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 
     <!-- ====== PRIMARY ====== -->
-    <title>void :: peer-to-peer voice rooms</title>
-    <meta name="description" content="Голосовые комнаты без регистрации, без истории, без посредников. Открой комнату одним кликом, поделись кодом, - и говори. Голос, видео, экран, файлы. Бесплатно." />
+    <title>void :: голосовые комнаты без регистрации</title>
+    <meta name="description" content="Голосовые комнаты без регистрации, без истории. Открой комнату, поделись кодом — и говори. Голос, чат, экран, файлы. Бесплатно, ничего не сохраняется." />
     <meta name="keywords" content="голосовая комната, голосовой чат, без регистрации, p2p, peer-to-peer, ephemeral, временный чат, voice chat, voice rooms, browser voice chat, без аккаунтов, void, void-room" />
     <meta name="author" content="void" />
     <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
@@ -63,11 +63,12 @@
       "@graph": [
         {
           "@type": "WebApplication",
+          "@id": "https://void-room.space/#app",
           "name": "void",
           "alternateName": "void-room",
           "url": "https://void-room.space/",
           "applicationCategory": "CommunicationApplication",
-          "operatingSystem": "Any (browser-based)",
+          "operatingSystem": "Web Browser",
           "browserRequirements": "Requires a modern browser with WebRTC support (Chrome, Firefox, Safari, Edge).",
           "offers": {
             "@type": "Offer",
@@ -86,16 +87,31 @@
           ],
           "inLanguage": ["ru", "en"],
           "isAccessibleForFree": true,
-          "softwareVersion": "{{VERSION}}"
+          "softwareVersion": "{{VERSION}}",
+          "creator": {
+            "@type": "Person",
+            "@id": "https://void-room.space/#casheaterr",
+            "name": "casheaterr",
+            "sameAs": "https://t.me/mtbibltww"
+          }
         },
         {
           "@type": "Organization",
+          "@id": "https://void-room.space/#org",
           "name": "void",
           "url": "https://void-room.space/",
-          "logo": "https://void-room.space/static/favicon/favicon.svg"
+          "logo": {
+            "@type": "ImageObject",
+            "url": "https://void-room.space/static/favicon/favicon.svg",
+            "width": 512,
+            "height": 512
+          },
+          "sameAs": ["https://t.me/mtbibltww"],
+          "founder": { "@id": "https://void-room.space/#casheaterr" }
         },
         {
           "@type": "WebSite",
+          "@id": "https://void-room.space/#website",
           "name": "void",
           "url": "https://void-room.space/",
           "inLanguage": "ru-RU"
@@ -115,6 +131,12 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="application-name"                content="void" />
 
+    <!-- Preload критичных ассетов: CSS блокирует рендер, JS нужен для
+         анимаций сразу после первого экрана. ?v=N — cache-buster, бампать
+         синхронно при правках landing.css / landing.js (см. memory rule). -->
+    <link rel="preload" href="landing.css?v=1" as="style">
+    <link rel="preload" href="landing.js?v=1" as="script">
+
     <!-- Lenis: premium smooth scroll with inertia. ~16kb, used by Apple,
          Cuberto, Studio Freight, etc. Self-hosted (vendored to landing/).
          RELATIVE path so it works in VSCode Live Server too (where the
@@ -122,9 +144,9 @@
          would 404). In production express.static('landing') still serves it
          at /lenis.min.js, and a relative ref from /index.html resolves
          identically. -->
-    <script src="lenis.min.js" defer></script>
+    <script src="lenis.min.js?v=1" defer></script>
 
-    <link rel="stylesheet" href="landing.css" />
+    <link rel="stylesheet" href="landing.css?v=1" />
 </head>
 <body>
     <canvas id="bgBlobs"  class="bg-canvas" aria-hidden="true"></canvas>
@@ -757,7 +779,7 @@
         <a class="footer-lang" href="/en/" hreflang="en" lang="en">switch to english</a>
     </footer>
 
-    <script src="intro.js" defer></script>
-    <script src="landing.js" defer></script>
+    <script src="intro.js?v=1" defer></script>
+    <script src="landing.js?v=1" defer></script>
 </body>
 </html>

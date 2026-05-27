@@ -1,0 +1,26 @@
+# void
+
+> void is a free, ephemeral peer-to-peer voice room application. Open a room with one click, share a short code with up to four others, and talk — voice, chat, files, and screen sharing travel directly between participants over WebRTC, without servers, accounts, history, or tracking. When the last person leaves, the room disappears entirely.
+
+## About
+
+- What is void: https://void-room.space/en/#what
+- How it works: https://void-room.space/en/#how
+- Why void: https://void-room.space/en/#why
+- Feature overview: https://void-room.space/en/#inside
+- Privacy model: https://void-room.space/en/#privacy
+- Platforms (web and desktop): https://void-room.space/en/#download
+
+## Docs
+
+- Launch void in browser: https://app.void-room.space/
+- Privacy policy: https://void-room.space/en/privacy
+- Contact / Telegram: https://t.me/mtbibltww
+
+## Optional
+
+- Sitemap: https://void-room.space/sitemap.xml
+- robots.txt: https://void-room.space/robots.txt
+- English landing: https://void-room.space/en/
+- Russian landing: https://void-room.space/
+- Russian privacy: https://void-room.space/privacy

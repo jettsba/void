@@ -51,10 +51,15 @@ www.void-room.space {
 }
 
 # ---- Лендинг (основной домен) -----------------------------------------------
-# script-src включает 'unsafe-inline' т.к. лендинг использует большой inline-блок
-# с i18n, анимациями и поведением страницы. Данные пользователей не обрабатываются.
+# script-src БЕЗ 'unsafe-inline': inline-скрипты с лендинга удалены (язык
+# роутится server-side в server.js). Можно вернуть 'unsafe-inline' если
+# понадобится новый inline-блок, но лучше выносить в .js файл.
+#
+# Сжатие: zstd для современных браузеров (Chrome 123+, FF 126+, Safari 17.4+),
+# br для среднего сегмента (2017-2024), gzip как универсальный fallback.
+# Caddy выбирает лучший формат по Accept-Encoding клиента автоматически.
 void-room.space {
-    encode zstd gzip
+    encode zstd br gzip
 
     header {
         Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
@@ -62,9 +67,17 @@ void-room.space {
         X-Frame-Options           "DENY"
         Referrer-Policy           "strict-origin-when-cross-origin"
         Permissions-Policy        "microphone=(), camera=(), geolocation=(), display-capture=(), interest-cohort=()"
-        Content-Security-Policy   "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+        Content-Security-Policy   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
         -Server
     }
+
+    # Длинный immutable cache для статики. Безопасно потому что все ссылки на
+    # CSS/JS/изображения с лендинга и app идут через cache-buster ?v=N: при
+    # правке файла бампим N → URL меняется → браузер скачивает новый ответ.
+    # Без bumpa старая версия может висеть в кэше юзера до года — поэтому в
+    # memory есть правило обязательного bump'а при правке landing/* и public/*.
+    @static path *.css *.js *.svg *.png *.jpg *.jpeg *.webp *.gif *.ico *.woff *.woff2 *.ttf *.otf *.mp3 *.ogg *.webmanifest
+    header @static Cache-Control "public, max-age=31536000, immutable"
 
     # Скрытая страница: подкреплённый HTTP-заголовком noindex для путей
     # /the-void-egg и /en/the-void-egg. Дублирует <meta name="robots"> внутри
@@ -77,11 +90,13 @@ void-room.space {
 }
 
 # ---- Приложение (поддомен app) -----------------------------------------------
-# Строгий CSP: script-src без 'unsafe-inline'. В коде приложения нет inline-скриптов.
+# Строгий CSP: script-src без 'unsafe-inline'. В коде приложения нет inline-скриптов
+# (UI scale bootstrap вынесен в /ui-scale-bootstrap.js, чтобы не требовать
+# unsafe-inline и при этом отрабатывать ДО загрузки CSS на больших мониторах).
 # style-src 'unsafe-inline' оставлен: JS динамически ставит el.style.x для анимаций.
 # connect-src содержит wss:// для WebSocket-сигналинга.
 app.void-room.space {
-    encode zstd gzip
+    encode zstd br gzip
 
     header {
         Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
@@ -92,6 +107,11 @@ app.void-room.space {
         Content-Security-Policy   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' wss://app.void-room.space; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
         -Server
     }
+
+    # Длинный immutable cache для статики (то же обоснование что на лендинге —
+    # все ссылки версионированы через ?v=N, см. memory rule).
+    @static path *.css *.js *.svg *.png *.jpg *.jpeg *.webp *.gif *.ico *.woff *.woff2 *.ttf *.otf *.mp3 *.ogg *.webmanifest
+    header @static Cache-Control "public, max-age=31536000, immutable"
 
     # /adminstats защищён timing-safe сравнением пароля (lib/admin-stats.js).
     reverse_proxy localhost:3000

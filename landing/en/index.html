@@ -6,7 +6,7 @@
 
     <!-- ====== PRIMARY ====== -->
     <title>void :: peer-to-peer voice rooms</title>
-    <meta name="description" content="Ephemeral voice rooms. No sign-up, no history, no middlemen. Open a room in one click, share the code — and talk. Voice, video, screen, files. Free." />
+    <meta name="description" content="Ephemeral voice rooms. No sign-up, no history. Open a room, share the code — and talk. Voice, chat, screen, files. Free, nothing is saved." />
     <meta name="keywords" content="voice room, voice chat, no sign-up, p2p, peer-to-peer, ephemeral, browser voice chat, no accounts, webrtc, void, void-room" />
     <meta name="author" content="void" />
     <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
@@ -56,11 +56,12 @@
       "@graph": [
         {
           "@type": "WebApplication",
+          "@id": "https://void-room.space/#app",
           "name": "void",
           "alternateName": "void-room",
           "url": "https://void-room.space/en/",
           "applicationCategory": "CommunicationApplication",
-          "operatingSystem": "Any (browser-based)",
+          "operatingSystem": "Web Browser",
           "browserRequirements": "Requires a modern browser with WebRTC support (Chrome, Firefox, Safari, Edge).",
           "offers": {
             "@type": "Offer",
@@ -79,16 +80,31 @@
           ],
           "inLanguage": ["en", "ru"],
           "isAccessibleForFree": true,
-          "softwareVersion": "{{VERSION}}"
+          "softwareVersion": "{{VERSION}}",
+          "creator": {
+            "@type": "Person",
+            "@id": "https://void-room.space/#casheaterr",
+            "name": "casheaterr",
+            "sameAs": "https://t.me/mtbibltww"
+          }
         },
         {
           "@type": "Organization",
+          "@id": "https://void-room.space/#org",
           "name": "void",
           "url": "https://void-room.space/",
-          "logo": "https://void-room.space/static/favicon/favicon.svg"
+          "logo": {
+            "@type": "ImageObject",
+            "url": "https://void-room.space/static/favicon/favicon.svg",
+            "width": 512,
+            "height": 512
+          },
+          "sameAs": ["https://t.me/mtbibltww"],
+          "founder": { "@id": "https://void-room.space/#casheaterr" }
         },
         {
           "@type": "WebSite",
+          "@id": "https://void-room.space/#website",
           "name": "void",
           "url": "https://void-room.space/en/",
           "inLanguage": "en-US"
@@ -108,11 +124,16 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="application-name"                content="void" />
 
+    <!-- Preload критичных ассетов. ?v=N — cache-buster, бампать синхронно
+         при правках landing.css / landing.js (см. memory rule). -->
+    <link rel="preload" href="/landing.css?v=1" as="style">
+    <link rel="preload" href="/landing.js?v=1" as="script">
+
     <!-- Lenis + landing assets. Absolute paths from site root: this file lives
          at /en/, but the shared assets are served from /. -->
-    <script src="/lenis.min.js" defer></script>
+    <script src="/lenis.min.js?v=1" defer></script>
 
-    <link rel="stylesheet" href="/landing.css" />
+    <link rel="stylesheet" href="/landing.css?v=1" />
 </head>
 <body>
     <canvas id="bgBlobs"  class="bg-canvas" aria-hidden="true"></canvas>
@@ -745,7 +766,7 @@
         <a class="footer-lang" href="/" hreflang="ru" lang="ru">switch to russian</a>
     </footer>
 
-    <script src="/intro.js" defer></script>
-    <script src="/landing.js" defer></script>
+    <script src="/intro.js?v=1" defer></script>
+    <script src="/landing.js?v=1" defer></script>
 </body>
 </html>
