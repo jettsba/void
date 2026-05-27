@@ -2,8 +2,10 @@
  * Тонкая обёртка над console.* с уровнями, тегами, ring buffer'ом и
  * глобальным перехватом необработанных ошибок.
  *
- * Уровни: error | warn | info | debug. По умолчанию — info (видим штатные
- * события: join/leave, peer state, reconnect). debug — для глубокой отладки.
+ * Уровни: error | warn | info | debug. По умолчанию — warn (в консоль идут
+ * только ошибки и предупреждения; штатные info-события join/leave/peer-state
+ * не засоряют консоль). Ring buffer ниже всё равно копит ВСЕ уровни —
+ * bug-report остаётся полным. debug — для глубокой отладки через ?debug=1.
  *
  * Как менять уровень:
  *   ?debug=1 в URL          — действует на одну загрузку.
@@ -25,7 +27,7 @@
 (function () {
     const LEVELS = { error: 0, warn: 1, info: 2, debug: 3 };
 
-    let initial = "info";
+    let initial = "warn";
     try {
         const url = new URLSearchParams(location.search);
         if (url.has("debug")) initial = "debug";
@@ -92,11 +94,11 @@
             console.info(`log level → ${level} (saved to localStorage)`);
         },
 
-        /** Вернуться к дефолту info. */
+        /** Вернуться к дефолту warn. */
         clearLevel() {
             try { localStorage.removeItem("void:log"); } catch (_) {}
-            active = LEVELS.info;
-            console.info("log level → info (default)");
+            active = LEVELS.warn;
+            console.info("log level → warn (default)");
         },
 
         /** L3: snapshot буфера (последние 300 записей, любые уровни).
