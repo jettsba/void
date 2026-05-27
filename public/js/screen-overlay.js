@@ -126,12 +126,13 @@ function handleScreencastStateMsg(data) {
         roomScreencasterId = userId;
     } else if (roomScreencasterId === userId) {
         roomScreencasterId = null;
-        /* preserveAutoReopen: стример мог выключить демку чтобы тут же
-           пере-запустить с другим разрешением / без звука. Сохраняем
-           lastWatched 5 минут — если стример снова запустит, новый трек
-           через ontrack/notifyScreenVideoReady авто-реоткроет оверлей.
-           Если стример не вернётся за 5 минут, TTL истечёт сам. */
-        closeScreenOverlay({ preserveAutoReopen: true });
+        /* Стример осознанно выключил демку — сбрасываем lastWatched, чтобы
+           следующий запуск НЕ авто-открывал оверлей у зрителя. Иначе:
+           зритель свернул просмотр / альт-табнулся в игру → стример рестартнул
+           демку → оверлей сам разворачивается на фуллскрин поверх игры.
+           Auto-reopen остаётся для peer-rebuild сценариев (cleanupPeerSlot,
+           participant-left) — там lastWatched сохраняется отдельно. */
+        closeScreenOverlay();
     }
     updateParticipantScreenState(userId, screen);
     syncScreencastBtnBlocked();
