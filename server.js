@@ -213,11 +213,28 @@ app.use((req, res, next) => {
     express.static(path.join(__dirname, isApp ? 'public' : 'landing'), { extensions: ['html'] })(req, res, next);
 });
 
+mountAdminStats(app);
+/* /api/report-bug — багрепорт-форма из настроек. JSON только для этого
+   route (нет смысла парсить тело на каждом запросе статики). 256 KB cap —
+   с запасом под полный log.bugReport() от Chrome (история + peer stats). */
+mountBugReport(app, express.json({ limit: "256kb" }));
+/* /api/turn-credentials — выдаёт клиенту короткие HMAC-credentials для
+   coturn-сервиса. Если TURN_HOST/TURN_SECRET пусты — endpoint молча 503,
+   клиент работает только со STUN. */
+mountTurnEndpoint(app);
+/* T1.1: /api/leave-room — приём navigator.sendBeacon на pagehide. Гарантирует
+   быстрое (до 1s) исчезновение «призрака» в комнате при закрытии вкладки,
+   когда WS leave-room не успевает уйти из TCP-буфера. 256 байт лимит — body
+   это `{code, userId}`, ничего больше не ждём. */
+mountLeaveBeaconEndpoint(app, express.json({ limit: "256b" }));
+
 /* Кастомный 404. Лендинг получает стилизованную страницу в тоне сайта
    (landing/404.html для RU, landing/en/404.html для EN-путей). App-сабдомен
    обычно SPA — все маршруты сводятся к /, поэтому отдаём минимум.
-   Важно: эта middleware идёт ПОСЛЕ express.static — срабатывает только
-   когда статика не нашла файл. */
+   Важно: эта middleware идёт ПОСЛЕ express.static И ПОСЛЕ всех API-маунтов
+   (mountAdminStats / mountTurnEndpoint / mountBugReport / mountLeaveBeacon) —
+   иначе catch-all перехватит их запросы первым (Express матчит маршруты в
+   порядке регистрации). */
 app.use((req, res) => {
     if (!isLandingHost(req)) {
         res.status(404).type('text/plain').send('Not Found');
@@ -299,21 +316,6 @@ const wss = new WebSocketServer({
         cb(true);
     },
 });
-
-mountAdminStats(app);
-/* /api/report-bug — багрепорт-форма из настроек. JSON только для этого
-   route (нет смысла парсить тело на каждом запросе статики). 256 KB cap —
-   с запасом под полный log.bugReport() от Chrome (история + peer stats). */
-mountBugReport(app, express.json({ limit: "256kb" }));
-/* /api/turn-credentials — выдаёт клиенту короткие HMAC-credentials для
-   coturn-сервиса. Если TURN_HOST/TURN_SECRET пусты — endpoint молча 503,
-   клиент работает только со STUN. */
-mountTurnEndpoint(app);
-/* T1.1: /api/leave-room — приём navigator.sendBeacon на pagehide. Гарантирует
-   быстрое (до 1s) исчезновение «призрака» в комнате при закрытии вкладки,
-   когда WS leave-room не успевает уйти из TCP-буфера. 256 байт лимит — body
-   это `{code, userId}`, ничего больше не ждём. */
-mountLeaveBeaconEndpoint(app, express.json({ limit: "256b" }));
 
 /**
  * Heartbeat. Без него мёртвый TCP-коннект (закрытая вкладка без FIN, спящий ноут,
