@@ -39,6 +39,12 @@
                    интерфейса», слайдер). По дефолту 1.0. */
     --auto-scale: 1;
     --ui-scale: 1;
+
+    /* Высота custom titlebar'а. 0px в web (no titlebar), переопределяется
+       в html.desktop scope в css/titlebar.css. Используется fixed-элементами
+       (chat-panel, chat-toggle, settings-panel, intro) чтобы не залезать
+       под titlebar в desktop-сборке без правки каждого их CSS отдельно. */
+    --titlebar-h: 0px;
 }
 
 * {

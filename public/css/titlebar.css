@@ -2,17 +2,20 @@
    Активируется через html.desktop класс — ставит desktop-bootstrap.js
    при наличии Tauri runtime. В web-сборке остаётся display:none.
 
-   Высота 1.86rem (~26px на дефолтном font-size) — тоньше чем стандартный
-   Win11 titlebar, ближе к macOS. Glassmorph поверх ambient canvas.
+   Высота 1.86rem (~26px на font-size 14px). Glassmorph поверх ambient canvas.
 
-   Layout (macOS-style — кнопки слева):
+   Layout (Windows-order — кнопки справа, как в Discord/Spotify):
    ┌──────────────────────────────────────────────────┐
-   │ ● ● ●    <─── drag region (вся остальная часть) ─┤
+   │ <─── drag region ───>                  ─  □  ×  │
    └──────────────────────────────────────────────────┘
 
    data-tauri-drag-region на header и .void-titlebar-drag — target клика
-   без атрибута (сами кнопки) не двигает окно. start-dragging должен быть
-   разрешён в capabilities — иначе drag молча игнорируется. */
+   без атрибута (сами кнопки) не двигает окно. allow-start-dragging должен
+   быть в capabilities — иначе drag молча игнорируется. */
+
+html.desktop {
+    --titlebar-h: 1.86rem;
+}
 
 .void-titlebar { display: none; }
 
@@ -21,7 +24,7 @@ html.desktop .void-titlebar {
     top: 0;
     left: 0;
     right: 0;
-    height: 1.86rem;
+    height: var(--titlebar-h);
     z-index: 200;
     display: flex;
     align-items: center;
@@ -34,22 +37,22 @@ html.desktop .void-titlebar {
     -webkit-user-select: none;
 }
 
-html.desktop .void-titlebar-controls {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    flex-shrink: 0;
-}
-
 html.desktop .void-titlebar-drag {
     flex: 1 1 auto;
     height: 100%;
     min-width: 0;
 }
 
+html.desktop .void-titlebar-controls {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.64rem;
+    flex-shrink: 0;
+}
+
 html.desktop .void-titlebar-btn {
-    width: 0.86rem;
-    height: 0.86rem;
+    width: 1rem;
+    height: 1rem;
     border-radius: 50%;
     border: 0;
     padding: 0;
@@ -60,30 +63,34 @@ html.desktop .void-titlebar-btn {
     justify-content: center;
     outline: none;
     flex-shrink: 0;
-    transition: background var(--t-fast), transform var(--t-fast);
+    background: rgba(255, 255, 255, 0.08);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+    transition: background var(--t-fast), box-shadow var(--t-fast), transform var(--t-fast);
 }
 
-/* idle: разноцветные dim — глаз сразу читает «macOS-семантика»,
-   но цвета взяты из нашей палитры base.css. Без hover группы — кружки
-   приглушённые, не отвлекают внимание. */
-html.desktop .void-titlebar-close { background: rgba(184, 122, 90, 0.55); }
-html.desktop .void-titlebar-min   { background: rgba(200, 200, 204, 0.45); }
-html.desktop .void-titlebar-max   { background: rgba(95, 170, 122, 0.55); }
-
-/* Hover на ЛЮБОЙ кнопке группы → все три становятся яркими + иконки
-   проявляются. Это macOS pattern — даёт визуальную обратную связь, что
-   группа интерактивна. */
-html.desktop .void-titlebar-controls:hover .void-titlebar-close { background: var(--signal-warn); }
+/* Hover группы → цветные. Idle — все три серые (нейтральные).
+   Inset shadow меняется на тёмный, чтобы цветной hover не выглядел плоским. */
+html.desktop .void-titlebar-controls:hover .void-titlebar-btn {
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.18);
+}
 html.desktop .void-titlebar-controls:hover .void-titlebar-min   { background: var(--signal); }
 html.desktop .void-titlebar-controls:hover .void-titlebar-max   { background: var(--screen); }
+html.desktop .void-titlebar-controls:hover .void-titlebar-close { background: var(--signal-warn); }
 
+/* Lucide-style stroke icons (viewBox 24×24) — round caps/joins дают
+   плавные концы линий на маленьком физическом размере. shape-rendering:
+   geometricPrecision просит браузер использовать максимальный антиалиасинг.
+   Иконки видны только при hover группы (как раньше). */
 html.desktop .void-titlebar-btn svg {
-    width: 0.5rem;
-    height: 0.5rem;
-    stroke: rgba(0, 0, 0, 0.7);
-    stroke-width: 1.4;
-    stroke-linecap: round;
+    width: 64%;
+    height: 64%;
+    display: block;
     fill: none;
+    stroke: rgba(0, 0, 0, 0.82);
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    shape-rendering: geometricPrecision;
     opacity: 0;
     pointer-events: none;
     transition: opacity var(--t-fast);
@@ -93,14 +100,28 @@ html.desktop .void-titlebar-controls:hover .void-titlebar-btn svg { opacity: 1; 
 
 html.desktop .void-titlebar-btn:active { transform: scale(0.92); }
 
-/* Maximize ↔ Restore: разные иконки */
+/* Maximize ↔ Restore: переключение иконки по is-maximized классу. */
 html.desktop .void-titlebar-max .void-titlebar-icon-restore { display: none; }
 html.desktop .void-titlebar-max.is-maximized .void-titlebar-icon-max { display: none; }
-html.desktop .void-titlebar-max.is-maximized .void-titlebar-icon-restore { display: inline; }
+html.desktop .void-titlebar-max.is-maximized .void-titlebar-icon-restore { display: block; }
 
-/* Освобождаем место для титлбара в основных корневых контейнерах.
-   Canvas и фон не трогаем — они остаются от края до края. */
+/* ============ Сдвиг существующих fixed-элементов под titlebar ============
+   Каждый из них опирается на top:0 в своём CSS — компенсируем через
+   var(--titlebar-h). В web переменная = 0, поэтому web-layout не задет. */
+
 html.desktop .intro,
 html.desktop .app {
-    padding-top: 1.86rem;
+    padding-top: var(--titlebar-h);
+}
+
+html.desktop .chat-panel {
+    top: var(--titlebar-h);
+}
+
+html.desktop .chat-toggle {
+    top: calc((var(--hdr-h) - 1rem) / 2 + var(--titlebar-h));
+}
+
+html.desktop .settings-panel {
+    top: var(--titlebar-h);
 }
