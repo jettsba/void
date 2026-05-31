@@ -9,3 +9,7 @@ data
 .env.*
 !.env.example
 logs
+
+# Tauri / Rust build artefacts
+src-tauri/target
+src-tauri/gen/schemas

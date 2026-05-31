@@ -1,0 +1,23 @@
+[package]
+name = "void-desktop"
+version = "0.10.16"
+description = "Void — эфемерные P2P голосовые комнаты"
+authors = ["Void"]
+edition = "2021"
+rust-version = "1.77"
+
+[lib]
+name = "void_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[features]
+custom-protocol = ["tauri/custom-protocol"]

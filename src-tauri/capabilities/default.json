@@ -1,0 +1,9 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Capability set for the main Void window. Phase 0 — minimal core permissions; extended in later phases (tray, hotkeys, updater).",
+  "windows": ["main"],
+  "permissions": [
+    "core:default"
+  ]
+}
