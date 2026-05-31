@@ -46,13 +46,16 @@ html.desktop .void-titlebar-drag {
 html.desktop .void-titlebar-controls {
     display: inline-flex;
     align-items: center;
-    gap: 0.64rem;
+    gap: 8px;
     flex-shrink: 0;
 }
 
 html.desktop .void-titlebar-btn {
-    width: 1rem;
-    height: 1rem;
+    /* Жёсткие пиксели вместо rem — чтобы viewBox 16×16 SVG внутри ложился
+       на пиксельную сетку без subpixel-смещений. Иначе round-caps и
+       тонкие штрихи блюрятся и визуально смотрятся «не по центру». */
+    width: 16px;
+    height: 16px;
     border-radius: 50%;
     border: 0;
     padding: 0;
@@ -82,12 +85,15 @@ html.desktop .void-titlebar-controls:hover .void-titlebar-close { background: va
    geometricPrecision просит браузер использовать максимальный антиалиасинг.
    Иконки видны только при hover группы (как раньше). */
 html.desktop .void-titlebar-btn svg {
-    width: 64%;
-    height: 64%;
+    /* SVG занимает 100% круга, viewBox 16 = 1 unit/px. Path с integer
+       координатами симметрично вокруг (8,8) → центр иконки гарантированно
+       на пиксельной сетке. stroke 2 = ровно 2px на DPR=1, 4px на retina. */
+    width: 100%;
+    height: 100%;
     display: block;
     fill: none;
     stroke: rgba(0, 0, 0, 0.82);
-    stroke-width: 2.5;
+    stroke-width: 2;
     stroke-linecap: round;
     stroke-linejoin: round;
     shape-rendering: geometricPrecision;
