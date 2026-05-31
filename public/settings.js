@@ -7,10 +7,15 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "0.10.16";
+    const APP_VERSION = "0.10.18";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
+
+    /* Platform-флаг. desktop-bootstrap.js в <head> уже выставляет
+       window.VoidPlatform="desktop" и html.desktop класс при наличии
+       Tauri runtime (без FOUC). Здесь — fallback для web-сборки. */
+    if (!window.VoidPlatform) window.VoidPlatform = "web";
 
     const STORAGE_KEY = "void:settings";
     /**

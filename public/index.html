@@ -25,6 +25,10 @@
          'unsafe-inline' в CSP. Блокирующий script — должен выполниться ДО
          CSS, иначе FOUC на больших мониторах. -->
     <script src="ui-scale-bootstrap.js?v=1"></script>
+    <!-- Desktop runtime bootstrap. Ставит html.desktop класс и
+         window.VoidPlatform="desktop" при наличии Tauri runtime. До CSS,
+         чтобы избежать FOUC между web-mode и desktop-mode (custom titlebar). -->
+    <script src="desktop-bootstrap.js?v=1"></script>
 
     <link rel="stylesheet" href="css/base.css?v=21">
     <link rel="stylesheet" href="css/intro.css?v=18">
@@ -40,6 +44,7 @@
     <link rel="stylesheet" href="css/screencast.css?v=19">
     <link rel="stylesheet" href="css/responsive.css?v=21">
     <link rel="stylesheet" href="css/settings.css?v=30">
+    <link rel="stylesheet" href="css/titlebar.css?v=2">
 
 <link rel="icon" type="image/png" href="/static/favicon/favicon-96x96.png" sizes="96x96" />
     <link rel="icon" type="image/svg+xml" href="/static/favicon/favicon.svg" />
@@ -56,6 +61,26 @@
 </head>
 
 <body>
+    <!-- Custom titlebar — рендерится только в desktop-сборке
+         (html.desktop класс ставится desktop-bootstrap.js).
+         В web-сборке скрыт через display:none в titlebar.css.
+         Layout — macOS-style: три цветных кружочка слева, drag-region справа. -->
+    <header class="void-titlebar" id="voidTitlebar" data-tauri-drag-region>
+        <div class="void-titlebar-controls">
+            <button type="button" class="void-titlebar-btn void-titlebar-close" id="voidTitlebarClose" aria-label="закрыть">
+                <svg viewBox="0 0 10 10" aria-hidden="true"><path d="M3 3l4 4M7 3l-4 4" /></svg>
+            </button>
+            <button type="button" class="void-titlebar-btn void-titlebar-min" id="voidTitlebarMin" aria-label="свернуть">
+                <svg viewBox="0 0 10 10" aria-hidden="true"><path d="M2.5 5h5" /></svg>
+            </button>
+            <button type="button" class="void-titlebar-btn void-titlebar-max" id="voidTitlebarMax" aria-label="развернуть">
+                <svg viewBox="0 0 10 10" aria-hidden="true" class="void-titlebar-icon-max"><path d="M2.2 4l2.8-2 2.8 2M2.2 6l2.8 2 2.8-2" /></svg>
+                <svg viewBox="0 0 10 10" aria-hidden="true" class="void-titlebar-icon-restore"><path d="M2.2 4l2.8 2 2.8-2M2.2 6l2.8-2 2.8 2" /></svg>
+            </button>
+        </div>
+        <div class="void-titlebar-drag" data-tauri-drag-region></div>
+    </header>
+
     <canvas id="background"></canvas>
     <canvas id="background-stars"></canvas>
     <div id="background-grain"></div>
@@ -413,7 +438,7 @@
     </div>
 
     <script defer src="log.js?v=1"></script>
-    <script defer src="settings.js?v=27"></script>
+    <script defer src="settings.js?v=28"></script>
     <script defer src="webrtc.js"></script>
     <script defer src="socket.js"></script>
     <script defer src="chat.js?v=2"></script>
@@ -431,6 +456,7 @@
     <script defer src="js/intro.js?v=3"></script>
     <script defer src="js/room.js?v=4"></script>
     <script defer src="js/app.js?v=8"></script>
+    <script defer src="js/desktop/titlebar.js?v=1"></script>
 </body>
 
 </html>
