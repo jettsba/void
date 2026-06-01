@@ -242,7 +242,16 @@ function getOrCreateAudioContext() {
     if (audioContext) return audioContext;
     const Ctx = window.AudioContext || window.webkitAudioContext;
     if (!Ctx) return null;
-    audioContext = new Ctx();
+    /* Просим 48 kHz: RNNoise работает строго на этой частоте. На многих
+       Windows-конфигах source idle 44.1 kHz, без явного указания AudioContext
+       подхватывает source-rate и RNNoise отключается с reason="sampleRate=...".
+       Браузер сам делает resample 44.1→48, overhead копеечный. Fallback на
+       дефолт если конструктор отверг опцию (старый Safari <14.5). */
+    try {
+        audioContext = new Ctx({ sampleRate: 48000 });
+    } catch (_) {
+        audioContext = new Ctx();
+    }
     /* iOS Safari создаёт AudioContext в state="suspended"; destination.stream
        при этом выдаёт ТИШИНУ, хотя mic-track active. Self-analyser сидит на
        raw localStream — поэтому свой mic-индикатор работает, а собеседник не
