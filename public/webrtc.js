@@ -99,9 +99,14 @@ function buildMicConstraints() {
        вместо браузерного AGC. NS и AEC оставляем: NS компенсирует фон,
        AEC обязателен на спикерфоне, без него собеседник слышит своё эхо. */
     const isAndroid = /Android/.test(navigator.userAgent);
+    /* RNNoise активируется автоматически при наличии AudioWorklet (все Chromium
+       66+, Firefox 76+, Safari 14.1+). В этом случае штатный chromium NS
+       отключаем — двойная обработка ухудшает сигнал. Если AudioWorklet нет
+       (древний браузер / WebView) — fallback на chromium NS. */
+    const audioWorkletSupported = typeof AudioWorkletNode !== "undefined";
     const audioConstraints = {
         echoCancellation: true,
-        noiseSuppression: true,
+        noiseSuppression: !audioWorkletSupported,
         autoGainControl: !isAndroid,
         channelCount: 1,
     };
@@ -123,7 +128,7 @@ async function initMedia() {
          на фоне громких транзиентов.
        Анализатор «speaking» по-прежнему сидит на сыром localStream —
        UI отзывается на реальный голос пользователя, а не на отфильтрованный. */
-    processedStream = applyAudioProcessing(localStream);
+    processedStream = await applyAudioProcessing(localStream);
 
     /* F5: микрофонный трек может умереть посреди звонка (USB-устройство
        выдернули, переключили Bluetooth, OS отозвала audio session). Tracks
@@ -198,7 +203,7 @@ async function reinitLocalMic() {
         return false;
     }
 
-    processedStream = applyAudioProcessing(localStream);
+    processedStream = await applyAudioProcessing(localStream);
     watchLocalMicTrack(localStream);
 
     // Self analyser завязан на старый (мёртвый) stream — пересоздаём на новом.
@@ -259,10 +264,50 @@ function getOrCreateAudioContext() {
     return audioContext;
 }
 
-function applyAudioProcessing(rawStream) {
+/* AudioWorklet module load — однократный per AudioContext. Повторные вызовы
+   addModule в Chromium идемпотентны (возвращают cached promise), но мы кэшируем
+   результат явно, чтобы не плодить лишние Promise'ы при rebuild'е mic-графа. */
+let _rnnoiseModulePromise = null;
+
+async function createRnnoiseNode(ctx) {
+    if (!ctx || !ctx.audioWorklet) return null;
+    try {
+        if (!_rnnoiseModulePromise) {
+            _rnnoiseModulePromise = ctx.audioWorklet.addModule("audio/rnnoise-processor.js?v=1");
+        }
+        await _rnnoiseModulePromise;
+        const node = new AudioWorkletNode(ctx, "rnnoise-processor", {
+            numberOfInputs: 1,
+            numberOfOutputs: 1,
+            channelCount: 1,
+            channelCountMode: "explicit",
+            channelInterpretation: "speakers"
+        });
+        node.port.onmessage = (e) => {
+            const t = e.data?.type;
+            if (t === "ready") log.info("rtc", "rnnoise ready");
+            else if (t === "disabled") log.warn("rtc", "rnnoise disabled", { reason: e.data.reason });
+            else if (t === "error") log.warn("rtc", "rnnoise error", { msg: e.data.message });
+        };
+        return node;
+    } catch (err) {
+        log.warn("rtc", "rnnoise init failed — fallback to passthrough", { err: err?.message || String(err) });
+        _rnnoiseModulePromise = null;
+        return null;
+    }
+}
+
+async function applyAudioProcessing(rawStream) {
     if (!getOrCreateAudioContext()) return rawStream;
 
     const source = audioContext.createMediaStreamSource(rawStream);
+
+    /* RNNoise node вставляется ПЕРЕД filtering — сначала ML-денойз убирает
+       стационарный шум (вентилятор, клавиатура, фоновый speech), потом
+       наши highpass/lowpass/compressor работают на чистом сигнале. Если
+       worklet не поднялся (старый браузер) — фallback на источник напрямую,
+       штатный NS в этом случае был включён в buildMicConstraints. */
+    const rnnoise = await createRnnoiseNode(audioContext);
 
     /* Highpass: 110Hz на десктопе режет гул вентилятора / холодильника /
        сабвуферный rumble. На мобильном — 80Hz: iPhone в speakerphone-режиме
@@ -371,7 +416,12 @@ function applyAudioProcessing(rawStream) {
 
     const destination = audioContext.createMediaStreamDestination();
 
-    source.connect(highpass);
+    if (rnnoise) {
+        source.connect(rnnoise);
+        rnnoise.connect(highpass);
+    } else {
+        source.connect(highpass);
+    }
     highpass.connect(lowpass);
     lowpass.connect(compressor);
     compressor.connect(analyser);
@@ -382,7 +432,7 @@ function applyAudioProcessing(rawStream) {
     // Сохраняем ссылки для teardownAudioGraph(). gateState хранит флаг
     // running — устанавливается в false при teardown, чтобы rAF-loop
     // вышел сам, не плодя зомби-циклы.
-    audioGraph = { source, highpass, lowpass, compressor, analyser, gateGain, gain, destination, gateState };
+    audioGraph = { source, rnnoise, highpass, lowpass, compressor, analyser, gateGain, gain, destination, gateState };
 
     return destination.stream;
 }
@@ -493,6 +543,7 @@ document.addEventListener("void:audio-out-device-changed", applyOutputSinkToAll)
 document.addEventListener("void:audio-in-device-changed", (e) => {
     log.info("rtc", "input device queued", { deviceId: e?.detail?.deviceId || "default" });
 });
+
 
 /* visibility recovery: при возврате вкладки в foreground на iOS контекст
    часто остаётся в "interrupted" — statechange-листенер в

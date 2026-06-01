@@ -104,7 +104,11 @@ app.void-room.space {
         X-Frame-Options           "DENY"
         Referrer-Policy           "strict-origin-when-cross-origin"
         Permissions-Policy        "microphone=(self), camera=(self), geolocation=(), display-capture=(self), interest-cohort=()"
-        Content-Security-Policy   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' wss://app.void-room.space; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+        # 'wasm-unsafe-eval' нужен для WebAssembly.instantiate (RNNoise WASM в
+        # AudioWorklet, см. public/audio/rnnoise-processor.js v0.10.41). Это
+        # CSP3 директива, узкий permission только для WASM, не разрешает
+        # обычный eval() JS. Без неё mic-граф упадёт обратно на штатный NS.
+        Content-Security-Policy   "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' wss://app.void-room.space; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
         -Server
     }
 
