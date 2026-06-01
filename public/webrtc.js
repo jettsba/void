@@ -1715,7 +1715,9 @@ function patchOpusForStereo(sdp) {
         /(a=fmtp:\d+ .+?(?:minptime=\d+|useinbandfec=\d+)[^\r\n]*)/g,
         (match) => {
             if (match.includes("stereo=1")) return match;
-            return match + ";stereo=1;sprop-stereo=1;maxaveragebitrate=192000";
+            /* 256k stereo + full-band sample rate + DTX off (DTX режет
+               атаки/sustain в музыке когда уровень падает между нотами). */
+            return match + ";stereo=1;sprop-stereo=1;maxaveragebitrate=256000;usedtx=0;maxplaybackrate=48000;sprop-maxcapturerate=48000";
         }
     );
 }
@@ -1739,9 +1741,9 @@ function patchVideoStartBitrate(sdp, height, fps) {
        2-3 секунды дать приличную картинку, не настолько большой чтобы
        захлестнуть канал. min ≈ четверть target'а — нижний предел при
        congestion'е. Цифры в КБИТАХ для x-google-* (не байтах, как maxBitrate). */
-    const target = height >= 1080 ? (fps >= 60 ? 8000 : 5000)
-                  : height >= 720 ? (fps >= 60 ? 4000 : 2500)
-                  : 1500;
+    const target = height >= 1080 ? (fps >= 60 ? 11200 : 7000)
+                  : height >= 720  ? (fps >= 60 ? 5600  : 3500)
+                  :                   (fps >= 60 ? 2400  : 1500);
     const start = Math.round(target * 0.6);
     const min   = Math.round(target * 0.25);
     const max   = target;
@@ -1815,7 +1817,7 @@ async function applyScreenAudioParams(senders) {
     try {
         const params = audioSender.getParameters();
         if (!params.encodings || !params.encodings.length) params.encodings = [{}];
-        params.encodings[0].maxBitrate = 192000;
+        params.encodings[0].maxBitrate = 256000;
         params.encodings[0].networkPriority = "high";
         await audioSender.setParameters(params);
     } catch (err) {
@@ -1829,9 +1831,9 @@ async function applyScreenAudioParams(senders) {
  * на 1080p даже когда сеть свободна — на быстром скролле / видео это
  * выдаёт пиксельные блоки. Цифры подобраны под P2P (LAN/обычный upload):
  *
- *   480p30/60   → 1.2 / 1.8 Mbps
- *   720p30/60   → 2.5 / 4.0 Mbps
- *   1080p30/60  → 5.0 / 8.0 Mbps
+ *   480p30/60   → 1.5 / 2.4 Mbps
+ *   720p30/60   → 3.5 / 5.6 Mbps
+ *   1080p30/60  → 7.0 / 11.2 Mbps
  *
  * networkPriority="high" — при congestion'е video не уйдёт ниже mic.
  * maxFramerate — иначе encoder сам решает резать ли fps; на 60fps это
@@ -1858,9 +1860,9 @@ async function applyScreenAudioParams(senders) {
 async function applyDirectScreenVideoParams(senders, height, fps) {
     const videoSender = senders.find(s => s.track?.kind === "video");
     if (!videoSender) return;
-    const base = height >= 1080 ? 5_000_000
-                : height >= 720  ? 2_500_000
-                : 1_200_000;
+    const base = height >= 1080 ? 7_000_000
+                : height >= 720  ? 3_500_000
+                : 1_500_000;
     const maxBitrate = fps >= 60 ? Math.round(base * 1.6) : base;
 
     const apply = async (withDegradation) => {
@@ -2104,9 +2106,9 @@ async function applyRelayBitrateLimits(peer) {
             const params = sender.getParameters();
             if (!params.encodings || !params.encodings.length) params.encodings = [{}];
             const enc = params.encodings[0];
-            enc.maxBitrate = 800_000;
-            enc.scaleResolutionDownBy = 2;
-            enc.maxFramerate = 15;
+            enc.maxBitrate = 1_500_000;
+            enc.scaleResolutionDownBy = 1.5;
+            enc.maxFramerate = 20;
             if (withDegradation) params.degradationPreference = "maintain-resolution";
             await sender.setParameters(params);
         };
