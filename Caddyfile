@@ -56,10 +56,12 @@ www.void-room.space {
 # понадобится новый inline-блок, но лучше выносить в .js файл.
 #
 # Сжатие: zstd для современных браузеров (Chrome 123+, FF 126+, Safari 17.4+),
-# br для среднего сегмента (2017-2024), gzip как универсальный fallback.
-# Caddy выбирает лучший формат по Accept-Encoding клиента автоматически.
+# gzip как универсальный fallback. brotli убран — он требует отдельного
+# модуля http.encoders.br (не входит в стандартный apt-пакет caddy на VPS,
+# его подтягивает только кастомная сборка через xcaddy). zstd+gzip покрывают
+# 99% UA. Caddy выбирает формат по Accept-Encoding клиента автоматически.
 void-room.space {
-    encode zstd br gzip
+    encode zstd gzip
 
     header {
         Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
@@ -96,7 +98,7 @@ void-room.space {
 # style-src 'unsafe-inline' оставлен: JS динамически ставит el.style.x для анимаций.
 # connect-src содержит wss:// для WebSocket-сигналинга.
 app.void-room.space {
-    encode zstd br gzip
+    encode zstd gzip
 
     header {
         Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
@@ -104,10 +106,6 @@ app.void-room.space {
         X-Frame-Options           "DENY"
         Referrer-Policy           "strict-origin-when-cross-origin"
         Permissions-Policy        "microphone=(self), camera=(self), geolocation=(), display-capture=(self), interest-cohort=()"
-        # 'wasm-unsafe-eval' нужен для WebAssembly.instantiate (RNNoise WASM в
-        # AudioWorklet, см. public/audio/rnnoise-processor.js v0.10.41). Это
-        # CSP3 директива, узкий permission только для WASM, не разрешает
-        # обычный eval() JS. Без неё mic-граф упадёт обратно на штатный NS.
         Content-Security-Policy   "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' wss://app.void-room.space; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
         -Server
     }

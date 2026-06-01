@@ -1,6 +1,6 @@
 [package]
 name = "void-desktop"
-version = "0.10.42"
+version = "0.10.43"
 description = "Void — эфемерные P2P голосовые комнаты"
 authors = ["Void"]
 edition = "2021"
