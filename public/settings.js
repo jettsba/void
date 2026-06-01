@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "0.10.31";
+    const APP_VERSION = "0.10.36";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
@@ -40,7 +40,13 @@
            к корневому font-size поверх auto-scale (см. base.css :root).
            inline-скрипт в <head> index.html читает это ДО загрузки CSS,
            чтобы избежать FOUC. Слайдер в панели — 70..150%. */
-        uiScale: 1.0
+        uiScale: 1.0,
+        /* Desktop-only настройки. В web-сборке игнорируются, но сериализуются
+           одинаково — чтобы settings panel UI не разваливался при переключении.
+           closeAction: "minimize" (default) — close → hide-to-tray;
+                        "close" — close → quit. */
+        closeAction: "minimize",
+        autoStart: false
     };
 
     const BG_THEMES = ["silence", "nebula", "void-grid"];
@@ -395,6 +401,10 @@
                 if (typeof parsed.uiScale === "number" && isFinite(parsed.uiScale)) {
                     state.uiScale = clampGain(parsed.uiScale, UI_SCALE_MIN, UI_SCALE_MAX);
                 }
+                if (parsed.closeAction === "minimize" || parsed.closeAction === "close") {
+                    state.closeAction = parsed.closeAction;
+                }
+                if (typeof parsed.autoStart === "boolean") state.autoStart = parsed.autoStart;
             }
         } catch {
             /* приватный режим, мусор в storage — игнорим, остаются дефолты */
@@ -805,6 +815,32 @@
                         <span class="settings-slider-value" id="settingsUiScaleValue">100%</span>
                     </div>
                 </div>
+
+                <!-- Desktop-related action rows. Сейчас отображаются и в web
+                     (это намеренно, чтобы UI был доступен везде на текущем этапе).
+                     В Фазе 9 (детект web/desktop) — нормально показать/скрыть,
+                     поправить копирайтинг хинтов, разделить modal'ки. -->
+                <button type="button" class="settings-action-btn" id="settingsHotkeysBtn">
+                    <svg class="settings-action-btn-icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <rect x="2" y="6" width="20" height="12" rx="2"/>
+                        <path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/>
+                    </svg>
+                    <span class="settings-action-btn-body">
+                        <span class="settings-action-btn-label">настроить горячие клавиши</span>
+                        <span class="settings-action-btn-hint" data-web-hint>работают только при открытой вкладке</span>
+                    </span>
+                </button>
+
+                <button type="button" class="settings-action-btn" id="settingsAppBtn">
+                    <svg class="settings-action-btn-icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <circle cx="12" cy="12" r="3"/>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                    </svg>
+                    <span class="settings-action-btn-body">
+                        <span class="settings-action-btn-label">настройки приложения</span>
+                        <span class="settings-action-btn-hint">только для desktop версии</span>
+                    </span>
+                </button>
 
                 <button type="button" class="settings-bug-btn" id="settingsBugBtn"
                     aria-haspopup="dialog" aria-controls="bugModal"

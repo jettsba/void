@@ -75,6 +75,7 @@ function applyAudioState() {
         sound: isSoundOn
     });
 
+    if (window.VoidDesktop) window.VoidDesktop.setTrayState({ micMuted: !isMicOn });
 }
 
 function updateParticipantAudioState(userId, mic, sound) {

@@ -221,6 +221,8 @@ function tearDownRoomState() {
     currentRoomCode = null;
     _peerTrouble = false;
 
+    if (window.VoidDesktop) window.VoidDesktop.setTrayState({ inRoom: false, roomCode: null, micMuted: false, screenSharing: false });
+
     if (typeof closeInvitePanel === "function") closeInvitePanel();
     if (roomInfo) {
         roomInfo.classList.add("hidden");
@@ -447,6 +449,8 @@ function enterRoomUI() {
     hideEntryError();
 
     isJoined = true;
+
+    if (window.VoidDesktop) window.VoidDesktop.setTrayState({ inRoom: true, roomCode: currentRoomCode });
 
     if (app) app.dataset.mode = "room";
 

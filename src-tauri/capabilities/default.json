@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Permissions for the main Void window. Phase 1 — window controls (drag, minimize, toggle-maximize, close, state queries).",
+  "description": "Permissions for the main Void window. Phase 1 — window controls. Phase 2 — tray, menu, notifications, autostart, global-shortcut.",
   "windows": ["main"],
   "permissions": [
     "core:default",
@@ -14,6 +14,11 @@
     "core:window:allow-toggle-maximize",
     "core:window:allow-close",
     "core:window:allow-start-dragging",
-    "core:window:allow-is-maximized"
+    "core:window:allow-is-maximized",
+    "core:tray:default",
+    "core:menu:default",
+    "notification:default",
+    "autostart:default",
+    "global-shortcut:default"
   ]
 }

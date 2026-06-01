@@ -1,0 +1,297 @@
+/* ============ App settings modals ============
+   Стили для:
+   - .settings-action-btn — карточки-кнопки в settings panel ("горячие
+     клавиши" и "настройки приложения"). Сейчас отображаются и в web и
+     в desktop — в Фазе 9 (детект) добавим селективное скрытие в web. */
+
+.settings-action-btn {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.71rem;
+    width: 100%;
+    padding: 0.71rem 0.86rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 0.57rem;
+    color: var(--fg-2);
+    font: inherit;
+    font-size: 0.86rem;
+    text-transform: lowercase;
+    letter-spacing: var(--tracking);
+    cursor: pointer;
+    text-align: left;
+    transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
+}
+
+.settings-action-btn:hover,
+.settings-action-btn:focus-visible {
+    outline: none;
+    color: var(--fg);
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.16);
+}
+
+.settings-action-btn-icon {
+    width: 1.14rem;
+    height: 1.14rem;
+    flex-shrink: 0;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    margin-top: 0.07rem;
+}
+
+.settings-action-btn-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.14rem;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.settings-action-btn-label {
+    color: inherit;
+    line-height: 1.3;
+}
+
+.settings-action-btn-hint {
+    font-size: 0.71rem;
+    color: var(--fg-3);
+    line-height: 1.3;
+}
+
+/* ===== Generic app modal (используется для hotkeys + app settings) ===== */
+.app-modal-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 250;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.6);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    opacity: 0;
+    transition: opacity 180ms cubic-bezier(.2, .6, .2, 1);
+}
+
+.app-modal-scrim.is-open { opacity: 1; }
+
+.app-modal-card {
+    width: min(28rem, 100%);
+    max-height: calc(100vh - 4rem);
+    overflow-y: auto;
+    background: var(--bg-1);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 0.71rem;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    color: var(--fg);
+    font-size: 0.86rem;
+    transform: translateY(8px) scale(0.98);
+    transition: transform 180ms cubic-bezier(.2, .6, .2, 1);
+}
+
+.app-modal-scrim.is-open .app-modal-card { transform: none; }
+
+.app-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.14rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.app-modal-title {
+    font-size: 0.93rem;
+    color: var(--fg);
+    text-transform: lowercase;
+    letter-spacing: var(--tracking-wide);
+}
+
+.app-modal-close {
+    background: transparent;
+    border: 0;
+    padding: 0;
+    width: 1.71rem;
+    height: 1.71rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    color: var(--fg-3);
+    cursor: pointer;
+    transition: background var(--t-fast), color var(--t-fast);
+}
+
+.app-modal-close:hover { background: rgba(255, 255, 255, 0.06); color: var(--fg); }
+
+.app-modal-close svg {
+    width: 0.86rem;
+    height: 0.86rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+}
+
+.app-modal-body {
+    padding: 1rem 1.14rem 1.14rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.43rem;
+}
+
+.app-modal-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 0.71rem 0;
+}
+
+.app-modal-row + .app-modal-row {
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.app-modal-row-text {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.21rem;
+    min-width: 0;
+}
+
+.app-modal-row-label {
+    color: var(--fg);
+    text-transform: lowercase;
+    letter-spacing: var(--tracking);
+}
+
+.app-modal-row-hint {
+    font-size: 0.71rem;
+    color: var(--fg-3);
+    line-height: 1.4;
+}
+
+/* Segmented control (close-behavior: свернуть / закрыть). */
+.app-modal-segmented {
+    display: inline-flex;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 0.43rem;
+    padding: 2px;
+    flex-shrink: 0;
+}
+
+.app-modal-seg {
+    background: transparent;
+    border: 0;
+    padding: 0.36rem 0.71rem;
+    font: inherit;
+    font-size: 0.78rem;
+    text-transform: lowercase;
+    color: var(--fg-3);
+    cursor: pointer;
+    border-radius: 0.29rem;
+    transition: background var(--t-fast), color var(--t-fast);
+}
+
+.app-modal-seg:hover { color: var(--fg); }
+
+.app-modal-seg.is-active {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--fg);
+}
+
+.app-modal-note {
+    font-size: 0.71rem;
+    color: var(--fg-3);
+    line-height: 1.5;
+    padding-top: 0.43rem;
+}
+
+.app-modal-note:empty { display: none; }
+
+.app-modal-placeholder { line-height: 1.5; color: var(--fg-2); }
+.app-modal-placeholder p { margin-bottom: 0.71rem; }
+.app-modal-placeholder p:last-child { margin-bottom: 0; }
+
+.app-modal-bullets {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 0.86rem;
+}
+
+.app-modal-bullets li {
+    padding: 0.21rem 0 0.21rem 0.86rem;
+    color: var(--fg);
+    position: relative;
+}
+
+.app-modal-bullets li::before {
+    content: "·";
+    position: absolute;
+    left: 0;
+    color: var(--fg-3);
+}
+
+/* ===== Hotkey-binding кнопки + footer hint ===== */
+.app-modal-binding {
+    flex-shrink: 0;
+    min-width: 7.14rem;
+    padding: 0.43rem 0.71rem;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 0.36rem;
+    color: var(--fg);
+    font: inherit;
+    font-size: 0.78rem;
+    text-transform: lowercase;
+    letter-spacing: var(--tracking);
+    cursor: pointer;
+    text-align: center;
+    transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
+}
+
+.app-modal-binding:hover,
+.app-modal-binding:focus-visible {
+    outline: none;
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.18);
+}
+
+.app-modal-binding.is-capturing {
+    background: rgba(95, 170, 122, 0.16);
+    border-color: var(--screen);
+    color: var(--screen);
+}
+
+.app-modal-footer-hint {
+    margin-top: 0.86rem;
+    padding: 0.71rem 0.86rem;
+    background: rgba(184, 122, 90, 0.08);
+    border: 1px solid rgba(184, 122, 90, 0.2);
+    border-radius: 0.43rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.57rem;
+    font-size: 0.71rem;
+    line-height: 1.4;
+    color: var(--fg-2);
+}
+
+.app-modal-footer-hint svg {
+    width: 0.93rem;
+    height: 0.93rem;
+    flex-shrink: 0;
+    fill: none;
+    stroke: var(--signal-warn);
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    margin-top: 0.07rem;
+}
+
