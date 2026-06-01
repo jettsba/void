@@ -295,3 +295,19 @@
     margin-top: 0.07rem;
 }
 
+/* ===== Web ↔ Desktop selective visibility (Фаза 3) =====
+   html.desktop класс ставит desktop-bootstrap.js при наличии Tauri runtime.
+   В web — класса нет → desktop-only элементы скрыты, web-предупреждения видны.
+   В desktop — наоборот: web-only хинты прячем, всё desktop-only показываем. */
+
+/* Web-only хинты — невидимы в desktop. */
+html.desktop [data-web-hint],
+html.desktop [data-web-hotkeys-hint] {
+    display: none;
+}
+
+/* Desktop-only кнопка «настройки приложения» — невидима в web. */
+html:not(.desktop) #settingsAppBtn {
+    display: none;
+}
+
