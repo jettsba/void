@@ -8,7 +8,12 @@
    (без класса). */
 (function () {
     var isTauri = typeof window.__TAURI_INTERNALS__ !== "undefined";
-    var isBundled = window.location.protocol === "tauri:";
+    /* В Tauri 2 на Windows bundled URL — http://tauri.localhost/, а не
+       tauri://localhost/ как в docs. Детектим по hostname (плюс fallback
+       на protocol для будущих Tauri-версий или других платформ). */
+    var isBundled =
+        window.location.hostname === "tauri.localhost" ||
+        window.location.protocol === "tauri:";
 
     if (isTauri) {
         document.documentElement.classList.add("desktop");
