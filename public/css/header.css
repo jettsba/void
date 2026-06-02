@@ -53,36 +53,20 @@
     background: transparent;
     opacity: 1;
     transform: scale(1);
+    /* drop-shadow рисует тень ТОЛЬКО от непрозрачных пикселей источника —
+       у нас это сам border-кольцо. Внутри круга прозрачно → центр не
+       заливается, halo идёт только ВОКРУГ кольца. Multiple drop-shadow
+       слои в одном filter комбинируются плавно (gaussian blur по alpha),
+       не дают ступенек как у multi-layer box-shadow. */
+    filter:
+        drop-shadow(0 0 3px rgba(255, 255, 255, 0.28))
+        drop-shadow(0 0 8px rgba(245, 245, 247, 0.18))
+        drop-shadow(0 0 18px rgba(210, 210, 216, 0.10));
     transition:
         transform var(--t-med),
         border-color var(--t-med),
-        opacity var(--t-med);
-}
-
-/* Мягкое свечение через pseudo-element с radial-gradient + filter:blur —
-   та же техника, что и ambient blobs на фоне (см. background.js).
-   box-shadow с несколькими слоями даёт видимые «ступеньки», а blur'енный
-   gradient даёт плавный organic fade без границ.
-   inset:-100% — pseudo в 3 раза больше brand-logo, свечение свободно
-   выходит за края. z-index:-1 — под gear/eclipse, pointer-events:none —
-   не ловит клики. */
-.brand-logo::before {
-    content: "";
-    position: absolute;
-    inset: -100%;
-    border-radius: 50%;
-    background: radial-gradient(
-        circle,
-        rgba(255, 255, 255, 0.38) 0%,
-        rgba(245, 245, 247, 0.22) 22%,
-        rgba(210, 210, 216, 0.10) 45%,
-        transparent 70%
-    );
-    filter: blur(10px);
-    opacity: 0.55;
-    pointer-events: none;
-    z-index: -1;
-    transition: opacity var(--t-med);
+        opacity var(--t-med),
+        filter var(--t-med);
 }
 
 /* Шестерёнка живёт ВНУТРИ эклипса: центрируется flex-ом обёртки, занимает ~65%
@@ -112,13 +96,12 @@
 .brand-lockup:focus-visible .logo-eclipse,
 .brand-lockup[aria-expanded="true"] .logo-eclipse {
     border-color: rgba(255, 255, 255, 1);
-}
-
-/* Усиливаем blob-glow при hover вместо переключения box-shadow. */
-.brand-lockup:hover .brand-logo::before,
-.brand-lockup:focus-visible .brand-logo::before,
-.brand-lockup[aria-expanded="true"] .brand-logo::before {
-    opacity: 1;
+    /* На hover halo «расцветает» — крупнее радиусы blur'а + ярче alpha. */
+    filter:
+        drop-shadow(0 0 6px rgba(255, 255, 255, 0.6))
+        drop-shadow(0 0 16px rgba(255, 255, 255, 0.4))
+        drop-shadow(0 0 36px rgba(235, 235, 240, 0.25))
+        drop-shadow(0 0 64px rgba(200, 200, 210, 0.15));
 }
 
 .brand-lockup:hover .brand-gear,
