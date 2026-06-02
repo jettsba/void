@@ -19,6 +19,9 @@
 //   emit    void:autostart-state      { enabled }   на startup
 //   emit    void:hotkey-pressed       { action }     при срабатывании хоткея
 
+#[cfg(windows)]
+mod audio_session;
+
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
@@ -134,6 +137,25 @@ pub fn run() {
 
             let initial_autostart = app.autolaunch().is_enabled().unwrap_or(false);
             let _ = app.emit("void:autostart-state", initial_autostart);
+
+            // Фоновый thread: периодически опт-аут наших audio-сессий из
+            // communications-ducking. Первая попытка через 3с — даём WebView2
+            // успеть spawn'нуть audio service child process. Дальше rescan
+            // каждые 30с — для случаев когда сессия пересоздаётся (смена mic,
+            // reconnect, восстановление после suspend). См. audio_session.rs
+            // и его doc-комментарий для полного описания проблемы.
+            #[cfg(windows)]
+            std::thread::spawn(|| {
+                std::thread::sleep(std::time::Duration::from_secs(3));
+                loop {
+                    if let Err(e) =
+                        audio_session::disable_communications_ducking_for_our_tree()
+                    {
+                        eprintln!("[audio] ducking opt-out failed: {:?}", e);
+                    }
+                    std::thread::sleep(std::time::Duration::from_secs(30));
+                }
+            });
 
             // ============ Event listeners ============
 

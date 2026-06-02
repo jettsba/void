@@ -1,6 +1,6 @@
 [package]
 name = "void-desktop"
-version = "0.10.44"
+version = "0.10.45"
 description = "Void — эфемерные P2P голосовые комнаты"
 authors = ["Void"]
 edition = "2021"
@@ -22,6 +22,24 @@ tauri-plugin-global-shortcut = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 image = { version = "0.25", default-features = false, features = ["png"] }
+
+# Native Windows API для отключения communications-ducking (см. audio_session.rs).
+# Когда у юзера в Windows Control Panel → Sound → Communications стоит дефолтное
+# "Reduce volume by 80%" — каждый раз когда юзер говорит в mic, Windows душит ВСЕ
+# audio sources на 80%. В голос-чатах со скрин-демкой это даёт классический баг
+# Discord/Zoom: "музыка приглушается когда говорю". Через IAudioSessionControl2::
+# SetDuckingPreference(true) на наших аудио-сессиях говорим Windows не дакать.
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.59", features = [
+    "Win32_Media_Audio",
+    "Win32_Media_Audio_Endpoints",
+    "Win32_System_Com",
+    "Win32_System_Com_StructuredStorage",
+    "Win32_System_Diagnostics_ToolHelp",
+    "Win32_System_Variant",
+    "Win32_Foundation",
+    "Win32_System_Threading",
+] }
 
 [features]
 custom-protocol = ["tauri/custom-protocol"]
