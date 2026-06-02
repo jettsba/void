@@ -200,6 +200,19 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
+      - name: List bundle output (diagnostic)
+        if: steps.check.outputs.exists == 'false'
+        shell: pwsh
+        run: |
+          Write-Host "=== bundle/ contents ==="
+          Get-ChildItem -Recurse src-tauri/target/release/bundle/ -ErrorAction SilentlyContinue |
+            Select-Object FullName, Length |
+            Format-Table -AutoSize | Out-String -Width 200 | Write-Host
+          Write-Host "=== .sig files anywhere in target/release ==="
+          Get-ChildItem -Recurse src-tauri/target/release/ -Filter "*.sig" -ErrorAction SilentlyContinue |
+            Select-Object FullName, Length |
+            Format-Table -AutoSize | Out-String -Width 200 | Write-Host
+
       - name: Generate manifest
         if: steps.check.outputs.exists == 'false'
         run: node scripts/build-manifest.mjs
