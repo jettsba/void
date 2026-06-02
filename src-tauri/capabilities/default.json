@@ -19,6 +19,7 @@
     "core:menu:default",
     "notification:default",
     "autostart:default",
-    "global-shortcut:default"
+    "global-shortcut:default",
+    "updater:default"
   ]
 }

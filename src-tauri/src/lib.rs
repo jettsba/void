@@ -37,6 +37,7 @@ use tauri_plugin_global_shortcut::{
     Builder as GlobalShortcutBuilder, GlobalShortcutExt, Shortcut, ShortcutState,
 };
 use tauri_plugin_notification::NotificationExt;
+use tauri_plugin_updater::UpdaterExt;
 
 const TRAY_ID: &str = "main";
 const ICON_IDLE_PNG: &[u8] = include_bytes!("../icons/tray/idle.png");
@@ -54,6 +55,7 @@ struct HotkeyMap(Mutex<HashMap<Shortcut, String>>);
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_autostart::init(
             MacosLauncher::LaunchAgent,
@@ -144,6 +146,86 @@ pub fn run() {
 
             let initial_autostart = app.autolaunch().is_enabled().unwrap_or(false);
             let _ = app.emit("void:autostart-state", initial_autostart);
+
+            // Updater: фоновый чек через 5с после старта (не блокирует UI).
+            // Если найдена новая версия → emit "void:updater-available" с
+            // metadata, JS показывает баннер. Install запускается отдельным
+            // листенером "void:updater-install" — юзер сам решает когда.
+            let app_for_check = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                let updater = match app_for_check.updater() {
+                    Ok(u) => u,
+                    Err(e) => {
+                        eprintln!("[updater] init failed: {:?}", e);
+                        return;
+                    }
+                };
+                match updater.check().await {
+                    Ok(Some(update)) => {
+                        let payload = serde_json::json!({
+                            "version": update.version,
+                            "body": update.body.clone().unwrap_or_default(),
+                        });
+                        let _ = app_for_check.emit("void:updater-available", payload);
+                    }
+                    Ok(None) => { /* актуальная версия — баннер не показываем */ }
+                    Err(e) => eprintln!("[updater] check failed: {:?}", e),
+                }
+            });
+
+            // Install trigger из UI — повторно делаем check, потом
+            // download_and_install (плагин сам перезапустит app после).
+            let app_for_install = app.handle().clone();
+            app.listen("void:updater-install", move |_event| {
+                let h = app_for_install.clone();
+                tauri::async_runtime::spawn(async move {
+                    let updater = match h.updater() {
+                        Ok(u) => u,
+                        Err(e) => {
+                            let _ = h.emit(
+                                "void:updater-error",
+                                serde_json::json!({ "message": format!("{:?}", e) }),
+                            );
+                            return;
+                        }
+                    };
+                    let update = match updater.check().await {
+                        Ok(Some(u)) => u,
+                        Ok(None) => return,
+                        Err(e) => {
+                            let _ = h.emit(
+                                "void:updater-error",
+                                serde_json::json!({ "message": format!("{:?}", e) }),
+                            );
+                            return;
+                        }
+                    };
+                    let h_progress = h.clone();
+                    let mut downloaded: u64 = 0;
+                    let result = update
+                        .download_and_install(
+                            move |chunk_length, content_length| {
+                                downloaded += chunk_length as u64;
+                                let _ = h_progress.emit(
+                                    "void:updater-progress",
+                                    serde_json::json!({
+                                        "downloaded": downloaded,
+                                        "total": content_length,
+                                    }),
+                                );
+                            },
+                            || {},
+                        )
+                        .await;
+                    if let Err(e) = result {
+                        let _ = h.emit(
+                            "void:updater-error",
+                            serde_json::json!({ "message": format!("{:?}", e) }),
+                        );
+                    }
+                });
+            });
 
             // Фоновый thread: периодически опт-аут наших audio-сессий из
             // communications-ducking. Первая попытка через 3с — даём WebView2
