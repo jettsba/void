@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "0.10.51";
+    const APP_VERSION = "0.10.54";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
@@ -463,9 +463,17 @@
                 const attr = attrRaw.trim();
                 const key = keyRaw.trim();
                 if (!attr || !key) return;
+                /* title даёт browser tooltip при hover — намеренно не применяем,
+                   UI без подсказок. Accessibility сохраняется через aria-label. */
+                if (attr === "title") return;
                 el.setAttribute(attr, t(key));
             });
         });
+
+        /* Удаляем все inline title="..." — они fallback'ом проставлены в HTML
+           и показывают tooltip до прихода applyI18n + после (мы их не пишем
+           через i18n, но статический атрибут остаётся). */
+        scope.querySelectorAll("[title]").forEach(el => el.removeAttribute("title"));
     }
 
     /* ===== public state mutators ===== */

@@ -51,18 +51,38 @@
     box-sizing: border-box;
     border: 1.5px solid rgba(230, 230, 232, 0.92);
     background: transparent;
-    box-shadow:
-        0 0 6px rgba(255, 255, 255, 0.45),
-        0 0 18px rgba(245, 245, 247, 0.35),
-        0 0 40px rgba(210, 210, 216, 0.22),
-        0 0 72px rgba(170, 170, 182, 0.14);
     opacity: 1;
     transform: scale(1);
     transition:
-        box-shadow var(--t-med),
         transform var(--t-med),
         border-color var(--t-med),
         opacity var(--t-med);
+}
+
+/* Мягкое свечение через pseudo-element с radial-gradient + filter:blur —
+   та же техника, что и ambient blobs на фоне (см. background.js).
+   box-shadow с несколькими слоями даёт видимые «ступеньки», а blur'енный
+   gradient даёт плавный organic fade без границ.
+   inset:-100% — pseudo в 3 раза больше brand-logo, свечение свободно
+   выходит за края. z-index:-1 — под gear/eclipse, pointer-events:none —
+   не ловит клики. */
+.brand-logo::before {
+    content: "";
+    position: absolute;
+    inset: -100%;
+    border-radius: 50%;
+    background: radial-gradient(
+        circle,
+        rgba(255, 255, 255, 0.38) 0%,
+        rgba(245, 245, 247, 0.22) 22%,
+        rgba(210, 210, 216, 0.10) 45%,
+        transparent 70%
+    );
+    filter: blur(10px);
+    opacity: 0.55;
+    pointer-events: none;
+    z-index: -1;
+    transition: opacity var(--t-med);
 }
 
 /* Шестерёнка живёт ВНУТРИ эклипса: центрируется flex-ом обёртки, занимает ~65%
@@ -92,11 +112,13 @@
 .brand-lockup:focus-visible .logo-eclipse,
 .brand-lockup[aria-expanded="true"] .logo-eclipse {
     border-color: rgba(255, 255, 255, 1);
-    box-shadow:
-        0 0 10px rgba(255, 255, 255, 0.75),
-        0 0 26px rgba(255, 255, 255, 0.48),
-        0 0 56px rgba(235, 235, 240, 0.38),
-        0 0 100px rgba(200, 200, 210, 0.28);
+}
+
+/* Усиливаем blob-glow при hover вместо переключения box-shadow. */
+.brand-lockup:hover .brand-logo::before,
+.brand-lockup:focus-visible .brand-logo::before,
+.brand-lockup[aria-expanded="true"] .brand-logo::before {
+    opacity: 1;
 }
 
 .brand-lockup:hover .brand-gear,
@@ -142,10 +164,18 @@
     color: var(--fg-2);
     cursor: default;
     outline: none;
+    transition: color var(--t-fast);
 }
 
 .app[data-mode="room"] .conn-state {
     cursor: pointer;
+}
+
+/* В режиме комнаты подсветка на hover — клик открывает ping-panel,
+   как клик по room-code-panel открывает invite-panel (та же семантика
+   "интерактивный элемент в шапке"). */
+.app[data-mode="room"] .conn-state:hover {
+    color: var(--fg);
 }
 
 .conn-dot {
