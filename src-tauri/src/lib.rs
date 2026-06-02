@@ -66,17 +66,24 @@ pub fn run() {
         )
         .manage(HotkeyMap::default())
         .setup(|app| {
-            let url = if cfg!(debug_assertions) {
-                "http://localhost:3000"
+            // Bundled-web архитектура (Phase 6 фикс, v0.10.48):
+            //   dev:     WebviewUrl::External("http://localhost:3000") — node-сервер
+            //            с hot-reload, как раньше.
+            //   release: WebviewUrl::App("index.html") — окно грузит bundled
+            //            public/ snapshot ВНУТРИ exe через tauri:// protocol.
+            //            Это нужно потому что withGlobalTauri inline-script
+            //            блокируется CSP внешнего origin'а (app.void-room.space).
+            //            При bundled-loading CSP под контролем Tauri, drag-region
+            //            и весь Tauri API работают. Web в браузере на сайте
+            //            продолжает обновляться независимо при деплое.
+            //            Desktop-обновления — через Updater (Фаза 10).
+            let webview_url = if cfg!(debug_assertions) {
+                WebviewUrl::External("http://localhost:3000".parse().expect("invalid dev URL"))
             } else {
-                "https://app.void-room.space"
+                WebviewUrl::App("index.html".into())
             };
 
-            let window = WebviewWindowBuilder::new(
-                app,
-                "main",
-                WebviewUrl::External(url.parse().expect("invalid app URL")),
-            )
+            let window = WebviewWindowBuilder::new(app, "main", webview_url)
             .title("Void")
             .inner_size(1280.0, 820.0)
             .min_inner_size(900.0, 600.0)

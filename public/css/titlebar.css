@@ -143,3 +143,10 @@ html.desktop .chat-toggle {
 html.desktop .settings-panel {
     top: var(--titlebar-h);
 }
+
+/* Settings hint (стрелочка "нажми чтобы открыть") — position:fixed относительно
+   viewport, наш titlebar поверх. Без поправки hint попадает ПОД titlebar и
+   стрелка не указывает на лого. Сдвигаем вниз ровно на высоту титлбара. */
+html.desktop .settings-hint {
+    top: calc(5rem + var(--titlebar-h));
+}
