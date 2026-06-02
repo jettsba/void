@@ -177,6 +177,22 @@ jobs:
         if: steps.check.outputs.exists == 'false'
         run: npm ci
 
+      - name: Verify signing secrets present
+        if: steps.check.outputs.exists == 'false'
+        shell: pwsh
+        env:
+          KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          PASS: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          $keyLen = if ($env:KEY) { $env:KEY.Length } else { 0 }
+          $passLen = if ($env:PASS) { $env:PASS.Length } else { 0 }
+          Write-Host "TAURI_SIGNING_PRIVATE_KEY length: $keyLen"
+          Write-Host "TAURI_SIGNING_PRIVATE_KEY_PASSWORD length: $passLen"
+          if ($keyLen -lt 100) {
+            Write-Error "TAURI_SIGNING_PRIVATE_KEY is missing or too short. Add the secret in repo Settings → Secrets → Actions."
+            exit 1
+          }
+
       - name: Build + sign
         if: steps.check.outputs.exists == 'false'
         run: npm run tauri:build
