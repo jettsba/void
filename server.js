@@ -213,6 +213,24 @@ app.use((req, res, next) => {
     express.static(path.join(__dirname, isApp ? 'public' : 'landing'), { extensions: ['html'] })(req, res, next);
 });
 
+/* CORS для /api/* — нужен Tauri desktop'у. Bundled-сборка шлёт fetch'и с
+   origin http://tauri.localhost, для browser-юзеров origin совпадает с host
+   (same-origin) и CORS не релевантен. Используем общий isOriginAllowed,
+   чтобы не дублировать whitelist. Preflight OPTIONS короткозамыкаем 204. */
+app.use("/api", (req, res, next) => {
+    const origin = req.headers.origin;
+    if (origin && isOriginAllowed(origin)) {
+        res.setHeader("Access-Control-Allow-Origin", origin);
+        res.setHeader("Vary", "Origin");
+    }
+    if (req.method === "OPTIONS") {
+        res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+        res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+        return res.sendStatus(204);
+    }
+    next();
+});
+
 mountAdminStats(app);
 /* /api/report-bug — багрепорт-форма из настроек. JSON только для этого
    route (нет смысла парсить тело на каждом запросе статики). 256 KB cap —
