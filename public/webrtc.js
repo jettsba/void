@@ -677,7 +677,7 @@ async function fetchTurnCredentials() {
     _turnFetchInFlight = (async () => {
         try {
             const uid = typeof clientId !== "undefined" ? clientId : "anon";
-            const res = await fetch(`/api/turn-credentials?uid=${encodeURIComponent(uid)}`, {
+            const res = await fetch(`${window.VoidApiBase || ""}/api/turn-credentials?uid=${encodeURIComponent(uid)}`, {
                 credentials: "same-origin"
             });
             if (res.status === 503) {

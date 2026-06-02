@@ -155,10 +155,12 @@ function connectSocket() {
         }
 
         let connectionResolved = false;
-        // wss:// на HTTPS-странице, ws:// на http://localhost для разработки.
-        // Браузер запрещает mixed content (https + ws), поэтому схема обязана совпадать.
-        const wsScheme = window.location.protocol === "https:" ? "wss" : "ws";
-        const ws = new WebSocket(`${wsScheme}://${window.location.host}`);
+        // В bundled-desktop (tauri://localhost) host="localhost" — относительный
+        // ws://host упирается в никуда. Поэтому используем VoidWsBase (выставлен
+        // в desktop-bootstrap.js): web/dev → wss/ws://host, prod desktop →
+        // wss://app.void-room.space явно. Mixed content scheme corectness тоже
+        // там разрулена.
+        const ws = new WebSocket(window.VoidWsBase || `wss://${window.location.host}`);
         /* F9: per-socket флаг «намеренного закрытия». Глобальной модульной
            переменной больше нет — она ломала рейс leave→join: новый ws
            создаётся, старый close-event прилетает позже и видит сброшенный

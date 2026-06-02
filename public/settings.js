@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "0.10.48";
+    const APP_VERSION = "0.10.49";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
@@ -1268,7 +1268,7 @@
         } catch (_) { /* не критично — отправим без него */ }
 
         try {
-            const res = await fetch("/api/report-bug", {
+            const res = await fetch((window.VoidApiBase || "") + "/api/report-bug", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
