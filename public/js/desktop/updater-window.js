@@ -63,6 +63,21 @@
         addLine("arr", "→ download  void_setup.exe");
     }
 
+    /* Лог фазы установки. NSIS теперь идёт тихо (installMode quiet), так что
+       эти строки — единственная видимая обратная связь, пока он распаковывает
+       и ставит. Стаггерим, чтобы выглядело как реальный прогресс инсталлера. */
+    function runInstallLog() {
+        const steps = [
+            "→ verify  signature",
+            "→ extract  void-desktop.exe",
+            "→ install  application files",
+            "→ register  shortcuts",
+        ];
+        steps.forEach((text, i) => {
+            setTimeout(() => addLine("arr", text), i * 320);
+        });
+    }
+
     function noop() {}
 
     /* ---- события из Rust ---- */
@@ -84,7 +99,8 @@
             const phase = (e.payload || {}).phase;
             if (phase === "install") {
                 setBar(100);
-                addLine("arr", "→ verify  signature");
+                if (footEl) footEl.textContent = "установка…";
+                runInstallLog();
             } else if (phase === "done") {
                 setBar(100);
                 addLine("ok", "done — relaunching");

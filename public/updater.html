@@ -30,9 +30,10 @@
             <div class="uw-content">
                 <div class="uw-eyebrow">обновление</div>
 
-                <div class="uw-bar">
-                    <span class="uw-bar-br">[</span><span class="uw-bar-fill" id="uwBarFill"></span><span class="uw-bar-empty" id="uwBarEmpty"></span><span class="uw-bar-br">]</span><span class="uw-bar-pct" id="uwPct">0%</span>
-                </div>
+                <!-- ВАЖНО: спаны бара — одной строкой без отступов. У .uw-bar
+                     стоит white-space: pre, поэтому любой перенос/пробел из
+                     исходника отрендерится буквально и сдвинет бар. -->
+                <div class="uw-bar"><span class="uw-bar-br">[</span><span class="uw-bar-fill" id="uwBarFill"></span><span class="uw-bar-empty" id="uwBarEmpty"></span><span class="uw-bar-br">]</span><span class="uw-bar-pct" id="uwPct">0%</span></div>
 
                 <div class="uw-divider"></div>
                 <div class="uw-log" id="uwLog"></div>
@@ -45,6 +46,6 @@
         </footer>
     </div>
 
-    <script src="js/desktop/updater-window.js?v=1" defer></script>
+    <script src="js/desktop/updater-window.js?v=2" defer></script>
 </body>
 </html>
