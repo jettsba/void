@@ -1583,9 +1583,12 @@ section.what {
 .qual-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 1px;
-  background: var(--fg-4);
-  border: 1px solid var(--fg-4);
+  /* Разделители рисуем бордерами: top+left у каждой .qual + right+bottom у
+     контейнера = одинарные hairline'ы при любом числе колонок (3/2/1). Старый
+     gap-reveal (gap:1px + background:var(--fg-4)) убран — он требовал
+     НЕпрозрачных ячеек, а они теперь прозрачные (сквозь них виден фон-канвас). */
+  border-right: 1px solid var(--fg-4);
+  border-bottom: 1px solid var(--fg-4);
   border-radius: 2px;
   overflow: hidden;
 }
@@ -1601,7 +1604,12 @@ section.what {
 }
 
 .qual {
-  background: var(--bg-0);
+  /* прозрачный без hover (как .plat-card) — сквозь карточку видно фоновый
+     канвас; серый var(--bg-1) проявляется только на hover. Анимация
+     «проезжающего света» (.qual::before) при этом сохраняется. */
+  background: transparent;
+  border-top: 1px solid var(--fg-4);
+  border-left: 1px solid var(--fg-4);
   padding: 22px 22px 22px;
   display: flex;
   flex-direction: column;
@@ -2243,7 +2251,9 @@ section.what {
   grid-template-columns: 1fr 1fr;
   border: 1px solid var(--fg-4);
   border-radius: 2px;
-  overflow: hidden;
+  /* overflow: visible — иначе absolute-меню сплит-кнопки скачивания режется
+     по краю карточки. Скругление 2px при этом визуально не страдает. */
+  overflow: visible;
 }
 @media (max-width: 720px) {
   .plat {
@@ -2316,6 +2326,130 @@ section.what {
 }
 .plat-card .actions {
   margin-top: auto;
+}
+
+/* download split-button + dropdown -------------------------------------------
+   Главная половина качает desktop-installer; стрелка справа раскрывает меню с
+   обоими вариантами (desktop + portable). Кнопки БЕЗ href — загрузка идёт из
+   JS (initDownload в landing.js) через временный <a download>, поэтому браузер
+   не светит длинный github-URL в статус-баре при наведении. Меню позиционировано
+   absolute, чтобы раскрытие не растягивало карточку и не ломало grid-выравнивание
+   с соседней web-карточкой. */
+.dl {
+  position: relative;
+  display: inline-block;
+}
+.dl-split {
+  display: inline-flex;
+  align-items: stretch;
+  transition: transform 380ms var(--ease);
+}
+.dl-split:hover {
+  transform: translateY(-2px);
+}
+.dl-main {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.dl-toggle {
+  padding: 0 14px;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  margin-left: -1px;  /* схлопнуть стык двух бордюров в один */
+}
+/* половинки светлеют как единое целое; индивидуальный lift гасим, чтобы пилюля
+   не разъезжалась «лесенкой» при наведении на одну из половин. Селектор через
+   .dl-split — поднимает специфичность до уровня .btn.primary:hover, иначе тот
+   перебивал бы transform:none и каждая половинка поднималась бы сама. */
+.dl-split .dl-main:hover,
+.dl-split .dl-toggle:hover,
+.dl-split .dl-main:active,
+.dl-split .dl-toggle:active {
+  transform: none;
+}
+.dl-split:hover .dl-main,
+.dl-split:hover .dl-toggle {
+  background: #fff;
+  border-color: #fff;
+}
+.dl-toggle::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 9px;
+  bottom: 9px;
+  width: 1px;
+  background: rgba(0, 0, 0, 0.16);  /* hairline-делитель на светлой primary-заливке */
+}
+.dl-ico,
+.dl-chev {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+.dl-chev {
+  transition: transform var(--t-med);
+}
+.dl[data-open="true"] .dl-chev {
+  transform: rotate(180deg);
+}
+.dl-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 100%;
+  background: var(--bg-1);
+  border: 1px solid var(--fg-4);
+  border-radius: var(--radius);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  z-index: 5;
+  opacity: 0;
+  transform: translateY(-6px);
+  pointer-events: none;
+  transition:
+    opacity var(--t-fast),
+    transform var(--t-fast);
+}
+.dl[data-open="true"] .dl-menu {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.dl-opt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  width: 100%;
+  height: 40px;
+  padding: 0 14px;
+  background: transparent;
+  border: 0;
+  border-radius: 2px;
+  color: var(--fg-2);
+  font-family: var(--font);
+  font-size: var(--t-12);
+  letter-spacing: var(--tracking-wide);
+  text-transform: lowercase;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background var(--t-fast),
+    color var(--t-fast);
+}
+.dl-opt:hover {
+  background: var(--bg-0);
+  color: var(--fg);
+}
+.dl-opt .dl-ico {
+  color: var(--fg-3);
+  transition: color var(--t-fast);
+}
+.dl-opt:hover .dl-ico {
+  color: var(--fg);
 }
 
 /* ============================================================================

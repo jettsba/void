@@ -131,14 +131,14 @@
 
     <!-- Preload критичных ассетов. ?v=N — cache-buster, бампать синхронно
          при правках landing.css / landing.js (см. memory rule). -->
-    <link rel="preload" href="/landing.css?v=1" as="style">
-    <link rel="preload" href="/landing.js?v=1" as="script">
+    <link rel="preload" href="/landing.css?v=2" as="style">
+    <link rel="preload" href="/landing.js?v=2" as="script">
 
     <!-- Lenis + landing assets. Absolute paths from site root: this file lives
          at /en/, but the shared assets are served from /. -->
     <script src="/lenis.min.js?v=1" defer></script>
 
-    <link rel="stylesheet" href="/landing.css?v=1" />
+    <link rel="stylesheet" href="/landing.css?v=2" />
 </head>
 <body>
     <canvas id="bgBlobs"  class="bg-canvas" aria-hidden="true"></canvas>
@@ -669,7 +669,7 @@
 
                 <div class="plat reveal">
                     <div class="plat-card">
-                        <span class="index">— web · void-room.space</span>
+                        <span class="index">— web · app.void-room.space</span>
                         <span class="name">web-app</span>
                         <p class="desc">open a tab — you're in. nothing to install. works on phone and desktop alike.</p>
                         <ul class="spec">
@@ -690,13 +690,32 @@
                         <span class="name">desktop-app</span>
                         <p class="desc">a dedicated app, always within reach. faster launch, no browser tabs.</p>
                         <ul class="spec">
-                            <li><span>install</span> <b>~ 48 mb</b></li>
+                            <li><span>install</span> <b>~ 17 mb</b></li>
                             <li><span>tray</span> <b>yes</b></li>
                             <li><span>autostart</span> <b>opt-in</b></li>
                             <li><span>hotkeys</span> <b>global</b></li>
                         </ul>
                         <div class="actions">
-                            <a class="btn" href="#0" aria-disabled="true">download · soon</a>
+                            <div class="dl" data-dl data-open="false">
+                                <div class="dl-split">
+                                    <button type="button" class="btn primary dl-main" data-dl-url="https://github.com/jettsba/void/releases/latest/download/void_setup.exe">
+                                        <span>download for windows</span>
+                                    </button>
+                                    <button type="button" class="btn primary dl-toggle" data-dl-toggle aria-expanded="false" aria-label="more download options">
+                                        <svg class="dl-chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg>
+                                    </button>
+                                </div>
+                                <div class="dl-menu" data-dl-menu>
+                                    <button type="button" class="dl-opt" data-dl-url="https://github.com/jettsba/void/releases/latest/download/void_setup.exe">
+                                        <span>void desktop</span>
+                                        <svg class="dl-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.5v7"/><path d="M4.5 6.5 8 10l3.5-3.5"/><path d="M3 12.5h10"/></svg>
+                                    </button>
+                                    <button type="button" class="dl-opt" data-dl-url="https://github.com/jettsba/void/releases/latest/download/void_portable.exe">
+                                        <span>void portable</span>
+                                        <svg class="dl-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.5v7"/><path d="M4.5 6.5 8 10l3.5-3.5"/><path d="M3 12.5h10"/></svg>
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -772,6 +791,6 @@
     </footer>
 
     <script src="/intro.js?v=1" defer></script>
-    <script src="/landing.js?v=1" defer></script>
+    <script src="/landing.js?v=2" defer></script>
 </body>
 </html>

@@ -673,3 +673,69 @@ void — landing behaviors
     })();
 
 })();
+
+/* ----------------------------------------------------------------------------
+   Download split-button: главная половина качает desktop-installer, стрелка
+   справа раскрывает меню (desktop + portable). Загрузку триггерим из временного
+   <a download>, а не через href на кнопке — поэтому браузер не показывает
+   длинный github-URL в статус-баре при наведении. Меню закрывается по клику
+   вне, по Esc и после выбора варианта.
+   ---------------------------------------------------------------------------- */
+(function initDownload() {
+    function triggerDownload(url) {
+        if (!url) return;
+        // download-атрибут cross-origin игнорится, но github отдаёт ассет с
+        // Content-Disposition: attachment — загрузка стартует, со страницы не уводит.
+        const a = document.createElement('a');
+        a.href = url;
+        a.rel = 'noopener';
+        a.download = '';
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+    }
+
+    function init() {
+        const dl = document.querySelector('[data-dl]');
+        if (!dl) return;
+        const toggle = dl.querySelector('[data-dl-toggle]');
+
+        const close = () => {
+            dl.dataset.open = 'false';
+            if (toggle) toggle.setAttribute('aria-expanded', 'false');
+        };
+        const open = () => {
+            dl.dataset.open = 'true';
+            if (toggle) toggle.setAttribute('aria-expanded', 'true');
+        };
+
+        // главная кнопка + опции меню несут data-dl-url → качают по клику
+        dl.querySelectorAll('[data-dl-url]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                triggerDownload(btn.dataset.dlUrl);
+                close();
+            });
+        });
+
+        if (toggle) {
+            toggle.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (dl.dataset.open === 'true') close(); else open();
+            });
+        }
+
+        document.addEventListener('click', (e) => {
+            if (!dl.contains(e.target)) close();
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') close();
+        });
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+})();

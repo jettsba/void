@@ -16,3 +16,5 @@ src-tauri/gen/schemas
 
 void.key
 void.key.pub
+
+design_handoff
