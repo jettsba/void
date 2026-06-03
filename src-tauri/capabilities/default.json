@@ -1,8 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Permissions for the main Void window. Phase 1 — window controls. Phase 2 — tray, menu, notifications, autostart, global-shortcut.",
-  "windows": ["main"],
+  "description": "Permissions for the Void windows (main + updater). Phase 1 — window controls. Phase 2 — tray, menu, notifications, autostart, global-shortcut. Updater v2 — frameless updater window reuses the same window/event perms.",
+  "windows": ["main", "updater"],
   "permissions": [
     "core:default",
     "core:event:default",

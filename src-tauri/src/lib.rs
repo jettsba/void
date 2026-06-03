@@ -79,43 +79,11 @@ pub fn run() {
             //            и весь Tauri API работают. Web в браузере на сайте
             //            продолжает обновляться независимо при деплое.
             //            Desktop-обновления — через Updater (Фаза 10).
-            let webview_url = if cfg!(debug_assertions) {
-                WebviewUrl::External("http://localhost:3000".parse().expect("invalid dev URL"))
-            } else {
-                WebviewUrl::App("index.html".into())
-            };
-
-            let window = WebviewWindowBuilder::new(app, "main", webview_url)
-            .title("Void")
-            .inner_size(1280.0, 820.0)
-            .min_inner_size(900.0, 600.0)
-            .center()
-            .resizable(true)
-            .decorations(false)
-            .visible(true)
-            .focused(true)
-            .build()?;
-
-            let window_for_close = window.clone();
-            let app_for_close = app.handle().clone();
-            window.on_window_event(move |event| {
-                if let WindowEvent::CloseRequested { api, .. } = event {
-                    if CLOSE_TO_TRAY.load(Ordering::SeqCst) {
-                        api.prevent_close();
-                        let _ = window_for_close.hide();
-                        if !SHOWN_HIDE_TOAST.swap(true, Ordering::SeqCst) {
-                            let _ = app_for_close
-                                .notification()
-                                .builder()
-                                .title("Void свернулся в трей")
-                                .body(
-                                    "Кликните по значку в системном лотке, чтобы вернуться",
-                                )
-                                .show();
-                        }
-                    }
-                }
-            });
+            // Главное окно создаётся ОТЛОЖЕННО (updater v2, режим A) — не здесь,
+            // а из launch_main_window() после проверки апдейтов. На старте окна
+            // может не быть пару секунд (чек) либо вместо него поднимется окно
+            // обновления. Логика URL (dev localhost / release bundled App) и
+            // close-to-tray переехали в launch_main_window() ниже.
 
             let show_item = MenuItem::with_id(app, "show", "Открыть Void", true, None::<&str>)?;
             let sep = PredefinedMenuItem::separator(app)?;
@@ -147,47 +115,17 @@ pub fn run() {
             let initial_autostart = app.autolaunch().is_enabled().unwrap_or(false);
             let _ = app.emit("void:autostart-state", initial_autostart);
 
-            // Updater: фоновый чек через 5с после старта (не блокирует UI).
-            // Если найдена новая версия → emit "void:updater-available" с
-            // metadata, JS показывает баннер. Install запускается отдельным
-            // листенером "void:updater-install" — юзер сам решает когда.
-            let app_for_check = app.handle().clone();
-            tauri::async_runtime::spawn(async move {
-                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-                let updater = match app_for_check.updater() {
-                    Ok(u) => u,
-                    Err(e) => {
-                        // Windows release = windows_subsystem → eprintln в никуда.
-                        // Дублируем статус событием в JS, чтобы видеть в devtools.
-                        let _ = app_for_check.emit(
-                            "void:updater-status",
-                            serde_json::json!({ "status": "init-error", "message": format!("{:?}", e) }),
-                        );
-                        eprintln!("[updater] init failed: {:?}", e);
-                        return;
-                    }
-                };
-                match updater.check().await {
-                    Ok(Some(update)) => {
-                        let payload = serde_json::json!({
-                            "version": update.version,
-                            "body": update.body.clone().unwrap_or_default(),
-                        });
-                        let _ = app_for_check.emit("void:updater-available", payload);
-                    }
-                    Ok(None) => {
-                        let _ = app_for_check
-                            .emit("void:updater-status", serde_json::json!({ "status": "uptodate" }));
-                    }
-                    Err(e) => {
-                        let _ = app_for_check.emit(
-                            "void:updater-status",
-                            serde_json::json!({ "status": "error", "message": format!("{:?}", e) }),
-                        );
-                        eprintln!("[updater] check failed: {:?}", e);
-                    }
-                }
-            });
+            // ============ Updater v2 — см. tasks/updater-v2-plan.md ============
+            // Режим A (release): главное окно НЕ создаётся сразу. Сначала чек —
+            //   есть апдейт (до таймаута 2.5с) → окно обновления + тихая установка
+            //   + relaunch; нет/ошибка/таймаут → создаём главное окно и запускаем
+            //   периодический чек (режим B, баннер раз в 15 мин).
+            // Dev: silent выключен (грузим localhost), сразу главное окно.
+            if cfg!(debug_assertions) {
+                launch_main_window(app.handle());
+            } else {
+                tauri::async_runtime::spawn(startup_update_flow(app.handle().clone()));
+            }
 
             // Install trigger из UI — повторно делаем check, потом
             // download_and_install (плагин сам перезапустит app после).
@@ -233,11 +171,15 @@ pub fn run() {
                             || {},
                         )
                         .await;
-                    if let Err(e) = result {
-                        let _ = h.emit(
-                            "void:updater-error",
-                            serde_json::json!({ "message": format!("{:?}", e) }),
-                        );
+                    match result {
+                        // Установка прошла — перезапускаемся в новую версию.
+                        Ok(_) => h.restart(),
+                        Err(e) => {
+                            let _ = h.emit(
+                                "void:updater-error",
+                                serde_json::json!({ "message": format!("{:?}", e) }),
+                            );
+                        }
                     }
                 });
             });
@@ -343,6 +285,209 @@ pub fn run() {
 }
 
 // ============ Helpers ============
+
+// ---- Updater v2 (режимы A/B) — см. tasks/updater-v2-plan.md ----
+
+/// Создаёт (или показывает, если уже есть) главное окно. Вынесено из setup,
+/// чтобы создавать его ОТЛОЖЕННО — после проверки апдейтов (режим A).
+fn launch_main_window(app: &AppHandle) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.show();
+        let _ = w.set_focus();
+        return;
+    }
+
+    let webview_url = if cfg!(debug_assertions) {
+        WebviewUrl::External("http://localhost:3000".parse().expect("invalid dev URL"))
+    } else {
+        WebviewUrl::App("index.html".into())
+    };
+
+    let window = match WebviewWindowBuilder::new(app, "main", webview_url)
+        .title("Void")
+        .inner_size(1280.0, 820.0)
+        .min_inner_size(900.0, 600.0)
+        .center()
+        .resizable(true)
+        .decorations(false)
+        .visible(true)
+        .focused(true)
+        .build()
+    {
+        Ok(w) => w,
+        Err(e) => {
+            eprintln!("[main-window] build failed: {:?}", e);
+            return;
+        }
+    };
+
+    let window_for_close = window.clone();
+    let app_for_close = app.clone();
+    window.on_window_event(move |event| {
+        if let WindowEvent::CloseRequested { api, .. } = event {
+            if CLOSE_TO_TRAY.load(Ordering::SeqCst) {
+                api.prevent_close();
+                let _ = window_for_close.hide();
+                if !SHOWN_HIDE_TOAST.swap(true, Ordering::SeqCst) {
+                    let _ = app_for_close
+                        .notification()
+                        .builder()
+                        .title("Void свернулся в трей")
+                        .body("Кликните по значку в системном лотке, чтобы вернуться")
+                        .show();
+                }
+            }
+        }
+    });
+}
+
+/// Окно обновления (режим A) — frameless 640×468 в стиле инсталлера.
+/// Закрытие (✕) = выход из приложения (отмена; relaunch повторит чек).
+fn launch_updater_window(app: &AppHandle) {
+    if app.get_webview_window("updater").is_some() {
+        return;
+    }
+
+    let url = if cfg!(debug_assertions) {
+        WebviewUrl::External(
+            "http://localhost:3000/updater.html"
+                .parse()
+                .expect("invalid dev URL"),
+        )
+    } else {
+        WebviewUrl::App("updater.html".into())
+    };
+
+    let win = match WebviewWindowBuilder::new(app, "updater", url)
+        .title("void")
+        .inner_size(640.0, 468.0)
+        .resizable(false)
+        .decorations(false)
+        .center()
+        .visible(true)
+        .focused(true)
+        .build()
+    {
+        Ok(w) => w,
+        Err(e) => {
+            eprintln!("[updater-window] build failed: {:?}", e);
+            return;
+        }
+    };
+
+    let app_for_close = app.clone();
+    win.on_window_event(move |event| {
+        if let WindowEvent::CloseRequested { .. } = event {
+            app_for_close.exit(0);
+        }
+    });
+}
+
+/// Режим A: на старте чек с таймаутом-страховкой. Есть апдейт → окно обновления
+/// + тихая установка + relaunch. Нет/ошибка/таймаут → главное окно + режим B.
+async fn startup_update_flow(app: AppHandle) {
+    use std::time::Duration;
+
+    let updater = match app.updater() {
+        Ok(u) => u,
+        Err(e) => {
+            eprintln!("[updater] init failed: {:?}", e);
+            launch_main_window(&app);
+            start_periodic_check(app);
+            return;
+        }
+    };
+
+    // Главное окно ОБЯЗАНО появиться даже если сеть висит → timeout 2.5с.
+    // timeout роняет in-flight чек — ок, режим B перепроверит через 15 мин.
+    let checked = tokio::time::timeout(Duration::from_millis(2500), updater.check()).await;
+
+    match checked {
+        Ok(Ok(Some(update))) => {
+            // Апдейт есть, юзер ещё не в приложении (окна нет) → тихий режим A.
+            launch_updater_window(&app);
+            // Даём странице окна обновления подняться и навесить листенеры.
+            tokio::time::sleep(Duration::from_millis(450)).await;
+            let _ = app.emit(
+                "void:upd-begin",
+                serde_json::json!({ "version": update.version }),
+            );
+
+            let app_progress = app.clone();
+            let app_phase = app.clone();
+            let mut downloaded: u64 = 0;
+            let result = update
+                .download_and_install(
+                    move |chunk, total| {
+                        downloaded += chunk as u64;
+                        let _ = app_progress.emit(
+                            "void:upd-progress",
+                            serde_json::json!({ "downloaded": downloaded, "total": total }),
+                        );
+                    },
+                    move || {
+                        let _ = app_phase
+                            .emit("void:upd-phase", serde_json::json!({ "phase": "install" }));
+                    },
+                )
+                .await;
+
+            match result {
+                Ok(_) => {
+                    let _ = app.emit("void:upd-phase", serde_json::json!({ "phase": "done" }));
+                    // NSIS поставлен — перезапускаемся в новую версию.
+                    app.restart();
+                }
+                Err(e) => {
+                    eprintln!("[updater] silent install failed: {:?}", e);
+                    if let Some(w) = app.get_webview_window("updater") {
+                        let _ = w.close();
+                    }
+                    launch_main_window(&app);
+                    start_periodic_check(app);
+                }
+            }
+        }
+        Ok(Ok(None)) => {
+            launch_main_window(&app);
+            start_periodic_check(app);
+        }
+        Ok(Err(e)) => {
+            eprintln!("[updater] startup check failed: {:?}", e);
+            launch_main_window(&app);
+            start_periodic_check(app);
+        }
+        Err(_) => {
+            // таймаут — не вешаем запуск, апдейт подхватит режим B
+            launch_main_window(&app);
+            start_periodic_check(app);
+        }
+    }
+}
+
+/// Режим B: после показа главного окна — фоновая перепроверка раз в 15 мин.
+/// Новая версия → "void:updater-available" (баннер). Принудительного рестарта нет.
+fn start_periodic_check(app: AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        let mut last_notified: Option<String> = None;
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(15 * 60)).await;
+            let Ok(updater) = app.updater() else { continue };
+            if let Ok(Some(update)) = updater.check().await {
+                if last_notified.as_deref() != Some(update.version.as_str()) {
+                    last_notified = Some(update.version.clone());
+                    let _ = app.emit(
+                        "void:updater-available",
+                        serde_json::json!({
+                            "version": update.version,
+                            "body": update.body.clone().unwrap_or_default(),
+                        }),
+                    );
+                }
+            }
+        }
+    });
+}
 
 fn show_main_window(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {

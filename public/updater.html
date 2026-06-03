@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>void</title>
+    <link rel="stylesheet" href="css/updater-window.css?v=1" />
+</head>
+<body>
+    <!-- Окно тихого обновления (режим A). Стиль — variant signal / шаг «установка»
+         из design_handoff/VOID_INSTALLER_HANDOFF.md. Управляется событиями из Rust:
+         void:upd-begin / void:upd-progress / void:upd-phase / void:upd-error. -->
+    <div class="uw-root">
+        <header class="uw-titlebar" data-tauri-drag-region>
+            <span class="uw-glyph" aria-hidden="true">
+                <svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="none" stroke="currentColor" stroke-width="7" /></svg>
+            </span>
+            <span class="uw-title">void</span>
+            <div class="uw-winctl">
+                <button id="uwMin" class="uw-wbtn" type="button" aria-label="свернуть" title="свернуть">
+                    <svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 7h8" /></svg>
+                </button>
+                <button id="uwClose" class="uw-wbtn uw-wbtn-close" type="button" aria-label="закрыть" title="закрыть">
+                    <svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7" /></svg>
+                </button>
+            </div>
+        </header>
+
+        <main class="uw-body">
+            <div class="uw-content">
+                <div class="uw-eyebrow">обновление</div>
+
+                <div class="uw-bar">
+                    <span class="uw-bar-br">[</span><span class="uw-bar-fill" id="uwBarFill"></span><span class="uw-bar-empty" id="uwBarEmpty"></span><span class="uw-bar-br">]</span><span class="uw-bar-pct" id="uwPct">0%</span>
+                </div>
+
+                <div class="uw-divider"></div>
+                <div class="uw-log" id="uwLog"></div>
+            </div>
+            <div class="uw-vignette" aria-hidden="true"></div>
+        </main>
+
+        <footer class="uw-footer">
+            <span class="uw-foot-label" id="uwFoot">обновление…</span>
+        </footer>
+    </div>
+
+    <script src="js/desktop/updater-window.js?v=1" defer></script>
+</body>
+</html>

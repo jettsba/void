@@ -118,6 +118,13 @@
                 primary.textContent = "обновить";
                 primary.hidden = false;
                 break;
+            case "confirm":
+                /* юзер в комнате — обновление оборвёт звонок, спрашиваем явно */
+                title.textContent = `доступна v${lastVersion}`;
+                body.textContent = "обновление прервёт звонок";
+                primary.textContent = "выйти и обновить";
+                primary.hidden = false;
+                break;
             case "downloading":
                 title.textContent = `обновление до v${lastVersion}`;
                 body.textContent = "скачивание...";
@@ -160,14 +167,29 @@
         }
     }
 
+    function isInRoom() {
+        /* isJoined — глобал из js/state.js; до инициализации typeof кинет
+           ReferenceError (TDZ), поэтому в try. */
+        try { return typeof isJoined !== "undefined" && !!isJoined; }
+        catch { return false; }
+    }
+
+    function triggerInstall() {
+        setState("downloading");
+        totalBytes = 0;
+        window.__TAURI__.event
+            .emit("void:updater-install")
+            .catch((e) => console.warn("[updater] emit install failed", e));
+    }
+
     function onPrimary() {
         const state = banner && banner.dataset.state;
-        if (state === "idle" || state === "error") {
-            setState("downloading");
-            totalBytes = 0;
-            window.__TAURI__.event
-                .emit("void:updater-install")
-                .catch((e) => console.warn("[updater] emit install failed", e));
+        if (state === "idle") {
+            /* в комнате рестарт оборвёт звонок — сначала подтверждение */
+            if (isInRoom()) { setState("confirm"); return; }
+            triggerInstall();
+        } else if (state === "confirm" || state === "error") {
+            triggerInstall();
         }
     }
 

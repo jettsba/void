@@ -133,8 +133,9 @@
     transition: width 180ms linear;
 }
 
-/* В состоянии idle / error прогресс-полоска не нужна. */
+/* В состоянии idle / confirm / error прогресс-полоска не нужна. */
 .updater-banner[data-state="idle"] .updater-banner-progress,
+.updater-banner[data-state="confirm"] .updater-banner-progress,
 .updater-banner[data-state="error"] .updater-banner-progress {
     visibility: hidden;
 }
