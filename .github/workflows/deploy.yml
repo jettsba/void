@@ -195,10 +195,26 @@ jobs:
 
       - name: Build + sign
         if: steps.check.outputs.exists == 'false'
-        run: npm run tauri:build
+        shell: pwsh
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          RAW_PASS: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          # GitHub Secrets UI не разрешает пустое значение, поэтому юзер
+          # вынужден поставить пробел. Tauri читает его буквально как
+          # пароль " " и фейлит декодинг ключа без пароля. Trim'им и если
+          # осталось пусто — удаляем env var вообще, тогда Tauri решит
+          # что ключ без пароля.
+          $pass = if ($env:RAW_PASS) { $env:RAW_PASS.Trim() } else { "" }
+          if ($pass.Length -gt 0) {
+            $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = $pass
+            Write-Host "using password from secret (length: $($pass.Length))"
+          } else {
+            Remove-Item Env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD -ErrorAction SilentlyContinue
+            Write-Host "password empty/whitespace — signing without password"
+          }
+          Remove-Item Env:RAW_PASS -ErrorAction SilentlyContinue
+          npm run tauri:build
 
       - name: List bundle output (diagnostic)
         if: steps.check.outputs.exists == 'false'
