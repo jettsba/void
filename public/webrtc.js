@@ -273,18 +273,21 @@ function getOrCreateAudioContext() {
     return audioContext;
 }
 
-/* AudioWorklet module load — однократный per AudioContext. Повторные вызовы
-   addModule в Chromium идемпотентны (возвращают cached promise), но мы кэшируем
-   результат явно, чтобы не плодить лишние Promise'ы при rebuild'е mic-графа. */
-let _rnnoiseModulePromise = null;
-
+/* AudioWorklet module load — кэшируем промис addModule НА самом AudioContext
+   (`ctx._rnnoiseModulePromise`), а НЕ в модульной переменной. AudioWorklet-
+   модули регистрируются per-context; при leave→join старый ctx закрывается
+   (stopAllMedia: audioContext.close() + null) и создаётся новый. Глобальный кэш
+   тогда отдавал резолв ЗАКРЫТОГО ctx — `await` проходил мгновенно, а
+   `new AudioWorkletNode(новый ctx)` падал с «AudioWorklet does not have a valid
+   AudioWorkletGlobalScope … addModule first». Свойство на ctx живёт ровно
+   столько же, сколько сам ctx: новый ctx ⇒ новый addModule. */
 async function createRnnoiseNode(ctx) {
     if (!ctx || !ctx.audioWorklet) return null;
     try {
-        if (!_rnnoiseModulePromise) {
-            _rnnoiseModulePromise = ctx.audioWorklet.addModule("audio/rnnoise-processor.js?v=1");
+        if (!ctx._rnnoiseModulePromise) {
+            ctx._rnnoiseModulePromise = ctx.audioWorklet.addModule("audio/rnnoise-processor.js?v=1");
         }
-        await _rnnoiseModulePromise;
+        await ctx._rnnoiseModulePromise;
         const node = new AudioWorkletNode(ctx, "rnnoise-processor", {
             numberOfInputs: 1,
             numberOfOutputs: 1,

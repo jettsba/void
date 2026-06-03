@@ -57,9 +57,11 @@ const preferred =
 console.log("✓ using:", path.relative(process.cwd(), preferred));
 const signature = fs.readFileSync(preferred, "utf8").trim();
 
-// URL'ы указывают на GitHub Release artifacts. `releases/latest/download/...`
-// GitHub автоматом перенаправит на latest published release.
-const repo = process.env.GITHUB_REPOSITORY || "jettsba/void";
+// URL'ы указывают на GitHub Release artifacts в ПУБЛИЧНОМ репо-обёртке
+// (основной репо приватный → его release-URL отдают 404 анонимам, а апдейтер
+// на машинах юзеров ходит без авторизации). RELEASES_REPO задаётся в workflow.
+// `releases/latest/download/...` GitHub автоматом редиректит на latest release.
+const repo = process.env.RELEASES_REPO || "jettsba/void-desktop";
 const releaseUrl = `https://github.com/${repo}/releases/latest/download/void_setup.exe`;
 
 const manifest = {
