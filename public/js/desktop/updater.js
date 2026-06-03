@@ -3,11 +3,12 @@
    левом нижнем углу. При клике "Обновить" — emit event обратно в Rust,
    плагин скачает signed exe + verify signature + silent install + relaunch.
 
-   States:
-     idle        — "доступна vX.Y.Z" + [Обновить] [×]
+   States (primary-кнопка — только иконка, без текста):
+     idle        — "доступно обновление" / "void vX.Y.Z" + [↓] [×]
+     confirm     — "обновление закроет приложение" (в комнате) + [✓] [×]
      downloading — "скачивание... NN%" + progress bar
      ready       — installer запускается, плагин сам рестартнёт Void
-     error       — "ошибка обновления" + [Повторить] [×]
+     error       — "ошибка обновления" + [↻] [×]
 
    Snooze: при клике × банер прячется на 24 часа (localStorage).
    Если за этот срок прилетит ДРУГАЯ версия — снова покажется. */
@@ -34,6 +35,15 @@
 
     const SNOOZE_KEY = "void:updater-snoozed";
     const SNOOZE_DURATION_MS = 24 * 60 * 60 * 1000;
+
+    /* Иконки primary-кнопки (текста нет — только глиф). Stroke-стиль, цвет
+       наследуется от кнопки (var(--screen)). aria-label ставится в setState. */
+    const ICON_DOWNLOAD =
+        '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11"/><path d="M7 11l5 5 5-5"/><path d="M5 19.5h14"/></svg>';
+    const ICON_CHECK =
+        '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"/></svg>';
+    const ICON_RETRY =
+        '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 11a7.5 7.5 0 10-2.1 5.3"/><path d="M19.5 5v6h-6"/></svg>';
 
     /* Состояние модуля: храним последнюю предложенную версию + статус.
        Если прилетела новая major-version пока юзер заснузил — снимаем snooze. */
@@ -113,32 +123,40 @@
 
         switch (state) {
             case "idle":
-                title.textContent = `доступна v${lastVersion}`;
-                body.textContent = "обновить void";
-                primary.textContent = "обновить";
+                title.textContent = "доступно обновление";
+                body.textContent = `void v${lastVersion}`;
+                body.hidden = false;
+                primary.innerHTML = ICON_DOWNLOAD;
+                primary.setAttribute("aria-label", "обновить");
                 primary.hidden = false;
                 break;
             case "confirm":
-                /* юзер в комнате — обновление оборвёт звонок, спрашиваем явно */
-                title.textContent = `доступна v${lastVersion}`;
-                body.textContent = "обновление прервёт звонок";
-                primary.textContent = "выйти и обновить";
+                /* юзер в комнате — обновление оборвёт звонок. Одна строка
+                   основным белым, без второй строки. */
+                title.textContent = "обновление закроет приложение";
+                body.hidden = true;
+                primary.innerHTML = ICON_CHECK;
+                primary.setAttribute("aria-label", "выйти и обновить");
                 primary.hidden = false;
                 break;
             case "downloading":
                 title.textContent = `обновление до v${lastVersion}`;
+                body.hidden = false;
                 body.textContent = "скачивание...";
                 primary.hidden = true;
                 break;
             case "ready":
                 title.textContent = "установка";
+                body.hidden = false;
                 body.textContent = "void перезапустится";
                 primary.hidden = true;
                 break;
             case "error":
                 title.textContent = "ошибка обновления";
+                body.hidden = false;
                 body.textContent = "попробовать снова?";
-                primary.textContent = "повторить";
+                primary.innerHTML = ICON_RETRY;
+                primary.setAttribute("aria-label", "повторить");
                 primary.hidden = false;
                 break;
         }
