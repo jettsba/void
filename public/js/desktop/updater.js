@@ -15,6 +15,20 @@
 (function () {
     "use strict";
 
+    const L = window.log;
+    const dlog = (msg, fields) =>
+        (L && L.info ? L.info("updater", msg, fields || {}) : console.log("[updater]", msg, fields || {}));
+
+    /* Диагностика инициализации — ДО гварда, чтобы видеть почему модуль мог
+       выйти раньше времени (platform не desktop / нет __TAURI__.event). Гейтим
+       на наличие __TAURI__ — на вебе его нет, и прод-консоль не засоряется. */
+    if (window.__TAURI__) {
+        dlog("script loaded", {
+            platform: window.VoidPlatform,
+            event: !!(window.__TAURI__ && window.__TAURI__.event),
+        });
+    }
+
     if (window.VoidPlatform !== "desktop") return;
     if (!window.__TAURI__ || !window.__TAURI__.event) return;
 
@@ -168,12 +182,22 @@
         .listen("void:updater-available", (event) => {
             const p = (event && event.payload) || {};
             const version = String(p.version || "?");
+            dlog("update available", { version });
             lastVersion = version;
-            if (isSnoozed(version)) return;
+            if (isSnoozed(version)) { dlog("snoozed — banner suppressed", { version }); return; }
             setState("idle");
             showBanner();
         })
         .catch((e) => console.warn("[updater] listen available failed", e));
+
+    /* Диагностика результата фоновой проверки (uptodate / error / init-error)
+       от Rust — на Windows release eprintln невидим, поэтому статус приходит
+       сюда и пишется в лог. */
+    window.__TAURI__.event
+        .listen("void:updater-status", (event) => {
+            dlog("check result", (event && event.payload) || {});
+        })
+        .catch(() => {});
 
     window.__TAURI__.event
         .listen("void:updater-progress", (event) => {

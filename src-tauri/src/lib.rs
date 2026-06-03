@@ -157,6 +157,12 @@ pub fn run() {
                 let updater = match app_for_check.updater() {
                     Ok(u) => u,
                     Err(e) => {
+                        // Windows release = windows_subsystem → eprintln в никуда.
+                        // Дублируем статус событием в JS, чтобы видеть в devtools.
+                        let _ = app_for_check.emit(
+                            "void:updater-status",
+                            serde_json::json!({ "status": "init-error", "message": format!("{:?}", e) }),
+                        );
                         eprintln!("[updater] init failed: {:?}", e);
                         return;
                     }
@@ -169,8 +175,17 @@ pub fn run() {
                         });
                         let _ = app_for_check.emit("void:updater-available", payload);
                     }
-                    Ok(None) => { /* актуальная версия — баннер не показываем */ }
-                    Err(e) => eprintln!("[updater] check failed: {:?}", e),
+                    Ok(None) => {
+                        let _ = app_for_check
+                            .emit("void:updater-status", serde_json::json!({ "status": "uptodate" }));
+                    }
+                    Err(e) => {
+                        let _ = app_for_check.emit(
+                            "void:updater-status",
+                            serde_json::json!({ "status": "error", "message": format!("{:?}", e) }),
+                        );
+                        eprintln!("[updater] check failed: {:?}", e);
+                    }
                 }
             });
 
