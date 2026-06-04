@@ -100,7 +100,12 @@ async fn run_install(dir: String) -> Result<(), String> {
     let setup = resolve_setup().ok_or_else(|| {
         "void_setup.exe не найден (положи рядом с установщиком или задай VOID_NSIS_SETUP)".to_string()
     })?;
-    run_silent(&setup, Some(&dir)).map_err(|e| format!("установка: {e}"))
+    run_silent(&setup, Some(&dir)).map_err(|e| format!("установка: {e}"))?;
+    // Веха B: если приложение поставило кастомный деинсталлятор — направляем на
+    // него «Удалить» в Windows. Если нет (старый build) — оставляем NSIS как есть.
+    #[cfg(windows)]
+    point_uninstall_to_custom(&dir);
+    Ok(())
 }
 
 /// Тихое удаление существующей версии через её же uninstall.exe (/S).
@@ -224,6 +229,40 @@ fn free_bytes(dir: &str) -> Option<u64> {
 
 #[cfg(not(windows))]
 fn free_bytes(_dir: &str) -> Option<u64> {
+    None
+}
+
+/// Переписывает в реестре указатель «Удалить» на наш кастомный деинсталлятор:
+///   UninstallString      → "<dir>\void-uninstaller.exe"   (наш webview-UI)
+///   QuietUninstallString  → "<dir>\uninstall.exe" /S       (тихий NSIS для winget и т.п.)
+/// Только если кастомный деинсталлятор реально стоит в папке установки.
+#[cfg(windows)]
+fn point_uninstall_to_custom(dir: &str) {
+    use winreg::enums::{HKEY_CURRENT_USER, KEY_SET_VALUE};
+    use winreg::RegKey;
+    let Some(custom) = find_custom_uninstaller(dir) else {
+        return;
+    };
+    let unins = Path::new(dir).join("uninstall.exe");
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    if let Ok(key) = hkcu.open_subkey_with_flags(UNINSTALL_KEY, KEY_SET_VALUE) {
+        let _ = key.set_value("UninstallString", &format!("\"{}\"", custom.display()));
+        let _ = key.set_value("QuietUninstallString", &format!("\"{}\" /S", unins.display()));
+    }
+}
+
+/// Ищет кастомный деинсталлятор в папке установки (корень или resources/).
+#[cfg(windows)]
+fn find_custom_uninstaller(dir: &str) -> Option<PathBuf> {
+    let d = Path::new(dir);
+    let root = d.join("void-uninstaller.exe");
+    if root.exists() {
+        return Some(root);
+    }
+    let res = d.join("resources").join("void-uninstaller.exe");
+    if res.exists() {
+        return Some(res);
+    }
     None
 }
 

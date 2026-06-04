@@ -32,6 +32,9 @@ image = { version = "0.25", default-features = false, features = ["png"] }
 # Discord/Zoom: "музыка приглушается когда говорю". Через IAudioSessionControl2::
 # SetDuckingPreference(true) на наших аудио-сессиях говорим Windows не дакать.
 [target.'cfg(windows)'.dependencies]
+# winreg — re-assert указателя «Удалить» на кастомный деинсталлятор (Веха B),
+# т.к. тихий NSIS-апдейт сбивает UninstallString обратно на свой uninstall.exe.
+winreg = "0.52"
 windows = { version = "0.59", features = [
     "Win32_Media_Audio",
     "Win32_Media_Audio_Endpoints",

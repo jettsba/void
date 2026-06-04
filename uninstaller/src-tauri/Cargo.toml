@@ -1,0 +1,24 @@
+[package]
+name = "void-uninstaller"
+version = "0.1.0"
+description = "Void — кастомный деинсталлятор (webview-скин поверх тихого NSIS uninstall)"
+authors = ["Void"]
+edition = "2021"
+rust-version = "1.77"
+
+# Веха B. Отдельный маленький Tauri-крейт: НЕ вшивает NSIS-setup (в отличие от
+# installer), поэтому компактный — живёт в папке установки. Windows на «Удалить»
+# запускает его (мы переписываем UninstallString при установке). Молча гоняет
+# <installdir>\uninstall.exe /S под своим webview-UI. См. tasks/installer-plan.md.
+
+[lib]
+name = "void_uninstaller_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

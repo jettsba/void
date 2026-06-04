@@ -13,12 +13,18 @@ logs
 # Tauri / Rust build artefacts
 src-tauri/target
 src-tauri/gen/schemas
+# staged кастомный деинсталлятор (Веха B), вшивается в bundle.resources приложения
+src-tauri/bundled
 
 # Custom installer (отдельный Tauri-проект, см. tasks/installer-plan.md)
 installer/src-tauri/target
 installer/src-tauri/gen/schemas
 # вшиваемый NSIS-setup (билд-артефакт, кладётся перед сборкой)
 installer/src-tauri/payload
+
+# Custom uninstaller (Веха B, отдельный Tauri-проект)
+uninstaller/src-tauri/target
+uninstaller/src-tauri/gen/schemas
 
 void.key
 void.key.pub

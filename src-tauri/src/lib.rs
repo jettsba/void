@@ -85,6 +85,11 @@ pub fn run() {
             // обновления. Логика URL (dev localhost / release bundled App) и
             // close-to-tray переехали в launch_main_window() ниже.
 
+            // Веха B: вернуть указатель «Удалить» на наш деинсталлятор, если NSIS-
+            // апдейт его сбил. No-op если кастомного деинсталлятора рядом нет.
+            #[cfg(windows)]
+            reassert_custom_uninstaller();
+
             let show_item = MenuItem::with_id(app, "show", "Открыть Void", true, None::<&str>)?;
             let sep = PredefinedMenuItem::separator(app)?;
             let quit_item = MenuItem::with_id(app, "quit", "Выход", true, None::<&str>)?;
@@ -363,6 +368,48 @@ fn take_installer_lang() -> Option<String> {
         Some(lang.to_string())
     } else {
         None
+    }
+}
+
+/// Веха B: возвращает в реестре указатель «Удалить» на наш кастомный
+/// деинсталлятор, если он установлен рядом (NSIS-апдейт сбивает UninstallString
+/// обратно на свой uninstall.exe). No-op в dev (exe в target/, деинсталлятора нет).
+#[cfg(windows)]
+fn reassert_custom_uninstaller() {
+    use winreg::enums::{HKEY_CURRENT_USER, KEY_QUERY_VALUE, KEY_SET_VALUE};
+    use winreg::RegKey;
+
+    let Ok(exe) = std::env::current_exe() else {
+        return;
+    };
+    let Some(dir) = exe.parent() else {
+        return;
+    };
+    let custom = [
+        dir.join("void-uninstaller.exe"),
+        dir.join("resources").join("void-uninstaller.exe"),
+    ]
+    .into_iter()
+    .find(|p| p.exists());
+    let Some(custom) = custom else {
+        return;
+    };
+    let unins = dir.join("uninstall.exe");
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    let Ok(key) = hkcu.open_subkey_with_flags(
+        r"Software\Microsoft\Windows\CurrentVersion\Uninstall\Void",
+        KEY_QUERY_VALUE | KEY_SET_VALUE,
+    ) else {
+        return;
+    };
+    let want = format!("\"{}\"", custom.display());
+    let cur: Result<String, _> = key.get_value("UninstallString");
+    if cur.map(|c| c != want).unwrap_or(true) {
+        let _ = key.set_value("UninstallString", &want);
+        let _ = key.set_value(
+            "QuietUninstallString",
+            &format!("\"{}\" /S", unins.display()),
+        );
     }
 }
 

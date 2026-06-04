@@ -179,6 +179,7 @@ jobs:
             ~/.cargo/git
             src-tauri/target
             installer/src-tauri/target
+            uninstaller/src-tauri/target
           key: cargo-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
 
       - name: npm install
@@ -200,6 +201,18 @@ jobs:
             Write-Error "TAURI_SIGNING_PRIVATE_KEY is missing or too short. Add the secret in repo Settings → Secrets → Actions."
             exit 1
           }
+
+      - name: Build custom uninstaller (Веха B) + stage as app resource
+        if: steps.check.outputs.exists == 'false'
+        shell: pwsh
+        run: |
+          # Деинсталлятор собираем ПЕРВЫМ и кладём в src-tauri/bundled/, откуда
+          # главное приложение вшивает его в bundle.resources (NSIS ставит его в
+          # папку установки). См. tasks/installer-plan.md (Фаза 6).
+          cargo build --release --manifest-path uninstaller/src-tauri/Cargo.toml
+          New-Item -ItemType Directory -Force src-tauri/bundled | Out-Null
+          Copy-Item "uninstaller/src-tauri/target/release/void-uninstaller.exe" `
+                    "src-tauri/bundled/void-uninstaller.exe" -Force
 
       - name: Build + sign
         if: steps.check.outputs.exists == 'false'
