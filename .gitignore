@@ -14,6 +14,12 @@ logs
 src-tauri/target
 src-tauri/gen/schemas
 
+# Custom installer (отдельный Tauri-проект, см. tasks/installer-plan.md)
+installer/src-tauri/target
+installer/src-tauri/gen/schemas
+# вшиваемый NSIS-setup (билд-артефакт, кладётся перед сборкой)
+installer/src-tauri/payload
+
 void.key
 void.key.pub
 

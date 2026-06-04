@@ -1,0 +1,32 @@
+[package]
+name = "void-installer"
+version = "0.1.0"
+description = "Void — кастомный установщик (UI-скин поверх тихого NSIS)"
+authors = ["Void"]
+edition = "2021"
+rust-version = "1.77"
+
+# Отдельный Tauri-проект (не главное приложение). Рендерит webview-мастер
+# установки по дизайну design_handoff/, а реальную установку молча делегирует
+# вшитому NSIS void_setup.exe (/S). См. tasks/installer-plan.md.
+
+[lib]
+name = "void_installer_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Windows-only: чтение реестра (детект установки) + свободное место на диске.
+[target.'cfg(windows)'.dependencies]
+winreg = "0.52"
+windows = { version = "0.59", features = [
+    "Win32_Storage_FileSystem",
+    "Win32_Foundation",
+] }

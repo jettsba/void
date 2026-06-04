@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "0.10.69";
+    const APP_VERSION = "0.11.0";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
@@ -1815,6 +1815,15 @@
 
     function init() {
         loadState();
+        /* Язык, выбранный в кастомном установщике, инжектится главным процессом
+           один раз через initialization_script (window.__VOID_INSTALLER_LANG__).
+           Перебивает сохранённый — это свежий осознанный выбор юзера при установке.
+           Маркер на стороне Rust уже удалён, так что применяется только раз. */
+        const installerLang = window.__VOID_INSTALLER_LANG__;
+        if (installerLang === "ru" || installerLang === "en") {
+            state.lang = installerLang;
+            saveState();
+        }
         document.documentElement.lang = state.lang;
         applyStreamerAttr();
         applyI18n();

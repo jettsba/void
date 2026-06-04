@@ -1,0 +1,188 @@
+/* ============================================================================
+   void — кастомный установщик. Дизайн: variant signal (D) из
+   design_handoff/VOID_INSTALLER_HANDOFF.md. Токены/хром/компоненты —
+   порт design_handoff/void.css на чистый CSS (без React/scope .void-win).
+   ========================================================================= */
+
+@font-face { font-family:'JetBrains Mono'; font-style:normal; font-weight:300; font-display:block; src:url('fonts/JetBrainsMono-Light.ttf')   format('truetype'); }
+@font-face { font-family:'JetBrains Mono'; font-style:normal; font-weight:400; font-display:block; src:url('fonts/JetBrainsMono-Regular.ttf') format('truetype'); }
+@font-face { font-family:'JetBrains Mono'; font-style:normal; font-weight:500; font-display:block; src:url('fonts/JetBrainsMono-Medium.ttf')  format('truetype'); }
+
+:root {
+  --bg-0:#0a0a0b; --bg-1:#101012; --bg-2:#16161a;
+  --fg:#e6e6e8; --fg-2:#8a8a90; --fg-3:#4d4d54; --fg-4:#2a2a2f;
+  --signal-warn:#b87a5a; --screen:#5faa7a;
+  --font:'JetBrains Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  --w-light:300; --w-reg:400; --w-med:500;
+  --tracking:0.02em; --tracking-wide:0.18em;
+  --ease:cubic-bezier(.2,.6,.2,1);
+  --radius:2px;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { height:100%; background:transparent; }
+
+/* ----- the window ---------------------------------------------------------- */
+.void-win {
+  position:relative;
+  background:var(--bg-0);
+  color:var(--fg);
+  font-family:var(--font);
+  font-size:14px; font-weight:var(--w-reg);
+  letter-spacing:var(--tracking); line-height:1.5;
+  -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+  height:100vh; display:flex; flex-direction:column; overflow:hidden;
+  border-radius:8px;            /* скруглённые углы (окно transparent) */
+  user-select:none; cursor:default;
+}
+
+.void-vignette {
+  position:absolute; inset:0; pointer-events:none; z-index:30;
+  background:radial-gradient(125% 90% at 50% 46%, transparent 52%, rgba(0,0,0,0.6) 100%);
+}
+
+/* ----- title bar ----------------------------------------------------------- */
+.v-titlebar {
+  flex:0 0 36px; display:flex; align-items:center; gap:10px;
+  padding:0 6px 0 14px; border-bottom:1px solid var(--fg-4);
+  position:relative; z-index:20; background:var(--bg-0);
+}
+.v-glyph { width:13px; height:13px; display:inline-flex; color:var(--fg);
+  filter:drop-shadow(0 0 3px rgba(230,230,232,.35)); flex:0 0 auto; }
+.v-glyph svg { width:13px; height:13px; }
+.v-title { font-size:11px; letter-spacing:var(--tracking-wide); text-transform:lowercase; color:var(--fg-2); }
+.v-winbtns { margin-left:auto; display:flex; align-items:center; gap:2px; }
+.v-winbtn {
+  width:30px; height:24px; display:flex; align-items:center; justify-content:center;
+  border:0; background:transparent; color:var(--fg-3); cursor:pointer; border-radius:var(--radius);
+  transition:color 120ms var(--ease), background 120ms var(--ease);
+}
+.v-winbtn svg { width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:1.2; stroke-linecap:round; }
+.v-winbtn:hover { color:var(--fg-2); background:var(--bg-1); }
+.v-winbtn.close:hover { color:var(--signal-warn); }
+
+/* ----- type roles ---------------------------------------------------------- */
+.v-eyebrow { color:var(--fg-3); font-size:12px; letter-spacing:var(--tracking-wide); text-transform:lowercase; }
+.v-body { font-size:14px; color:var(--fg-2); line-height:1.6; letter-spacing:var(--tracking); }
+.v-meta { font-size:12px; color:var(--fg-3); letter-spacing:var(--tracking); }
+
+/* ----- text-only nav button (footer) --------------------------------------- */
+.v-tbtn {
+  background:none; border:0; cursor:pointer; font-family:var(--font); font-size:12px;
+  letter-spacing:var(--tracking-wide); text-transform:lowercase; color:var(--fg-3);
+  padding:8px 4px; transition:color 120ms var(--ease);
+}
+.v-tbtn:hover { color:var(--fg); }
+.v-tbtn.primary { color:var(--fg); }
+.v-tbtn.primary:hover { color:#fff; text-shadow:0 0 12px rgba(255,255,255,.3); }
+.v-tbtn[disabled] { opacity:.3; pointer-events:none; }
+
+/* ----- boxed button (folder picker) ---------------------------------------- */
+.v-btn {
+  height:40px; padding:0 13px; display:inline-flex; align-items:center; justify-content:center; gap:9px;
+  background:transparent; color:var(--fg); border:1px solid var(--fg-4); border-radius:var(--radius);
+  font-family:var(--font); font-size:12px; letter-spacing:var(--tracking-wide); text-transform:lowercase; cursor:pointer;
+  transition:border-color 120ms var(--ease), color 120ms var(--ease), background 120ms var(--ease);
+}
+.v-btn:hover { border-color:var(--fg-2); }
+.v-btn:active { background:var(--bg-1); }
+.v-btn svg { fill:none; stroke:currentColor; }
+
+/* ----- field --------------------------------------------------------------- */
+.v-field {
+  height:40px; padding:0 12px; display:flex; align-items:center; gap:10px;
+  background:var(--bg-1); border:1px solid var(--fg-4); border-radius:var(--radius);
+  color:var(--fg); font-size:13px; letter-spacing:var(--tracking);
+  transition:border-color 120ms var(--ease), background 120ms var(--ease); overflow:hidden;
+}
+.v-field:focus-within { border-color:var(--fg-2); background:var(--bg-2); }
+.v-path { flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--fg); }
+
+/* ----- language segmented toggle (ru / en) --------------------------------- */
+.v-seg { display:inline-flex; border:1px solid var(--fg-4); border-radius:var(--radius); overflow:hidden; }
+.v-seg-opt {
+  height:26px; padding:0 11px; display:inline-flex; align-items:center; justify-content:center;
+  background:transparent; border:0; color:var(--fg-2); cursor:pointer;
+  font-family:var(--font); font-size:11px; letter-spacing:var(--tracking-wide); text-transform:lowercase;
+  transition:color 120ms var(--ease), background 120ms var(--ease);
+}
+.v-seg-opt + .v-seg-opt { border-left:1px solid var(--fg-4); }
+.v-seg-opt:hover { color:var(--fg); }
+.v-seg-opt.on { background:var(--fg); color:var(--bg-0); }
+.v-seg-opt.on:hover { color:var(--bg-0); }
+
+/* ----- checkbox ------------------------------------------------------------ */
+.v-check { display:flex; align-items:center; gap:12px; cursor:pointer; color:var(--fg-2);
+  font-size:13px; letter-spacing:var(--tracking); text-transform:lowercase; transition:color 120ms var(--ease); }
+.v-check:hover { color:var(--fg); }
+.v-box { width:18px; height:18px; flex:0 0 auto; border:1px solid var(--fg-4); border-radius:var(--radius);
+  background:var(--bg-1); display:flex; align-items:center; justify-content:center;
+  transition:border-color 120ms var(--ease), background 120ms var(--ease); }
+.v-check:hover .v-box { border-color:var(--fg-2); }
+.v-box.on { background:var(--fg); border-color:var(--fg); }
+.v-box svg { opacity:0; transition:opacity 120ms var(--ease); fill:none; stroke:#0a0a0b; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+.v-box.on svg { opacity:1; }
+
+/* ----- install log + block bar --------------------------------------------- */
+.v-log { font-family:var(--font); font-size:11.5px; line-height:1.75; letter-spacing:0; color:var(--fg-2); white-space:pre; overflow:hidden; }
+.v-log .dim { color:var(--fg-3); }
+.v-log .ok  { color:var(--screen); }
+.v-log .arr { color:var(--fg-3); }
+.v-cursor { display:inline-block; width:7px; height:13px; background:var(--fg); vertical-align:-2px; animation:vBlink 1s steps(1) infinite; }
+.v-blockbar { font-family:var(--font); letter-spacing:1px; color:var(--fg); font-size:13px; line-height:1; white-space:pre; }
+.v-blockbar .br { color:var(--fg-3); }
+.v-blockbar .fill { color:var(--fg); }
+.v-blockbar .empty { color:var(--fg-4); }
+.v-blockbar .pct { color:var(--fg); margin-left:12px; }
+
+/* ----- done indicator (step 2 → 100%) -------------------------------------- */
+.v-done { margin-top:14px; height:22px; display:flex; align-items:center; gap:8px;
+  opacity:0; transform:translateY(4px); transition:opacity 400ms var(--ease), transform 400ms var(--ease); }
+.v-done.show { opacity:1; transform:none; }
+.v-done svg { fill:none; stroke:var(--fg-2); stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+.v-done span { color:var(--fg-2); font-size:12px; letter-spacing:var(--tracking-wide); }
+
+/* ----- body area: ring + content as independent absolute layers ------------ */
+/* height = 468 − 36 titlebar − 56 footer = 376; никакого reflow между шагами */
+.win-body { position:relative; height:376px; overflow:hidden; flex-shrink:0; }
+
+.ring-layer {
+  position:absolute; top:52px; left:50%; z-index:5; pointer-events:none;
+  transform:translateX(-50%) scale(1); opacity:1; filter:none;
+  transition:transform 430ms var(--ease), opacity 430ms var(--ease), filter 430ms;
+}
+.ring-layer.hidden {
+  transform:translateX(-50%) scale(0.07); opacity:0; filter:blur(10px);
+  transition:transform 260ms cubic-bezier(.55,0,.8,.45), opacity 260ms cubic-bezier(.55,0,.8,.45), filter 260ms;
+}
+
+.void-ring { width:86px; height:86px; position:relative; display:grid; place-items:center; opacity:.96; }
+.void-ring.breathe { animation:ringBreathe 3.4s var(--ease) infinite; }
+.void-ring.done { opacity:1; }
+.void-ring svg { width:86px; height:86px; overflow:visible; }
+
+.content-wrap {
+  position:absolute; left:50%; transform:translateX(-50%);
+  top:190px; width:300px;
+}
+.content-wrap.install { top:76px; width:324px; }
+
+.v-stage { display:flex; flex-direction:column; align-items:center; text-align:center; transform-origin:center top; }
+.v-stage.left { align-items:flex-start; text-align:left; transform-origin:center center; }
+.v-stage.in  { animation:voidIn 360ms var(--ease) both; }
+.v-stage.out { animation:voidOut 230ms var(--ease) both; }
+
+/* ----- footer (aperture: centered, gap 28) --------------------------------- */
+.win-footer { flex:0 0 56px; display:flex; align-items:center; justify-content:center; gap:28px; position:relative; z-index:20; }
+
+/* ----- keyframes ----------------------------------------------------------- */
+@keyframes voidIn  { from{opacity:0; transform:scale(1.05); filter:blur(7px);} to{opacity:1; transform:scale(1); filter:blur(0);} }
+@keyframes voidOut { from{opacity:1; transform:scale(1); filter:blur(0);} to{opacity:0; transform:scale(.88); filter:blur(9px);} }
+@keyframes vIn { from{opacity:0; transform:translateY(-4px);} to{opacity:1; transform:none;} }
+@keyframes vBlink { 0%,50%{opacity:1;} 50.01%,100%{opacity:0;} }
+@keyframes ringBreathe { 0%,100%{opacity:.88;} 50%{opacity:.52;} }
+
+@media (prefers-reduced-motion: reduce) {
+  .v-stage.in, .v-stage.out { animation:none; }
+  .void-ring.breathe { animation:none; }
+}

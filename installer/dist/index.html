@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>void</title>
+    <link rel="stylesheet" href="installer.css" />
+  </head>
+  <body>
+    <!-- Кастомный установщик Void. Дизайн: variant signal (D),
+         design_handoff/VOID_INSTALLER_HANDOFF.md.
+         Фаза 2: вёрстка + клиентская оркестрация шагов на МОК-данных.
+         Фаза 3: detect/install/launch заменят моки реальными tauri-командами. -->
+    <div class="void-win">
+      <header class="v-titlebar" data-tauri-drag-region>
+        <span class="v-glyph" aria-hidden="true">
+          <svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="none" stroke="currentColor" stroke-width="7" /></svg>
+        </span>
+        <span class="v-title">void</span>
+        <div class="v-winbtns">
+          <button id="winMin" class="v-winbtn" type="button" tabindex="-1" aria-label="свернуть" title="свернуть">
+            <svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 7h8" /></svg>
+          </button>
+          <button id="winClose" class="v-winbtn close" type="button" tabindex="-1" aria-label="закрыть" title="закрыть">
+            <svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7" /></svg>
+          </button>
+        </div>
+      </header>
+
+      <main class="win-body">
+        <!-- кольцо — независимый абсолютный слой, высоту окна не меняет -->
+        <div id="ringLayer" class="ring-layer">
+          <div id="ring" class="void-ring breathe">
+            <svg viewBox="0 0 100 100" fill="none">
+              <defs>
+                <!-- большая область фильтра, чтобы размытие НЕ обрезалось (корона) -->
+                <filter id="vrf" x="-150%" y="-150%" width="400%" height="400%">
+                  <feGaussianBlur stdDeviation="8" />
+                </filter>
+              </defs>
+              <!-- внешнее гало: три размытых слоя — мягкий рассеянный спад (эклипс-корона) -->
+              <circle cx="50" cy="50" r="50.5" stroke="#e6e6e8" stroke-width="6"  opacity="0.11" filter="url(#vrf)" />
+              <circle cx="50" cy="50" r="55"   stroke="#e6e6e8" stroke-width="13" opacity="0.06" filter="url(#vrf)" />
+              <circle cx="50" cy="50" r="61"   stroke="#e6e6e8" stroke-width="22" opacity="0.03" filter="url(#vrf)" />
+              <!-- основное кольцо (чёткое, поверх) -->
+              <circle cx="50" cy="50" r="46.8" stroke="#e6e6e8" stroke-width="2" opacity="0.96" />
+            </svg>
+          </div>
+        </div>
+
+        <!-- контент шага — абсолютный слой, top/width меняются по шагу -->
+        <div id="contentWrap" class="content-wrap">
+          <div id="stage" class="v-stage in"></div>
+        </div>
+      </main>
+
+      <footer id="footer" class="win-footer"></footer>
+      <div class="void-vignette" aria-hidden="true"></div>
+    </div>
+
+    <script src="installer.js" defer></script>
+  </body>
+</html>

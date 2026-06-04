@@ -303,7 +303,7 @@ fn launch_main_window(app: &AppHandle) {
         WebviewUrl::App("index.html".into())
     };
 
-    let window = match WebviewWindowBuilder::new(app, "main", webview_url)
+    let mut builder = WebviewWindowBuilder::new(app, "main", webview_url)
         .title("Void")
         .inner_size(1280.0, 820.0)
         .min_inner_size(900.0, 600.0)
@@ -311,9 +311,17 @@ fn launch_main_window(app: &AppHandle) {
         .resizable(true)
         .decorations(false)
         .visible(true)
-        .focused(true)
-        .build()
-    {
+        .focused(true);
+
+    // Язык, выбранный в кастомном установщике, приходит один раз через файл-маркер
+    // installer-lang рядом с exe. Инжектим в окно ДО загрузки страницы — settings.js
+    // подхватит window.__VOID_INSTALLER_LANG__ в init(). Маркер удаляется при чтении.
+    if let Some(lang) = take_installer_lang() {
+        builder = builder
+            .initialization_script(&format!("window.__VOID_INSTALLER_LANG__={lang:?};"));
+    }
+
+    let window = match builder.build() {
         Ok(w) => w,
         Err(e) => {
             eprintln!("[main-window] build failed: {:?}", e);
@@ -339,6 +347,23 @@ fn launch_main_window(app: &AppHandle) {
             }
         }
     });
+}
+
+/// Читает one-shot маркер языка, оставленный кастомным установщиком в папке
+/// установки (рядом с exe). Возвращает "ru"/"en" и УДАЛЯЕТ файл, чтобы язык
+/// применился только на первом запуске после установки. В dev (exe в target/)
+/// маркера нет → None.
+fn take_installer_lang() -> Option<String> {
+    let dir = std::env::current_exe().ok()?.parent()?.to_path_buf();
+    let marker = dir.join("installer-lang");
+    let raw = std::fs::read_to_string(&marker).ok()?;
+    let _ = std::fs::remove_file(&marker);
+    let lang = raw.trim();
+    if lang == "ru" || lang == "en" {
+        Some(lang.to_string())
+    } else {
+        None
+    }
 }
 
 /// Окно обновления (режим A) — frameless 640×468 в стиле инсталлера.
