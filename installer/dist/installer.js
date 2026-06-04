@@ -63,7 +63,7 @@
   const t = (k) => DICT[lang][k];
 
   // ----- данные (моки по умолчанию; в Tauri перезаписываются из Rust) -------
-  let VERSION = "0.11.0";
+  let VERSION = "0.11.2";
   let PATH = "C:\\Users\\Admin\\AppData\\Local\\Void";
   let installDir = PATH;
   let existing = null;
@@ -188,7 +188,7 @@
     if (s === 2) return `
       <div class="v-eyebrow" style="margin-bottom:18px">${esc(t("installing"))}</div>
       <div id="bar" class="v-blockbar"></div>
-      <div style="margin-top:18px;border-top:1px solid var(--fg-4);padding-top:14px;max-height:118px;overflow:hidden">
+      <div style="margin-top:18px;border-top:1px solid var(--fg-4);padding-top:14px;width:324px;max-height:118px;overflow:hidden">
         <div id="log" class="v-log"></div>
       </div>
       <div id="done" class="v-done">
@@ -358,7 +358,8 @@
     clearArr(installTimers);
     const $log = document.getElementById("log");
     if ($log) $log.innerHTML =
-      `<div style="color:var(--signal-warn)">${esc(t("errTitle"))}</div><div class="arr">${esc(String(err))}</div>`;
+      `<div style="color:var(--signal-warn)">${esc(t("errTitle"))}</div>` +
+      `<div style="color:var(--fg-3);white-space:pre-wrap;word-break:break-word;max-width:324px">${esc(String(err))}</div>`;
     $footer.innerHTML = `<button id="btnErr" class="v-tbtn primary" type="button">${esc(t("bClose"))}</button>`;
     const b = document.getElementById("btnErr"); if (b) b.onclick = closeWindow;
   }
