@@ -113,7 +113,13 @@ jobs:
   build-desktop:
     runs-on: windows-latest
     needs: deploy
-    timeout-minutes: 30
+    # Холодная сборка ТРЁХ независимых Tauri-крейтов (uninstaller → app →
+    # installer), каждый в своём target/ — на Windows-раннере это ~60-90 мин с
+    # нуля. 30 мин не хватало: джоба убивалась таймаутом, не успев сохранить
+    # кэш → следующий прогон снова холодный → вечный таймаут. Запас даёт
+    # одному холодному прогону доехать и наполнить кэш; дальше restore-keys
+    # (см. шаг кэша) делает сборки инкрементальными и быстрыми.
+    timeout-minutes: 90
     permissions:
       contents: write  # default token (для самого release не используется — он идёт в публичный репо по PAT)
     env:
@@ -180,7 +186,15 @@ jobs:
             src-tauri/target
             installer/src-tauri/target
             uninstaller/src-tauri/target
-          key: cargo-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+          # Ключ покрывает ВСЕ три lock-файла — иначе смена deps в installer/
+          # uninstaller не инвалидировала бы кэш. restore-keys критичен: при
+          # смене любого lock (как winreg в src-tauri в Вехе B) точный ключ
+          # промахивается, и БЕЗ fallback'а всё компилилось бы с нуля и упиралось
+          # в таймаут. С restore-keys восстанавливается ближайший прошлый кэш как
+          # тёплая база → cargo пересобирает только изменившееся, инкрементально.
+          key: cargo-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock', 'installer/src-tauri/Cargo.lock', 'uninstaller/src-tauri/Cargo.lock') }}
+          restore-keys: |
+            cargo-${{ runner.os }}-
 
       - name: npm install
         if: steps.check.outputs.exists == 'false'
