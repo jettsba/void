@@ -459,12 +459,84 @@ function consumeInviteLinkFromUrl() {
         codeInput.closest(".entry-code-field")?.classList.add("has-value");
     }
 
-    document.addEventListener("void:app-unlocked", () => {
+    /* Desktop handoff (только в вебе): предлагаем открыть в установленном
+       приложении через нативный диалог void://. Если ушли в desktop — в веб
+       НЕ входим. Не установлено / диалог отменён — обычный веб-вход. */
+    const handoff = (window.VoidPlatform !== "desktop")
+        ? attemptDesktopHandoff(normalized)
+        : Promise.resolve(false);
+
+    document.addEventListener("void:app-unlocked", async () => {
         /* Двойной защитный пояс: если за время intro юзер уже сам вошёл —
            ничего не делаем. tryJoin сам себя проверит, но дешевле не дёргать. */
         if (isJoined) return;
-        tryJoin();
+        if (await handoff) return;   // открылось в desktop — веб не входит
+        if (!isJoined) tryJoin();
     }, { once: true });
+}
+
+/* Вход в комнату по коду — для desktop deep-link приёмника (js/desktop/deep-link.js).
+   Тот же путь, что invite-link: ставим код, дёргаем tryJoin (сразу если приложение
+   уже разблокировано, иначе по void:app-unlocked). */
+function joinRoomByCode(raw) {
+    const normalized = (raw || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (!ROOM_CODE_RX.test(normalized)) return false;
+    if (codeInput) {
+        codeInput.value = normalized;
+        codeInput.closest(".entry-code-field")?.classList.add("has-value");
+    }
+    const go = () => { if (!isJoined) tryJoin(); };
+    if (app && app.classList.contains("visible")) {
+        go();
+    } else {
+        document.addEventListener("void:app-unlocked", go, { once: true });
+    }
+    return true;
+}
+
+/* Пробует отдать вход desktop-приложению через схему void://room/КОД.
+   Возвращает Promise<boolean>: true — приложение открылось (в веб не входим).
+   Эвристика: нативный диалог браузера крадёт фокус (blur) ТОЛЬКО если схема
+   зарегистрирована (app установлен). Скрытие вкладки = юзер подтвердил, app
+   вышел на передний план. Нет blur за ~1.2с = не установлено → веб-вход. */
+function attemptDesktopHandoff(code) {
+    return new Promise((resolve) => {
+        let settled = false;
+        let blurred = false;
+        let noDialogTimer = 0;
+        let hardCap = 0;
+        const onVis = () => { if (document.visibilityState === "hidden") finish(true); };
+        const onBlur = () => { blurred = true; clearTimeout(noDialogTimer); };
+        const onFocus = () => { if (blurred) finish(false); }; // диалог отменён
+        const cleanup = () => {
+            window.removeEventListener("blur", onBlur);
+            window.removeEventListener("focus", onFocus);
+            document.removeEventListener("visibilitychange", onVis);
+            clearTimeout(noDialogTimer);
+            clearTimeout(hardCap);
+        };
+        const finish = (v) => {
+            if (settled) return;
+            settled = true;
+            cleanup();
+            resolve(v);
+        };
+        window.addEventListener("blur", onBlur);
+        window.addEventListener("focus", onFocus);
+        document.addEventListener("visibilitychange", onVis);
+        try {
+            const iframe = document.createElement("iframe");
+            iframe.style.display = "none";
+            iframe.src = `void://room/${encodeURIComponent(code)}`;
+            document.body.appendChild(iframe);
+            setTimeout(() => { try { iframe.remove(); } catch (_) {} }, 2000);
+        } catch (_) {
+            finish(false);
+            return;
+        }
+        noDialogTimer = setTimeout(() => finish(false), 1200);
+        hardCap = setTimeout(() => finish(false), 15000);
+    });
 }
 
 /* === UI auto-scale ===

@@ -33,6 +33,8 @@ use tauri::{
     AppHandle, Emitter, Listener, Manager, WebviewUrl, WebviewWindowBuilder, WindowEvent,
 };
 use tauri_plugin_autostart::{ManagerExt as _, MacosLauncher};
+use tauri_plugin_clipboard_manager::ClipboardExt;
+use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_global_shortcut::{
     Builder as GlobalShortcutBuilder, GlobalShortcutExt, Shortcut, ShortcutState,
 };
@@ -46,6 +48,24 @@ const ICON_IN_ROOM_PNG: &[u8] = include_bytes!("../icons/tray/in_room.png");
 static SHOWN_HIDE_TOAST: AtomicBool = AtomicBool::new(false);
 static CLOSE_TO_TRAY: AtomicBool = AtomicBool::new(true);
 
+/// Текущие код комнаты и share-ссылка (приходят из JS через void:set-tray-state).
+/// `None` когда не в комнате — тогда пункты «Скопировать …» в трее задизейблены.
+/// (code, link). Ссылку строит JS на каноничном домене (в desktop origin =
+/// tauri://localhost, поэтому строить её в Rust нельзя).
+static ROOM_SHARE: Mutex<Option<(String, String)>> = Mutex::new(None);
+
+/// Код комнаты из deep-link (`void://room/КОД`), пойманный ДО готовности
+/// главного окна (cold start). JS на init забирает его через
+/// take_pending_deep_link и входит. Warm-случай идёт через live-emit.
+static PENDING_ROOM: Mutex<Option<String>> = Mutex::new(None);
+
+/// Handles пунктов меню «Скопировать код / ссылку» — чтобы дёргать set_enabled
+/// при смене состояния комнаты. Кладём в managed state.
+struct TrayMenuItems {
+    copy_code: MenuItem<tauri::Wry>,
+    copy_link: MenuItem<tauri::Wry>,
+}
+
 /// Mapping Shortcut → action_name (toggleMic / toggleSound / toggleWindow / leaveRoom).
 /// Хранится в App state, обновляется при void:register-hotkeys.
 #[derive(Default)]
@@ -54,7 +74,20 @@ struct HotkeyMap(Mutex<HashMap<Shortcut, String>>);
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // single-instance ДОЛЖЕН идти первым плагином (требование плагина).
+        // Если app уже запущен и прилетел новый запуск (вкл. void:// deep-link) —
+        // не плодим 2-й процесс, а передаём ссылку текущему и фокусим окно.
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            for arg in &argv {
+                if arg.starts_with("void://") {
+                    route_deep_link(app, arg);
+                }
+            }
+            show_main_window(app);
+        }))
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_autostart::init(
@@ -67,6 +100,7 @@ pub fn run() {
                 .build(),
         )
         .manage(HotkeyMap::default())
+        .invoke_handler(tauri::generate_handler![take_pending_deep_link])
         .setup(|app| {
             // Bundled-web архитектура (Phase 6 фикс, v0.10.48):
             //   dev:     WebviewUrl::External("http://localhost:3000") — node-сервер
@@ -90,10 +124,46 @@ pub fn run() {
             #[cfg(windows)]
             reassert_custom_uninstaller();
 
+            // ============ Deep links (void://room/КОД) ============
+            // on_open_url ловит cold-start (Windows читает launch-argv) + macOS.
+            // Warm-случай (app уже открыт) обрабатывает single-instance callback.
+            let dl_handle = app.handle().clone();
+            app.deep_link().on_open_url(move |event| {
+                for url in event.urls() {
+                    route_deep_link(&dl_handle, url.as_str());
+                }
+            });
+            // В dev схема не прописана инсталлятором — регистрируем на dev-exe,
+            // чтобы можно было гонять handoff локально. В release регистрирует NSIS.
+            #[cfg(debug_assertions)]
+            {
+                let _ = app.deep_link().register("void");
+            }
+
             let show_item = MenuItem::with_id(app, "show", "Открыть Void", true, None::<&str>)?;
-            let sep = PredefinedMenuItem::separator(app)?;
+            // Стартуют задизейбленными (idle) — включаются в update_tray_state при входе в комнату.
+            let copy_code_item =
+                MenuItem::with_id(app, "copy-code", "Скопировать код", false, None::<&str>)?;
+            let copy_link_item =
+                MenuItem::with_id(app, "copy-link", "Скопировать ссылку", false, None::<&str>)?;
+            let sep_top = PredefinedMenuItem::separator(app)?;
+            let sep_bottom = PredefinedMenuItem::separator(app)?;
             let quit_item = MenuItem::with_id(app, "quit", "Выход", true, None::<&str>)?;
-            let tray_menu = Menu::with_items(app, &[&show_item, &sep, &quit_item])?;
+            let tray_menu = Menu::with_items(
+                app,
+                &[
+                    &show_item,
+                    &sep_top,
+                    &copy_code_item,
+                    &copy_link_item,
+                    &sep_bottom,
+                    &quit_item,
+                ],
+            )?;
+            app.manage(TrayMenuItems {
+                copy_code: copy_code_item,
+                copy_link: copy_link_item,
+            });
 
             TrayIconBuilder::with_id(TRAY_ID)
                 .icon(decode_png_to_image(ICON_IDLE_PNG))
@@ -102,6 +172,8 @@ pub fn run() {
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "show" => show_main_window(app),
+                    "copy-code" => copy_room_share(app, true),
+                    "copy-link" => copy_room_share(app, false),
                     "quit" => app.exit(0),
                     _ => {}
                 })
@@ -226,9 +298,18 @@ pub fn run() {
                     .get("roomCode")
                     .and_then(|s| s.as_str())
                     .map(String::from);
+                let room_link = parsed
+                    .get("roomLink")
+                    .and_then(|s| s.as_str())
+                    .map(String::from);
                 let app_clone = app_handle.clone();
                 let _ = app_handle.run_on_main_thread(move || {
-                    update_tray_state(&app_clone, &state, room_code.as_deref());
+                    update_tray_state(
+                        &app_clone,
+                        &state,
+                        room_code.as_deref(),
+                        room_link.as_deref(),
+                    );
                 });
             });
 
@@ -582,7 +663,12 @@ fn toggle_main_window(app: &AppHandle) {
     }
 }
 
-fn update_tray_state(app: &AppHandle, state: &str, room_code: Option<&str>) {
+fn update_tray_state(
+    app: &AppHandle,
+    state: &str,
+    room_code: Option<&str>,
+    room_link: Option<&str>,
+) {
     let (png, tooltip): (&[u8], String) = match state {
         "idle" => (ICON_IDLE_PNG, "void".to_string()),
         _ => {
@@ -596,6 +682,76 @@ fn update_tray_state(app: &AppHandle, state: &str, room_code: Option<&str>) {
     if let Some(tray) = app.tray_by_id(TRAY_ID) {
         let _ = tray.set_icon(Some(decode_png_to_image(png)));
         let _ = tray.set_tooltip(Some(tooltip.as_str()));
+    }
+
+    // Share-данные для пунктов «Скопировать …»: валидны только когда есть и код,
+    // и ссылка. Иначе пункты гасим (нечего копировать вне комнаты).
+    let share = match (room_code, room_link) {
+        (Some(c), Some(l)) if !c.is_empty() && !l.is_empty() => {
+            Some((c.to_string(), l.to_string()))
+        }
+        _ => None,
+    };
+    let enabled = share.is_some();
+    if let Ok(mut guard) = ROOM_SHARE.lock() {
+        *guard = share;
+    }
+    if let Some(items) = app.try_state::<TrayMenuItems>() {
+        let _ = items.copy_code.set_enabled(enabled);
+        let _ = items.copy_link.set_enabled(enabled);
+    }
+}
+
+// ============ Deep links ============
+
+/// Парсит код комнаты из `void://room/КОД` (терпит и `void://КОД`).
+/// Берёт ведущие alphanumeric-символы, в верхний регистр. JS валидирует ещё раз.
+fn parse_room_code(url: &str) -> Option<String> {
+    let rest = url.strip_prefix("void://")?;
+    let rest = rest.trim_start_matches('/');
+    let after = rest.strip_prefix("room/").unwrap_or(rest);
+    let code: String = after
+        .chars()
+        .take_while(|c| c.is_ascii_alphanumeric())
+        .collect();
+    if code.is_empty() {
+        None
+    } else {
+        Some(code.to_uppercase())
+    }
+}
+
+/// Маршрутизация пойманного deep-link'а: сохранить код (cold-start pull),
+/// показать/сфокусировать окно и live-эмитнуть в webview (warm-случай).
+fn route_deep_link(app: &AppHandle, url: &str) {
+    let Some(code) = parse_room_code(url) else {
+        return;
+    };
+    if let Ok(mut guard) = PENDING_ROOM.lock() {
+        *guard = Some(code.clone());
+    }
+    show_main_window(app);
+    let _ = app.emit("void:deep-link-room", serde_json::json!({ "code": code }));
+}
+
+/// Забирает (и очищает) код из deep-link, пойманного до готовности окна.
+/// JS дёргает на init — для cold-start входа в комнату по ссылке.
+#[tauri::command]
+fn take_pending_deep_link() -> Option<String> {
+    PENDING_ROOM.lock().ok().and_then(|mut g| g.take())
+}
+
+/// Копирует в буфер код комнаты (`code=true`) или share-ссылку (`code=false`).
+/// No-op если не в комнате (пункты в этом случае и так задизейблены).
+fn copy_room_share(app: &AppHandle, code: bool) {
+    let value = ROOM_SHARE
+        .lock()
+        .ok()
+        .and_then(|g| g.as_ref().map(|(c, l)| if code { c.clone() } else { l.clone() }));
+    if let Some(v) = value {
+        if let Err(e) = app.clipboard().write_text(v) {
+            eprintln!("[tray] clipboard write failed: {:?}", e);
+        }
     }
 }
 

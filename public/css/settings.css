@@ -615,6 +615,10 @@
 .settings-slider-wrap {
     position: relative;
     width: 100%;
+    /* flex + center убирают baseline-зазор под inline-block range-input —
+       иначе обёртка выше инпута и tick (top:50%) съезжает ниже трека. */
+    display: flex;
+    align-items: center;
 }
 
 /* Tick-метка на положении value=100 (uiScale slider 70..150 → 100 = 37.5%

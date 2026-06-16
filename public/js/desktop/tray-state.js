@@ -29,6 +29,16 @@
         return "idle";
     }
 
+    /* Каноничный домен для share-ссылки. В desktop location.origin =
+       tauri://localhost, поэтому ссылку строить от origin НЕЛЬЗЯ — берём
+       публичный домен (VoidApiBase его уже знает, см. desktop-bootstrap.js). */
+    const SHARE_BASE = window.VoidApiBase || "https://app.void-room.space";
+    function roomLink() {
+        return state.roomCode
+            ? `${SHARE_BASE}/?room=${encodeURIComponent(state.roomCode)}`
+            : null;
+    }
+
     /* Composite key для dedupe: если меняется только roomCode (а state тот же),
        нам всё равно нужно перепослать в Rust, чтобы tooltip обновился. */
     let last = null;
@@ -38,7 +48,11 @@
         if (key === last) return;
         last = key;
         window.__TAURI__.event
-            .emit("void:set-tray-state", { state: next, roomCode: state.roomCode })
+            .emit("void:set-tray-state", {
+                state: next,
+                roomCode: state.roomCode,
+                roomLink: roomLink()
+            })
             .catch((e) => console.warn("[tray] emit failed", e));
     }
 

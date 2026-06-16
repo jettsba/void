@@ -1,6 +1,6 @@
 [package]
 name = "void-desktop"
-version = "0.11.3"
+version = "0.11.4"
 description = "Void — эфемерные P2P голосовые комнаты"
 authors = ["Void"]
 edition = "2021"
@@ -16,6 +16,9 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = ["tray-icon", "devtools"] }
 tauri-plugin-shell = "2"
+tauri-plugin-clipboard-manager = "2"
+tauri-plugin-deep-link = "2"
+tauri-plugin-single-instance = "2"
 tauri-plugin-autostart = "2"
 tauri-plugin-notification = "2"
 tauri-plugin-global-shortcut = "2"
