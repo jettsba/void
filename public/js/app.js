@@ -457,23 +457,15 @@ function consumeInviteLinkFromUrl() {
     const normalized = raw.toUpperCase().replace(/[^A-Z0-9]/g, "");
     if (!ROOM_CODE_RX.test(normalized)) return;
 
-    if (codeInput) {
-        codeInput.value = normalized;
-        codeInput.closest(".entry-code-field")?.classList.add("has-value");
+    /* В desktop ссылку обрабатываем напрямую (хотя сюда обычно не попадаем —
+       deep-link идёт через Rust-событие). В вебе НЕ авто-входим: показываем
+       баннер-приглашение с выбором (открыть в приложении / продолжить в
+       браузере). Любой вход — только по клику пользователя. */
+    if (window.VoidPlatform === "desktop") {
+        joinRoomByCode(normalized);
+        return;
     }
-
-    /* В вебе показываем ненавязчивый баннер «открыть в приложении Void».
-       Запуск void:// возможен ТОЛЬКО из клика юзера (авто-запуск без жеста
-       браузеры глушат), поэтому это offer-кнопка, а не авто-диалог. Веб-вход
-       идёт как обычно — баннер его не блокирует; у кого нет приложения, просто
-       остаются в вебе. */
-    if (window.VoidPlatform !== "desktop") {
-        showOpenInAppBanner(normalized);
-    }
-
-    document.addEventListener("void:app-unlocked", () => {
-        if (!isJoined) tryJoin();
-    }, { once: true });
+    showInviteBanner(normalized);
 }
 
 /* Вход в комнату по коду — для desktop deep-link приёмника (js/desktop/deep-link.js).
@@ -495,49 +487,134 @@ function joinRoomByCode(raw) {
     return true;
 }
 
-/* Ненавязчивый баннер «открыть в приложении Void» (web-only). Запуск void://
-   делаем по КЛИКУ юзера (window.location) — единственный надёжный способ:
-   авто-запуск протокола без жеста браузеры блокируют. Если приложение не
-   установлено, клик просто ничего не сделает, и юзер остаётся в уже загруженной
-   веб-комнате. Desktop-приём ссылки — js/desktop/deep-link.js + Rust. */
-function showOpenInAppBanner(code) {
-    if (document.getElementById("openInAppBanner")) return;
+/* URL страницы загрузки с учётом языка: сначала явный сохранённый выбор в
+   настройках (localStorage void:settings.lang), иначе — язык системы (navigator;
+   не ru → en, как в auto-detect лендинга). en → /en/#download, ru → /#download. */
+function voidDownloadUrl() {
+    let lang = null;
+    try {
+        const raw = localStorage.getItem("void:settings");
+        if (raw) {
+            const p = JSON.parse(raw);
+            if (p && (p.lang === "ru" || p.lang === "en")) lang = p.lang;
+        }
+    } catch (_) {}
+    if (!lang) {
+        const sys = (navigator.language || "").toLowerCase();
+        lang = sys.startsWith("ru") ? "ru" : "en";
+    }
+    return lang === "en"
+        ? "https://void-room.space/en/#download"
+        : "https://void-room.space/#download";
+}
+
+/* Баннер-приглашение (web-only) при заходе по ?room=-ссылке. НЕ авто-входим —
+   юзер выбирает: открыть в приложении (void://) или продолжить в браузере.
+   Desktop-приём ссылки — js/desktop/deep-link.js + Rust.
+
+   Про фолбэк: надёжно определить из веба, открылось ли приложение, НЕЛЬЗЯ
+   (cold-start бывает >2с, вкладка при открытии app остаётся 'visible', а
+   focus/blur непостоянны). Поэтому НЕ авто-редиректим на download — после клика
+   «открыть в приложении» показываем ручной фолбэк «не открылось? → скачать /
+   в браузере». Так в download случайно не уведём того, у кого app открылся. */
+function showInviteBanner(code) {
+    if (document.getElementById("inviteBanner")) return;
     const tr = (k, fb) => (typeof _t === "function" ? _t(k) : fb);
+    const DOWNLOAD_URL = voidDownloadUrl();
 
     const banner = document.createElement("div");
-    banner.id = "openInAppBanner";
-    banner.className = "open-in-app-banner";
+    banner.id = "inviteBanner";
+    banner.className = "invite-banner";
     banner.setAttribute("role", "dialog");
     banner.setAttribute("aria-live", "polite");
 
-    const text = document.createElement("span");
-    text.className = "open-in-app-text";
-    text.textContent = tr("deeplink.banner", "открыть в приложении Void?");
+    /* Префикс приглашения — lowercase (CSS), код комнаты — отдельный span с
+       заглавными (CSS text-transform не должен опускать код в нижний регистр). */
+    const text = document.createElement("div");
+    text.className = "invite-banner-text";
+    const renderInvite = () => {
+        const tpl = tr("deeplink.invite", "вас пригласили в комнату #{code}");
+        const parts = tpl.split("{code}");
+        text.replaceChildren(document.createTextNode(parts[0] || ""));
+        if (parts.length > 1) {
+            const codeSpan = document.createElement("span");
+            codeSpan.className = "invite-banner-code";
+            codeSpan.textContent = code;
+            text.append(codeSpan, document.createTextNode(parts[1] || ""));
+        }
+    };
+    /* Аккуратная смена текста: fade out → подмена → fade in (класс .is-fading). */
+    const swapText = (apply) => {
+        text.classList.add("is-fading");
+        setTimeout(() => { apply(); text.classList.remove("is-fading"); }, 170);
+    };
+    renderInvite();
 
-    const openBtn = document.createElement("button");
-    openBtn.type = "button";
-    openBtn.className = "open-in-app-open";
-    openBtn.textContent = tr("deeplink.open", "открыть");
+    const actions = document.createElement("div");
+    actions.className = "invite-banner-actions";
 
-    const closeBtn = document.createElement("button");
-    closeBtn.type = "button";
-    closeBtn.className = "open-in-app-close";
-    closeBtn.setAttribute("aria-label", "закрыть");
-    closeBtn.textContent = "✕";
+    /* Утекающая полоса по нижней границе — таймер автозакрытия (14с). Пауза при
+       наведении (CSS animation-play-state на :hover), закрытие — по animationend. */
+    const timer = document.createElement("div");
+    timer.className = "invite-banner-timer";
+    const restartTimer = () => {
+        timer.style.animation = "none";
+        void timer.offsetWidth;   // reflow → перезапуск CSS-анимации
+        timer.style.animation = "";
+    };
 
+    let dismissed = false;
     const dismiss = () => {
+        if (dismissed) return;
+        dismissed = true;
         banner.classList.remove("is-visible");
         setTimeout(() => { try { banner.remove(); } catch (_) {} }, 250);
     };
+    timer.addEventListener("animationend", dismiss);
 
-    openBtn.addEventListener("click", () => {
-        try { window.location.href = `void://room/${encodeURIComponent(code)}`; }
-        catch (_) {}
+    const goWeb = () => {
         dismiss();
-    });
-    closeBtn.addEventListener("click", dismiss);
+        if (typeof joinRoomByCode === "function") joinRoomByCode(code);
+    };
+    const openDownload = () => {
+        const w = window.open(DOWNLOAD_URL, "_blank");
+        if (!w) window.location.href = DOWNLOAD_URL;
+    };
+    const mkBtn = (cls, label, onClick) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = cls;
+        b.textContent = label;
+        b.addEventListener("click", onClick);
+        return b;
+    };
 
-    banner.append(text, openBtn, closeBtn);
+    const openBtn = mkBtn(
+        "invite-banner-open",
+        tr("deeplink.open-app", "открыть в приложении"),
+        () => {
+            try { window.location.href = `void://room/${encodeURIComponent(code)}`; }
+            catch (_) {}
+            /* Фолбэк вместо авто-редиректа (см. шапку функции): плавно меняем текст,
+               подменяем кнопки и перезапускаем таймер — дать время на решение. */
+            swapText(() => {
+                text.textContent = tr("deeplink.fallback", "приложение не открылось?");
+            });
+            actions.replaceChildren(
+                mkBtn("invite-banner-open", tr("deeplink.download", "скачать приложение"), openDownload),
+                mkBtn("invite-banner-web", tr("deeplink.continue-web", "продолжить в браузере"), goWeb)
+            );
+            restartTimer();
+        }
+    );
+    const webBtn = mkBtn(
+        "invite-banner-web",
+        tr("deeplink.continue-web", "продолжить в браузере"),
+        goWeb
+    );
+
+    actions.append(openBtn, webBtn);
+    banner.append(text, actions, timer);
     document.body.appendChild(banner);
     requestAnimationFrame(() => banner.classList.add("is-visible"));
 }

@@ -63,7 +63,7 @@
   const t = (k) => DICT[lang][k];
 
   // ----- данные (моки по умолчанию; в Tauri перезаписываются из Rust) -------
-  let VERSION = "0.11.5";
+  let VERSION = "0.11.6";
   let PATH = "C:\\Users\\Admin\\AppData\\Local\\Void";
   let installDir = PATH;
   let existing = null;

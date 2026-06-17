@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "0.11.5";
+    const APP_VERSION = "0.11.6";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
@@ -224,8 +224,11 @@
             "invite.copy-link": "скопировать ссылку",
             "invite.copied": "скопировано",
 
-            "deeplink.banner": "открыть в приложении Void?",
-            "deeplink.open": "открыть"
+            "deeplink.invite": "вас пригласили в комнату #{code}",
+            "deeplink.open-app": "открыть в приложении",
+            "deeplink.continue-web": "продолжить в браузере",
+            "deeplink.fallback": "приложение не открылось?",
+            "deeplink.download": "скачать приложение"
         },
         en: {
             "intro.question": "what is the music of life?",
@@ -371,8 +374,11 @@
             "invite.copy-link": "copy link",
             "invite.copied": "copied",
 
-            "deeplink.banner": "open in the Void app?",
-            "deeplink.open": "open"
+            "deeplink.invite": "you've been invited to room #{code}",
+            "deeplink.open-app": "open in the app",
+            "deeplink.continue-web": "continue in browser",
+            "deeplink.fallback": "app didn't open?",
+            "deeplink.download": "download the app"
         }
     };
 

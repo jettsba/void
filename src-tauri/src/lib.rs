@@ -140,6 +140,22 @@ pub fn run() {
                 let _ = app.deep_link().register("void");
             }
 
+            // Cold-start: приложение не было запущено и ссылка пришла в launch-argv
+            // ПЕРВОГО процесса. on_open_url на Windows для первого запуска
+            // срабатывает не всегда → читаем argv явно и маршрутизируем
+            // (route_deep_link кладёт код в PENDING_ROOM; JS заберёт его через
+            // take_pending_deep_link на init и войдёт в комнату). Warm-случай
+            // (app уже открыт) по-прежнему идёт через single-instance callback.
+            {
+                let h = app.handle().clone();
+                for arg in std::env::args().skip(1) {
+                    if arg.starts_with("void://") {
+                        route_deep_link(&h, &arg);
+                        break;
+                    }
+                }
+            }
+
             let show_item = MenuItem::with_id(app, "show", "Открыть Void", true, None::<&str>)?;
             // Стартуют задизейбленными (idle) — включаются в update_tray_state при входе в комнату.
             let copy_code_item =

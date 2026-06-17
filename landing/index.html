@@ -4,6 +4,23 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 
+    <!-- Entrance-scroll capture: если зашли с #хэшем (#download из веб-баннера
+         «скачать приложение»), СРАЗУ убираем хэш из URL и фиксируем цель в
+         window.__voidEntrance — до того как браузер выполнит фрагмент-скролл.
+         landing.js затем плавно доедет до секции от верха. reduced-motion — не
+         трогаем (нативный мгновенный переход). Инлайн в <head>, чтобы успеть
+         перебить нативный скролл (defer уже поздно). -->
+    <script>
+      (function () {
+        var h = location.hash;
+        if (h.length <= 1) return;
+        if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        window.__voidEntrance = h.slice(1);
+        try { history.scrollRestoration = 'manual'; } catch (e) {}
+        try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+      })();
+    </script>
+
     <!-- ====== PRIMARY ====== -->
     <title>void :: голосовые комнаты без регистрации</title>
     <meta name="description" content="Голосовые комнаты без регистрации, без истории. Открой комнату, поделись кодом — и говори. Голос, чат, экран, файлы. Бесплатно, ничего не сохраняется." />
@@ -140,7 +157,7 @@
          анимаций сразу после первого экрана. ?v=N — cache-buster, бампать
          синхронно при правках landing.css / landing.js (см. memory rule). -->
     <link rel="preload" href="landing.css?v=2" as="style">
-    <link rel="preload" href="landing.js?v=2" as="script">
+    <link rel="preload" href="landing.js?v=3" as="script">
 
     <!-- Lenis: premium smooth scroll with inertia. ~16kb, used by Apple,
          Cuberto, Studio Freight, etc. Self-hosted (vendored to landing/).
@@ -804,6 +821,6 @@
     </footer>
 
     <script src="intro.js?v=1" defer></script>
-    <script src="landing.js?v=2" defer></script>
+    <script src="landing.js?v=3" defer></script>
 </body>
 </html>

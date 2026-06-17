@@ -393,24 +393,27 @@
     pointer-events: none;
 }
 
-/* «Открыть в приложении Void» — web-only баннер при заходе по ?room=-ссылке.
-   Запуск void:// — по клику (showOpenInAppBanner в js/app.js); авто-запуск
-   протокола браузеры блокируют. В desktop-сборке не показывается. */
-.open-in-app-banner {
+/* Баннер-приглашение (web-only) при заходе по ?room=-ссылке: «вас пригласили
+   в комнату #КОД» + выбор [открыть в приложении] / [продолжить в браузере].
+   НЕ авто-входим. Запуск void:// и веб-вход — по клику (showInviteBanner в
+   js/app.js). В desktop-сборке не показывается. */
+.invite-banner {
     position: fixed;
     top: 0.86rem;
     left: 50%;
     transform: translate(-50%, -0.6rem);
     z-index: 300;
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 0.71rem;
+    gap: 1.29rem;
     max-width: calc(100vw - 1.71rem);
-    padding: 0.43rem 0.43rem 0.43rem 0.93rem;
+    padding: 1rem 2.14rem;
     background: rgba(16, 16, 18, 0.96);
     border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 0.57rem;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    border-radius: 0.71rem;
+    overflow: hidden;                 /* клип утекающей полосы по скруглению */
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
     -webkit-backdrop-filter: blur(12px);
     backdrop-filter: blur(12px);
     opacity: 0;
@@ -418,66 +421,109 @@
     transition: opacity var(--t-med), transform var(--t-med);
 }
 
-.open-in-app-banner.is-visible {
+.invite-banner.is-visible {
     opacity: 1;
     transform: translate(-50%, 0);
     pointer-events: auto;
 }
 
-.open-in-app-text {
+.invite-banner-text {
     color: var(--signal);
-    font-size: 0.86rem;
+    font-size: 0.93rem;
     letter-spacing: var(--tracking);
     text-transform: lowercase;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    text-align: center;
+    transition: opacity 170ms ease;
 }
 
-.open-in-app-open {
+/* Промежуточное состояние при смене текста (fade out перед подменой). */
+.invite-banner-text.is-fading {
+    opacity: 0;
+}
+
+/* Код комнаты — заглавными (не наследует lowercase родителя). */
+.invite-banner-code {
+    text-transform: uppercase;
+}
+
+.invite-banner-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+    /* fit-content + stretch: контейнер по ширине самой длинной кнопки, обе
+       кнопки равны этой ширине (а не на весь баннер). */
+    width: fit-content;
+    max-width: 100%;
+}
+
+.invite-banner-open,
+.invite-banner-web {
     flex-shrink: 0;
-    padding: 0.36rem 0.86rem;
-    background: transparent;
-    color: var(--screen);
-    border: 1px solid var(--screen);
+    box-sizing: border-box;
+    /* flex-центрирование + явный line-height → обе кнопки строго равной высоты
+       (иначе наследуемый line-height мог давать разницу). */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.43rem 0.93rem;
     border-radius: 0.36rem;
     font: inherit;
     font-size: 0.79rem;
+    line-height: 1.15;
     letter-spacing: var(--tracking-wide);
     text-transform: lowercase;
     cursor: pointer;
-    transition: background var(--t-fast), color var(--t-fast);
+    transition: background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
 }
 
-.open-in-app-open:hover {
+.invite-banner-open {
+    background: transparent;
+    color: var(--screen);
+    border: 1px solid var(--screen);
+}
+
+.invite-banner-open:hover {
     background: var(--screen);
     color: #0a0a0b;
 }
 
-.open-in-app-close {
-    flex-shrink: 0;
-    width: 1.57rem;
-    height: 1.57rem;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+.invite-banner-web {
     background: transparent;
-    border: 0;
-    color: var(--fg-3);
-    font-size: 0.79rem;
-    line-height: 1;
-    cursor: pointer;
-    border-radius: 0.29rem;
-    transition: color var(--t-fast), background var(--t-fast);
+    color: var(--fg-2);
+    border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
-.open-in-app-close:hover {
+.invite-banner-web:hover {
     color: var(--signal);
-    background: rgba(255, 255, 255, 0.06);
+    border-color: var(--fg-2);
+}
+
+/* Утекающая полоса по нижней границе — таймер автозакрытия (14с). scaleX 1→0
+   слева направо. Пауза при наведении на баннер. Само закрытие — по animationend
+   (см. js/app.js), поэтому pause на hover откладывает и закрытие. */
+.invite-banner-timer {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    height: 2px;
+    background: rgba(255, 255, 255, 0.16);
+    transform-origin: left center;
+    animation: invite-banner-drain 14s linear forwards;
+}
+
+.invite-banner:hover .invite-banner-timer {
+    animation-play-state: paused;
+}
+
+@keyframes invite-banner-drain {
+    from { transform: scaleX(1); }
+    to   { transform: scaleX(0); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .open-in-app-banner {
+    .invite-banner {
         transition-duration: 0.01ms;
     }
 }

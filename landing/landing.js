@@ -11,9 +11,23 @@ void — landing behaviors
    Skipped on prefers-reduced-motion. Touch uses native momentum (syncTouch
    off — Lenis-smoothed touch can feel laggy vs. iOS rubber-band).
    ---------------------------------------------------------------------------- */
+/* #хэш перехвачен инлайн-скриптом в <head> (до нативного фрагмент-скролла) и
+   снят с URL; цель лежит в window.__voidEntrance. Здесь только плавно доезжаем.
+   window.scrollTo(0,0) — страховка на случай, если браузер всё же успел скакнуть. */
+var __voidEntrance = window.__voidEntrance || null;
+if (__voidEntrance) { try { window.scrollTo(0, 0); } catch (_) {} }
+
 (function initLenis() {
     function start() {
-        if (typeof Lenis === 'undefined') return;
+        if (typeof Lenis === 'undefined') {
+            /* Lenis не загрузился — но хэш уже убран и мы наверху, поэтому
+               доставим юзера к секции напрямую (без анимации). */
+            if (__voidEntrance) {
+                const t = document.getElementById(__voidEntrance);
+                if (t) t.scrollIntoView();
+            }
+            return;
+        }
         if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
         const lenis = new Lenis({
@@ -53,6 +67,23 @@ void — landing behaviors
         });
 
         window.__lenis = lenis;        // expose for debugging
+
+        /* Хэш уже убран и страница наверху (captureEntrance) — теперь на глазах
+           плавно доезжаем до секции. lenis immediate синхронизирует внутреннюю
+           позицию Lenis с верхом перед анимацией. */
+        if (__voidEntrance) {
+            const target = document.getElementById(__voidEntrance);
+            if (target) {
+                lenis.scrollTo(0, { immediate: true });
+                setTimeout(() => {
+                    lenis.scrollTo(target, {
+                        offset: 0,
+                        duration: 2.4,
+                        easing: (t) => 1 - Math.pow(1 - t, 4),  // тот же silky ease-out
+                    });
+                }, 750);
+            }
+        }
     }
 
     // Lenis is loaded with `defer`, so it's ready by DOMContentLoaded.
