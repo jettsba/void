@@ -392,3 +392,92 @@
     z-index: 3;
     pointer-events: none;
 }
+
+/* «Открыть в приложении Void» — web-only баннер при заходе по ?room=-ссылке.
+   Запуск void:// — по клику (showOpenInAppBanner в js/app.js); авто-запуск
+   протокола браузеры блокируют. В desktop-сборке не показывается. */
+.open-in-app-banner {
+    position: fixed;
+    top: 0.86rem;
+    left: 50%;
+    transform: translate(-50%, -0.6rem);
+    z-index: 300;
+    display: flex;
+    align-items: center;
+    gap: 0.71rem;
+    max-width: calc(100vw - 1.71rem);
+    padding: 0.43rem 0.43rem 0.43rem 0.93rem;
+    background: rgba(16, 16, 18, 0.96);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 0.57rem;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--t-med), transform var(--t-med);
+}
+
+.open-in-app-banner.is-visible {
+    opacity: 1;
+    transform: translate(-50%, 0);
+    pointer-events: auto;
+}
+
+.open-in-app-text {
+    color: var(--signal);
+    font-size: 0.86rem;
+    letter-spacing: var(--tracking);
+    text-transform: lowercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.open-in-app-open {
+    flex-shrink: 0;
+    padding: 0.36rem 0.86rem;
+    background: transparent;
+    color: var(--screen);
+    border: 1px solid var(--screen);
+    border-radius: 0.36rem;
+    font: inherit;
+    font-size: 0.79rem;
+    letter-spacing: var(--tracking-wide);
+    text-transform: lowercase;
+    cursor: pointer;
+    transition: background var(--t-fast), color var(--t-fast);
+}
+
+.open-in-app-open:hover {
+    background: var(--screen);
+    color: #0a0a0b;
+}
+
+.open-in-app-close {
+    flex-shrink: 0;
+    width: 1.57rem;
+    height: 1.57rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 0;
+    color: var(--fg-3);
+    font-size: 0.79rem;
+    line-height: 1;
+    cursor: pointer;
+    border-radius: 0.29rem;
+    transition: color var(--t-fast), background var(--t-fast);
+}
+
+.open-in-app-close:hover {
+    color: var(--signal);
+    background: rgba(255, 255, 255, 0.06);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .open-in-app-banner {
+        transition-duration: 0.01ms;
+    }
+}

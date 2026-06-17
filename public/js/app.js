@@ -285,7 +285,10 @@ function init() {
     inviteCopyLink.addEventListener("click", (e) => {
         e.stopPropagation();
         if (!currentRoomCode) return;
-        const link = `${location.origin}/?room=${encodeURIComponent(currentRoomCode)}`;
+        /* В desktop location.origin = tauri.localhost — берём публичный домен
+           (VoidApiBase его знает). В вебе VoidApiBase нет → origin корректен. */
+        const base = window.VoidApiBase || location.origin;
+        const link = `${base}/?room=${encodeURIComponent(currentRoomCode)}`;
         copyInviteValue(inviteCopyLink, link);
     });
     invitePanel.addEventListener("click", (e) => {
@@ -459,18 +462,16 @@ function consumeInviteLinkFromUrl() {
         codeInput.closest(".entry-code-field")?.classList.add("has-value");
     }
 
-    /* Desktop handoff (только в вебе): предлагаем открыть в установленном
-       приложении через нативный диалог void://. Если ушли в desktop — в веб
-       НЕ входим. Не установлено / диалог отменён — обычный веб-вход. */
-    const handoff = (window.VoidPlatform !== "desktop")
-        ? attemptDesktopHandoff(normalized)
-        : Promise.resolve(false);
+    /* В вебе показываем ненавязчивый баннер «открыть в приложении Void».
+       Запуск void:// возможен ТОЛЬКО из клика юзера (авто-запуск без жеста
+       браузеры глушат), поэтому это offer-кнопка, а не авто-диалог. Веб-вход
+       идёт как обычно — баннер его не блокирует; у кого нет приложения, просто
+       остаются в вебе. */
+    if (window.VoidPlatform !== "desktop") {
+        showOpenInAppBanner(normalized);
+    }
 
-    document.addEventListener("void:app-unlocked", async () => {
-        /* Двойной защитный пояс: если за время intro юзер уже сам вошёл —
-           ничего не делаем. tryJoin сам себя проверит, но дешевле не дёргать. */
-        if (isJoined) return;
-        if (await handoff) return;   // открылось в desktop — веб не входит
+    document.addEventListener("void:app-unlocked", () => {
         if (!isJoined) tryJoin();
     }, { once: true });
 }
@@ -494,49 +495,51 @@ function joinRoomByCode(raw) {
     return true;
 }
 
-/* Пробует отдать вход desktop-приложению через схему void://room/КОД.
-   Возвращает Promise<boolean>: true — приложение открылось (в веб не входим).
-   Эвристика: нативный диалог браузера крадёт фокус (blur) ТОЛЬКО если схема
-   зарегистрирована (app установлен). Скрытие вкладки = юзер подтвердил, app
-   вышел на передний план. Нет blur за ~1.2с = не установлено → веб-вход. */
-function attemptDesktopHandoff(code) {
-    return new Promise((resolve) => {
-        let settled = false;
-        let blurred = false;
-        let noDialogTimer = 0;
-        let hardCap = 0;
-        const onVis = () => { if (document.visibilityState === "hidden") finish(true); };
-        const onBlur = () => { blurred = true; clearTimeout(noDialogTimer); };
-        const onFocus = () => { if (blurred) finish(false); }; // диалог отменён
-        const cleanup = () => {
-            window.removeEventListener("blur", onBlur);
-            window.removeEventListener("focus", onFocus);
-            document.removeEventListener("visibilitychange", onVis);
-            clearTimeout(noDialogTimer);
-            clearTimeout(hardCap);
-        };
-        const finish = (v) => {
-            if (settled) return;
-            settled = true;
-            cleanup();
-            resolve(v);
-        };
-        window.addEventListener("blur", onBlur);
-        window.addEventListener("focus", onFocus);
-        document.addEventListener("visibilitychange", onVis);
-        try {
-            const iframe = document.createElement("iframe");
-            iframe.style.display = "none";
-            iframe.src = `void://room/${encodeURIComponent(code)}`;
-            document.body.appendChild(iframe);
-            setTimeout(() => { try { iframe.remove(); } catch (_) {} }, 2000);
-        } catch (_) {
-            finish(false);
-            return;
-        }
-        noDialogTimer = setTimeout(() => finish(false), 1200);
-        hardCap = setTimeout(() => finish(false), 15000);
+/* Ненавязчивый баннер «открыть в приложении Void» (web-only). Запуск void://
+   делаем по КЛИКУ юзера (window.location) — единственный надёжный способ:
+   авто-запуск протокола без жеста браузеры блокируют. Если приложение не
+   установлено, клик просто ничего не сделает, и юзер остаётся в уже загруженной
+   веб-комнате. Desktop-приём ссылки — js/desktop/deep-link.js + Rust. */
+function showOpenInAppBanner(code) {
+    if (document.getElementById("openInAppBanner")) return;
+    const tr = (k, fb) => (typeof _t === "function" ? _t(k) : fb);
+
+    const banner = document.createElement("div");
+    banner.id = "openInAppBanner";
+    banner.className = "open-in-app-banner";
+    banner.setAttribute("role", "dialog");
+    banner.setAttribute("aria-live", "polite");
+
+    const text = document.createElement("span");
+    text.className = "open-in-app-text";
+    text.textContent = tr("deeplink.banner", "открыть в приложении Void?");
+
+    const openBtn = document.createElement("button");
+    openBtn.type = "button";
+    openBtn.className = "open-in-app-open";
+    openBtn.textContent = tr("deeplink.open", "открыть");
+
+    const closeBtn = document.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.className = "open-in-app-close";
+    closeBtn.setAttribute("aria-label", "закрыть");
+    closeBtn.textContent = "✕";
+
+    const dismiss = () => {
+        banner.classList.remove("is-visible");
+        setTimeout(() => { try { banner.remove(); } catch (_) {} }, 250);
+    };
+
+    openBtn.addEventListener("click", () => {
+        try { window.location.href = `void://room/${encodeURIComponent(code)}`; }
+        catch (_) {}
+        dismiss();
     });
+    closeBtn.addEventListener("click", dismiss);
+
+    banner.append(text, openBtn, closeBtn);
+    document.body.appendChild(banner);
+    requestAnimationFrame(() => banner.classList.add("is-visible"));
 }
 
 /* === UI auto-scale ===

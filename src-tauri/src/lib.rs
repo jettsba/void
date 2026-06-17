@@ -460,6 +460,13 @@ fn reassert_custom_uninstaller() {
     use winreg::enums::{HKEY_CURRENT_USER, KEY_QUERY_VALUE, KEY_SET_VALUE};
     use winreg::RegKey;
 
+    // Из dev-сборки реестр НЕ трогаем: dev-exe живёт в target/debug, и reassert
+    // переписал бы UninstallString установленного приложения на dev-путь
+    // (баг «uninstall.exe не найден» при удалении). Только установленный release.
+    if cfg!(debug_assertions) {
+        return;
+    }
+
     let Ok(exe) = std::env::current_exe() else {
         return;
     };
@@ -483,6 +490,19 @@ fn reassert_custom_uninstaller() {
     ) else {
         return;
     };
+
+    // Трогаем реестр только если запущены ИЗ папки установки (current_exe рядом
+    // с InstallLocation). Защита от перезаписи указателя «Удалить» чужим или
+    // перемещённым exe (тот же класс бага, что dev-запуск выше).
+    if let Ok(loc) = key.get_value::<String, _>("InstallLocation") {
+        if !dir
+            .to_string_lossy()
+            .eq_ignore_ascii_case(loc.trim_matches('"'))
+        {
+            return;
+        }
+    }
+
     let want = format!("\"{}\"", custom.display());
     let cur: Result<String, _> = key.get_value("UninstallString");
     if cur.map(|c| c != want).unwrap_or(true) {
