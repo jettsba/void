@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>void menu</title>
+    <link rel="stylesheet" href="css/tray-menu.css?v=2" />
+</head>
+<body>
+    <!-- Кастомное трей-меню (вместо нативного Windows-меню). Frameless,
+         прозрачное, always-on-top окно (label "tray-menu"), поднятое скрытым
+         из Rust и позиционируемое по правому клику на значке трея.
+         Видимость копи-пунктов приходит из Rust событием void:tray-menu-state
+         { inRoom }. Клик по пункту → команда tray_menu_action(action). -->
+    <div class="tm-menu" role="menu">
+        <button class="tm-item" type="button" data-action="show" role="menuitem">открыть void</button>
+
+        <div class="tm-sep tm-room" aria-hidden="true"></div>
+        <button class="tm-item tm-room" type="button" data-action="copy-code" role="menuitem">скопировать код</button>
+        <button class="tm-item tm-room" type="button" data-action="copy-link" role="menuitem">скопировать ссылку</button>
+
+        <div class="tm-sep" aria-hidden="true"></div>
+        <button class="tm-item tm-quit" type="button" data-action="quit" role="menuitem">выход</button>
+    </div>
+
+    <script src="js/desktop/tray-menu.js?v=2" defer></script>
+</body>
+</html>

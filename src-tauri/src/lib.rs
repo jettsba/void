@@ -28,9 +28,9 @@ use std::sync::Mutex;
 
 use tauri::{
     image::Image,
-    menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Emitter, Listener, Manager, WebviewUrl, WebviewWindowBuilder, WindowEvent,
+    AppHandle, Emitter, Listener, LogicalSize, Manager, PhysicalPosition, WebviewUrl,
+    WebviewWindowBuilder, WindowEvent,
 };
 use tauri_plugin_autostart::{ManagerExt as _, MacosLauncher};
 use tauri_plugin_clipboard_manager::ClipboardExt;
@@ -59,11 +59,29 @@ static ROOM_SHARE: Mutex<Option<(String, String)>> = Mutex::new(None);
 /// take_pending_deep_link и входит. Warm-случай идёт через live-emit.
 static PENDING_ROOM: Mutex<Option<String>> = Mutex::new(None);
 
-/// Handles пунктов меню «Скопировать код / ссылку» — чтобы дёргать set_enabled
-/// при смене состояния комнаты. Кладём в managed state.
-struct TrayMenuItems {
-    copy_code: MenuItem<tauri::Wry>,
-    copy_link: MenuItem<tauri::Wry>,
+/// Label кастомного окна-меню трея (см. tray-menu.html / open_tray_menu).
+const TRAY_MENU_LABEL: &str = "tray-menu";
+/// Ширина окна-меню в логических px. Высота считается tray_menu_height().
+const TRAY_MENU_W: f64 = 210.0;
+
+/// Высота окна-меню (логические px). Считается под фиксированные размеры из
+/// css/tray-menu.css: border 1px×2, padding 6px×2, item 32px, sep 9px.
+/// В комнате видны 2 копи-пункта + лишний разделитель → меню выше.
+fn tray_menu_height(in_room: bool) -> f64 {
+    const BORDER: f64 = 1.0; // ×2 (верх/низ)
+    const PAD: f64 = 6.0; // ×2
+    const ITEM: f64 = 32.0;
+    const SEP: f64 = 9.0; // 1px линия + 4px margin сверху/снизу
+    let (items, seps) = if in_room { (4.0, 2.0) } else { (2.0, 1.0) };
+    BORDER * 2.0 + PAD * 2.0 + ITEM * items + SEP * seps
+}
+
+/// Авто-масштаб UI от ширины монитора в CSS-px — та же формула, что в
+/// public/ui-scale-bootstrap.js (множитель основного приложения). Чтобы трей-меню
+/// росло на 2K/4K синхронно с остальным UI. css_width = физическая ширина / scale.
+fn ui_auto_scale(css_width: f64) -> f64 {
+    let t = (1.4 * (css_width / 100.0) - 10.0).clamp(14.0, 44.0);
+    t / 14.0
 }
 
 /// Mapping Shortcut → action_name (toggleMic / toggleSound / toggleWindow / leaveRoom).
@@ -100,7 +118,10 @@ pub fn run() {
                 .build(),
         )
         .manage(HotkeyMap::default())
-        .invoke_handler(tauri::generate_handler![take_pending_deep_link])
+        .invoke_handler(tauri::generate_handler![
+            take_pending_deep_link,
+            tray_menu_action
+        ])
         .setup(|app| {
             // Bundled-web архитектура (Phase 6 фикс, v0.10.48):
             //   dev:     WebviewUrl::External("http://localhost:3000") — node-сервер
@@ -156,52 +177,29 @@ pub fn run() {
                 }
             }
 
-            let show_item = MenuItem::with_id(app, "show", "Открыть Void", true, None::<&str>)?;
-            // Стартуют задизейбленными (idle) — включаются в update_tray_state при входе в комнату.
-            let copy_code_item =
-                MenuItem::with_id(app, "copy-code", "Скопировать код", false, None::<&str>)?;
-            let copy_link_item =
-                MenuItem::with_id(app, "copy-link", "Скопировать ссылку", false, None::<&str>)?;
-            let sep_top = PredefinedMenuItem::separator(app)?;
-            let sep_bottom = PredefinedMenuItem::separator(app)?;
-            let quit_item = MenuItem::with_id(app, "quit", "Выход", true, None::<&str>)?;
-            let tray_menu = Menu::with_items(
-                app,
-                &[
-                    &show_item,
-                    &sep_top,
-                    &copy_code_item,
-                    &copy_link_item,
-                    &sep_bottom,
-                    &quit_item,
-                ],
-            )?;
-            app.manage(TrayMenuItems {
-                copy_code: copy_code_item,
-                copy_link: copy_link_item,
-            });
+            // Кастомное окно-меню (вместо нативного Windows-меню) поднимаем
+            // скрытым заранее — чтобы по правому клику открывалось мгновенно.
+            create_tray_menu_window(app.handle());
 
+            // Без .menu(...) — нативное меню не всплывает. Левый клик → toggle
+            // окна; правый клик → наше кастомное меню (open_tray_menu).
             TrayIconBuilder::with_id(TRAY_ID)
                 .icon(decode_png_to_image(ICON_IDLE_PNG))
                 .tooltip("void")
-                .menu(&tray_menu)
                 .show_menu_on_left_click(false)
-                .on_menu_event(|app, event| match event.id.as_ref() {
-                    "show" => show_main_window(app),
-                    "copy-code" => copy_room_share(app, true),
-                    "copy-link" => copy_room_share(app, false),
-                    "quit" => app.exit(0),
-                    _ => {}
-                })
-                .on_tray_icon_event(|tray, event| {
-                    if let TrayIconEvent::Click {
+                .on_tray_icon_event(|tray, event| match event {
+                    TrayIconEvent::Click {
                         button: MouseButton::Left,
                         button_state: MouseButtonState::Up,
                         ..
-                    } = event
-                    {
-                        toggle_main_window(tray.app_handle());
-                    }
+                    } => toggle_main_window(tray.app_handle()),
+                    TrayIconEvent::Click {
+                        button: MouseButton::Right,
+                        button_state: MouseButtonState::Up,
+                        position,
+                        ..
+                    } => open_tray_menu(tray.app_handle(), position),
+                    _ => {}
                 })
                 .build(app)?;
 
@@ -720,21 +718,142 @@ fn update_tray_state(
         let _ = tray.set_tooltip(Some(tooltip.as_str()));
     }
 
-    // Share-данные для пунктов «Скопировать …»: валидны только когда есть и код,
-    // и ссылка. Иначе пункты гасим (нечего копировать вне комнаты).
+    // Share-данные для пунктов «скопировать …»: валидны только когда есть и код,
+    // и ссылка. Иначе вне комнаты эти пункты в меню скрыты.
     let share = match (room_code, room_link) {
         (Some(c), Some(l)) if !c.is_empty() && !l.is_empty() => {
             Some((c.to_string(), l.to_string()))
         }
         _ => None,
     };
-    let enabled = share.is_some();
+    let in_room = share.is_some();
     if let Ok(mut guard) = ROOM_SHARE.lock() {
         *guard = share;
     }
-    if let Some(items) = app.try_state::<TrayMenuItems>() {
-        let _ = items.copy_code.set_enabled(enabled);
-        let _ = items.copy_link.set_enabled(enabled);
+    // Проактивно толкаем состояние в окно-меню — чтобы к моменту открытия
+    // копи-пункты уже были показаны/скрыты без мерцания.
+    if let Some(menu_win) = app.get_webview_window(TRAY_MENU_LABEL) {
+        let _ = menu_win.emit("void:tray-menu-state", serde_json::json!({ "inRoom": in_room }));
+    }
+}
+
+/// Создаёт скрытое окно кастомного трей-меню (frameless, прозрачное,
+/// always-on-top, вне таскбара). Поднимается один раз на старте и
+/// переиспользуется (show/hide/reposition) — см. open_tray_menu.
+fn create_tray_menu_window(app: &AppHandle) {
+    if app.get_webview_window(TRAY_MENU_LABEL).is_some() {
+        return;
+    }
+    let url = if cfg!(debug_assertions) {
+        WebviewUrl::External(
+            "http://localhost:3000/tray-menu.html"
+                .parse()
+                .expect("invalid dev URL"),
+        )
+    } else {
+        WebviewUrl::App("tray-menu.html".into())
+    };
+    let win = match WebviewWindowBuilder::new(app, TRAY_MENU_LABEL, url)
+        .title("void menu")
+        // +2px — прозрачное кольцо (см. open_tray_menu). Реальный размер
+        // выставляется на каждом открытии под состояние комнаты и авто-масштаб.
+        .inner_size(TRAY_MENU_W + 2.0, tray_menu_height(false) + 2.0)
+        .resizable(false)
+        .decorations(false)
+        .transparent(true)
+        .always_on_top(true)
+        .skip_taskbar(true)
+        .shadow(false)
+        .visible(false)
+        .focused(false)
+        .build()
+    {
+        Ok(w) => w,
+        Err(e) => {
+            eprintln!("[tray-menu] build failed: {:?}", e);
+            return;
+        }
+    };
+    // Клик мимо меню (потеря фокуса) → прячем. Так ведёт себя нативное меню.
+    let app_for_blur = app.clone();
+    win.on_window_event(move |event| {
+        if let WindowEvent::Focused(false) = event {
+            if let Some(w) = app_for_blur.get_webview_window(TRAY_MENU_LABEL) {
+                let _ = w.hide();
+            }
+        }
+    });
+}
+
+/// Показывает окно-меню у курсора (правый клик по трею). Размер/высота — под
+/// текущее состояние комнаты; позиция — якорь правым-нижним углом к курсору
+/// (трей в Windows внизу справа), с клампом к рабочей области монитора.
+fn open_tray_menu(app: &AppHandle, cursor: PhysicalPosition<f64>) {
+    let in_room = ROOM_SHARE.lock().ok().map(|g| g.is_some()).unwrap_or(false);
+    let Some(win) = app.get_webview_window(TRAY_MENU_LABEL) else {
+        return;
+    };
+
+    // Монитор окна: даёт DPI (scale_factor) и физ-ширину для авто-масштаба.
+    let monitor = win.current_monitor().ok().flatten();
+    let scale = monitor
+        .as_ref()
+        .map(|m| m.scale_factor())
+        .unwrap_or_else(|| win.scale_factor().unwrap_or(1.0));
+    // Авто-масштаб от CSS-ширины монитора (физ-ширина / DPI) — как в приложении.
+    let auto = monitor
+        .as_ref()
+        .map(|m| ui_auto_scale(m.size().width as f64 / m.scale_factor()))
+        .unwrap_or(1.0);
+
+    // Видимость копи-пунктов + множитель масштаба → странице (rem-сетка).
+    // (основной push inRoom — в update_tray_state; scale считаем тут по монитору)
+    let _ = win.emit(
+        "void:tray-menu-state",
+        serde_json::json!({ "inRoom": in_room, "scale": auto }),
+    );
+
+    // Контент × авто-масштаб, +2px прозрачного «кольца» (страховка от подреза
+    // правого/нижнего бордера у прозрачного frameless-окна — см. tray-menu.css).
+    let w_log = TRAY_MENU_W * auto + 2.0;
+    let h_log = tray_menu_height(in_room) * auto + 2.0;
+    let _ = win.set_size(LogicalSize::new(w_log, h_log));
+
+    // Якорь правым-нижним углом к курсору (трей в Windows внизу справа),
+    // с клампом к рабочей области монитора.
+    let w_phys = w_log * scale;
+    let h_phys = h_log * scale;
+    let mut x = cursor.x - w_phys;
+    let mut y = cursor.y - h_phys;
+    if let Some(mon) = monitor.as_ref() {
+        let mp = mon.position();
+        let ms = mon.size();
+        let gap = 4.0 * scale;
+        let min_x = mp.x as f64 + gap;
+        let min_y = mp.y as f64 + gap;
+        let max_x = (mp.x as f64 + ms.width as f64 - w_phys - gap).max(min_x);
+        let max_y = (mp.y as f64 + ms.height as f64 - h_phys - gap).max(min_y);
+        x = x.clamp(min_x, max_x);
+        y = y.clamp(min_y, max_y);
+    }
+    let _ = win.set_position(PhysicalPosition::new(x, y));
+    let _ = win.show();
+    let _ = win.set_focus();
+}
+
+/// Действие из кастомного трей-меню (клик по пункту). Сначала прячем меню,
+/// затем выполняем. Копи-действия — no-op вне комнаты (пункты там скрыты).
+#[tauri::command]
+fn tray_menu_action(app: AppHandle, action: String) {
+    if let Some(w) = app.get_webview_window(TRAY_MENU_LABEL) {
+        let _ = w.hide();
+    }
+    match action.as_str() {
+        "show" => show_main_window(&app),
+        "copy-code" => copy_room_share(&app, true),
+        "copy-link" => copy_room_share(&app, false),
+        "quit" => app.exit(0),
+        _ => {}
     }
 }
 

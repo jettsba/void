@@ -1,8 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Permissions for the Void windows (main + updater). Phase 1 — window controls. Phase 2 — tray, menu, notifications, autostart, global-shortcut. Updater v2 — frameless updater window reuses the same window/event perms.",
-  "windows": ["main", "updater"],
+  "description": "Permissions for the Void windows (main + updater + tray-menu). Phase 1 — window controls. Phase 2 — tray, menu, notifications, autostart, global-shortcut. Updater v2 — frameless updater window reuses the same window/event perms. tray-menu — custom frameless tray context menu (hide/show/set-position/set-size + tray_menu_action command).",
+  "windows": ["main", "updater", "tray-menu"],
   "permissions": [
     "core:default",
     "core:event:default",
@@ -13,6 +13,7 @@
     "core:window:allow-unmaximize",
     "core:window:allow-toggle-maximize",
     "core:window:allow-close",
+    "core:window:allow-hide",
     "core:window:allow-start-dragging",
     "core:window:allow-is-maximized",
     "core:tray:default",

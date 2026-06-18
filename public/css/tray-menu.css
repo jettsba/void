@@ -1,0 +1,108 @@
+/* ============ Кастомное трей-меню (вместо нативного Windows-меню) ============
+   Frameless, прозрачное, always-on-top окно (label "tray-menu"), позиционируется
+   из Rust по правому клику на значке трея. Стилистика — VOID_STYLE_GUIDE:
+   bg-1 поверхность, hairline-бордер fg-4, JetBrains Mono, lowercase, без теней.
+
+   МАСШТАБ: всё внутри — в rem; корневой font-size = 14px * --tm-scale.
+   --tm-scale выставляет tray-menu.js (формула от screen.width, как
+   ui-scale-bootstrap.js в основном приложении) → меню растёт на 2K/4K
+   синхронно с остальным UI. Размер ОКНА считает Rust (open_tray_menu) тем же
+   множителем, поэтому контент точно заполняет окно.
+
+   КОЛЬЦО: body имеет padding 1px (прозрачный) — окно на 2px больше меню. Это
+   страхует от подреза правого/нижнего бордера у прозрачного frameless-окна
+   (WebView2 клипает крайний девайс-пиксель). Бордер уходит внутрь кольца.
+
+   ВАЖНО: высота окна считается в Rust (tray_menu_height) под ЭТИ базовые
+   размеры (px при --tm-scale=1): border 1px, padding 6px, item 32px,
+   sep 9px (1px линия + 4px margin сверху/снизу). Меняешь — синхронь Rust. */
+
+@font-face {
+    font-family: "JetBrains Mono";
+    font-weight: 400;
+    font-style: normal;
+    font-display: block;
+    src: url("../static/fonts/JetBrainsMono-Regular.ttf") format("truetype");
+}
+@font-face {
+    font-family: "JetBrains Mono";
+    font-weight: 500;
+    font-style: normal;
+    font-display: block;
+    src: url("../static/fonts/JetBrainsMono-Medium.ttf") format("truetype");
+}
+
+:root {
+    --bg-0: #0a0a0b;
+    --bg-1: #101012;
+    --bg-2: #16161a;
+    --fg: #e6e6e8;
+    --fg-2: #8a8a90;
+    --fg-3: #4d4d54;
+    --fg-4: #2a2a2f;
+    --warn: #b87a5a;
+    --font: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    --ease-fast: 120ms cubic-bezier(.2, .6, .2, 1);
+    /* множитель авто-масштаба (по screen.width); выставляет tray-menu.js */
+    --tm-scale: 1;
+    /* всё внутреннее — в rem от этого root → масштабируется вместе с экраном */
+    font-size: calc(14px * var(--tm-scale));
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+    width: 100%;
+    height: 100%;
+    background: transparent;
+    overflow: hidden;
+}
+
+/* прозрачное «кольцо» 1px — окно на 2px больше меню (см. шапку) */
+body { padding: 1px; }
+
+.tm-menu {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: 0.4286rem 0; /* 6px */
+    background: var(--bg-1);
+    border: 0.0714rem solid var(--fg-4); /* 1px */
+    border-radius: 2px;
+}
+
+.tm-item {
+    display: flex;
+    align-items: center;
+    flex: 0 0 2.2857rem; /* 32px */
+    padding: 0 1rem; /* 14px */
+    font: 400 0.8571rem/1 var(--font); /* 12px */
+    letter-spacing: 0.04em;
+    color: var(--fg-2);
+    background: transparent;
+    border: none;
+    outline: none;
+    text-align: left;
+    white-space: nowrap;
+    cursor: default;
+    user-select: none;
+    -webkit-user-select: none;
+    transition: background var(--ease-fast), color var(--ease-fast);
+}
+
+.tm-item:hover { background: var(--bg-2); color: var(--fg); }
+.tm-item:active { background: var(--bg-0); }
+
+/* "выход" — единственный сигнальный пункт: amber-акцент на hover (как warn-button) */
+.tm-quit:hover { color: var(--warn); }
+
+.tm-sep {
+    flex: 0 0 0.0714rem; /* 1px линия */
+    margin: 0.2857rem 0; /* 4px */
+    background: var(--fg-4);
+}
+
+/* Копи-пункты и их разделитель видны только в комнате (тогглится из Rust). */
+.tm-room { display: none !important; }
+body.in-room .tm-room { display: flex !important; }
