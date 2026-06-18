@@ -104,9 +104,12 @@ function buildMicConstraints() {
        отключаем — двойная обработка ухудшает сигнал. Если AudioWorklet нет
        (древний браузер / WebView) — fallback на chromium NS. */
     const audioWorkletSupported = typeof AudioWorkletNode !== "undefined";
+    /* Пользовательский тумблер шумоподавления (настройки → аудио). Когда выключен —
+       не просим штатный NS и не вставляем RNNoise (см. applyAudioProcessing). */
+    const noiseEnabled = window.VoidSettings?.getNoiseSuppression?.() !== false;
     const audioConstraints = {
         echoCancellation: true,
-        noiseSuppression: !audioWorkletSupported,
+        noiseSuppression: noiseEnabled && !audioWorkletSupported,
         autoGainControl: !isAndroid,
         channelCount: 1,
     };
@@ -318,8 +321,10 @@ async function applyAudioProcessing(rawStream) {
        стационарный шум (вентилятор, клавиатура, фоновый speech), потом
        наши highpass/lowpass/compressor работают на чистом сигнале. Если
        worklet не поднялся (старый браузер) — фallback на источник напрямую,
-       штатный NS в этом случае был включён в buildMicConstraints. */
-    const rnnoise = await createRnnoiseNode(audioContext);
+       штатный NS в этом случае был включён в buildMicConstraints. Если юзер
+       выключил шумоподавление в настройках — RNNoise не вставляем вовсе. */
+    const noiseEnabled = window.VoidSettings?.getNoiseSuppression?.() !== false;
+    const rnnoise = noiseEnabled ? await createRnnoiseNode(audioContext) : null;
 
     /* Highpass: 110Hz на десктопе режет гул вентилятора / холодильника /
        сабвуферный rumble. На мобильном — 80Hz: iPhone в speakerphone-режиме
@@ -554,6 +559,16 @@ document.addEventListener("void:audio-out-device-changed", applyOutputSinkToAll)
    rejoin). Тут только пишем подсказку в лог, без принудительного reconnect. */
 document.addEventListener("void:audio-in-device-changed", (e) => {
     log.info("rtc", "input device queued", { deviceId: e?.detail?.deviceId || "default" });
+});
+
+/* Шумоподавление — переключаем на лету: если уже в комнате, пересобираем
+   локальный mic-граф (reinitLocalMic читает настройку в buildMicConstraints +
+   applyAudioProcessing). Вне комнаты — применится при следующем initMedia. */
+document.addEventListener("void:noise-suppression-changed", () => {
+    if (typeof isJoined !== "undefined" && isJoined && typeof localStream !== "undefined" && localStream) {
+        reinitLocalMic().catch((err) =>
+            log.warn("rtc", "noise toggle reinit failed", { err: err?.message || String(err) }));
+    }
 });
 
 

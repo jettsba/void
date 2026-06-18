@@ -29,14 +29,24 @@
     };
 
     const HOTKEY_ROWS = [
-        { action: "toggleMic",    label: "микрофон вкл/выкл" },
-        { action: "toggleSound",  label: "звук вкл/выкл" },
-        { action: "toggleWindow", label: "показать/скрыть окно" },
-        { action: "leaveRoom",    label: "покинуть комнату" }
+        { action: "toggleMic",    labelKey: "hotkeys.action.toggleMic" },
+        { action: "toggleSound",  labelKey: "hotkeys.action.toggleSound" },
+        { action: "toggleWindow", labelKey: "hotkeys.action.toggleWindow" },
+        { action: "leaveRoom",    labelKey: "hotkeys.action.leaveRoom" }
     ];
+
+    /* i18n helper — словарь живёт в settings.js (VoidI18n). Модалки строятся
+       заново на каждый open, поэтому подхватывают текущий язык. */
+    function T(key) {
+        return (window.VoidI18n && window.VoidI18n.t) ? window.VoidI18n.t(key) : key;
+    }
 
     const isDesktop = window.VoidPlatform === "desktop";
     const tauriEvent = window.__TAURI__ && window.__TAURI__.event;
+
+    /* Монолайн-иконки заголовков модалок (по гайду: stroke, round caps). */
+    const ICON_KEYBOARD = `<svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></svg>`;
+    const ICON_APP = `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg>`;
 
     // -------------------- localStorage helpers --------------------
 
@@ -48,10 +58,12 @@
                     parsed.closeAction === "close" || parsed.closeAction === "minimize"
                         ? parsed.closeAction
                         : "minimize",
-                autoStart: typeof parsed.autoStart === "boolean" ? parsed.autoStart : false
+                autoStart: typeof parsed.autoStart === "boolean" ? parsed.autoStart : false,
+                /* Общий выключатель глобальных хоткеев. Default — включены. */
+                hotkeysEnabled: typeof parsed.hotkeysEnabled === "boolean" ? parsed.hotkeysEnabled : true
             };
         } catch {
-            return { closeAction: "minimize", autoStart: false };
+            return { closeAction: "minimize", autoStart: false, hotkeysEnabled: true };
         }
     }
 
@@ -89,12 +101,14 @@
         const s = readAppState();
         tauriEvent.emit("void:set-close-behavior", { behavior: s.closeAction }).catch(() => {});
         tauriEvent.emit("void:set-autostart", { enabled: s.autoStart }).catch(() => {});
-        tauriEvent.emit("void:register-hotkeys", { bindings: readHotkeys() }).catch(() => {});
+        /* Выключенные хоткеи = регистрируем пустой набор (Rust снимает все
+           глобальные биндинги). Иначе шлём актуальные. */
+        tauriEvent.emit("void:register-hotkeys", { bindings: s.hotkeysEnabled ? readHotkeys() : {} }).catch(() => {});
     }
 
     // -------------------- Modal infra --------------------
 
-    function openModal(title, contentHTML) {
+    function openModal(title, contentHTML, iconSvg) {
         closeModalIfAny();
         const scrim = document.createElement("div");
         scrim.className = "app-modal-scrim";
@@ -105,7 +119,10 @@
         card.setAttribute("aria-modal", "true");
         card.innerHTML = `
             <header class="app-modal-header">
-                <span class="app-modal-title">${title}</span>
+                <span class="app-modal-heading">
+                    ${iconSvg ? `<span class="app-modal-ic" aria-hidden="true">${iconSvg}</span>` : ""}
+                    <span class="app-modal-title">${title}</span>
+                </span>
                 <button type="button" class="app-modal-close" aria-label="закрыть">
                     <svg viewBox="0 0 24 24" aria-hidden="true">
                         <path d="M6 6l12 12M18 6L6 18" />
@@ -142,31 +159,126 @@
 
     function openHotkeysModal() {
         const hotkeys = readHotkeys();
+        const enabled = readAppState().hotkeysEnabled;
         const rowsHTML = HOTKEY_ROWS.map(
-            ({ action, label }) => `
-                <div class="app-modal-row">
-                    <div class="app-modal-row-text">
-                        <span class="app-modal-row-label">${label}</span>
-                    </div>
-                    <button type="button" class="app-modal-binding" data-action="${action}">${escape(hotkeys[action]) || "—"}</button>
+            ({ action, labelKey }) => `
+                <div class="hotkey-row" data-action-row="${action}">
+                    <span class="hotkey-label">${escape(T(labelKey))}</span>
+                    <button type="button" class="hotkey-binding" data-action="${action}" data-accel="${escape(hotkeys[action] || "")}">${accelToKeycaps(hotkeys[action])}</button>
                 </div>
             `
         ).join("");
 
         const card = openModal(
-            "горячие клавиши",
+            T("hotkeys.master"),
             `
-            ${rowsHTML}
-            <p class="app-modal-note">клик по комбинации — задать новую. esc — отмена, backspace — очистить.</p>
+            <div class="app-modal-row app-modal-row--flush">
+                <div class="app-modal-row-text">
+                    <span class="app-modal-row-label">${escape(T("hotkeys.master"))}</span>
+                    <span class="app-modal-row-hint">${escape(T("hotkeys.master.hint"))}</span>
+                </div>
+                <label class="sc-switch">
+                    <input type="checkbox" id="appHotkeysEnabled" />
+                    <span class="sc-switch-track"></span>
+                </label>
+            </div>
+
+            <div class="app-modal-bindings" data-hotkeys-list>
+                ${buildKeyboardHtml()}
+                <div class="hotkey-rows">
+                    ${rowsHTML}
+                </div>
+            </div>
             <div class="app-modal-footer-hint" data-web-hotkeys-hint>
                 <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>
-                <span>в web-версии хоткеи работают только при открытой вкладке</span>
+                <span>${escape(T("hotkeys.webhint"))}</span>
             </div>
-            `
+            `,
+            ICON_KEYBOARD
         );
 
-        card.querySelectorAll(".app-modal-binding").forEach((btn) => {
-            btn.addEventListener("click", () => startCapture(btn));
+        const listEl = card.querySelector("[data-hotkeys-list]");
+        const applyEnabledUI = (on) => {
+            listEl.classList.toggle("is-disabled", !on);
+            card.querySelectorAll(".hotkey-binding").forEach((b) => { b.disabled = !on; });
+        };
+
+        const toggle = card.querySelector("#appHotkeysEnabled");
+        toggle.checked = enabled;
+        applyEnabledUI(enabled);
+        toggle.addEventListener("change", () => {
+            const on = !!toggle.checked;
+            patchAppState({ hotkeysEnabled: on });
+            applyEnabledUI(on);
+            if (tauriEvent) {
+                /* Вкл — регистрируем актуальные биндинги; выкл — пустой набор. */
+                tauriEvent.emit("void:register-hotkeys", { bindings: on ? readHotkeys() : {} }).catch(() => {});
+            }
+            window.VoidSettings?.refreshCats?.();
+        });
+
+        card.querySelectorAll(".hotkey-row").forEach((row) => {
+            const btn = row.querySelector(".hotkey-binding");
+            /* Наведение на строку подсвечивает её клавиши на «клавиатуре». */
+            row.addEventListener("mouseenter", () => highlightKeyboard(card, btn.dataset.accel));
+            row.addEventListener("mouseleave", () => { if (!activeCapture) highlightKeyboard(card, ""); });
+            btn.addEventListener("click", () => {
+                if (btn.disabled) return;
+                startCapture(btn);
+            });
+        });
+    }
+
+    /* ===== keyboard visual (non-interactive) ===== */
+
+    const KB_ROWS = [
+        ["Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"],
+        ["A", "S", "D", "F", "G", "H", "J", "K", "L"],
+        ["Z", "X", "C", "V", "B", "N", "M"]
+    ];
+
+    function buildKeyboardHtml() {
+        const letterRows = KB_ROWS.map((row, i) => {
+            const keys = row.map(k => `<span class="kbd-key" data-key="${k.toLowerCase()}">${k}</span>`).join("");
+            /* shift живёт слева от нижнего буквенного ряда (Z…M) — как на реальной клавиатуре. */
+            const shift = i === 2 ? `<span class="kbd-key kbd-key--wide" data-key="shift">shift</span>` : "";
+            return `<div class="kbd-row">${shift}${keys}</div>`;
+        }).join("");
+        return `
+            <div class="kbd-visual" data-kbd aria-hidden="true">
+                ${letterRows}
+                <div class="kbd-row">
+                    <span class="kbd-key kbd-key--wide" data-key="ctrl">ctrl</span>
+                    <span class="kbd-key kbd-key--space"></span>
+                </div>
+            </div>
+        `;
+    }
+
+    /* Ctrl/Shift/Alt/Super + буква → строчные подписи на keycaps. */
+    function capLabel(part) {
+        const m = { Ctrl: "ctrl", Shift: "shift", Alt: "alt", Super: "super" };
+        return m[part] || String(part).toLowerCase();
+    }
+
+    function accelToKeycaps(accel) {
+        if (!accel) return `<span class="binding-empty">—</span>`;
+        return accel.split("+").map((p, i) =>
+            `${i ? '<span class="binding-plus">+</span>' : ""}<span class="binding-cap">${escape(capLabel(p))}</span>`
+        ).join("");
+    }
+
+    function renderBinding(btn, accel) {
+        btn.dataset.accel = accel || "";
+        btn.innerHTML = accelToKeycaps(accel);
+    }
+
+    function highlightKeyboard(card, accel) {
+        const kb = card.querySelector("[data-kbd]");
+        if (!kb) return;
+        const tokens = (accel || "").split("+").map(capLabel);
+        kb.querySelectorAll(".kbd-key").forEach(k => {
+            k.classList.toggle("is-on", !!k.dataset.key && tokens.includes(k.dataset.key));
         });
     }
 
@@ -183,9 +295,11 @@
     function startCapture(btn) {
         if (activeCapture) stopCapture(activeCapture, /*restore*/ true);
         btn.classList.add("is-capturing");
-        const originalText = btn.textContent;
-        btn.textContent = "нажмите комбинацию…";
-        activeCapture = { btn, originalText, handler: null };
+        const card = btn.closest(".app-modal-card");
+        const originalAccel = btn.dataset.accel || "";
+        btn.innerHTML = `<span class="binding-prompt">…</span>`;
+        highlightKeyboard(card, originalAccel);
+        activeCapture = { btn, originalAccel, card, handler: null };
 
         const handler = (e) => {
             // Esc → отмена.
@@ -201,7 +315,8 @@
                 e.preventDefault();
                 e.stopPropagation();
                 saveBinding(btn.dataset.action, "");
-                btn.textContent = "—";
+                renderBinding(btn, "");
+                highlightKeyboard(card, "");
                 stopCapture(activeCapture, false);
                 activeCapture = null;
                 return;
@@ -216,7 +331,8 @@
             e.preventDefault();
             e.stopPropagation();
             saveBinding(btn.dataset.action, accel);
-            btn.textContent = accel;
+            renderBinding(btn, accel);
+            highlightKeyboard(card, accel);
             stopCapture(activeCapture, false);
             activeCapture = null;
         };
@@ -229,7 +345,10 @@
         if (!state) return;
         document.removeEventListener("keydown", state.handler, true);
         state.btn.classList.remove("is-capturing");
-        if (restore) state.btn.textContent = state.originalText;
+        if (restore) {
+            renderBinding(state.btn, state.originalAccel);
+            highlightKeyboard(state.card, "");
+        }
     }
 
     function buildAccelerator(e) {
@@ -272,7 +391,9 @@
         const hotkeys = readHotkeys();
         hotkeys[action] = accel;
         saveHotkeys(hotkeys);
-        if (tauriEvent) {
+        /* Пока хоткеи выключены общим тумблером — не регистрируем в Rust
+           (новый бинд применится при включении). */
+        if (tauriEvent && readAppState().hotkeysEnabled) {
             tauriEvent.emit("void:register-hotkeys", { bindings: hotkeys }).catch(() => {});
         }
     }
@@ -282,35 +403,53 @@
     function openAppSettingsModal() {
         const s = readAppState();
         const card = openModal(
-            "настройки приложения",
+            T("app.title"),
             `
-            <div class="app-modal-row">
-                <div class="app-modal-row-text">
-                    <span class="app-modal-row-label">при закрытии окна</span>
-                    <span class="app-modal-row-hint">"свернуть" — приложение продолжит работать в трее</span>
-                </div>
-                <div class="app-modal-segmented" role="radiogroup" aria-label="close behavior">
-                    <button type="button" class="app-modal-seg" data-value="minimize" role="radio">свернуть</button>
-                    <button type="button" class="app-modal-seg" data-value="close" role="radio">закрыть</button>
+            <div class="app-section">
+                <span class="app-section-label">${escape(T("app.close.label"))}</span>
+                <span class="app-section-hint">${escape(T("app.close.hint"))}</span>
+                <div class="close-actions" role="radiogroup" aria-label="close behavior">
+                    <button type="button" class="close-action" data-value="minimize" role="radio">
+                        <svg class="close-action-ic" viewBox="0 0 24 24" aria-hidden="true">
+                            <rect x="3" y="4" width="18" height="13" rx="1.4"/>
+                            <path d="M9 21h6M12 17v4"/>
+                            <path d="M9.5 9.2l2.5 2.6 2.5-2.6"/>
+                        </svg>
+                        <span class="close-action-title">${escape(T("app.close.minimize.title"))}</span>
+                        <span class="close-action-sub">${escape(T("app.close.minimize.sub"))}</span>
+                    </button>
+                    <button type="button" class="close-action" data-value="close" role="radio">
+                        <svg class="close-action-ic" viewBox="0 0 24 24" aria-hidden="true">
+                            <rect x="3" y="4" width="18" height="13" rx="1.4"/>
+                            <path d="M9 21h6M12 17v4"/>
+                            <path d="M10 8.5l4 4M14 8.5l-4 4"/>
+                        </svg>
+                        <span class="close-action-title">${escape(T("app.close.quit.title"))}</span>
+                        <span class="close-action-sub">${escape(T("app.close.quit.sub"))}</span>
+                    </button>
                 </div>
             </div>
 
-            <div class="app-modal-row">
+            <div class="app-modal-divider"></div>
+
+            <div class="app-modal-row app-modal-row--lead">
+                <span class="app-modal-ic-lead" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><path d="M12 3v9"/><path d="M7.6 6.6a7 7 0 1 0 8.8 0"/></svg>
+                </span>
                 <div class="app-modal-row-text">
-                    <span class="app-modal-row-label">запускать при старте Windows</span>
-                    <span class="app-modal-row-hint">приложение откроется автоматически при входе в систему</span>
+                    <span class="app-modal-row-label">${escape(T("app.autostart.label"))}</span>
+                    <span class="app-modal-row-hint">${escape(T("app.autostart.hint"))}</span>
                 </div>
                 <label class="sc-switch">
                     <input type="checkbox" id="appAutoStartCheckbox" />
                     <span class="sc-switch-track"></span>
                 </label>
             </div>
-
-            <p class="app-modal-note">${isDesktop ? "" : "это desktop-настройки. в web-версии они сохраняются, но не действуют."}</p>
-            `
+            `,
+            ICON_APP
         );
 
-        const segs = card.querySelectorAll(".app-modal-seg");
+        const segs = card.querySelectorAll(".close-action");
         segs.forEach((b) => {
             b.classList.toggle("is-active", b.dataset.value === s.closeAction);
             b.setAttribute("aria-checked", b.dataset.value === s.closeAction ? "true" : "false");

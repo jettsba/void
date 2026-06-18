@@ -162,6 +162,33 @@
         }
     }
 
+    /* Плавная подмена состояния: текст уезжает/гаснет, в этот момент
+       меняется контент и высота карточки (FLIP), затем текст возвращается.
+       Используется для idle → confirm, где меняется заголовок и пропадает
+       вторая строка — иначе скачок был бы резким. */
+    function swapState(newState) {
+        const b = ensureBanner();
+        const textEl = b.querySelector(".updater-banner-text");
+        const startH = b.offsetHeight;
+        textEl.classList.add("is-swapping");
+        setTimeout(() => {
+            setState(newState);
+            const endH = b.offsetHeight;
+            b.style.height = startH + "px";
+            void b.offsetHeight; // форсим reflow перед анимацией высоты
+            b.style.transition = "height 200ms cubic-bezier(.2, .6, .2, 1)";
+            b.style.height = endH + "px";
+            requestAnimationFrame(() => textEl.classList.remove("is-swapping"));
+            const cleanup = (e) => {
+                if (e.propertyName !== "height") return;
+                b.style.height = "";
+                b.style.transition = "";
+                b.removeEventListener("transitionend", cleanup);
+            };
+            b.addEventListener("transitionend", cleanup);
+        }, 140);
+    }
+
     function showBanner() {
         const b = ensureBanner();
         requestAnimationFrame(() => b.classList.add("is-visible"));
@@ -204,7 +231,7 @@
         const state = banner && banner.dataset.state;
         if (state === "idle") {
             /* в комнате рестарт оборвёт звонок — сначала подтверждение */
-            if (isInRoom()) { setState("confirm"); return; }
+            if (isInRoom()) { swapState("confirm"); return; }
             triggerInstall();
         } else if (state === "confirm" || state === "error") {
             triggerInstall();

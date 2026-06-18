@@ -105,7 +105,13 @@ if (__voidEntrance) { try { window.scrollTo(0, 0); } catch (_) {} }
        - 4-стоповый eased градиент вместо линейного — без mach band у края.
        Слой лежит ПОД bgCanvas (звёзды) — DOM-порядок задаёт стопку. */
     const blob = document.getElementById('bgBlobs');
-    if (blob) {
+    /* На мобильном blob'ы убираем: они мелко дёргаются (URL-бар то появляется,
+       то прячется → resize → reseed → прыжок) и выглядят криво на узком экране. */
+    const blobMobile = window.matchMedia('(max-width: 760px)').matches
+        || window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+    if (blob && blobMobile) {
+        blob.style.display = 'none';
+    } else if (blob) {
         const bctx = blob.getContext('2d');
         const dpr = Math.min(window.devicePixelRatio || 1, 2);
         const TINTS = [
@@ -656,6 +662,15 @@ if (__voidEntrance) { try { window.scrollTo(0, 0); } catch (_) {} }
             frag.appendChild(ph);
         }
         list.appendChild(frag);
+
+        /* Перезапуск анимации после инжекта. CSS-анимация contrib-roll стартует
+           на ПУСТОМ <ul> ещё до прихода данных (fetch async), и к моменту вставки
+           уже «уехала» по фазе с неверной шириной трека — на мобильных это
+           читается как «не двигается / пусто». Сброс + reflow синхронизирует её
+           от translateX(0) с уже корректной шириной. */
+        list.style.animation = 'none';
+        void list.offsetWidth;
+        list.style.animation = '';
     }
 
     function startAnnouncer() {

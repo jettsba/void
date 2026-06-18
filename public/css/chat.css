@@ -164,7 +164,8 @@
     height: 100%;
     display: flex;
     flex-direction: column;
-    background: rgba(16, 16, 18, 0.92);
+    /* Фон выровнен с панелью настроек (.settings-panel). */
+    background: rgba(16, 16, 18, 0.96);
     border: 1px solid var(--fg-4);
     border-radius: 4px;
     box-shadow: 0 12px 48px rgba(0, 0, 0, 0.45);

@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "0.11.6";
+    const APP_VERSION = "0.12.0";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
@@ -33,6 +33,10 @@
         audioOutId: "",
         audioInGain: 1.0,
         audioOutGain: 1.0,
+        /* Шумоподавление (RNNoise + штатный NS). Применяется при следующем
+           (пере)входе в комнату — как и смена микрофона. webrtc.js читает
+           через VoidSettings.getNoiseSuppression() при сборке аудио-графа. */
+        noiseSuppression: true,
         /* Тема амбиентного фона приложения. См. public/js/background.js —
            three themes registry. На лендинг не влияет. */
         bgTheme: "silence",
@@ -46,10 +50,15 @@
            closeAction: "minimize" (default) — close → hide-to-tray;
                         "close" — close → quit. */
         closeAction: "minimize",
-        autoStart: false
+        autoStart: false,
+        /* Общий выключатель глобальных хоткеев (desktop). Управляется в
+           app-settings.js (модалка «горячие клавиши»), но хранится в этом же
+           STORAGE_KEY — поэтому держим поле и здесь, иначе saveState() затёр бы
+           его при любом изменении других настроек. */
+        hotkeysEnabled: true
     };
 
-    const BG_THEMES = ["silence", "nebula", "void-grid"];
+    const BG_THEMES = ["silence", "nebula", "grid"];
 
     const AUDIO_IN_GAIN_MIN = 0;
     const AUDIO_IN_GAIN_MAX = 1.5;
@@ -166,6 +175,32 @@
             "screencast.fullscreen": "на весь экран",
 
             "settings.title": "настройки",
+            "settings.cat.profile": "профиль",
+            "settings.cat.audio": "аудио",
+            "settings.cat.interface": "интерфейс",
+            "settings.cat.hotkeys": "горячие клавиши",
+            "settings.cat.app": "приложение",
+            "settings.cat.on": "вкл",
+            "settings.cat.off": "выкл",
+
+            "hotkeys.master": "горячие клавиши",
+            "hotkeys.master.hint": "общий выключатель всех комбинаций",
+            "hotkeys.action.toggleMic": "микрофон вкл/выкл",
+            "hotkeys.action.toggleSound": "звук вкл/выкл",
+            "hotkeys.action.toggleWindow": "показать/скрыть окно",
+            "hotkeys.action.leaveRoom": "покинуть комнату",
+            "hotkeys.webhint": "в web-версии хоткеи работают только при открытой вкладке",
+
+            "app.title": "настройки приложения",
+            "app.close.label": "при закрытии окна",
+            "app.close.hint": "что делает кнопка закрытия окна",
+            "app.close.minimize.title": "свернуть в трей",
+            "app.close.minimize.sub": "продолжит работать в фоне",
+            "app.close.quit.title": "закрыть полностью",
+            "app.close.quit.sub": "выход из приложения",
+            "app.autostart.label": "запускать при старте windows",
+            "app.autostart.hint": "откроется автоматически при входе в систему",
+
             "settings.lang": "язык интерфейса",
             "settings.streamer": "режим стримера",
             "settings.streamer.hint": "скрывает код комнаты в футере",
@@ -185,6 +220,11 @@
             "settings.audio.permHint": "разреши доступ к микрофону, чтобы видеть имена устройств",
             "settings.audio.noSinkId": "выбор колонок недоступен в этом браузере — звук идёт в системное устройство по умолчанию",
             "settings.audio.applyOnRejoin": "новый микрофон подключится при следующем входе в комнату",
+            "settings.audio.noise": "шумоподавление",
+            "settings.audio.noise.hint": "убирает фоновый шум микрофона",
+            "settings.audio.device": "устройство",
+            "settings.uiScale.apply": "применить",
+            "settings.profile.copy": "скопировать id",
 
             "settings.bg": "фон",
             "settings.uiScale": "масштаб интерфейса",
@@ -316,6 +356,32 @@
             "screencast.fullscreen": "fullscreen",
 
             "settings.title": "settings",
+            "settings.cat.profile": "profile",
+            "settings.cat.audio": "audio",
+            "settings.cat.interface": "interface",
+            "settings.cat.hotkeys": "hotkeys",
+            "settings.cat.app": "application",
+            "settings.cat.on": "on",
+            "settings.cat.off": "off",
+
+            "hotkeys.master": "hotkeys",
+            "hotkeys.master.hint": "master switch for all shortcuts",
+            "hotkeys.action.toggleMic": "mic on/off",
+            "hotkeys.action.toggleSound": "sound on/off",
+            "hotkeys.action.toggleWindow": "show/hide window",
+            "hotkeys.action.leaveRoom": "leave room",
+            "hotkeys.webhint": "in the web version hotkeys work only while the tab is open",
+
+            "app.title": "application settings",
+            "app.close.label": "on window close",
+            "app.close.hint": "what the close button does",
+            "app.close.minimize.title": "minimize to tray",
+            "app.close.minimize.sub": "keeps running in the background",
+            "app.close.quit.title": "quit completely",
+            "app.close.quit.sub": "exits the app",
+            "app.autostart.label": "launch on windows startup",
+            "app.autostart.hint": "opens automatically on system login",
+
             "settings.lang": "interface language",
             "settings.streamer": "streamer mode",
             "settings.streamer.hint": "hides room code in the footer",
@@ -335,6 +401,11 @@
             "settings.audio.permHint": "grant microphone access to see device names",
             "settings.audio.noSinkId": "speaker selection isn't supported in this browser — using system default",
             "settings.audio.applyOnRejoin": "the new microphone will be picked up the next time you join a room",
+            "settings.audio.noise": "noise suppression",
+            "settings.audio.noise.hint": "removes microphone background noise",
+            "settings.audio.device": "device",
+            "settings.uiScale.apply": "apply",
+            "settings.profile.copy": "copy id",
 
             "settings.bg": "background",
             "settings.uiScale": "interface scale",
@@ -407,8 +478,11 @@
                 if (typeof parsed.audioOutGain === "number" && isFinite(parsed.audioOutGain)) {
                     state.audioOutGain = clampGain(parsed.audioOutGain, AUDIO_OUT_GAIN_MIN, AUDIO_OUT_GAIN_MAX);
                 }
-                if (typeof parsed.bgTheme === "string" && BG_THEMES.indexOf(parsed.bgTheme) !== -1) {
-                    state.bgTheme = parsed.bgTheme;
+                if (typeof parsed.noiseSuppression === "boolean") state.noiseSuppression = parsed.noiseSuppression;
+                if (typeof parsed.bgTheme === "string") {
+                    /* Миграция: старое имя темы "void-grid" → "grid". */
+                    const bg = parsed.bgTheme === "void-grid" ? "grid" : parsed.bgTheme;
+                    if (BG_THEMES.indexOf(bg) !== -1) state.bgTheme = bg;
                 }
                 if (typeof parsed.uiScale === "number" && isFinite(parsed.uiScale)) {
                     state.uiScale = clampGain(parsed.uiScale, UI_SCALE_MIN, UI_SCALE_MAX);
@@ -417,6 +491,7 @@
                     state.closeAction = parsed.closeAction;
                 }
                 if (typeof parsed.autoStart === "boolean") state.autoStart = parsed.autoStart;
+                if (typeof parsed.hotkeysEnabled === "boolean") state.hotkeysEnabled = parsed.hotkeysEnabled;
             }
         } catch {
             /* приватный режим, мусор в storage — игнорим, остаются дефолты */
@@ -520,6 +595,15 @@
     function getAudioOutGain() { return state.audioOutGain; }
     function getBgTheme() { return state.bgTheme; }
     function getUiScale() { return state.uiScale; }
+    function getNoiseSuppression() { return state.noiseSuppression; }
+
+    function setNoiseSuppression(on) {
+        const next = !!on;
+        if (state.noiseSuppression === next) return;
+        state.noiseSuppression = next;
+        saveState();
+        document.dispatchEvent(new CustomEvent("void:noise-suppression-changed", { detail: { on: next } }));
+    }
 
     function setBgTheme(name) {
         if (BG_THEMES.indexOf(name) === -1) return;
@@ -627,12 +711,16 @@
 
     let panelEl, scrimEl, gearBtn, langSegEl, streamerInputEl, bgThemeSegEl;
     let nickFormEl, nickInputEl, nickSavedEl, nickSavedTimer = null;
-    let uiScaleEl, uiScaleValueEl;
+    let uiScaleEl, uiScaleValueEl, uiScaleApplyEl, scalePreviewInnerEl;
+    let noiseToggleEl, spkMeterFillEl;
     let micDropdown, spkDropdown,
         micGainEl, spkGainEl,
         micGainValueEl, spkGainValueEl,
         micMeterFillEl, spkTestBtnEl,
         audioHintEl;
+    /* Ожидающий применения масштаб (слайдер двигается — превью живёт сразу,
+       глобальный --ui-scale меняется только по клику на «применить»). */
+    let pendingUiScale = null;
     let supportBtnEl, supportModalEl, supportQrModalEl, supportQrFigureEl, supportQrLabelEl;
     let bugBtnEl, bugModalEl, bugFormViewEl, bugSuccessViewEl,
         bugDescEl, bugContactEl, bugSubmitEl, bugErrorEl;
@@ -654,6 +742,15 @@
     let previewAnalyser = null;
     let previewRaf = null;
     let previewLastDeviceId = null;
+
+    /* Эквалайзер выхода (динамики): отдельный AudioContext/analyser, к которому
+       подключаем все играющие удалённые медиа-стримы (peer-audio, screen-overlay).
+       Анализ не трогает воспроизведение — элементы продолжают играть в свой sink.
+       Живёт только пока открыта аудио-модалка. */
+    let spkMeterCtx = null;
+    let spkMeterAnalyser = null;
+    let spkMeterRaf = null;
+    let spkMeterSources = [];
 
     function buildPanel() {
         if (document.getElementById("settingsPanel")) return;
@@ -681,186 +778,57 @@
                     </button>
                 </header>
 
-                <div class="settings-row settings-row--stack">
-                    <div class="settings-row-text">
-                        <span class="settings-row-label" data-i18n="settings.nick">${t("settings.nick")}</span>
-                    </div>
-                    <form class="settings-nick-form" id="settingsNickForm" autocomplete="off">
-                        <input
-                            type="text"
-                            id="settingsNickInput"
-                            class="settings-nick-input"
-                            maxlength="${NICKNAME_MAX_LEN}"
-                            data-i18n-placeholder="settings.nick.placeholder"
-                            placeholder="${t("settings.nick.placeholder")}"
-                            spellcheck="false"
-                        />
-                        <button
-                            type="submit"
-                            class="settings-nick-save"
-                            id="settingsNickSave"
-                            title="${t("settings.nick.save")}"
-                            data-i18n-attr="title:settings.nick.save;aria-label:settings.nick.save"
-                            aria-label="${t("settings.nick.save")}"
-                        >
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                                <path d="M5 12l5 5 9-11"/>
-                            </svg>
-                        </button>
-                        <span class="settings-nick-saved" id="settingsNickSaved" aria-live="polite" data-i18n="settings.nick.saved">${t("settings.nick.saved")}</span>
-                    </form>
-                    <span class="settings-row-hint settings-row-hint--below" data-i18n="settings.nick.hint">${t("settings.nick.hint")}</span>
-                </div>
+                <nav class="settings-cats">
+                    <button type="button" class="settings-cat" id="settingsCatProfile">
+                        <svg class="settings-cat-icon" viewBox="0 0 24 24" aria-hidden="true">
+                            <circle cx="12" cy="8" r="3.6"/>
+                            <path d="M4.5 20.5c0-3.6 3.4-5.5 7.5-5.5s7.5 1.9 7.5 5.5"/>
+                        </svg>
+                        <span class="settings-cat-label" data-i18n="settings.cat.profile">${t("settings.cat.profile")}</span>
+                        <span class="settings-cat-value" id="catValueProfile"></span>
+                        <svg class="settings-cat-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+                    </button>
 
-                <div class="settings-section">
-                    <span class="settings-section-title" data-i18n="settings.audio">${t("settings.audio")}</span>
+                    <button type="button" class="settings-cat" id="settingsCatAudio">
+                        <svg class="settings-cat-icon" viewBox="0 0 24 24" aria-hidden="true">
+                            <rect x="9" y="3" width="6" height="11" rx="3"/>
+                            <path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>
+                        </svg>
+                        <span class="settings-cat-label" data-i18n="settings.cat.audio">${t("settings.cat.audio")}</span>
+                        <span class="settings-cat-value" id="catValueAudio"></span>
+                        <svg class="settings-cat-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+                    </button>
 
-                    <div class="settings-audio-block">
-                        <div class="settings-audio-head">
-                            <span class="settings-audio-label" data-i18n="settings.audio.mic">${t("settings.audio.mic")}</span>
-                            <div class="settings-mic-meter" id="settingsMicMeter" aria-hidden="true">
-                                <div class="settings-mic-meter-fill" id="settingsMicMeterFill"></div>
-                            </div>
-                        </div>
-                        <div class="settings-dropdown" id="settingsMicDropdown">
-                            <button type="button" class="settings-dropdown-trigger"
-                                aria-haspopup="listbox" aria-expanded="false"
-                                aria-label="${t("settings.audio.mic")}">
-                                <span class="settings-dropdown-current" data-default-label="settings.audio.default">${t("settings.audio.default")}</span>
-                                <svg class="settings-dropdown-chevron" viewBox="0 0 24 24" aria-hidden="true">
-                                    <path d="M6 9l6 6 6-6"/>
-                                </svg>
-                            </button>
-                            <ul class="settings-dropdown-menu" role="listbox" aria-hidden="true"></ul>
-                        </div>
-                        <div class="settings-slider-row">
-                            <span class="settings-slider-label" data-i18n="settings.audio.gainIn">${t("settings.audio.gainIn")}</span>
-                            <input
-                                type="range"
-                                id="settingsMicGain"
-                                class="settings-slider"
-                                min="0" max="150" step="1"
-                                aria-label="${t("settings.audio.gainIn")}"
-                            />
-                            <span class="settings-slider-value" id="settingsMicGainValue">100%</span>
-                        </div>
-                    </div>
+                    <button type="button" class="settings-cat" id="settingsCatInterface">
+                        <svg class="settings-cat-icon" viewBox="0 0 24 24" aria-hidden="true">
+                            <circle cx="12" cy="12" r="9"/>
+                            <path d="M12 3v18a9 9 0 0 0 0-18z"/>
+                        </svg>
+                        <span class="settings-cat-label" data-i18n="settings.cat.interface">${t("settings.cat.interface")}</span>
+                        <span class="settings-cat-value" id="catValueInterface"></span>
+                        <svg class="settings-cat-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+                    </button>
 
-                    <div class="settings-audio-block">
-                        <div class="settings-audio-head">
-                            <span class="settings-audio-label" data-i18n="settings.audio.speakers">${t("settings.audio.speakers")}</span>
-                            <button type="button" id="settingsSpkTest" class="settings-test-btn"
-                                title="${t("settings.audio.test")}"
-                                aria-label="${t("settings.audio.test")}"
-                                data-i18n-attr="title:settings.audio.test;aria-label:settings.audio.test">
-                                <svg viewBox="0 0 24 24" aria-hidden="true">
-                                    <path d="M7 5l12 7-12 7V5z"/>
-                                </svg>
-                            </button>
-                        </div>
-                        <div class="settings-dropdown" id="settingsSpkDropdown">
-                            <button type="button" class="settings-dropdown-trigger"
-                                aria-haspopup="listbox" aria-expanded="false"
-                                aria-label="${t("settings.audio.speakers")}">
-                                <span class="settings-dropdown-current" data-default-label="settings.audio.default">${t("settings.audio.default")}</span>
-                                <svg class="settings-dropdown-chevron" viewBox="0 0 24 24" aria-hidden="true">
-                                    <path d="M6 9l6 6 6-6"/>
-                                </svg>
-                            </button>
-                            <ul class="settings-dropdown-menu" role="listbox" aria-hidden="true"></ul>
-                        </div>
-                        <div class="settings-slider-row">
-                            <span class="settings-slider-label" data-i18n="settings.audio.gainOut">${t("settings.audio.gainOut")}</span>
-                            <input
-                                type="range"
-                                id="settingsSpkGain"
-                                class="settings-slider"
-                                min="0" max="100" step="1"
-                                aria-label="${t("settings.audio.gainOut")}"
-                            />
-                            <span class="settings-slider-value" id="settingsSpkGainValue">100%</span>
-                        </div>
-                    </div>
+                    <button type="button" class="settings-cat" id="settingsHotkeysBtn">
+                        <svg class="settings-cat-icon" viewBox="0 0 24 24" aria-hidden="true">
+                            <rect x="2" y="6" width="20" height="12" rx="2"/>
+                            <path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/>
+                        </svg>
+                        <span class="settings-cat-label" data-i18n="settings.cat.hotkeys">${t("settings.cat.hotkeys")}</span>
+                        <span class="settings-cat-value" id="catValueHotkeys"></span>
+                        <svg class="settings-cat-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+                    </button>
 
-                    <span class="settings-audio-hint" id="settingsAudioHint" aria-live="polite"></span>
-                </div>
-
-                <div class="settings-row">
-                    <div class="settings-row-text">
-                        <span class="settings-row-label" data-i18n="settings.streamer">${t("settings.streamer")}</span>
-                        <span class="settings-row-hint" data-i18n="settings.streamer.hint">${t("settings.streamer.hint")}</span>
-                    </div>
-                    <label class="settings-switch">
-                        <input type="checkbox" id="settingsStreamerInput"/>
-                        <span class="settings-switch-track"></span>
-                    </label>
-                </div>
-
-                <div class="settings-row">
-                    <span class="settings-row-label" data-i18n="settings.lang">${t("settings.lang")}</span>
-                    <div class="settings-seg" id="settingsLangSeg" role="tablist">
-                        <button type="button" class="settings-seg-btn" data-val="ru" role="tab">RU</button>
-                        <button type="button" class="settings-seg-btn" data-val="en" role="tab">EN</button>
-                    </div>
-                </div>
-
-                <div class="settings-row settings-row--stack" id="settingsBgThemeRow">
-                    <div class="settings-row-text">
-                        <span class="settings-row-label" data-i18n="settings.bg">${t("settings.bg")}</span>
-                    </div>
-                    <div class="settings-seg settings-seg--full" id="settingsBgThemeSeg" role="tablist">
-                        <!-- Названия тем намеренно НЕ локализованы — техника фона, не интерфейс. -->
-                        <button type="button" class="settings-seg-btn" data-val="silence" role="tab">silence</button>
-                        <button type="button" class="settings-seg-btn" data-val="nebula" role="tab">nebula</button>
-                        <button type="button" class="settings-seg-btn" data-val="void-grid" role="tab">grid</button>
-                    </div>
-                </div>
-
-                <div class="settings-row settings-row--stack" id="settingsUiScaleRow">
-                    <div class="settings-row-text">
-                        <span class="settings-row-label" data-i18n="settings.uiScale">${t("settings.uiScale")}</span>
-                        <span class="settings-row-hint" data-i18n="settings.uiScale.hint">${t("settings.uiScale.hint")}</span>
-                    </div>
-                    <div class="settings-slider-row settings-slider-row--solo">
-                        <div class="settings-slider-wrap">
-                            <input
-                                type="range"
-                                id="settingsUiScale"
-                                class="settings-slider"
-                                min="70" max="150" step="5"
-                                aria-label="${t("settings.uiScale")}"
-                            />
-                            <span class="settings-slider-tick" aria-hidden="true"></span>
-                        </div>
-                        <span class="settings-slider-value" id="settingsUiScaleValue">100%</span>
-                    </div>
-                </div>
-
-                <!-- Desktop-related action rows. Сейчас отображаются и в web
-                     (это намеренно, чтобы UI был доступен везде на текущем этапе).
-                     В Фазе 9 (детект web/desktop) — нормально показать/скрыть,
-                     поправить копирайтинг хинтов, разделить modal'ки. -->
-                <button type="button" class="settings-action-btn" id="settingsHotkeysBtn">
-                    <svg class="settings-action-btn-icon" viewBox="0 0 24 24" aria-hidden="true">
-                        <rect x="2" y="6" width="20" height="12" rx="2"/>
-                        <path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/>
-                    </svg>
-                    <span class="settings-action-btn-body">
-                        <span class="settings-action-btn-label">настроить горячие клавиши</span>
-                        <span class="settings-action-btn-hint" data-web-hint>работают только при открытой вкладке</span>
-                    </span>
-                </button>
-
-                <button type="button" class="settings-action-btn" id="settingsAppBtn">
-                    <svg class="settings-action-btn-icon" viewBox="0 0 24 24" aria-hidden="true">
-                        <circle cx="12" cy="12" r="3"/>
-                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-                    </svg>
-                    <span class="settings-action-btn-body">
-                        <span class="settings-action-btn-label">настройки приложения</span>
-                        <span class="settings-action-btn-hint">только для desktop версии</span>
-                    </span>
-                </button>
+                    <button type="button" class="settings-cat" id="settingsAppBtn">
+                        <svg class="settings-cat-icon" viewBox="0 0 24 24" aria-hidden="true">
+                            <circle cx="12" cy="12" r="3.2"/>
+                            <path d="M12 2v3.2M12 18.8V22M2 12h3.2M18.8 12H22M4.9 4.9l2.3 2.3M16.8 16.8l2.3 2.3M19.1 4.9l-2.3 2.3M7.2 16.8l-2.3 2.3"/>
+                        </svg>
+                        <span class="settings-cat-label" data-i18n="settings.cat.app">${t("settings.cat.app")}</span>
+                        <span class="settings-cat-value" id="catValueApp"></span>
+                        <svg class="settings-cat-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+                    </button>
+                </nav>
 
                 <button type="button" class="settings-bug-btn" id="settingsBugBtn"
                     aria-haspopup="dialog" aria-controls="bugModal"
@@ -896,49 +864,69 @@
         document.body.appendChild(scrimEl);
         document.body.appendChild(panelEl);
 
-        langSegEl = panelEl.querySelector("#settingsLangSeg");
-        bgThemeSegEl = panelEl.querySelector("#settingsBgThemeSeg");
-        streamerInputEl = panelEl.querySelector("#settingsStreamerInput");
-        nickFormEl = panelEl.querySelector("#settingsNickForm");
-        nickInputEl = panelEl.querySelector("#settingsNickInput");
-        nickSavedEl = panelEl.querySelector("#settingsNickSaved");
-        micGainEl = panelEl.querySelector("#settingsMicGain");
-        spkGainEl = panelEl.querySelector("#settingsSpkGain");
-        micGainValueEl = panelEl.querySelector("#settingsMicGainValue");
-        spkGainValueEl = panelEl.querySelector("#settingsSpkGainValue");
-        micMeterFillEl = panelEl.querySelector("#settingsMicMeterFill");
-        spkTestBtnEl = panelEl.querySelector("#settingsSpkTest");
-        audioHintEl = panelEl.querySelector("#settingsAudioHint");
-        uiScaleEl = panelEl.querySelector("#settingsUiScale");
-        uiScaleValueEl = panelEl.querySelector("#settingsUiScaleValue");
+        /* Контролы категорий живут в собственных модалках (profile/audio/interface),
+           а не внутри самой панели. Строим их ДО получения ссылок на элементы —
+           id сохранены, поэтому вся существующая логика ниже работает без правок,
+           меняется только место поиска (document вместо panelEl). */
+        buildCategoryModals();
 
-        micDropdown = createDropdown(panelEl.querySelector("#settingsMicDropdown"), {
+        const $ = (id) => document.getElementById(id);
+        langSegEl = $("settingsLangSeg");
+        bgThemeSegEl = $("settingsBgThemeSeg");
+        streamerInputEl = $("settingsStreamerInput");
+        nickFormEl = $("settingsNickForm");
+        nickInputEl = $("settingsNickInput");
+        nickSavedEl = $("settingsNickSaved");
+        micGainEl = $("settingsMicGain");
+        spkGainEl = $("settingsSpkGain");
+        micGainValueEl = $("settingsMicGainValue");
+        spkGainValueEl = $("settingsSpkGainValue");
+        micMeterFillEl = $("settingsMicMeterFill");
+        spkTestBtnEl = $("settingsSpkTest");
+        audioHintEl = $("settingsAudioHint");
+        uiScaleEl = $("settingsUiScale");
+        uiScaleValueEl = $("settingsUiScaleValue");
+        uiScaleApplyEl = $("settingsUiScaleApply");
+        scalePreviewInnerEl = $("scalePreviewInner");
+        noiseToggleEl = $("settingsNoiseToggle");
+        spkMeterFillEl = $("settingsSpkMeterFill");
+
+        micDropdown = createDropdown($("settingsMicDropdown"), {
             onChange: (v) => {
                 setAudioInId(v);
                 restartPreview();
                 showAudioHint(t("settings.audio.applyOnRejoin"));
             }
         });
-        spkDropdown = createDropdown(panelEl.querySelector("#settingsSpkDropdown"), {
+        spkDropdown = createDropdown($("settingsSpkDropdown"), {
             onChange: (v) => setAudioOutId(v)
         });
 
         bindAudioControls();
 
         langSegEl.addEventListener("click", e => {
-            const btn = e.target.closest(".settings-seg-btn");
+            const btn = e.target.closest(".vseg-btn");
             if (!btn) return;
             setLang(btn.dataset.val);
+            updateCatValues();
         });
 
         bgThemeSegEl?.addEventListener("click", e => {
-            const btn = e.target.closest(".settings-seg-btn");
+            const btn = e.target.closest(".bg-thumb");
             if (!btn) return;
             setBgTheme(btn.dataset.val);
+            updateCatValues();
         });
 
         streamerInputEl.addEventListener("change", () => {
             setStreamer(streamerInputEl.checked);
+        });
+
+        noiseToggleEl?.addEventListener("change", () => {
+            /* Применяется на лету (webrtc слушает void:noise-suppression-changed
+               и пересобирает mic-граф, если в комнате). Подсказку не дублируем —
+               она уже есть строкой под лейблом. */
+            setNoiseSuppression(noiseToggleEl.checked);
         });
 
         nickFormEl.addEventListener("submit", (e) => {
@@ -949,10 +937,20 @@
                пользователю то, что реально сохранили. */
             nickInputEl.value = saved;
             flashNickSaved();
+            updateCatValues();
         });
 
         scrimEl.addEventListener("click", closePanel);
         panelEl.querySelector("#settingsClose").addEventListener("click", closePanel);
+
+        /* Категории, контролы которых лежат в собственных модалках. Хоткеи и
+           «приложение» открываются делегатом в app-settings.js (id сохранены). */
+        panelEl.querySelector("#settingsCatProfile")
+            .addEventListener("click", () => openCatModal(profileModalEl, onProfileModalOpen));
+        panelEl.querySelector("#settingsCatAudio")
+            .addEventListener("click", () => openCatModal(audioModalEl, onAudioModalOpen));
+        panelEl.querySelector("#settingsCatInterface")
+            .addEventListener("click", () => openCatModal(interfaceModalEl, onInterfaceModalOpen));
 
         supportBtnEl = panelEl.querySelector("#settingsSupportBtn");
         supportBtnEl?.addEventListener("click", openSupportModal);
@@ -965,12 +963,414 @@
 
         document.addEventListener("keydown", e => {
             if (e.key !== "Escape") return;
-            /* Закрываем модалки по иерархии: QR поверх support, поверх bug, поверх settings. */
+            /* Закрываем по иерархии: QR → support → bug → cat-modal → панель. */
             if (supportQrModalEl?.classList.contains("is-open")) { closeSupportQr(); return; }
             if (supportModalEl?.classList.contains("is-open")) { closeSupportModal(); return; }
             if (bugModalEl?.classList.contains("is-open")) { closeBugModal(); return; }
+            if (currentCatModal) { closeCatModal(currentCatModal); return; }
             if (panelEl.classList.contains("is-open")) closePanel();
         });
+    }
+
+    /* ===== category modals (profile / audio / interface) =====
+       Главная панель теперь — список категорий; контролы каждой вынесены в
+       отдельное окно, открывающееся поверх панели (как hotkeys/app в
+       app-settings.js). DOM контролов идентичен прежнему — те же id и классы,
+       поэтому createDropdown / bindAudioControls / nick-form / i18n работают
+       без изменений. */
+
+    let profileModalEl = null, audioModalEl = null, interfaceModalEl = null;
+    let currentCatModal = null, lastCatTrigger = null;
+
+    function buildCatModalShell(id, titleKey, bodyHTML, iconSvg) {
+        const el = document.createElement("div");
+        el.className = "cat-modal";
+        el.id = id;
+        el.setAttribute("aria-hidden", "true");
+        el.setAttribute("role", "dialog");
+        el.setAttribute("aria-modal", "true");
+        el.innerHTML = `
+            <div class="cat-modal-backdrop" data-cat-close></div>
+            <div class="cat-modal-card">
+                <header class="cat-modal-header">
+                    <span class="cat-modal-heading">
+                        ${iconSvg ? `<span class="cat-modal-ic" aria-hidden="true">${iconSvg}</span>` : ""}
+                        <span class="cat-modal-title" data-i18n="${titleKey}">${t(titleKey)}</span>
+                    </span>
+                    <button type="button" class="cat-modal-close" data-cat-close
+                        aria-label="${t("chat.close")}" data-i18n-attr="aria-label:chat.close">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M6 6l12 12"/>
+                            <path d="M18 6L6 18"/>
+                        </svg>
+                    </button>
+                </header>
+                <div class="cat-modal-body">${bodyHTML}</div>
+            </div>
+        `;
+        document.body.appendChild(el);
+        el.querySelectorAll("[data-cat-close]").forEach(b =>
+            b.addEventListener("click", () => closeCatModal(el)));
+        return el;
+    }
+
+    function buildCategoryModals() {
+        if (document.getElementById("catModalProfile")) return;
+
+        profileModalEl = buildCatModalShell("catModalProfile", "settings.cat.profile", `
+            <div class="profile-card">
+                <div class="profile-avatar" id="profileAvatar" aria-hidden="true">—</div>
+                <div class="profile-ident">
+                    <span class="profile-name" id="profileName">—</span>
+                    <button type="button" class="profile-uid" id="profileUidCopy"
+                        data-i18n-attr="aria-label:settings.profile.copy"
+                        aria-label="${t("settings.profile.copy")}">
+                        <span class="profile-uid-text" id="profileUid">uid-····-····</span>
+                        <svg class="profile-uid-icon" viewBox="0 0 24 24" aria-hidden="true">
+                            <rect x="9" y="9" width="11" height="11" rx="1.4"/>
+                            <path d="M5 15V5.5A1.5 1.5 0 0 1 6.5 4H15"/>
+                        </svg>
+                        <span class="profile-uid-copied" data-i18n="support.copied">${t("support.copied")}</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="iface-divider"></div>
+
+            <div class="field-block">
+                <span class="field-label" data-i18n="settings.nick">${t("settings.nick")}</span>
+                <span class="field-hint" data-i18n="settings.nick.hint">${t("settings.nick.hint")}</span>
+                <form class="settings-nick-form" id="settingsNickForm" autocomplete="off">
+                    <input
+                        type="text"
+                        id="settingsNickInput"
+                        class="settings-nick-input"
+                        maxlength="${NICKNAME_MAX_LEN}"
+                        data-i18n-placeholder="settings.nick.placeholder"
+                        placeholder="${t("settings.nick.placeholder")}"
+                        spellcheck="false"
+                    />
+                    <button
+                        type="submit"
+                        class="settings-nick-save"
+                        id="settingsNickSave"
+                        data-i18n-attr="aria-label:settings.nick.save"
+                        aria-label="${t("settings.nick.save")}"
+                    >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M5 12l5 5 9-11"/>
+                        </svg>
+                    </button>
+                    <span class="settings-nick-saved" id="settingsNickSaved" aria-live="polite" data-i18n="settings.nick.saved">${t("settings.nick.saved")}</span>
+                </form>
+            </div>
+        `, `<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20.5c0-3.6 3.4-5.5 7.5-5.5s7.5 1.9 7.5 5.5"/></svg>`);
+
+        audioModalEl = buildCatModalShell("catModalAudio", "settings.cat.audio", `
+            <div class="audio-faders">
+                <div class="fader-card">
+                    <div class="fader-top">
+                        <div class="fader-valrow">
+                            <span class="fader-value" id="settingsMicGainValue"><b>100</b>%</span>
+                        </div>
+                        <div class="fader-rail">
+                            <div class="vslider-wrap">
+                                <input type="range" id="settingsMicGain" class="vslider"
+                                    min="0" max="150" step="1" aria-label="${t("settings.audio.gainIn")}"/>
+                            </div>
+                            <div class="vmeter" aria-hidden="true">
+                                <div class="vmeter-fill" id="settingsMicMeterFill"></div>
+                                <div class="vmeter-grid"></div>
+                            </div>
+                        </div>
+                        <span class="fader-label" data-i18n="settings.audio.mic">${t("settings.audio.mic")}</span>
+                    </div>
+                    <div class="settings-dropdown audio-device" id="settingsMicDropdown">
+                        <button type="button" class="settings-dropdown-trigger"
+                            aria-haspopup="listbox" aria-expanded="false"
+                            aria-label="${t("settings.audio.mic")}">
+                            <span class="settings-dropdown-current" data-default-label="settings.audio.default">${t("settings.audio.default")}</span>
+                            <svg class="settings-dropdown-chevron" viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M6 9l6 6 6-6"/>
+                            </svg>
+                        </button>
+                        <ul class="settings-dropdown-menu" role="listbox" aria-hidden="true"></ul>
+                    </div>
+                </div>
+
+                <div class="fader-card">
+                    <div class="fader-top">
+                        <div class="fader-valrow">
+                            <span class="fader-value" id="settingsSpkGainValue"><b>100</b>%</span>
+                            <button type="button" id="settingsSpkTest" class="audio-test"
+                                aria-label="${t("settings.audio.test")}"
+                                data-i18n-attr="aria-label:settings.audio.test">
+                                <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M7 5l12 7-12 7V5z"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="fader-rail">
+                            <div class="vslider-wrap">
+                                <input type="range" id="settingsSpkGain" class="vslider"
+                                    min="0" max="100" step="1" aria-label="${t("settings.audio.gainOut")}"/>
+                            </div>
+                            <div class="vmeter vmeter--screen" aria-hidden="true">
+                                <div class="vmeter-fill" id="settingsSpkMeterFill"></div>
+                                <div class="vmeter-grid"></div>
+                            </div>
+                        </div>
+                        <span class="fader-label" data-i18n="settings.audio.speakers">${t("settings.audio.speakers")}</span>
+                    </div>
+                    <div class="settings-dropdown audio-device" id="settingsSpkDropdown">
+                        <button type="button" class="settings-dropdown-trigger"
+                            aria-haspopup="listbox" aria-expanded="false"
+                            aria-label="${t("settings.audio.speakers")}">
+                            <span class="settings-dropdown-current" data-default-label="settings.audio.default">${t("settings.audio.default")}</span>
+                            <svg class="settings-dropdown-chevron" viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M6 9l6 6 6-6"/>
+                            </svg>
+                        </button>
+                        <ul class="settings-dropdown-menu" role="listbox" aria-hidden="true"></ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="iface-divider"></div>
+
+            <label class="toggle-row">
+                <span class="toggle-row-text">
+                    <span class="toggle-row-label" data-i18n="settings.audio.noise">${t("settings.audio.noise")}</span>
+                    <span class="toggle-row-hint" data-i18n="settings.audio.noise.hint">${t("settings.audio.noise.hint")}</span>
+                </span>
+                <span class="vswitch">
+                    <input type="checkbox" id="settingsNoiseToggle"/>
+                    <span class="vswitch-track"></span>
+                </span>
+            </label>
+
+        `, `<svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>`);
+
+        interfaceModalEl = buildCatModalShell("catModalInterface", "settings.cat.interface", `
+            <div class="iface-row">
+                <span class="iface-label" data-i18n="settings.lang">${t("settings.lang")}</span>
+                <div class="vseg" id="settingsLangSeg" role="tablist">
+                    <button type="button" class="vseg-btn" data-val="ru" role="tab">ru</button>
+                    <button type="button" class="vseg-btn" data-val="en" role="tab">en</button>
+                </div>
+            </div>
+
+            <div class="iface-divider"></div>
+
+            <div class="iface-block" id="settingsBgThemeRow">
+                <span class="iface-label" data-i18n="settings.bg">${t("settings.bg")}</span>
+                <div class="bg-thumbs" id="settingsBgThemeSeg" role="tablist">
+                    <!-- Названия тем намеренно НЕ локализованы — техника фона, не интерфейс. -->
+                    <button type="button" class="bg-thumb" data-val="silence" role="tab">
+                        <span class="bg-thumb-prev bg-thumb-prev--silence"></span>
+                        <span class="bg-thumb-name">silence<span class="bg-thumb-dot"></span></span>
+                    </button>
+                    <button type="button" class="bg-thumb" data-val="nebula" role="tab">
+                        <span class="bg-thumb-prev bg-thumb-prev--nebula"></span>
+                        <span class="bg-thumb-name">nebula<span class="bg-thumb-dot"></span></span>
+                    </button>
+                    <button type="button" class="bg-thumb" data-val="grid" role="tab">
+                        <span class="bg-thumb-prev bg-thumb-prev--grid"></span>
+                        <span class="bg-thumb-name">grid<span class="bg-thumb-dot"></span></span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="iface-divider"></div>
+
+            <div class="iface-block" id="settingsUiScaleRow">
+                <span class="iface-label" data-i18n="settings.uiScale">${t("settings.uiScale")}</span>
+                <span class="iface-hint" data-i18n="settings.uiScale.hint">${t("settings.uiScale.hint")}</span>
+                <div class="scale-preview">
+                    <span class="scale-preview-inner" id="scalePreviewInner">
+                        <span class="scale-preview-avatar" id="scalePreviewAvatar">—</span>
+                        <span class="scale-preview-name" id="scalePreviewName">—</span>
+                        <span class="scale-preview-meta">void</span>
+                    </span>
+                </div>
+                <div class="scale-control">
+                    <input type="range" id="settingsUiScale" class="hslider"
+                        min="70" max="150" step="5" aria-label="${t("settings.uiScale")}"/>
+                    <span class="scale-value" id="settingsUiScaleValue">100%</span>
+                    <button type="button" class="scale-apply" id="settingsUiScaleApply" disabled
+                        data-i18n-attr="aria-label:settings.uiScale.apply"
+                        aria-label="${t("settings.uiScale.apply")}">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5 9-11"/></svg>
+                    </button>
+                </div>
+            </div>
+
+            <div class="iface-divider"></div>
+
+            <div class="iface-row">
+                <span class="iface-text">
+                    <span class="iface-label" data-i18n="settings.streamer">${t("settings.streamer")}</span>
+                    <span class="iface-hint" data-i18n="settings.streamer.hint">${t("settings.streamer.hint")}</span>
+                </span>
+                <span class="vswitch">
+                    <input type="checkbox" id="settingsStreamerInput"/>
+                    <span class="vswitch-track"></span>
+                </span>
+            </div>
+        `, `<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="1.4"/><path d="M3 9.5h18M7 13.5h7"/></svg>`);
+
+        /* Копирование UID из карточки профиля. */
+        const uidCopyBtn = profileModalEl.querySelector("#profileUidCopy");
+        uidCopyBtn?.addEventListener("click", async () => {
+            const uid = profileModalEl.querySelector("#profileUid")?.textContent || "";
+            if (!uid) return;
+            try {
+                await navigator.clipboard.writeText(uid);
+            } catch (_) {
+                try {
+                    const ta = document.createElement("textarea");
+                    ta.value = uid; ta.style.position = "fixed"; ta.style.opacity = "0";
+                    document.body.appendChild(ta); ta.select();
+                    document.execCommand("copy"); document.body.removeChild(ta);
+                } catch (_) { return; }
+            }
+            uidCopyBtn.classList.add("is-copied");
+            clearTimeout(uidCopyBtn._copyT);
+            uidCopyBtn._copyT = setTimeout(() => uidCopyBtn.classList.remove("is-copied"), 1200);
+        });
+
+        /* i18n уже применён глобально на init, но модалки построены здесь —
+           прогоним applyI18n по ним, чтобы плейсхолдеры/aria проставились. */
+        applyI18n(profileModalEl);
+        applyI18n(audioModalEl);
+        applyI18n(interfaceModalEl);
+    }
+
+    function openCatModal(el, onOpen) {
+        if (!el) return;
+        lastCatTrigger = document.activeElement;
+        currentCatModal = el;
+        el.classList.add("is-open");
+        el.setAttribute("aria-hidden", "false");
+        if (typeof onOpen === "function") onOpen();
+        requestAnimationFrame(() =>
+            el.querySelector(".cat-modal-close")?.focus({ preventScroll: true }));
+    }
+
+    function closeCatModal(el) {
+        if (!el) return;
+        el.classList.remove("is-open");
+        el.setAttribute("aria-hidden", "true");
+        if (el === audioModalEl) { stopPreview(); stopSpkMeter(); }
+        if (el === currentCatModal) currentCatModal = null;
+        updateCatValues();
+        /* Возвращаем фокус на строку категории, с которой модалка открыта. */
+        if (lastCatTrigger && typeof lastCatTrigger.focus === "function") {
+            lastCatTrigger.focus({ preventScroll: true });
+        }
+        lastCatTrigger = null;
+    }
+
+    function onAudioModalOpen() {
+        applyAudioControlsFromState();
+        populateDeviceSelects();
+        startPreview();
+        startSpkMeter();
+    }
+
+    function onInterfaceModalOpen() {
+        applyLangToggleUI();
+        applyStreamerToggleUI();
+        applyBgThemeSegUI();
+        applyUiScaleSliderUI();
+        /* Превью масштаба показывает текущего пользователя. */
+        const name = state.nickname || window.currentUsername || "void";
+        const avatarEl = document.getElementById("scalePreviewAvatar");
+        const nameEl = document.getElementById("scalePreviewName");
+        if (avatarEl) avatarEl.textContent = profileInitials(name);
+        if (nameEl) nameEl.textContent = name;
+    }
+
+    function onProfileModalOpen() {
+        applyNickInputUI();
+        populateProfileCard();
+    }
+
+    /* Инициалы для аватара: первые буквы двух слов, либо две буквы одного. */
+    function profileInitials(name) {
+        const n = String(name || "").trim();
+        if (!n) return "—";
+        const parts = n.split(/\s+/).filter(Boolean);
+        const a = parts[0] ? parts[0][0] : "";
+        const b = parts.length > 1 ? parts[parts.length - 1][0] : (parts[0] && parts[0][1] ? parts[0][1] : "");
+        return (a + b).toLowerCase() || "—";
+    }
+
+    /* Короткий UID (FNV-1a → 8 hex). Технический ID — UPPERCASE по гайду. */
+    function shortUid(seed) {
+        const s = String(seed || "void");
+        let h = 0x811c9dc5;
+        for (let i = 0; i < s.length; i++) {
+            h ^= s.charCodeAt(i);
+            h = (h * 0x01000193) >>> 0;
+        }
+        const hex = h.toString(16).toUpperCase().padStart(8, "0");
+        return `UID-${hex.slice(0, 4)}-${hex.slice(4, 8)}`;
+    }
+
+    /* Постоянный UID устройства. clientId генерируется заново каждую сессию,
+       поэтому для «личного айди» в профиле храним стабильный seed в localStorage —
+       так ID не меняется между запусками. Это не серверный аккаунт (приложение
+       анонимное, p2p), а локальный идентификатор. */
+    const UID_KEY = "void:uid";
+    function getStableUid() {
+        try {
+            let u = localStorage.getItem(UID_KEY);
+            if (!u) {
+                u = shortUid(String(Date.now()) + ":" + Math.random());
+                localStorage.setItem(UID_KEY, u);
+            }
+            return u;
+        } catch {
+            return shortUid(window.currentClientId || "void");
+        }
+    }
+
+    function populateProfileCard() {
+        const name = state.nickname || window.currentUsername || "";
+        const avatarEl = document.getElementById("profileAvatar");
+        const nameEl = document.getElementById("profileName");
+        const uidEl = document.getElementById("profileUid");
+        if (avatarEl) avatarEl.textContent = profileInitials(name);
+        if (nameEl) {
+            nameEl.textContent = name || "—";
+            /* Золотое сияние ника контрибьютора — та же пасхалка, что в комнате
+               (см. config.js isPremiumNickname + stage.css .premium). */
+            const premium = typeof isPremiumNickname === "function" && isPremiumNickname(name);
+            nameEl.classList.toggle("premium", !!premium);
+        }
+        if (uidEl) uidEl.textContent = getStableUid();
+    }
+
+    /* Сводные значения справа в строках категорий — короткий отпечаток
+       текущего состояния, как в макете («en · silence · 100%»). */
+    function updateCatValues() {
+        const set = (id, text) => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = text || "";
+        };
+        set("catValueProfile", state.nickname || (window.currentUsername || ""));
+        set("catValueInterface", `${state.lang} · ${state.bgTheme} · ${Math.round(state.uiScale * 100)}%`);
+        /* hotkeysEnabled живёт в том же STORAGE_KEY, но переключается из
+           app-settings.js — поэтому читаем СВЕЖЕЕ значение из localStorage,
+           а не из (возможно устаревшего) state. */
+        let hkEnabled = state.hotkeysEnabled;
+        try {
+            const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+            if (typeof raw.hotkeysEnabled === "boolean") hkEnabled = raw.hotkeysEnabled;
+        } catch {}
+        set("catValueHotkeys", hkEnabled ? t("settings.cat.on") : t("settings.cat.off"));
+        set("catValueApp", window.VoidPlatform === "desktop" ? "desktop" : "web");
     }
 
     /* ===== support modal ===== */
@@ -1327,7 +1727,7 @@
 
     function applyLangToggleUI() {
         if (!langSegEl) return;
-        langSegEl.querySelectorAll(".settings-seg-btn").forEach(b => {
+        langSegEl.querySelectorAll(".vseg-btn").forEach(b => {
             b.classList.toggle("is-active", b.dataset.val === state.lang);
         });
     }
@@ -1338,18 +1738,36 @@
     }
 
     /** Синхронизирует слайдер «масштаб интерфейса» с текущим state.uiScale.
-     *  Вызывается на init и после программных изменений (например, если
-     *  setUiScale зовётся из консоли). */
+     *  Сбрасывает pending-значение и гасит кнопку «применить» (мы только что
+     *  привели слайдер к уже применённому масштабу). */
     function applyUiScaleSliderUI() {
         if (!uiScaleEl) return;
         const pct = Math.round(state.uiScale * 100);
         uiScaleEl.value = String(pct);
         if (uiScaleValueEl) uiScaleValueEl.textContent = pct + "%";
+        pendingUiScale = null;
+        setScaleApplyEnabled(false);
+        applyScalePreview(state.uiScale);
+    }
+
+    /* Превью масштаба: показываем будущий размер относительно уже применённого
+       (модалка сама отрисована в текущем масштабе, поэтому previewScale=1 при
+       совпадении). transform-origin слева — превью «растёт» вправо, не прыгает. */
+    function applyScalePreview(targetScale) {
+        if (!scalePreviewInnerEl) return;
+        const rel = targetScale / (state.uiScale || 1);
+        scalePreviewInnerEl.style.transform = `scale(${rel})`;
+    }
+
+    function setScaleApplyEnabled(on) {
+        if (!uiScaleApplyEl) return;
+        uiScaleApplyEl.disabled = !on;
+        uiScaleApplyEl.classList.toggle("is-active", !!on);
     }
 
     function applyBgThemeSegUI() {
         if (!bgThemeSegEl) return;
-        bgThemeSegEl.querySelectorAll(".settings-seg-btn").forEach(b => {
+        bgThemeSegEl.querySelectorAll(".bg-thumb").forEach(b => {
             b.classList.toggle("is-active", b.dataset.val === state.bgTheme);
         });
     }
@@ -1371,18 +1789,27 @@
         });
 
         if (uiScaleEl) {
-            /* input — live во время drag'а: обновляем только цифру справа,
-               НЕ применяя scale. Иначе во время drag'а размеры всего
-               интерфейса (включая сам слайдер) пересчитываются, и thumb
-               уезжает из-под курсора — управлять невозможно.
-               change — apply при отпускании: scale применяется один раз. */
+            /* input — НЕ применяем масштаб глобально (иначе модалка и сам
+               слайдер пересчитываются под курсором). Вместо этого: обновляем
+               цифру, двигаем превью в реальном времени и «зажигаем» кнопку
+               применения. Глобальный --ui-scale меняется только по клику на
+               галочку справа от слайдера. */
             uiScaleEl.addEventListener("input", () => {
+                const next = Number(uiScaleEl.value) / 100;
+                pendingUiScale = next;
                 if (uiScaleValueEl) uiScaleValueEl.textContent = uiScaleEl.value + "%";
-            });
-            uiScaleEl.addEventListener("change", () => {
-                setUiScale(Number(uiScaleEl.value) / 100);
+                applyScalePreview(next);
+                setScaleApplyEnabled(Math.abs(next - state.uiScale) > 1e-6);
             });
         }
+
+        uiScaleApplyEl?.addEventListener("click", () => {
+            if (pendingUiScale == null) return;
+            setUiScale(pendingUiScale);
+            /* applyUiScaleSliderUI пересинхронит превью/кнопку под новый масштаб. */
+            applyUiScaleSliderUI();
+            updateCatValues();
+        });
 
         spkTestBtnEl?.addEventListener("click", playTestTone);
 
@@ -1390,7 +1817,7 @@
            Перебираем список без участия пользователя. */
         if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
             navigator.mediaDevices.addEventListener("devicechange", () => {
-                if (panelEl?.classList.contains("is-open")) {
+                if (audioModalEl?.classList.contains("is-open")) {
                     populateDeviceSelects();
                 }
             });
@@ -1531,8 +1958,12 @@
     }
 
     function updateGainLabels() {
-        if (micGainValueEl) micGainValueEl.textContent = Math.round(state.audioInGain * 100) + "%";
-        if (spkGainValueEl) spkGainValueEl.textContent = Math.round(state.audioOutGain * 100) + "%";
+        /* Крупное число + мелкий «%» (см. .fader-value). */
+        const fmt = (v) => `<b>${Math.round(v * 100)}</b>%`;
+        if (micGainValueEl) micGainValueEl.innerHTML = fmt(state.audioInGain);
+        if (spkGainValueEl) spkGainValueEl.innerHTML = fmt(state.audioOutGain);
+        /* Метр динамиков НЕ привязан к положению фейдера — он показывает реальный
+           воспроизводимый уровень (см. startSpkMeter, эквалайзер выхода). */
     }
 
     function applyAudioControlsFromState() {
@@ -1540,6 +1971,7 @@
         micGainEl.value = String(Math.round(state.audioInGain * 100));
         spkGainEl.value = String(Math.round(state.audioOutGain * 100));
         updateGainLabels();
+        if (noiseToggleEl) noiseToggleEl.checked = !!state.noiseSuppression;
     }
 
     async function populateDeviceSelects() {
@@ -1565,7 +1997,7 @@
         /* setSinkId есть только в Chrome/Edge/Firefox 116+; в Safari отсутствует.
            Если API недоступен — гасим dropdown и пишем подсказку. */
         const supportsSinkId = "setSinkId" in HTMLMediaElement.prototype;
-        const spkRoot = panelEl.querySelector("#settingsSpkDropdown");
+        const spkRoot = document.getElementById("settingsSpkDropdown");
         if (!supportsSinkId) {
             spkRoot?.classList.add("is-disabled");
             spkRoot?.querySelector(".settings-dropdown-trigger")?.setAttribute("disabled", "");
@@ -1673,7 +2105,8 @@
                Если уперлись в 100% — фактически юзер «в полку». */
             const withGain = avg * state.audioInGain;
             const pct = Math.min(100, (withGain / 80) * 100);
-            micMeterFillEl.style.width = pct.toFixed(1) + "%";
+            /* Вертикальный метр — заполняется снизу вверх (height, не width). */
+            micMeterFillEl.style.height = pct.toFixed(1) + "%";
             /* Цветная подсветка «слишком громко»: дорисуем класс по порогу. */
             micMeterFillEl.classList.toggle("is-hot", pct > 92);
             previewRaf = requestAnimationFrame(tick);
@@ -1693,13 +2126,76 @@
         }
         previewAnalyser = null;
         if (micMeterFillEl) {
-            micMeterFillEl.style.width = "0%";
+            micMeterFillEl.style.height = "0%";
             micMeterFillEl.classList.remove("is-hot");
         }
     }
 
+    /* ===== speaker output meter (эквалайзер выхода) ===== */
+
+    function startSpkMeter() {
+        stopSpkMeter();
+        if (!spkMeterFillEl) return;
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return;
+        try {
+            spkMeterCtx = new Ctx();
+            spkMeterAnalyser = spkMeterCtx.createAnalyser();
+            spkMeterAnalyser.fftSize = 256;
+            spkMeterAnalyser.smoothingTimeConstant = 0.6;
+            /* Подключаем все играющие удалённые медиа: <audio>/<video> с
+               MediaStream-srcObject (peer-голос, демонстрация экрана). Локальный
+               mic в DOM-аудио не сидит, поэтому в метр выхода не попадёт. */
+            const media = Array.from(document.querySelectorAll("audio, video"));
+            for (const el of media) {
+                const s = el.srcObject;
+                if (s && typeof s.getAudioTracks === "function" && s.getAudioTracks().length) {
+                    try {
+                        const src = spkMeterCtx.createMediaStreamSource(s);
+                        src.connect(spkMeterAnalyser);
+                        spkMeterSources.push(src);
+                    } catch (_) { /* стрим без аудио / уже подключён — пропускаем */ }
+                }
+            }
+            runSpkMeterLoop();
+        } catch (_) {
+            stopSpkMeter();
+        }
+    }
+
+    function runSpkMeterLoop() {
+        if (!spkMeterAnalyser) return;
+        const data = new Uint8Array(spkMeterAnalyser.frequencyBinCount);
+        const tick = () => {
+            if (!spkMeterAnalyser || !spkMeterFillEl) { spkMeterRaf = null; return; }
+            spkMeterAnalyser.getByteFrequencyData(data);
+            let sum = 0;
+            for (let i = 0; i < data.length; i++) sum += data[i];
+            const avg = sum / data.length;
+            /* Умножаем на текущую мастер-громкость — метр отражает то, что
+               реально слышно. Нормируем к ~80 как у mic-метра. */
+            const withVol = avg * state.audioOutGain;
+            const pct = Math.min(100, (withVol / 80) * 100);
+            spkMeterFillEl.style.height = pct.toFixed(1) + "%";
+            spkMeterRaf = requestAnimationFrame(tick);
+        };
+        tick();
+    }
+
+    function stopSpkMeter() {
+        if (spkMeterRaf) { cancelAnimationFrame(spkMeterRaf); spkMeterRaf = null; }
+        spkMeterSources.forEach(s => { try { s.disconnect(); } catch (_) {} });
+        spkMeterSources = [];
+        if (spkMeterCtx) {
+            try { spkMeterCtx.close(); } catch (_) {}
+            spkMeterCtx = null;
+        }
+        spkMeterAnalyser = null;
+        if (spkMeterFillEl) spkMeterFillEl.style.height = "0%";
+    }
+
     async function restartPreview() {
-        if (panelEl?.classList.contains("is-open")) {
+        if (audioModalEl?.classList.contains("is-open")) {
             await startPreview();
         }
     }
@@ -1777,12 +2273,11 @@
     function openPanel() {
         if (!panelEl) return;
         dismissSettingsHint();
-        /* Перерисовываем поле ника на каждом open — currentUsername мог
-           перегенериться (пользователь очистил ник, или сменилась сессия). */
-        applyNickInputUI();
-        applyAudioControlsFromState();
-        populateDeviceSelects();
-        startPreview();
+        /* Контролы переехали в модалки категорий и инициализируются на open
+           соответствующей модалки (превью микрофона, список устройств, поле
+           ника). Здесь — только освежаем сводные значения в списке категорий
+           (ник/язык/масштаб могли измениться извне). */
+        updateCatValues();
         panelEl.classList.add("is-open");
         panelEl.setAttribute("aria-hidden", "false");
         scrimEl.classList.add("is-open");
@@ -1800,7 +2295,11 @@
 
     function closePanel() {
         if (!panelEl) return;
+        /* Если открыта модалка категории — закрываем её вместе с панелью
+           (заодно гасит превью микрофона через closeCatModal/stopPreview). */
+        if (currentCatModal) closeCatModal(currentCatModal);
         stopPreview();
+        stopSpkMeter();
         panelEl.classList.remove("is-open");
         panelEl.setAttribute("aria-hidden", "true");
         scrimEl.classList.remove("is-open");
@@ -1847,6 +2346,7 @@
         applyBgThemeSegUI();
         applyUiScaleSliderUI();
         applyNickInputUI();
+        updateCatValues();
         /* Применяем сохранённый uiScale на корень. Inline-скрипт в <head>
            уже сделал это до загрузки CSS (без FOUC), но дублируем для
            случая, когда state.uiScale пришёл из дефолтов / был перезаписан
@@ -1879,6 +2379,10 @@
         setLang, setStreamer, setNickname,
         setAudioInId, setAudioOutId, setAudioInGain, setAudioOutGain,
         setBgTheme, setUiScale,
-        openPanel, closePanel
+        getNoiseSuppression, setNoiseSuppression,
+        openPanel, closePanel,
+        /* Освежить сводные значения строк категорий. Зовётся из app-settings.js
+           после изменения хоткеев / app-настроек, чьи модалки живут там. */
+        refreshCats: () => updateCatValues()
     };
 })();

@@ -238,6 +238,16 @@
     color: var(--fg-3);
 }
 
+/* Обёртка над списком биндингов — общий тумблер хоткеев гасит её целиком. */
+.app-modal-bindings {
+    transition: opacity var(--t-fast);
+}
+
+.app-modal-bindings.is-disabled {
+    opacity: 0.4;
+    pointer-events: none;
+}
+
 /* ===== Hotkey-binding кнопки + footer hint ===== */
 .app-modal-binding {
     flex-shrink: 0;
@@ -311,3 +321,225 @@ html:not(.desktop) #settingsAppBtn {
     display: none;
 }
 
+
+/* =========================================================================
+   v2 RESTYLE — единая дизайн-система (VOID_STYLE_GUIDE): радиус 2px, без
+   теней/scale, JetBrains Mono. Переопределяет shell .app-modal-* выше +
+   новые компоненты (big close-buttons, keyboard visual, keycaps).
+   ========================================================================= */
+
+/* ----- shell ----- */
+.app-modal-card {
+    width: min(35rem, 100%);
+    border-radius: 2px;
+    box-shadow: none;
+    background: var(--bg-0);
+    transform: translateY(8px);
+}
+.app-modal-scrim.is-open .app-modal-card { transform: none; }
+
+.app-modal-header { padding: 1.14rem 1.43rem; }
+
+.app-modal-heading {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.71rem;
+    min-width: 0;
+}
+.app-modal-ic { display: inline-flex; flex-shrink: 0; }
+.app-modal-ic svg {
+    width: 1.14rem;
+    height: 1.14rem;
+    fill: none;
+    stroke: var(--fg-2);
+    stroke-width: 1.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.app-modal-title { font-weight: 400; letter-spacing: var(--tracking-wide); }
+
+.app-modal-close { border-radius: 2px; }
+.app-modal-close:hover { background: var(--bg-2); }
+
+/* Воздух по краям. */
+.app-modal-body { padding: 1.71rem; gap: 1.14rem; }
+
+.app-modal-divider { height: 1px; background: var(--fg-4); margin: 0.43rem 0; }
+
+.app-modal-row--flush { padding-top: 0; }
+.app-modal-row--flush + .app-modal-row { border-top: 0; }
+
+.app-modal-row--lead {
+    display: flex;
+    align-items: center;
+    gap: 0.86rem;
+}
+.app-modal-ic-lead { flex-shrink: 0; display: inline-flex; color: var(--fg-2); }
+.app-modal-ic-lead svg {
+    width: 1.29rem;
+    height: 1.29rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* ----- app modal: big close-action buttons ----- */
+.app-section { display: flex; flex-direction: column; gap: 0.36rem; }
+.app-section-label {
+    font-size: 0.86rem;
+    color: var(--fg);
+    letter-spacing: var(--tracking);
+    text-transform: lowercase;
+}
+.app-section-hint {
+    font-size: 0.79rem;
+    color: var(--fg-3);
+    letter-spacing: var(--tracking);
+    text-transform: lowercase;
+    margin-bottom: 0.5rem;
+}
+
+.close-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.71rem;
+}
+.close-action {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.43rem;
+    padding: 1.43rem 1rem;
+    background: var(--bg-1);
+    border: 1px solid var(--fg-4);
+    border-radius: 2px;
+    color: var(--fg-3);
+    font: inherit;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color var(--t-fast), color var(--t-fast), background var(--t-fast);
+}
+.close-action:hover { border-color: var(--fg-3); color: var(--fg-2); }
+.close-action.is-active { border-color: var(--fg-2); background: var(--bg-2); color: var(--fg); }
+.close-action:active { background: var(--bg-2); }
+.close-action-ic {
+    width: 1.86rem;
+    height: 1.86rem;
+    margin-bottom: 0.14rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.close-action-title {
+    font-size: 0.86rem;
+    color: var(--fg-2);
+    letter-spacing: var(--tracking);
+    text-transform: lowercase;
+}
+.close-action.is-active .close-action-title { color: var(--fg); }
+.close-action-sub {
+    font-size: 0.71rem;
+    color: var(--fg-3);
+    letter-spacing: var(--tracking);
+    text-transform: lowercase;
+    line-height: 1.4;
+}
+
+/* ----- hotkeys: keyboard visual (non-interactive) ----- */
+.kbd-visual {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.36rem;
+    padding: 0.93rem;
+    margin-bottom: 1.14rem;
+    background: var(--bg-1);
+    border: 1px solid var(--fg-4);
+    border-radius: 2px;
+    user-select: none;
+}
+.kbd-row { display: flex; gap: 0.36rem; }
+.kbd-key {
+    flex: 1 1 0;
+    min-width: 0;
+    height: 2rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-0);
+    border: 1px solid var(--fg-4);
+    border-radius: 2px;
+    font-size: 0.75rem;
+    color: var(--fg-3);
+    letter-spacing: var(--tracking);
+    transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
+}
+/* Пропорции как на настоящей клавиатуре: shift ≈ 2.2 юнита, ctrl ≈ 1.5, space —
+   широкий. Без max-width на буквах, чтобы ряды равномерно заполняли ширину окна
+   и модификаторы не раздувались (flex letters = 1). */
+.kbd-key--wide { padding: 0 0.5rem; }
+.kbd-key[data-key="shift"] { flex: 2.2 1 0; }
+.kbd-key[data-key="ctrl"] { flex: 1.5 1 0; }
+.kbd-key--space { flex: 6 1 0; }
+/* буква назначенного бинда — залита; модификаторы — подсвеченный контур. */
+.kbd-key.is-on { background: #ffffff; border-color: #ffffff; color: var(--bg-0); }
+.kbd-key--wide.is-on { background: transparent; border-color: var(--fg); color: var(--fg); }
+
+/* ----- hotkeys: rows + keycaps ----- */
+.hotkey-rows { display: flex; flex-direction: column; margin-top: 0.21rem; }
+.hotkey-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.57rem 0.43rem;
+    border-radius: 2px;
+    transition: background var(--t-fast);
+}
+.hotkey-row:hover { background: var(--bg-1); }
+.hotkey-label {
+    font-size: 0.86rem;
+    color: var(--fg);
+    letter-spacing: var(--tracking);
+    text-transform: lowercase;
+}
+.hotkey-binding {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.36rem;
+    background: transparent;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+    font: inherit;
+}
+.hotkey-binding:disabled { cursor: default; }
+.binding-cap {
+    min-width: 1.86rem;
+    height: 1.86rem;
+    padding: 0 0.57rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-1);
+    border: 1px solid var(--fg-4);
+    border-radius: 2px;
+    font-size: 0.75rem;
+    color: var(--fg-2);
+    text-transform: lowercase;
+    letter-spacing: var(--tracking);
+    transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
+}
+.hotkey-row:hover .binding-cap { border-color: var(--fg-2); color: var(--fg); }
+.binding-plus { color: var(--fg-3); font-size: 0.71rem; }
+.binding-empty { color: var(--fg-3); font-size: 0.86rem; padding: 0 0.57rem; }
+.binding-prompt { color: var(--screen); font-size: 0.86rem; padding: 0 0.57rem; letter-spacing: 0.18em; }
+.hotkey-binding.is-capturing .binding-cap { border-color: var(--screen); color: var(--screen); }
+
+@media (prefers-reduced-motion: reduce) {
+    .app-modal-card { transition: none; }
+}

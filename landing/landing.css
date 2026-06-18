@@ -2705,7 +2705,8 @@ section.what {
 
 @media (prefers-reduced-motion: reduce) {
   .contrib-name  { animation: none; background-position: 50% 50%; }
-  .contrib-track { animation: none; transform: translateX(-6%); }
+  /* marquee-скролл оставляем включённым даже под reduce-motion — по запросу:
+     это горизонтальная лента, не вестибулярно-агрессивная анимация. */
   .contrib-caret { animation: none; }
 }
 

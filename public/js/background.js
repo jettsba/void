@@ -522,9 +522,9 @@ function _drawStars(t) {
 /* ===== theme registry ===== */
 
 const THEMES = {
-    silence:    { setup: setupSilence, frame: frameSilence, resize: resizeSilence },
-    nebula:     { setup: setupNebula,  frame: frameNebula,  resize: resizeNebula },
-    "void-grid":{ setup: setupGrid,    frame: frameGrid,    resize: resizeGrid, teardown: teardownGrid },
+    silence: { setup: setupSilence, frame: frameSilence, resize: resizeSilence },
+    nebula:  { setup: setupNebula,  frame: frameNebula,  resize: resizeNebula },
+    grid:    { setup: setupGrid,    frame: frameGrid,    resize: resizeGrid, teardown: teardownGrid },
 };
 
 const DEFAULT_THEME = "silence";

@@ -105,14 +105,14 @@ html.bg-switching #background-grain {
     background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1   0 0 0 0 1   0 0 0 0 1   0 0 0 0.6 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
 }
 
-/* На void-grid grain съедает чёткость точек — делаем плёнку тоньше. */
-html[data-bg-theme="void-grid"] #background-grain {
+/* На grid grain съедает чёткость точек — делаем плёнку тоньше. */
+html[data-bg-theme="grid"] #background-grain {
     opacity: 0.025;
 }
 
-/* На void-grid периферийная виньетка усиливает «свет из центра» — затемняем
+/* На grid периферийная виньетка усиливает «свет из центра» — затемняем
    углы чуть сильнее, чем в default-варианте body::after. */
-html[data-bg-theme="void-grid"] body::after {
+html[data-bg-theme="grid"] body::after {
     background: radial-gradient(120% 80% at 50% 50%, transparent 40%, rgba(0, 0, 0, 0.72) 100%);
 }
 

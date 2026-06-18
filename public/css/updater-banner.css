@@ -35,7 +35,9 @@
     display: flex;
     align-items: center;
     gap: 1rem;
-    padding: 1rem 1.14rem;
+    /* симметричные отступы со всех сторон — крестик стоит на таком же
+       расстоянии от правого края, как от верха/низа */
+    padding: 1rem;
 }
 
 .updater-banner-text {
@@ -44,6 +46,13 @@
     flex-direction: column;
     gap: 0.21rem;
     min-width: 0;
+    /* плавная подмена текста при смене состояния (idle → confirm) */
+    transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.updater-banner-text.is-swapping {
+    opacity: 0;
+    transform: translateY(-3px);
 }
 
 .updater-banner-title {
@@ -104,22 +113,30 @@
     stroke-linejoin: round;
 }
 
+/* Та же квадратная форма/размер, что и у зелёной primary-кнопки. В покое —
+   прозрачная, серый глиф; на hover заливается серым (как зелёная, только
+   серый), без круглой обводки. */
 .updater-banner-dismiss {
     background: transparent;
-    border: 0;
+    border: 1px solid transparent;
     padding: 0;
-    width: 1.71rem;
-    height: 1.71rem;
+    width: 2rem;
+    height: 2rem;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border-radius: 50%;
+    border-radius: 0.43rem;
     color: var(--fg-3);
     cursor: pointer;
     transition: background var(--t-fast), color var(--t-fast);
 }
 
-.updater-banner-dismiss:hover { background: rgba(255, 255, 255, 0.06); color: var(--fg); }
+.updater-banner-dismiss:hover,
+.updater-banner-dismiss:focus-visible {
+    outline: none;
+    background: var(--fg-2);
+    color: var(--bg-0);
+}
 
 .updater-banner-dismiss svg {
     width: 0.93rem;

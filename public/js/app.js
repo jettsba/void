@@ -116,6 +116,8 @@ function init() {
        script-scope let-переменные напрямую). Обновляется и при смене ника. */
     window.currentUsername = currentUsername;
     clientId = generateClientId();
+    /* Экспортируем для карточки профиля в настройках (короткий UID). */
+    window.currentClientId = clientId;
 
     if (typeof setReconnectHandlers === "function") {
         setReconnectHandlers({

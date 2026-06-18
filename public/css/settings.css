@@ -242,6 +242,995 @@
     outline-offset: 2px;
 }
 
+/* ========= CATEGORY LIST (главная панель) =========
+   Панель настроек — список категорий. Каждая строка открывает собственное
+   окно (.cat-modal). Дизайн-система: радиус 2px, без теней, без scale. */
+
+.settings-cats {
+    display: flex;
+    flex-direction: column;
+    gap: 0.43rem;
+}
+
+.settings-cat {
+    display: flex;
+    align-items: center;
+    gap: 0.86rem;
+    width: 100%;
+    padding: 0.95rem 0.93rem;
+    background: transparent;
+    border: 1px solid var(--fg-4);
+    border-radius: 2px;
+    color: var(--fg);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background var(--t-fast), border-color var(--t-fast);
+}
+
+.settings-cat:hover,
+.settings-cat:focus-visible {
+    outline: none;
+    background: var(--bg-1);
+    border-color: var(--fg-3);
+}
+
+/* active по гайду — шаг фона, без scale/translate. */
+.settings-cat:active { background: var(--bg-2); }
+
+.settings-cat-icon {
+    width: 1.14rem;
+    height: 1.14rem;
+    flex-shrink: 0;
+    fill: none;
+    stroke: var(--fg-2);
+    stroke-width: 1.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    transition: stroke var(--t-fast);
+}
+
+.settings-cat:hover .settings-cat-icon,
+.settings-cat:focus-visible .settings-cat-icon { stroke: var(--fg); }
+
+.settings-cat-label {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 0.93rem;
+    letter-spacing: var(--tracking);
+    color: var(--fg);
+}
+
+.settings-cat-value {
+    flex-shrink: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: right;
+    font-size: 0.79rem;
+    letter-spacing: var(--tracking);
+    color: var(--fg-3);
+}
+
+.settings-cat-value:empty { display: none; }
+
+.settings-cat-arrow {
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
+    fill: none;
+    stroke: var(--fg-3);
+    stroke-width: 1.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    transition: transform var(--t-fast), stroke var(--t-fast);
+}
+
+.settings-cat:hover .settings-cat-arrow,
+.settings-cat:focus-visible .settings-cat-arrow {
+    stroke: var(--fg-2);
+    transform: translateX(2px);
+}
+
+/* ========= CATEGORY MODAL (окно категории) ========= */
+
+.cat-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 240;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.71rem;
+    background: rgba(0, 0, 0, 0);
+    -webkit-backdrop-filter: blur(0px);
+    backdrop-filter: blur(0px);
+    opacity: 0;
+    pointer-events: none;
+    transition:
+        opacity var(--t-med),
+        background var(--t-med),
+        backdrop-filter var(--t-med),
+        -webkit-backdrop-filter var(--t-med);
+}
+
+.cat-modal.is-open {
+    opacity: 1;
+    pointer-events: auto;
+    background: rgba(0, 0, 0, 0.5);
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
+}
+
+.cat-modal-backdrop { position: absolute; inset: 0; }
+
+.cat-modal-card {
+    position: relative;
+    z-index: 1;
+    width: min(35rem, 100%);
+    max-height: calc(100vh - 3.43rem);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--bg-0);
+    border: 1px solid var(--fg-4);
+    border-radius: 2px;
+    transform: translateY(8px);
+    transition: transform var(--t-med);
+}
+
+.cat-modal.is-open .cat-modal-card { transform: none; }
+
+.cat-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.14rem 1.43rem;
+    border-bottom: 1px solid var(--fg-4);
+}
+
+.cat-modal-heading {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.71rem;
+    min-width: 0;
+}
+
+.cat-modal-ic { display: inline-flex; flex-shrink: 0; }
+
+.cat-modal-ic svg {
+    width: 1.14rem;
+    height: 1.14rem;
+    fill: none;
+    stroke: var(--fg-2);
+    stroke-width: 1.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.cat-modal-title {
+    font-size: 0.93rem;
+    font-weight: 400;
+    color: var(--fg);
+    text-transform: lowercase;
+    letter-spacing: var(--tracking-wide);
+}
+
+.cat-modal-close {
+    flex-shrink: 0;
+    width: 2rem;
+    height: 2rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 0;
+    border-radius: 2px;
+    cursor: pointer;
+    color: var(--fg-3);
+    transition: color var(--t-fast), background var(--t-fast);
+}
+
+.cat-modal-close:hover,
+.cat-modal-close:focus-visible {
+    outline: none;
+    color: var(--fg);
+    background: var(--bg-2);
+}
+
+.cat-modal-close svg {
+    width: 1rem;
+    height: 1rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+}
+
+/* Воздух по краям: щедрый padding до границы окна. */
+.cat-modal-body {
+    display: flex;
+    flex-direction: column;
+    gap: 1.43rem;
+    padding: 1.71rem;
+    overflow-y: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .cat-modal,
+    .cat-modal-card { transition: none; }
+}
+
+/* ========= PROFILE ========= */
+
+.profile-card {
+    display: flex;
+    align-items: center;
+    gap: 1.14rem;
+    padding: 1.29rem;
+    background: var(--bg-1);
+    border: 1px solid var(--fg-4);
+    border-radius: 2px;
+}
+
+.profile-avatar {
+    flex-shrink: 0;
+    width: 4.29rem;
+    height: 4.29rem;
+    border-radius: 999px;
+    border: 1px solid var(--fg-4);
+    background: var(--bg-0);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.43rem;
+    color: var(--fg);
+    text-transform: lowercase;
+}
+
+.profile-ident {
+    display: flex;
+    flex-direction: column;
+    gap: 0.43rem;
+    min-width: 0;
+}
+
+.profile-name {
+    font-size: 1.29rem;
+    font-weight: 400;
+    color: var(--fg);
+    letter-spacing: var(--tracking);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Контрибьюторский ник — золотое сияние, как в комнате (stage.css .premium). */
+.profile-name.premium {
+    background: linear-gradient(110deg, #b89254 0%, #e8c97a 28%, #f6e4ad 50%, #e8c97a 72%, #b89254 100%);
+    background-size: 220% 100%;
+    background-position: 0% 50%;
+    -webkit-background-clip: text;
+            background-clip: text;
+    -webkit-text-fill-color: transparent;
+            color: transparent;
+    filter:
+        drop-shadow(0 0 4px rgba(232, 201, 122, 0.35))
+        drop-shadow(0 0 12px rgba(232, 201, 122, 0.18));
+    animation: premium-shimmer 7s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .profile-name.premium { animation: none; background-position: 50% 50%; }
+}
+
+.profile-uid {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    align-self: flex-start;
+    max-width: 100%;
+    padding: 0.14rem 0;
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+    color: var(--fg-3);
+    font: inherit;
+    font-size: 0.79rem;
+    letter-spacing: var(--tracking);
+    transition: color var(--t-fast);
+}
+
+.profile-uid:hover { color: var(--fg-2); }
+
+.profile-uid-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.profile-uid-icon {
+    width: 0.93rem;
+    height: 0.93rem;
+    flex-shrink: 0;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.profile-uid-copied {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    color: var(--fg);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--t-fast);
+}
+
+.profile-uid.is-copied .profile-uid-text,
+.profile-uid.is-copied .profile-uid-icon { opacity: 0; }
+.profile-uid.is-copied .profile-uid-copied { opacity: 1; }
+
+.field-block {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.field-label {
+    font-size: 0.86rem;
+    color: var(--fg);
+    letter-spacing: var(--tracking);
+    text-transform: lowercase;
+}
+
+.field-hint {
+    font-size: 0.79rem;
+    color: var(--fg-3);
+    line-height: 1.4;
+    letter-spacing: var(--tracking);
+    text-transform: lowercase;
+}
+
+/* Ник-форма наследует логику; радиусы — к 2px по гайду. */
+.field-block .settings-nick-form { margin-top: 0.14rem; }
+.field-block .settings-nick-input,
+.field-block .settings-nick-save { border-radius: 2px; }
+
+/* ========= AUDIO — vertical faders ========= */
+
+.audio-faders {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.86rem;
+}
+
+/* min-width:0 — длинное имя устройства в дропдауне не растягивает грид
+   (иначе появляется горизонтальный скролл). */
+.audio-faders > * { min-width: 0; }
+
+.fader-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    background: var(--bg-1);
+    border: 1px solid var(--fg-4);
+    border-radius: 2px;
+}
+
+.fader-top {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.86rem;
+    padding: 1.14rem 0.86rem;
+}
+
+/* Строка с процентами; в динамиках справа по центру — кнопка теста. */
+.fader-valrow {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 1.86rem;
+}
+
+.fader-value {
+    font-size: 0.93rem;
+    color: var(--fg-3);
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+}
+
+.fader-value b {
+    font-size: 1.86rem;
+    font-weight: 300;
+    color: var(--fg);
+}
+
+.fader-rail {
+    --fader-h: 11rem;
+    position: relative;
+    height: var(--fader-h);
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.71rem;
+}
+
+.vslider-wrap {
+    position: relative;
+    width: 1.43rem;
+    height: 100%;
+}
+
+.vslider {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: var(--fader-h);
+    height: 1.43rem;
+    transform: translate(-50%, -50%) rotate(-90deg);
+    -webkit-appearance: none;
+    appearance: none;
+    background: transparent;
+    cursor: pointer;
+    margin: 0;
+}
+
+.vslider::-webkit-slider-runnable-track {
+    height: 2px;
+    background: var(--fg-4);
+    border-radius: 2px;
+}
+
+.vslider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 0.64rem;
+    height: 1.43rem;
+    border-radius: 2px;
+    background: var(--fg);
+    border: 1px solid var(--bg-0);
+    margin-top: -0.66rem;
+    transition: background var(--t-fast);
+}
+
+.vslider:hover::-webkit-slider-thumb,
+.vslider:focus-visible::-webkit-slider-thumb { background: #ffffff; }
+
+.vslider::-moz-range-track {
+    height: 2px;
+    background: var(--fg-4);
+    border-radius: 2px;
+}
+
+.vslider::-moz-range-thumb {
+    width: 0.64rem;
+    height: 1.43rem;
+    border-radius: 2px;
+    background: var(--fg);
+    border: 1px solid var(--bg-0);
+}
+
+.vslider:focus-visible { outline: none; }
+
+.vmeter {
+    position: relative;
+    width: 0.71rem;
+    height: 100%;
+    background: var(--bg-0);
+    border: 1px solid var(--fg-4);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.vmeter-fill {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 0%;
+    background: var(--fg-2);
+    transition: height 60ms linear, background 120ms ease;
+}
+
+.vmeter--screen .vmeter-fill { background: var(--screen); }
+.vmeter-fill.is-hot { background: var(--signal-warn); }
+
+/* Сегментированный «LED»-вид: перекрываем заливку горизонтальными зазорами. */
+.vmeter-grid {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+        to top,
+        transparent 0 0.36rem,
+        var(--bg-0) 0.36rem 0.5rem
+    );
+}
+
+.fader-label {
+    font-size: 0.79rem;
+    color: var(--fg-2);
+    letter-spacing: var(--tracking-wide);
+    text-transform: lowercase;
+}
+
+/* Кнопка теста динамиков — по вертикали центрирована со строкой процентов. */
+.audio-test {
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 1.71rem;
+    height: 1.71rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 1px solid var(--fg-4);
+    border-radius: 2px;
+    color: var(--fg-2);
+    cursor: pointer;
+    transition: color var(--t-fast), border-color var(--t-fast);
+}
+
+.audio-test:hover,
+.audio-test:focus-visible {
+    outline: none;
+    color: var(--fg);
+    border-color: var(--fg-2);
+}
+
+.audio-test:disabled { opacity: 0.32; cursor: not-allowed; }
+
+.audio-test svg {
+    width: 0.79rem;
+    height: 0.79rem;
+    fill: currentColor;
+    transform: translateX(0.5px);
+}
+
+/* Дропдаун устройства — нижняя часть рамки фейдера: на всю ширину, заподлицо,
+   отделён верхней линией. Триггер без своей рамки/фона. */
+.audio-device {
+    width: 100%;
+    min-width: 0;
+    border-top: 1px solid var(--fg-4);
+}
+.audio-device .settings-dropdown-trigger {
+    width: 100%;
+    min-width: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    padding: 0.71rem 0.71rem;
+    font-size: 0.75rem;
+    letter-spacing: var(--tracking);
+}
+.audio-device .settings-dropdown-trigger:hover { background: var(--bg-2); }
+.audio-device .settings-dropdown-current {
+    font-size: 0.75rem;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+/* Меню открываем ВВЕРХ (дропдаун у нижнего края модалки) и не даём ему
+   раздувать scroll-высоту body, пока он закрыт. */
+.audio-device .settings-dropdown-menu {
+    top: auto;
+    bottom: calc(100% + 0.43rem);
+    border-radius: 2px;
+    max-height: 0;
+    transform: translateY(0.29rem);
+}
+.audio-device.is-open .settings-dropdown-menu {
+    max-height: 15rem;
+    transform: translateY(0);
+}
+
+/* ========= Toggle row (шумоподавление) + Toggle switch ========= */
+
+.toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    cursor: pointer;
+}
+
+.toggle-row-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.21rem;
+    min-width: 0;
+}
+
+.toggle-row-label {
+    font-size: 0.86rem;
+    color: var(--fg);
+    letter-spacing: var(--tracking);
+    text-transform: lowercase;
+}
+
+.toggle-row-hint {
+    font-size: 0.79rem;
+    color: var(--fg-3);
+    line-height: 1.4;
+    letter-spacing: var(--tracking);
+    text-transform: lowercase;
+}
+
+/* Toggle switch — по гайду: track 2rem×1.14rem, thumb 0.86rem bg-0, off fg-4 / on fg. */
+.vswitch {
+    position: relative;
+    flex-shrink: 0;
+    width: 2rem;
+    height: 1.14rem;
+    display: inline-block;
+    cursor: pointer;
+}
+
+.vswitch input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.vswitch-track {
+    position: absolute;
+    inset: 0;
+    border-radius: 999px;
+    background: var(--fg-4);
+    transition: background 200ms ease;
+}
+
+.vswitch-track::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 0.14rem;
+    width: 0.86rem;
+    height: 0.86rem;
+    border-radius: 50%;
+    background: var(--bg-0);
+    transform: translateY(-50%);
+    transition: transform 200ms ease;
+}
+
+.vswitch input:checked + .vswitch-track { background: var(--fg); }
+.vswitch input:checked + .vswitch-track::after {
+    transform: translateY(-50%) translateX(0.86rem);
+}
+
+.vswitch input:focus-visible + .vswitch-track {
+    outline: 1px solid var(--fg-3);
+    outline-offset: 2px;
+}
+
+/* ========= INTERFACE ========= */
+
+.iface-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.iface-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.21rem;
+    min-width: 0;
+}
+
+.iface-block {
+    display: flex;
+    flex-direction: column;
+    gap: 0.71rem;
+}
+
+.iface-label {
+    font-size: 0.86rem;
+    color: var(--fg);
+    letter-spacing: var(--tracking);
+    text-transform: lowercase;
+}
+
+.iface-hint {
+    font-size: 0.79rem;
+    color: var(--fg-3);
+    line-height: 1.4;
+    letter-spacing: var(--tracking);
+    text-transform: lowercase;
+}
+
+.iface-divider { height: 1px; background: var(--fg-4); }
+
+/* Segmented (язык) — по гайду; коды языка строчными, как в макете. */
+.vseg {
+    display: inline-flex;
+    border: 1px solid var(--fg-4);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.vseg-btn {
+    height: 2.29rem;
+    padding: 0 1.29rem;
+    background: transparent;
+    border: 0;
+    color: var(--fg-2);
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.79rem;
+    letter-spacing: var(--tracking-wide);
+    text-transform: lowercase;
+    transition: background var(--t-fast), color var(--t-fast);
+}
+
+.vseg-btn + .vseg-btn { border-left: 1px solid var(--fg-4); }
+.vseg-btn:hover { color: var(--fg); }
+.vseg-btn.is-active { background: var(--fg); color: var(--bg-0); }
+
+/* Фон комнаты — миниатюры */
+.bg-thumbs {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.71rem;
+}
+
+.bg-thumb {
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    background: transparent;
+    border: 1px solid var(--fg-4);
+    border-radius: 2px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: border-color var(--t-fast);
+}
+
+.bg-thumb:hover { border-color: var(--fg-3); }
+.bg-thumb.is-active { border-color: var(--fg-2); }
+
+.bg-thumb-prev {
+    position: relative;
+    height: 4.29rem;
+    display: block;
+    overflow: hidden;
+    background: #0a0a0d;
+}
+
+/* Размытый цветной слой — мягкая «гамма» без чётких границ блобов и без
+   круга по центру. inset:-25% + blur прячет жёсткие края контейнера.
+   Применяется к silence/nebula; grid остаётся резким. */
+.bg-thumb-prev--silence::before,
+.bg-thumb-prev--nebula::before {
+    content: "";
+    position: absolute;
+    inset: -25%;
+    filter: blur(11px);
+}
+
+/* Затенение сверху — чтобы превью не были «плоско-яркими». Для nebula сильнее. */
+.bg-thumb-prev::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.32), transparent 55%);
+}
+.bg-thumb-prev--nebula::after {
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.12) 55%, transparent 80%);
+}
+
+.bg-thumb-prev--silence { background: #0b0b0e; }
+.bg-thumb-prev--silence::before {
+    background:
+        radial-gradient(38% 48% at 34% 42%, rgba(202, 204, 216, 0.22), transparent 74%),
+        radial-gradient(44% 54% at 70% 62%, rgba(150, 154, 172, 0.15), transparent 74%);
+}
+
+.bg-thumb-prev--nebula { background: #08080f; }
+.bg-thumb-prev--nebula::before {
+    background:
+        radial-gradient(44% 56% at 32% 42%, rgba(74, 88, 216, 0.6), transparent 74%),
+        radial-gradient(46% 56% at 70% 60%, rgba(152, 80, 214, 0.5), transparent 74%),
+        radial-gradient(38% 48% at 52% 52%, rgba(58, 68, 176, 0.35), transparent 78%);
+}
+
+/* grid — симметричная точечная сетка + лёгкое центральное свечение, без блюра.
+   Точки чуть менее непрозрачные, чтобы не выглядели жёстко. */
+.bg-thumb-prev--grid {
+    background-color: #0a0a0d;
+    background-image:
+        radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.06), transparent 52%),
+        radial-gradient(rgba(255, 255, 255, 0.12) 1px, transparent 1.4px);
+    background-size: 100% 100%, 0.64rem 0.64rem;
+    background-position: center center, center center;
+}
+
+.bg-thumb-name {
+    display: flex;
+    align-items: center;
+    gap: 0.36rem;
+    padding: 0.5rem 0.57rem;
+    font-size: 0.75rem;
+    letter-spacing: var(--tracking-wide);
+    text-transform: lowercase;
+    color: var(--fg-2);
+    border-top: 1px solid var(--fg-4);
+}
+
+.bg-thumb.is-active .bg-thumb-name { color: var(--fg); }
+
+.bg-thumb-dot {
+    margin-left: auto;
+    width: 0.36rem;
+    height: 0.36rem;
+    border-radius: 50%;
+    background: var(--fg);
+    opacity: 0;
+}
+
+.bg-thumb.is-active .bg-thumb-dot { opacity: 1; }
+
+/* Масштаб — превью + слайдер с кнопкой применения */
+.scale-preview {
+    border: 1px solid var(--fg-4);
+    border-radius: 2px;
+    background: var(--bg-1);
+    padding: 1.14rem;
+    overflow: hidden;
+}
+
+.scale-preview-inner {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.71rem;
+    transform-origin: left center;
+    transition: transform var(--t-fast);
+}
+
+.scale-preview-avatar {
+    flex-shrink: 0;
+    width: 2.29rem;
+    height: 2.29rem;
+    border-radius: 999px;
+    border: 1px solid var(--fg-4);
+    background: var(--bg-0);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.86rem;
+    color: var(--fg);
+    text-transform: lowercase;
+}
+
+.scale-preview-name {
+    font-size: 1.14rem;
+    color: var(--fg);
+    white-space: nowrap;
+}
+
+.scale-preview-meta {
+    font-size: 0.79rem;
+    color: var(--fg-3);
+    white-space: nowrap;
+}
+
+.scale-control {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    align-items: center;
+    gap: 0.86rem;
+}
+
+.hslider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 1.14rem;
+    background: transparent;
+    cursor: pointer;
+    margin: 0;
+}
+
+.hslider::-webkit-slider-runnable-track {
+    height: 2px;
+    background: var(--fg-4);
+    border-radius: 2px;
+}
+
+.hslider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 0.86rem;
+    height: 0.86rem;
+    border-radius: 50%;
+    background: var(--fg);
+    margin-top: -0.36rem;
+    border: 0;
+    transition: box-shadow var(--t-fast);
+}
+
+.hslider:hover::-webkit-slider-thumb,
+.hslider:focus-visible::-webkit-slider-thumb {
+    box-shadow: 0 0 0 4px rgba(230, 230, 232, 0.15);
+}
+
+.hslider::-moz-range-track {
+    height: 2px;
+    background: var(--fg-4);
+    border-radius: 2px;
+}
+
+.hslider::-moz-range-thumb {
+    width: 0.86rem;
+    height: 0.86rem;
+    border-radius: 50%;
+    background: var(--fg);
+    border: 0;
+}
+
+.hslider:focus-visible { outline: none; }
+
+.scale-apply {
+    width: 2.14rem;
+    height: 2.14rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 1px solid var(--fg-4);
+    border-radius: 2px;
+    color: var(--fg-3);
+    cursor: not-allowed;
+    transition: color var(--t-fast), background var(--t-fast), border-color var(--t-fast);
+}
+
+.scale-apply.is-active {
+    color: var(--bg-0);
+    background: var(--fg);
+    border-color: var(--fg);
+    cursor: pointer;
+}
+
+.scale-apply svg {
+    width: 1rem;
+    height: 1rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.scale-value {
+    font-size: 0.79rem;
+    color: var(--fg-2);
+    font-variant-numeric: tabular-nums;
+    min-width: 2.86rem;
+    text-align: center;
+}
+
 /* ========= NICKNAME ROW ========= */
 
 .settings-nick-form {
@@ -705,29 +1694,9 @@
     outline: none;
 }
 
-/* footer-hint для аудио (permission / no setSinkId / apply-on-rejoin) */
-.settings-audio-hint {
-    display: block;
-    font-size: 0.79rem;
-    color: var(--fg-3);
-    text-transform: lowercase;
-    line-height: 1.4;
-    padding: 0 2px;
-    opacity: 0;
-    max-height: 0;
-    overflow: hidden;
-    transition: opacity var(--t-fast), max-height var(--t-med);
-}
-
-.settings-audio-hint.is-visible {
-    opacity: 1;
-    max-height: 5.71rem;
-}
-
 /* ========= FOOTER ========= */
 
 .settings-footer {
-    margin-top: auto;
     padding: 0.86rem 0;
     border-top: 1px solid rgba(255, 255, 255, 0.05);
     display: flex;
@@ -755,8 +1724,8 @@
     font-variant-numeric: tabular-nums;
     padding: 0.14rem 0.57rem;
     border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 0.36rem;
-    background: rgba(255, 255, 255, 0.02);
+    border-radius: 2px;
+    background: transparent;
     letter-spacing: var(--tracking-wide);
     line-height: 1.4;
 }
@@ -1557,4 +2526,102 @@
     #settingsBgThemeRow {
         display: none;
     }
+
+    /* Глобальные хоткеи на тач-устройствах бессмысленны — убираем категорию. */
+    #settingsHotkeysBtn {
+        display: none;
+    }
+
+    /* Сама панель настроек на телефоне — на весь экран, непрозрачный фон
+       (как у открытой категории, .cat-modal-card → --bg-0), без полупрозрачности. */
+    .settings-panel {
+        width: 100%;
+        max-width: 100%;
+        border-right: 0;
+        background: var(--bg-0);
+    }
+
+    /* Окна категорий на мобильном — на весь экран (нативное ощущение),
+       без внешних отступов и скруглений. */
+    .cat-modal { padding: 0; }
+    .cat-modal-card {
+        width: 100%;
+        max-width: 100%;
+        height: 100%;
+        max-height: 100%;
+        border-left: 0;
+        border-right: 0;
+        border-top: 0;
+        border-radius: 0;
+    }
+    .cat-modal.is-open .cat-modal-card { transform: none; }
+    .cat-modal-card { transform: translateY(2%); }
+    .cat-modal-body { padding: 1.29rem; gap: 1.29rem; }
+    .audio-faders { gap: 0.57rem; }
+    .fader-top { padding: 1rem 0.57rem; }
 }
+/* =========================================================================
+   SUPPORT / BUG — приведение к VOID_STYLE_GUIDE (radius 2px, без теней,
+   нейтральные кнопки). Report-кнопку опускаем вниз секции настроек.
+   ========================================================================= */
+
+/* report a bug — вниз панели, нейтральный outline. */
+.settings-bug-btn {
+    margin-top: auto;
+    border-radius: 2px;
+    background: transparent;
+    border-color: var(--fg-4);
+    color: var(--fg-2);
+}
+.settings-bug-btn:hover,
+.settings-bug-btn:focus-visible {
+    background: var(--bg-1);
+    border-color: var(--fg-3);
+    color: var(--fg);
+}
+
+/* support — outline-button (radius 2px, без pill), но с розоватым оттенком. */
+.settings-support-btn {
+    flex-direction: row;
+    gap: 0.43rem;
+    min-height: 0;
+    height: 2.43rem;
+    padding: 0 1rem;
+    border-radius: 2px;
+    border-color: rgba(226, 107, 122, 0.4);
+    background: rgba(226, 107, 122, 0.05);
+    color: #d98a96;
+}
+.settings-support-btn:hover,
+.settings-support-btn:focus-visible {
+    background: rgba(226, 107, 122, 0.1);
+    border-color: rgba(226, 107, 122, 0.65);
+    color: #e26b7a;
+}
+.settings-support-btn:active { transform: none; background: rgba(226, 107, 122, 0.1); }
+.settings-support-heart { width: 0.93rem; height: 0.93rem; }
+
+/* модалки support / bug / qr — карточки системы. */
+.support-card,
+.support-qr-card,
+.bug-card {
+    border-radius: 2px;
+    box-shadow: none;
+    background: var(--bg-0);
+}
+.support-close,
+.support-qr-close,
+.bug-close,
+.support-coin-addr,
+.support-coin-qr,
+.support-qr-figure,
+.bug-input,
+.bug-submit,
+.bug-success-close { border-radius: 2px; }
+
+.support-coin-addr,
+.support-coin-qr { border-color: var(--fg-4); background: var(--bg-1); }
+.bug-input { background: var(--bg-1); border-color: var(--fg-4); }
+.bug-input:focus,
+.bug-input:focus-visible { background: var(--bg-2); border-color: var(--fg-2); }
+.bug-submit { background: var(--fg); color: var(--bg-0); }
