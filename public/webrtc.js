@@ -1004,10 +1004,11 @@ function createPeer(userId, isChatInitiator) {
            direct-peer'а ставим осмысленный потолок, чтобы encoder использовал
            доступную полосу. Relay-режим имеет свой жёсткий cap (см. applyRelayBitrateLimits). */
         if (!peer._isRelay) applyDirectScreenVideoParams(senders, screenTargetHeight, screenTargetFps);
-        /* VP9 первым — лучше качество для screen content (текст/UI/градиенты)
-           при том же битрейте. Ставится до первого setLocalDescription
-           (onnegotiationneeded ниже), чтобы offer уже шёл с VP9 в приоритете. */
-        preferVP9Video(peer);
+        /* H.264 первым — аппаратный энкодер, стабильные 60fps без перегрузки CPU
+           (VP9 — софт-энкод, отсюда были фризы). Ставится до первого
+           setLocalDescription (onnegotiationneeded ниже), чтобы offer уже шёл
+           с H.264 в приоритете. */
+        preferH264Video(peer);
     }
 
     peers.set(userId, peer);
@@ -1707,13 +1708,23 @@ async function startScreenShare(height = 1080, fps = 30, captureAudio = false) {
     /* По дефолту getDisplayMedia({audio:true}) даёт mono 32-48kHz без явных
        constraints — Chrome применяет VoIP-цепочку и opus в voip-mode, итог
        «телефонное» качество для музыки/видео-демки. Просим стерео 48kHz.
-       echoCancellation:true — Chrome вычитает из захваченного системного аудио
-       всё, что сам же вывел через браузерный аудио-движок (голоса пиров из WebRTC),
-       иначе их голоса попадают в screencast-поток и возвращаются к ним эхом.
-       noiseSuppression/autoGainControl отключены, чтобы не душить музыку и
-       не вызывать ducking (AGC+AEC вместе порождают затихание при разговоре зрителя). */
+
+       echoCancellation:false — КРИТИЧНО против ducking. С AEC=true Chrome
+       прогонял захваченный системный звук через эхоподавитель, у которого
+       reference = наш собственный playback (голоса пиров, включая зрителя B).
+       Когда B говорил, AEC видел «эхо», коррелирующее с его голосом, и давил
+       музыку демки → у всех зрителей звук проседал синхронно с речью говорящего.
+       Это была ducking-жалоба, и её НЕ лечила Панель управления Windows —
+       потому что дакал не OS, а Chrome-AEC. Отключаем.
+
+       noiseSuppression/autoGainControl тоже off — не душить музыку.
+
+       Trade-off: без AEC голоса пиров, которые ОС выводит на колонки стримера,
+       могут попасть в захват системного звука и вернуться зрителям лёгким эхом
+       (только если стример НЕ в наушниках). В наушниках эха нет. Если на практике
+       это мешает — развязываем иначе (захват звука вкладки/окна вместо системного). */
     const audioConstraints = captureAudio ? {
-        echoCancellation: true,
+        echoCancellation: false,
         noiseSuppression: false,
         autoGainControl: false,
         sampleRate: 48000,
@@ -1750,12 +1761,15 @@ async function startScreenShare(height = 1080, fps = 30, captureAudio = false) {
     if (audioTrack) {
         try { audioTrack.contentHint = "music"; } catch (_) {}
     }
-    /* contentHint="motion" — для скролла / видео / игр. Chrome даёт больше
-       частых ключевых кадров и аллоцирует доступный битрейт на плавность,
-       а не на сохранение деталей статичного текста. Без хинта дефолт —
-       баланс, который на 1080p60 motion даёт «мыло». */
+    /* contentHint="detail" — для скрин-контента (текст / код / UI). Говорит
+       энкодеру СОХРАНЯТЬ пространственную детализацию (резкость кадра),
+       подрезая fps на движении. Это противоположность "motion", который
+       жертвовал детализацией ради плавности — отсюда была главная жалоба
+       «листаешь текст → размывается в пиксели». Для динамики (видео/игры)
+       detail даёт чуть меньше плавности на быстром скролле, но резкость
+       статики и читаемость текста важнее. См. W3C MST § contentHint. */
     if (videoTrack) {
-        try { videoTrack.contentHint = "motion"; } catch (_) {}
+        try { videoTrack.contentHint = "detail"; } catch (_) {}
     }
     /* Запоминаем целевые параметры — applyDirectScreenVideoParams читает их
        и для каждого peer'а пересчитывает encoder.maxBitrate/maxFramerate.
@@ -1774,7 +1788,7 @@ async function startScreenShare(height = 1080, fps = 30, captureAudio = false) {
            classifyConnection ставит флаг при переходе в connected. */
         if (peer._isRelay) applyRelayBitrateLimits(peer);
         else applyDirectScreenVideoParams(senders, height, fps);
-        preferVP9Video(peer);
+        preferH264Video(peer);
     }
     videoTrack.onended = () => {
         stopScreenShare();
@@ -1853,23 +1867,33 @@ function patchVideoStartBitrate(sdp, height, fps) {
 }
 
 /**
- * Поставить VP9 первым предпочитаемым кодеком для видео-transceiver'а.
- * VP9 даёт заметно лучше качество на скринкаст-контенте (текст / UI /
- * градиенты) при том же битрейте, чем VP8: меньше пиксельных блоков на
- * плавных переходах и резких границах. AV1 был бы ещё лучше, но включать
- * как первый не стоит — у некоторых encoder fallback на программный AV1
- * жрёт CPU. VP9 — sweet spot для 2026.
+ * Поставить H.264 первым предпочитаемым кодеком для видео-transceiver'а.
  *
- * Зовётся ПЕРЕД setLocalDescription, чтобы offer уже содержал VP9 первым.
+ * ПОЧЕМУ H.264, а не VP9: у VP9 нет аппаратного энкодера почти ни на одной
+ * видеокарте — 1080p60 кодируется СОФТОМ на CPU. На слабых машинах энкодер
+ * не вытягивает и отваливается → стрим залипает «как будто 10 кадров», пока
+ * стример не перезапустит демку. У H.264 аппаратный энкодер (NVENC/QuickSync/
+ * AMF) есть практически везде → стабильные 60fps при нулевой нагрузке на CPU.
+ * Качество на тексте у H.264 чуть ниже VP9 при равном битрейте, но это с
+ * запасом компенсируется detail-хинтом и поднятым потолком битрейта, а главное
+ * — уходят фризы (приоритет стабильности).
+ *
+ * VP9 оставляем ВТОРЫМ (а не выкидываем) — fallback, если у пира нет H.264
+ * (редко, но бывает на нестандартных сборках). Дальше остальное (VP8 и пр.).
+ *
+ * Зовётся ПЕРЕД setLocalDescription, чтобы offer уже содержал H.264 первым.
  * Если getCapabilities/setCodecPreferences не поддержаны — no-op.
  */
-function preferVP9Video(peer) {
+function preferH264Video(peer) {
     if (typeof RTCRtpSender === "undefined" || !RTCRtpSender.getCapabilities) return;
     const caps = RTCRtpSender.getCapabilities("video");
     if (!caps || !Array.isArray(caps.codecs)) return;
+    const isH264 = c => /H264/i.test(c.mimeType);
+    const isVP9  = c => /VP9/i.test(c.mimeType);
     const preferred = [
-        ...caps.codecs.filter(c => /VP9/i.test(c.mimeType)),
-        ...caps.codecs.filter(c => !/VP9/i.test(c.mimeType))
+        ...caps.codecs.filter(isH264),
+        ...caps.codecs.filter(isVP9),
+        ...caps.codecs.filter(c => !isH264(c) && !isVP9(c))
     ];
     for (const t of peer.getTransceivers()) {
         if (t.sender?.track?.kind !== "video") continue;
@@ -2167,13 +2191,19 @@ async function reportConnectivity(peer) {
  * При connection через TURN-relay режем битрейт VIDEO-sender'ов.
  *
  * Зачем: voice (Opus, ~48 kbps) на TURN-сервере не нагружает канал; резать
- * его не нужно. А screencast 1080p60 через relay = 2-4 Mbps на пару, при
- * 100 одновременных таких пар = весь 1 Гбит канал VPS. Поэтому жёстко
- * лимитируем именно video: 800 kbps + scale ÷ 2 + 15 fps. Качество для
- * текста / интерфейса остаётся приемлемым, а трафик в 3-5× ниже.
+ * его не нужно. А screencast через relay идёт через VPS дважды (ingress от
+ * стримера + egress зрителю), так что video лимитируем.
+ *
+ * Цифры: maxBitrate 2.0 Mbps, ПОЛНОЕ разрешение (без scaleResolutionDownBy),
+ * 30 fps. Раньше стоял scaleResolutionDownBy 1.5 (физически 720p) + 20 fps —
+ * это и была главная причина «каши» у ~20% юзеров на relay, а НЕ сам битрейт:
+ * скрин-контент (текст/UI — большие плоские области) жмётся отлично, и при
+ * полном разрешении 2.0 Mbps выглядит резко. Держим разрешение, fps подрезаем
+ * при congestion'е (degradationPreference="maintain-resolution"). Стоимость на
+ * сервере: ~2.26 Mbps/relay-зритель (видео+screen-audio), ~1 ГБ/ч egress.
  *
  * НЕ трогаем audio-sender'ы — ни mic (voice), ни screen-audio (music-mode
- * 192 kbps, критично для качества демки и в общем балансе это копейки).
+ * 256 kbps, критично для качества демки и в общем балансе это копейки).
  */
 async function applyRelayBitrateLimits(peer) {
     const senders = peer.getSenders ? peer.getSenders() : [];
@@ -2184,9 +2214,9 @@ async function applyRelayBitrateLimits(peer) {
             const params = sender.getParameters();
             if (!params.encodings || !params.encodings.length) params.encodings = [{}];
             const enc = params.encodings[0];
-            enc.maxBitrate = 1_500_000;
-            enc.scaleResolutionDownBy = 1.5;
-            enc.maxFramerate = 20;
+            enc.maxBitrate = 2_000_000;
+            enc.scaleResolutionDownBy = 1; // полное разрешение (было 1.5 → физ. 720p)
+            enc.maxFramerate = 30;
             if (withDegradation) params.degradationPreference = "maintain-resolution";
             await sender.setParameters(params);
         };
