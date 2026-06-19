@@ -320,6 +320,69 @@
     transform: scale(1);
 }
 
+/* ---------- Состояние-иконки в центре аватара (mute / deaf) ----------
+   Заменяют пропавшую центральную точку. deaf всегда co-occur с muted
+   (toggleSound гасит и mic), поэтому deaf по приоритету перекрывает mic-иконку:
+   при deaf — наушники, при только muted — микрофон. */
+.participant-state-icon {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 1.5rem;
+    height: 1.5rem;
+    display: grid;
+    place-items: center;
+    color: var(--fg-2);
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.7);
+    pointer-events: none;
+    transition: opacity var(--t-fast), transform var(--t-med);
+}
+
+.participant-state-icon svg {
+    width: 100%;
+    height: 100%;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.participant-state-icon svg * {
+    vector-effect: non-scaling-stroke;
+}
+
+/* Перечёркивание (mute/deaf): направление «/» как на кнопках панели.
+   Толстая bg-линия вырезает зазор, чтобы страйк не сливался с глифом. */
+.participant-state-icon svg .strike-bg {
+    stroke: var(--bg-0);
+    stroke-width: 2.8;
+}
+
+/* Глиф наушников занимает меньше viewBox, чем микрофон, и визуально мельче —
+   чуть увеличиваем контейнер. Штрих non-scaling, толщина линий не меняется. */
+.participant-state-icon--deaf {
+    width: 1.72rem;
+    height: 1.72rem;
+}
+
+.participant.muted .participant-state-icon--mic {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+}
+
+/* deaf перекрывает mic-иконку (deaf ⊇ muted). */
+.participant.deaf .participant-state-icon--mic {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.7);
+}
+
+.participant.deaf .participant-state-icon--deaf {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+}
+
 .participant:not(.self) {
     cursor: pointer;
 }
@@ -410,10 +473,9 @@
     max-width: calc(100vw - 1.71rem);
     padding: 1rem 2.14rem;
     background: rgba(16, 16, 18, 0.96);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 0.71rem;
+    border: 1px solid var(--fg-4);
+    border-radius: 2px;
     overflow: hidden;                 /* клип утекающей полосы по скруглению */
-    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
     -webkit-backdrop-filter: blur(12px);
     backdrop-filter: blur(12px);
     opacity: 0;
@@ -467,7 +529,7 @@
     align-items: center;
     justify-content: center;
     padding: 0.43rem 0.93rem;
-    border-radius: 0.36rem;
+    border-radius: 2px;
     font: inherit;
     font-size: 0.79rem;
     line-height: 1.15;
@@ -491,7 +553,7 @@
 .invite-banner-web {
     background: transparent;
     color: var(--fg-2);
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    border: 1px solid var(--fg-4);
 }
 
 .invite-banner-web:hover {

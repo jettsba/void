@@ -2,6 +2,39 @@
    на каждое обновление громкости/аудио-состояния/скринкаста. */
 const participantElements = new Map(); // userId → .participant element
 
+/* Монолайн-иконки состояний в аватаре (style guide §6, stroke 1.4 round).
+   Видимость переключается CSS-ом по классам .muted / .deaf / .screensharing
+   на .participant — JS только кладёт разметку один раз при создании блоба.
+   - mic-off  → центр, когда muted (но не deaf)
+   - headphones-off → центр, когда deaf (deaf ⊇ muted, перекрывает mic)
+   - monitor  → центр, когда делится экраном (но не muted/deaf) */
+const PARTICIPANT_STATE_ICONS =
+    '<span class="participant-state-icon participant-state-icon--mic" aria-hidden="true">' +
+        '<svg viewBox="0 0 24 24">' +
+            '<rect x="9" y="3" width="6" height="12" rx="3"/>' +
+            '<path d="M5 11a7 7 0 0 0 14 0"/>' +
+            '<path d="M12 18v3"/>' +
+            '<line class="strike-bg" x1="20" y1="4" x2="4" y2="20"/>' +
+            '<line class="strike" x1="20" y1="4" x2="4" y2="20"/>' +
+        '</svg>' +
+    '</span>' +
+    '<span class="participant-state-icon participant-state-icon--deaf" aria-hidden="true">' +
+        '<svg viewBox="0 0 24 24">' +
+            '<path d="M6 13v-1a6 6 0 0 1 12 0v1"/>' +
+            '<rect x="4.5" y="12" width="3.5" height="6.5" rx="1.75"/>' +
+            '<rect x="16" y="12" width="3.5" height="6.5" rx="1.75"/>' +
+            '<line class="strike-bg" x1="20" y1="4" x2="4" y2="20"/>' +
+            '<line class="strike" x1="20" y1="4" x2="4" y2="20"/>' +
+        '</svg>' +
+    '</span>' +
+    '<span class="participant-state-icon participant-state-icon--screen" aria-hidden="true">' +
+        '<svg viewBox="0 0 24 24">' +
+            '<rect x="3" y="4" width="18" height="12" rx="1.6"/>' +
+            '<path d="M9 20h6M12 16v4"/>' +
+            '<path d="M12 13V7M9.5 9.5 12 7l2.5 2.5"/>' +
+        '</svg>' +
+    '</span>';
+
 /**
  * F18: безопасный «удалить узел после конца анимации». `animationend` не
  * гарантирован: его не будет если animation вообще не запустилась (CSS не
@@ -105,6 +138,7 @@ function addParticipant(userId, nickname) {
 
     const avatar = document.createElement("div");
     avatar.classList.add("participant-avatar");
+    avatar.innerHTML = PARTICIPANT_STATE_ICONS;
 
     const name = document.createElement("div");
     name.classList.add("participant-name");

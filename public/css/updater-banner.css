@@ -14,9 +14,8 @@
     z-index: 60;
     width: min(20rem, calc(100vw - 2rem));
     background: var(--bg-1);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 0.57rem;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+    border: 1px solid var(--fg-4);
+    border-radius: 2px;
     overflow: hidden;
     opacity: 0;
     transform: translateY(8px);
@@ -85,7 +84,7 @@
     background: transparent;
     border: 1px solid var(--screen);
     color: var(--screen);
-    border-radius: 0.43rem;
+    border-radius: 2px;
     width: 2rem;
     height: 2rem;
     padding: 0;
@@ -125,7 +124,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border-radius: 0.43rem;
+    border-radius: 2px;
     color: var(--fg-3);
     cursor: pointer;
     transition: background var(--t-fast), color var(--t-fast);

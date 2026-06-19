@@ -4,6 +4,47 @@
     box-shadow: 0 0 0 0.7px var(--screen), 0 0 14px rgba(95, 170, 122, 0.14);
 }
 
+/* Иконка «делится экраном» — зелёный монитор со стрелкой в центре аватара,
+   на месте точки. Базовая геометрия/размер берётся из .participant-state-icon
+   (stage.css), здесь — только зелёный цвет и условие показа.
+   Приоритет центра: muted/deaf перекрывают монитор (mic-off/наушники важнее,
+   а скринкаст всё равно сигналит зелёным кольцом). */
+.participant-state-icon--screen {
+    color: var(--screen);
+}
+
+.participant.screensharing:not(.muted):not(.deaf) .participant-state-icon--screen {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+}
+
+/* Пока в центре монитор — точку прячем (как при mute/deaf). */
+.participant.screensharing:not(.muted):not(.deaf) .participant-avatar::before {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0);
+}
+
+/* Скринкастер говорит: точка-индикатор спрятана, поэтому речь показываем
+   пульсом зелёного кольца — в тему, без второго сигнального цвета. */
+.participant.screensharing.speaking:not(.muted):not(.deaf) .participant-avatar {
+    animation: screen-speak-pulse 2s cubic-bezier(0.2, 0.6, 0.2, 1) infinite;
+}
+
+@keyframes screen-speak-pulse {
+    0%, 100% {
+        box-shadow: 0 0 0 0.7px var(--screen), 0 0 14px rgba(95, 170, 122, 0.14);
+    }
+    50% {
+        box-shadow: 0 0 0 1.2px var(--screen), 0 0 22px rgba(95, 170, 122, 0.32);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .participant.screensharing.speaking:not(.muted):not(.deaf) .participant-avatar {
+        animation: none;
+    }
+}
+
 .watch-screen-btn {
     position: absolute;
     top: calc(100% + 1rem);

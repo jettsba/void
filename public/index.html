@@ -24,7 +24,7 @@
     <!-- UI scale bootstrap. Внешний файл (а не inline) чтобы не требовать
          'unsafe-inline' в CSP. Блокирующий script — должен выполниться ДО
          CSS, иначе FOUC на больших мониторах. -->
-    <script src="ui-scale-bootstrap.js?v=1"></script>
+    <script src="ui-scale-bootstrap.js?v=2"></script>
     <!-- Desktop runtime bootstrap. Ставит html.desktop класс и
          window.VoidPlatform="desktop" при наличии Tauri runtime. До CSS,
          чтобы избежать FOUC между web-mode и desktop-mode (custom titlebar). -->
@@ -34,19 +34,19 @@
     <link rel="stylesheet" href="css/intro.css?v=18">
     <link rel="stylesheet" href="css/app.css?v=18">
     <link rel="stylesheet" href="css/header.css?v=23">
-    <link rel="stylesheet" href="css/stage.css?v=23">
+    <link rel="stylesheet" href="css/stage.css?v=24">
     <link rel="stylesheet" href="css/panel.css?v=23">
     <link rel="stylesheet" href="css/volume-arc.css?v=18">
     <link rel="stylesheet" href="css/ping.css?v=18">
     <link rel="stylesheet" href="css/chat.css?v=22">
     <link rel="stylesheet" href="css/chat-attach.css?v=18">
     <link rel="stylesheet" href="css/chat-overlay.css?v=18">
-    <link rel="stylesheet" href="css/screencast.css?v=21">
+    <link rel="stylesheet" href="css/screencast.css?v=22">
     <link rel="stylesheet" href="css/responsive.css?v=21">
     <link rel="stylesheet" href="css/settings.css?v=32">
     <link rel="stylesheet" href="css/app-settings.css?v=4">
     <link rel="stylesheet" href="css/titlebar.css?v=14">
-    <link rel="stylesheet" href="css/updater-banner.css?v=3">
+    <link rel="stylesheet" href="css/updater-banner.css?v=4">
 
 <link rel="icon" type="image/png" href="/static/favicon/favicon-96x96.png" sizes="96x96" />
     <link rel="icon" type="image/svg+xml" href="/static/favicon/favicon.svg" />
@@ -440,7 +440,7 @@
     </div>
 
     <script defer src="log.js?v=1"></script>
-    <script defer src="settings.js?v=79"></script>
+    <script defer src="settings.js?v=80"></script>
     <script defer src="webrtc.js?v=8"></script>
     <script defer src="socket.js"></script>
     <script defer src="chat.js?v=2"></script>
@@ -451,7 +451,7 @@
     <script defer src="js/audio.js?v=1"></script>
     <script defer src="js/username.js?v=1"></script>
     <script defer src="js/controls.js?v=2"></script>
-    <script defer src="js/participants.js?v=3"></script>
+    <script defer src="js/participants.js?v=4"></script>
     <script defer src="js/volume-arc.js?v=1"></script>
     <script defer src="js/ping-panel.js?v=2"></script>
     <script defer src="js/screen-overlay.js?v=3"></script>
@@ -461,7 +461,7 @@
     <script defer src="js/desktop/titlebar.js?v=1"></script>
     <script defer src="js/desktop/tray-state.js?v=3"></script>
     <script defer src="js/desktop/deep-link.js?v=1"></script>
-    <script defer src="js/app-settings.js?v=3"></script>
+    <script defer src="js/app-settings.js?v=4"></script>
     <script defer src="js/desktop/updater.js?v=4"></script>
 </body>
 

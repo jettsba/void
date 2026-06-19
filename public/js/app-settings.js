@@ -10,10 +10,11 @@
      listen "void:autostart-state"   { enabled }
      listen "void:hotkey-pressed"    { action }  → JS вызывает existing toggleMic/etc.
 
-   В web-сборке Tauri runtime отсутствует — emit'ы молча no-op, listener'ы не
-   подключаются. Хоткеи работают только при открытой вкладке (keydown DOM
-   ловится, без глобальной регистрации). Footer-плашка в hotkeys modal об
-   этом предупреждает; в Фазе 9 (детект web/desktop) скроем её на desktop. */
+   В web-сборке Tauri runtime отсутствует — emit'ы молча no-op, Tauri-listener'ы
+   не подключаются. Вместо них вешаем DOM keydown-обработчик (см. ветку else в
+   конце файла): хоткеи работают, пока вкладка в фокусе, без глобальной
+   регистрации. Footer-плашка в hotkeys modal об этом предупреждает; в Фазе 9
+   (детект web/desktop) скроем её на desktop. */
 
 (function () {
     "use strict";
@@ -510,6 +511,28 @@
                 if (action) invokeHotkeyAction(action);
             })
             .catch(() => {});
+    } else {
+        /* Web-сборка: Tauri runtime нет, глобальной регистрации хоткеев нет.
+           Ловим комбинации DOM-обработчиком — работают, пока вкладка в фокусе.
+           Используем тот же buildAccelerator/invokeHotkeyAction, что и desktop,
+           чтобы поведение совпадало. */
+        document.addEventListener("keydown", (e) => {
+            if (activeCapture) return;                        // идёт назначение бинда
+            if (!readAppState().hotkeysEnabled) return;       // общий тумблер выключен
+            const accel = buildAccelerator(e);                // null на чистом modifier
+            if (!accel) return;
+            const hotkeys = readHotkeys();
+            for (const action of Object.keys(hotkeys)) {
+                /* toggleWindow обрабатывается ОС-уровнем в desktop; в вебе окна
+                   как сущности нет — пропускаем. */
+                if (action === "toggleWindow") continue;
+                if (hotkeys[action] && hotkeys[action] === accel) {
+                    e.preventDefault();
+                    invokeHotkeyAction(action);
+                    return;
+                }
+            }
+        });
     }
 
     // -------------------- Click delegation for action buttons --------------------

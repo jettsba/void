@@ -4,10 +4,10 @@
    bg-1 поверхность, hairline-бордер fg-4, JetBrains Mono, lowercase, без теней.
 
    МАСШТАБ: всё внутри — в rem; корневой font-size = 14px * --tm-scale.
-   --tm-scale выставляет tray-menu.js (формула от screen.width, как
-   ui-scale-bootstrap.js в основном приложении) → меню растёт на 2K/4K
-   синхронно с остальным UI. Размер ОКНА считает Rust (open_tray_menu) тем же
-   множителем, поэтому контент точно заполняет окно.
+   --tm-scale = 1.0 (нативно): окно фиксированного логического размера, физику
+   масштабирует ОС через DPI. tray-menu.js ставит 1.0, Rust (open_tray_menu)
+   считает размер окна тем же множителем 1.0. Раньше домножали на fluid-формулу
+   от screen.width — на 2K/4K это раздувало меню (как и весь UI).
 
    КОЛЬЦО: body имеет padding 1px (прозрачный) — окно на 2px больше меню. Это
    страхует от подреза правого/нижнего бордера у прозрачного frameless-окна
@@ -43,7 +43,7 @@
     --warn: #b87a5a;
     --font: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
     --ease-fast: 120ms cubic-bezier(.2, .6, .2, 1);
-    /* множитель авто-масштаба (по screen.width); выставляет tray-menu.js */
+    /* множитель масштаба = 1.0 (нативно); выставляет tray-menu.js */
     --tm-scale: 1;
     /* всё внутреннее — в rem от этого root → масштабируется вместе с экраном */
     font-size: calc(14px * var(--tm-scale));

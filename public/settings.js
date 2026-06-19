@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "0.12.2";
+    const APP_VERSION = "0.12.3";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
@@ -139,7 +139,7 @@
             "footer.reconnecting.attempt": "переподключение {attempt}/{total}",
             "footer.unstable": "связь нестабильна",
             "footer.error": "ошибка",
-            "footer.copy.streamer": "скопировать код комнаты",
+            "footer.copy.streamer": "пригласить",
             "footer.roomCode": "комната #{code}",
 
             "ping.empty": "нет участников",
@@ -320,7 +320,7 @@
             "footer.reconnecting.attempt": "reconnecting {attempt}/{total}",
             "footer.unstable": "connection unstable",
             "footer.error": "error",
-            "footer.copy.streamer": "copy room code",
+            "footer.copy.streamer": "invite",
             "footer.roomCode": "room #{code}",
 
             "ping.empty": "no peers",
@@ -1212,10 +1212,10 @@
                     <span class="iface-label" data-i18n="settings.streamer">${t("settings.streamer")}</span>
                     <span class="iface-hint" data-i18n="settings.streamer.hint">${t("settings.streamer.hint")}</span>
                 </span>
-                <span class="vswitch">
+                <label class="vswitch">
                     <input type="checkbox" id="settingsStreamerInput"/>
                     <span class="vswitch-track"></span>
-                </span>
+                </label>
             </div>
         `, `<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="1.4"/><path d="M3 9.5h18M7 13.5h7"/></svg>`);
 
@@ -1774,6 +1774,22 @@
 
     /* ===== AUDIO devices / sliders ===== */
 
+    /* Колёсико мыши над range-слайдером: крутим вверх — громче, вниз — тише.
+       Меняем value и диспатчим штатный `input` — вся логика (setAudioInGain,
+       лейблы) остаётся одна. preventDefault, чтобы колесо не скроллило модалку. */
+    const WHEEL_STEP = 5;
+    function attachWheelToSlider(el) {
+        el.addEventListener("wheel", (e) => {
+            e.preventDefault();
+            const min = Number(el.min), max = Number(el.max);
+            const dir = e.deltaY < 0 ? 1 : -1;
+            const next = Math.min(max, Math.max(min, Number(el.value) + dir * WHEEL_STEP));
+            if (next === Number(el.value)) return;
+            el.value = next;
+            el.dispatchEvent(new Event("input", { bubbles: true }));
+        }, { passive: false });
+    }
+
     function bindAudioControls() {
         if (!micGainEl) return;
 
@@ -1787,6 +1803,8 @@
             setAudioOutGain(v);
             updateGainLabels();
         });
+        attachWheelToSlider(micGainEl);
+        attachWheelToSlider(spkGainEl);
 
         if (uiScaleEl) {
             /* input — НЕ применяем масштаб глобально (иначе модалка и сам

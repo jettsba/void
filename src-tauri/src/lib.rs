@@ -76,14 +76,6 @@ fn tray_menu_height(in_room: bool) -> f64 {
     BORDER * 2.0 + PAD * 2.0 + ITEM * items + SEP * seps
 }
 
-/// Авто-масштаб UI от ширины монитора в CSS-px — та же формула, что в
-/// public/ui-scale-bootstrap.js (множитель основного приложения). Чтобы трей-меню
-/// росло на 2K/4K синхронно с остальным UI. css_width = физическая ширина / scale.
-fn ui_auto_scale(css_width: f64) -> f64 {
-    let t = (1.4 * (css_width / 100.0) - 10.0).clamp(14.0, 44.0);
-    t / 14.0
-}
-
 /// Mapping Shortcut → action_name (toggleMic / toggleSound / toggleWindow / leaveRoom).
 /// Хранится в App state, обновляется при void:register-hotkeys.
 #[derive(Default)]
@@ -794,17 +786,17 @@ fn open_tray_menu(app: &AppHandle, cursor: PhysicalPosition<f64>) {
         return;
     };
 
-    // Монитор окна: даёт DPI (scale_factor) и физ-ширину для авто-масштаба.
+    // Монитор окна: нужен для DPI (scale_factor → физ-позиционирование) и границ
+    // рабочей области при клампе позиции.
     let monitor = win.current_monitor().ok().flatten();
     let scale = monitor
         .as_ref()
         .map(|m| m.scale_factor())
         .unwrap_or_else(|| win.scale_factor().unwrap_or(1.0));
-    // Авто-масштаб от CSS-ширины монитора (физ-ширина / DPI) — как в приложении.
-    let auto = monitor
-        .as_ref()
-        .map(|m| ui_auto_scale(m.size().width as f64 / m.scale_factor()))
-        .unwrap_or(1.0);
+    // Нативный масштаб 1.0 на всех мониторах: окно/контент в базовых логических px,
+    // физику масштабирует ОС через scale_factor. Раньше домножали на fluid-множитель
+    // от ширины монитора — на 2K/4K это раздувало меню (как и весь UI).
+    let auto = 1.0_f64;
 
     // Видимость копи-пунктов + множитель масштаба → странице (rem-сетка).
     // (основной push inRoom — в update_tray_state; scale считаем тут по монитору)

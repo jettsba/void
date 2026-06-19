@@ -17,22 +17,12 @@
     const T = window.__TAURI__;
     function noop() {}
 
-    /* ---- авто-масштаб (как ui-scale-bootstrap.js основного приложения) ----
-       Множитель от физической ширины монитора (screen.width, иммунна к zoom).
-       Внутренняя rem-сетка растёт на 2K/4K. Размер ОКНА Rust считает тем же
-       множителем (open_tray_menu) → контент точно заполняет окно. */
-    function autoScaleFromScreen() {
-        try {
-            const w = (window.screen && window.screen.width) || window.innerWidth || 1920;
-            let t = 1.4 * (w / 100) - 10;
-            if (t < 14) t = 14;
-            if (t > 44) t = 44;
-            return t / 14;
-        } catch (e) {
-            return 1;
-        }
-    }
-
+    /* ---- масштаб трей-меню ----
+       Нативный 1.0 на всех мониторах: окно фиксированного логического размера,
+       а физику масштабирует ОС через DPI. Раньше домножали на fluid-множитель от
+       screen.width (как старый ui-scale-bootstrap.js) — на 2K/4K это раздувало
+       меню. Rust теперь шлёт scale=1.0 в void:tray-menu-state; обработчик ниже
+       всё равно применяет присланное значение (на случай будущей логики). */
     function setScale(scale) {
         const s = Number(scale);
         if (isFinite(s) && s > 0) {
@@ -41,7 +31,7 @@
     }
 
     // Дефолт сразу при загрузке (до первого open) — без скачка размера.
-    setScale(autoScaleFromScreen());
+    setScale(1);
 
     /* ---- видимость копи-пунктов: класс in-room на body ---- */
     function applyState(inRoom) {
