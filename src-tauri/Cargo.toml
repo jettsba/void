@@ -1,6 +1,6 @@
 [package]
 name = "void-desktop"
-version = "0.12.4"
+version = "0.12.5"
 description = "Void — эфемерные P2P голосовые комнаты"
 authors = ["Void"]
 edition = "2021"
@@ -38,6 +38,11 @@ image = { version = "0.25", default-features = false, features = ["png"] }
 # winreg — re-assert указателя «Удалить» на кастомный деинсталлятор (Веха B),
 # т.к. тихий NSIS-апдейт сбивает UninstallString обратно на свой uninstall.exe.
 winreg = "0.52"
+# webview2-com — прямой доступ к ICoreWebView2 для авто-грантa разрешения на
+# микрофон (PermissionRequested), чтобы не всплывал нативный виндовый промпт
+# «tauri.localhost хочет использовать микрофон». Версия синхронна с той, что
+# тянет wry (см. Cargo.lock) — иначе разъедутся COM-типы Microsoft::*.
+webview2-com = "0.38"
 windows = { version = "0.59", features = [
     "Win32_Media_Audio",
     "Win32_Media_Audio_Endpoints",
@@ -47,6 +52,11 @@ windows = { version = "0.59", features = [
     "Win32_System_Variant",
     "Win32_Foundation",
     "Win32_System_Threading",
+    # Win32_UI_WindowsAndMessaging — EnumWindows/ShowWindow/FindWindowW и пр.,
+    # Win32_UI_Accessibility — SetWinEventHook (мгновенное скрытие индикатора
+    # захвата без мелькания). См. screen_indicator.rs.
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_UI_Accessibility",
 ] }
 
 [features]

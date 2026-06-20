@@ -1703,6 +1703,16 @@ function monitorVolume(userId, analyser) {
 
 /* ========= SCREEN SHARING ========= */
 
+/* Сигналит desktop-стороне (Rust), что демонстрация началась/закончилась — чтобы
+   шим в lib.rs убрал из таскбара окно-индикатор захвата «… предоставляет доступ
+   к вашему экрану» (WebView2 спавнит его сам, API подавить нет). На web no-op:
+   window.__TAURI__ отсутствует. */
+function emitScreencastActive(active) {
+    try {
+        window.__TAURI__?.event?.emit("void:screencast-active", { active });
+    } catch (_) {}
+}
+
 async function startScreenShare(height = 1080, fps = 30, captureAudio = false) {
     const width = height === 480 ? 854 : height === 720 ? 1280 : 1920;
     /* По дефолту getDisplayMedia({audio:true}) даёт mono 32-48kHz без явных
@@ -1719,10 +1729,15 @@ async function startScreenShare(height = 1080, fps = 30, captureAudio = false) {
 
        noiseSuppression/autoGainControl тоже off — не душить музыку.
 
-       Trade-off: без AEC голоса пиров, которые ОС выводит на колонки стримера,
-       могут попасть в захват системного звука и вернуться зрителям лёгким эхом
-       (только если стример НЕ в наушниках). В наушниках эха нет. Если на практике
-       это мешает — развязываем иначе (захват звука вкладки/окна вместо системного). */
+       ИЗВЕСТНОЕ ОГРАНИЧЕНИЕ (voice-leak): без AEC системный захват тащит в демку
+       весь микс рендера стримера, включая голоса пиров (их играет сам void) →
+       зритель слышит себя/других. Исключить «только своё приложение» из системного
+       звука браузерный API НЕ умеет. Чисто работает только tab-share (звук вкладки
+       изолирован) — браузер делает это сам, без доп. констрейнтов. Для шаринга
+       ВСЕГО экрана со звуком чистый фикс возможен лишь нативно (desktop: WASAPI
+       loopback с EXCLUDE_TARGET_PROCESS_TREE) — отдельная задача. До неё системный
+       звук на whole-screen неизбежно несёт голоса; ломать его (отключать звук)
+       нельзя — это рабочий сценарий. */
     const audioConstraints = captureAudio ? {
         echoCancellation: false,
         noiseSuppression: false,
@@ -1736,23 +1751,44 @@ async function startScreenShare(height = 1080, fps = 30, captureAudio = false) {
        видно в багрепорте). Поэтому ideal — единственный source-level хинт;
        реальный cap fps закрепляем на encoder через setParameters.maxFramerate
        в applyDirectScreenVideoParams ниже. */
-    const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: {
-            width: { ideal: width },
-            height: { ideal: height },
-            frameRate: { ideal: fps }
-        },
-        audio: audioConstraints
-    });
+    /* arming: desktop-сторона заранее ставит WinEvent-хук (до появления окна-
+       индикатора), чтобы спрятать его без мелькания. На отмене пикера/ошибке/
+       выходе из комнаты шлём active:false — снять хук. На web всё это no-op. */
+    try { window.__TAURI__?.event?.emit("void:screencast-arming", {}); } catch (_) {}
+    let stream;
+    try {
+        stream = await navigator.mediaDevices.getDisplayMedia({
+            video: {
+                width: { ideal: width },
+                height: { ideal: height },
+                frameRate: { ideal: fps }
+            },
+            audio: audioConstraints,
+            /* Облагораживаем нативный пикер (перекрасить его нельзя — он вне DOM):
+               selfBrowserSurface:"exclude" убирает само окно Void из списка;
+               surfaceSwitching:"include" даёт сменить источник без повторного пикера;
+               systemAudio:"include" — чекбокс «поделиться звуком» в пикере (звук демки
+               запрашиваем всегда). Юзер сам выбирает источник: вкладка → чистый звук,
+               весь экран → системный звук (несёт голоса, см. voice-leak выше). */
+            selfBrowserSurface: "exclude",
+            surfaceSwitching: "include",
+            systemAudio: captureAudio ? "include" : "exclude"
+        });
+    } catch (e) {
+        emitScreencastActive(false); // отмена пикера / ошибка → снять хук
+        throw e;
+    }
     /* F13: пока юзер выбирал source в нативном промпте, он мог покинуть
        комнату. Tracks уже захвачены (OS-индикатор «вы шарите» горит),
        peer'ов нет — некому передавать. Останавливаем tracks и кидаем
        ошибку, чтобы caller (scNextBtn click handler) обработал как cancel. */
     if (typeof isJoined !== "undefined" && !isJoined) {
         stream.getTracks().forEach(t => t.stop());
+        emitScreencastActive(false); // вышел из комнаты пока выбирал → снять хук
         throw new Error("not-joined");
     }
     screenStream = stream;
+    emitScreencastActive(true);
     const videoTrack = screenStream.getVideoTracks()[0];
     const audioTrack = screenStream.getAudioTracks()[0];
     /* contentHint="music" — подсказка W3C, что трек НЕ голос. Chrome переключает
@@ -2003,6 +2039,7 @@ function stopScreenShare() {
     screenStream = null;
     screenTargetHeight = 1080;
     screenTargetFps = 30;
+    emitScreencastActive(false);
 }
 
 /**

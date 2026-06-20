@@ -21,9 +21,13 @@
 
 #[cfg(windows)]
 mod audio_session;
+#[cfg(windows)]
+mod proc_tree;
+#[cfg(windows)]
+mod screen_indicator;
 
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicIsize, Ordering};
 use std::sync::Mutex;
 
 use tauri::{
@@ -47,6 +51,11 @@ const ICON_IN_ROOM_PNG: &[u8] = include_bytes!("../icons/tray/in_room.png");
 
 static SHOWN_HIDE_TOAST: AtomicBool = AtomicBool::new(false);
 static CLOSE_TO_TRAY: AtomicBool = AtomicBool::new(true);
+
+/// HWND главного окна (как isize). Нужен screen_indicator'у, чтобы исключить
+/// главное окно при скрытии индикатора захвата из таскбара. 0 = окна ещё нет.
+#[cfg(windows)]
+static MAIN_HWND: AtomicIsize = AtomicIsize::new(0);
 
 /// Текущие код комнаты и share-ссылка (приходят из JS через void:set-tray-state).
 /// `None` когда не в комнате — тогда пункты «Скопировать …» в трее задизейблены.
@@ -136,6 +145,11 @@ pub fn run() {
             // апдейт его сбил. No-op если кастомного деинсталлятора рядом нет.
             #[cfg(windows)]
             reassert_custom_uninstaller();
+
+            // Прячем скрытое IPC-окно single-instance, иначе оно всплывает
+            // пунктом «…-siw» в нативном пикере демонстрации экрана.
+            #[cfg(windows)]
+            screen_indicator::hide_single_instance_window(&app.config().identifier);
 
             // ============ Deep links (void://room/КОД) ============
             // on_open_url ловит cold-start (Windows читает launch-argv) + macOS.
@@ -350,6 +364,58 @@ pub fn run() {
                 });
             });
 
+            // Скрытие окна-индикатора захвата экрана (см. screen_indicator.rs).
+            // JS шлёт active:true при старте демки, active:false при остановке.
+            // На active: ставим WinEvent-хук (мгновенное скрытие при появлении,
+            // без мелькания) + разовый проход (вдруг окно уже есть) + короткий
+            // поллинг-бэкстоп. На !active: снимаем хук.
+            // Скрытие окна-индикатора захвата экрана (см. screen_indicator.rs).
+            // JS шлёт: arming (до getDisplayMedia), active:true (старт захвата),
+            // active:false (стоп). Хук ставим ЗАРАНЕЕ на arming — чтобы поймать
+            // индикатор в момент создания, без мелькания (окно пикера под наш
+            // критерий не подходит → держать хук во время пикера безопасно).
+            #[cfg(windows)]
+            {
+                let app_arm = app.handle().clone();
+                app.listen("void:screencast-arming", move |_event| {
+                    let main_hwnd = MAIN_HWND.load(Ordering::SeqCst);
+                    let _ = app_arm.run_on_main_thread(move || {
+                        screen_indicator::install_indicator_hook(main_hwnd);
+                    });
+                });
+
+                let app_sc = app.handle().clone();
+                app.listen("void:screencast-active", move |event| {
+                    let active = serde_json::from_str::<serde_json::Value>(event.payload())
+                        .ok()
+                        .and_then(|v| v.get("active").and_then(|b| b.as_bool()))
+                        .unwrap_or(false);
+                    let main_hwnd = MAIN_HWND.load(Ordering::SeqCst);
+                    if active {
+                        // Хук уже стоит с arming; переустановим идемпотентно
+                        // (страховка, если arming не дошёл) и запустим поллинг-
+                        // бэкстоп от старта захвата (40мс×60 ≈ 2.4с).
+                        let _ = app_sc.run_on_main_thread(move || {
+                            screen_indicator::install_indicator_hook(main_hwnd);
+                        });
+                        std::thread::spawn(move || {
+                            for _ in 0..60 {
+                                std::thread::sleep(std::time::Duration::from_millis(40));
+                                if let Ok(true) =
+                                    screen_indicator::hide_capture_indicator_for_our_tree(main_hwnd)
+                                {
+                                    break;
+                                }
+                            }
+                        });
+                    } else {
+                        let _ = app_sc.run_on_main_thread(|| {
+                            screen_indicator::uninstall_indicator_hook();
+                        });
+                    }
+                });
+            }
+
             let app_handle_hk = app.handle().clone();
             app.listen("void:register-hotkeys", move |event| {
                 let Ok(parsed) =
@@ -421,6 +487,18 @@ fn launch_main_window(app: &AppHandle) {
         }
     };
 
+    #[cfg(windows)]
+    {
+        // Авто-грант разрешения на микрофон — чтобы не всплывал нативный виндовый
+        // промпт «… хочет использовать микрофон» (см. setup_media_permissions).
+        setup_media_permissions(&window);
+        // Запоминаем HWND главного окна — screen_indicator исключает его при
+        // скрытии индикатора захвата экрана из таскбара.
+        if let Ok(h) = window.hwnd() {
+            MAIN_HWND.store(h.0 as isize, Ordering::SeqCst);
+        }
+    }
+
     let window_for_close = window.clone();
     let app_for_close = app.clone();
     window.on_window_event(move |event| {
@@ -438,6 +516,54 @@ fn launch_main_window(app: &AppHandle) {
                 }
             }
         }
+    });
+}
+
+/// Авто-грант разрешения на микрофон (и камеру) в WebView2.
+///
+/// ПРОБЛЕМА: на каждый getUserMedia WebView2 поднимает нативный виндовый промпт
+/// «<origin> хочет использовать микрофон» (origin = tauri.localhost у bundled
+/// сборки). Хуже — WebView2 по умолчанию НЕ запоминает разрешения между
+/// запусками (tauri#8979), поэтому промпт всплывал КАЖДУЮ сессию при первом
+/// входе в комнату.
+///
+/// РЕШЕНИЕ: перехватываем PermissionRequested на уровне ICoreWebView2 и сразу
+/// отвечаем ALLOW для микрофона/камеры. Origin — наш собственный bundled
+/// index.html, приложение установлено пользователем осознанно → авто-грант
+/// уместен и убирает диалог насовсем. Token регистрации не храним: хендлер
+/// живёт всё время жизни окна.
+#[cfg(windows)]
+fn setup_media_permissions(window: &tauri::WebviewWindow) {
+    use webview2_com::Microsoft::Web::WebView2::Win32::{
+        ICoreWebView2PermissionRequestedEventArgs, COREWEBVIEW2_PERMISSION_KIND,
+        COREWEBVIEW2_PERMISSION_KIND_CAMERA, COREWEBVIEW2_PERMISSION_KIND_MICROPHONE,
+        COREWEBVIEW2_PERMISSION_STATE_ALLOW,
+    };
+    use webview2_com::PermissionRequestedEventHandler;
+
+    let _ = window.with_webview(|webview| unsafe {
+        let Ok(core) = webview.controller().CoreWebView2() else {
+            return;
+        };
+        let mut token = Default::default();
+        let _ = core.add_PermissionRequested(
+            &PermissionRequestedEventHandler::create(Box::new(
+                |_sender, args: Option<ICoreWebView2PermissionRequestedEventArgs>| {
+                    if let Some(args) = args {
+                        // PermissionKind в этом биндинге — out-param геттер.
+                        let mut kind = COREWEBVIEW2_PERMISSION_KIND::default();
+                        args.PermissionKind(&mut kind)?;
+                        if kind == COREWEBVIEW2_PERMISSION_KIND_MICROPHONE
+                            || kind == COREWEBVIEW2_PERMISSION_KIND_CAMERA
+                        {
+                            args.SetState(COREWEBVIEW2_PERMISSION_STATE_ALLOW)?;
+                        }
+                    }
+                    Ok(())
+                },
+            )),
+            &mut token,
+        );
     });
 }
 

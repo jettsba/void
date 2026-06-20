@@ -63,7 +63,7 @@
   const t = (k) => DICT[lang][k];
 
   // ----- данные (моки по умолчанию; в Tauri перезаписываются из Rust) -------
-  let VERSION = "0.11.6";
+  let VERSION = "0.12.5"; // мок для браузер-превью; в Tauri перезаписывается bundled_version()
   let PATH = "C:\\Users\\Admin\\AppData\\Local\\Void";
   let installDir = PATH;
   let existing = null;
@@ -383,8 +383,11 @@
       try {
         installDir = await invoke("default_install_dir");
         PATH = installDir;
+        // Версия, которую СТАВИМ (инжектится build.rs из package.json). Это
+        // источник истины для UI — не версия уже установленной копии.
+        try { const bv = await invoke("bundled_version"); if (bv) VERSION = bv; } catch (_) {}
         const ex = await invoke("detect_existing");
-        if (ex && ex.installed) { existing = ex; VERSION = ex.version || VERSION; startStep = "exists"; }
+        if (ex && ex.installed) { existing = ex; startStep = "exists"; }
         await refreshMeta(false);
       } catch (e) { console.warn("boot", e); }
     }

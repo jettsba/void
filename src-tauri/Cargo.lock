@@ -4918,7 +4918,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "void-desktop"
-version = "0.12.2"
+version = "0.12.4"
 dependencies = [
  "image",
  "serde",
@@ -4934,6 +4934,7 @@ dependencies = [
  "tauri-plugin-single-instance",
  "tauri-plugin-updater",
  "tokio",
+ "webview2-com",
  "windows 0.59.0",
  "winreg 0.52.0",
 ]

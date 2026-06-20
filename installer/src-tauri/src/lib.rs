@@ -62,6 +62,16 @@ fn detect_existing() -> ExistingInstall {
     ExistingInstall { installed: false, version: String::new(), location: String::new() }
 }
 
+/// Версия, которую СТАВИТ установщик (= версия приложения на момент сборки
+/// установщика; инжектится build.rs из корневого package.json). Показывается в
+/// UI. Раньше version в installer.js была захардкожена ("0.11.6") и
+/// перезаписывалась лишь версией уже установленной копии → у свежих юзеров
+/// показывался протухший хардкод.
+#[tauri::command]
+fn bundled_version() -> String {
+    env!("VOID_BUNDLED_VERSION").to_string()
+}
+
 /// Дефолтная папка установки = %LOCALAPPDATA%\Void (как у Tauri NSIS currentUser).
 #[tauri::command]
 fn default_install_dir() -> String {
@@ -296,6 +306,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
+            bundled_version,
             detect_existing,
             default_install_dir,
             disk_space,
