@@ -433,6 +433,9 @@ pub fn run() {
                         .unwrap_or(false);
                     let main_hwnd = MAIN_HWND.load(Ordering::SeqCst);
                     if active {
+                        // Захват реально пошёл — разрешаем хуку прятать индикатор
+                        // (во время пикера флаг был false, окна не трогались).
+                        screen_indicator::set_capturing(true);
                         // Хук уже стоит с arming; переустановим идемпотентно
                         // (страховка, если arming не дошёл) и запустим поллинг-
                         // бэкстоп от старта захвата (40мс×60 ≈ 2.4с).
@@ -454,6 +457,7 @@ pub fn run() {
                         // на случай, если JS не дёрнул stop_screen_audio
                         // (идемпотентно: no-op если захват не идёт).
                         screen_audio::stop();
+                        screen_indicator::set_capturing(false);
                         let _ = app_sc.run_on_main_thread(|| {
                             screen_indicator::uninstall_indicator_hook();
                         });

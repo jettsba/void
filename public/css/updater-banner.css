@@ -112,12 +112,12 @@
     stroke-linejoin: round;
 }
 
-/* Та же квадратная форма/размер, что и у зелёной primary-кнопки. В покое —
-   прозрачная, серый глиф; на hover заливается серым (как зелёная, только
-   серый), без круглой обводки. */
+/* Та же квадратная форма/размер, что и у зелёной primary-кнопки, но в сером —
+   единый стиль: серая обводка, БЕЗ заливки. В покое прозрачный фон + серый глиф;
+   на hover подсвечиваем обводку и глиф (без заливки). */
 .updater-banner-dismiss {
     background: transparent;
-    border: 1px solid transparent;
+    border: 1px solid var(--fg-4);
     padding: 0;
     width: 2rem;
     height: 2rem;
@@ -127,14 +127,14 @@
     border-radius: 2px;
     color: var(--fg-3);
     cursor: pointer;
-    transition: background var(--t-fast), color var(--t-fast);
+    transition: border-color var(--t-fast), color var(--t-fast);
 }
 
 .updater-banner-dismiss:hover,
 .updater-banner-dismiss:focus-visible {
     outline: none;
-    background: var(--fg-2);
-    color: var(--bg-0);
+    border-color: var(--fg-3);
+    color: var(--fg);
 }
 
 .updater-banner-dismiss svg {

@@ -170,10 +170,10 @@ function init() {
     scNextBtn.addEventListener("click", async () => {
         const res = parseInt(scModal.querySelector("#scRes .sc-tile--active")?.dataset.val ?? "1080");
         const fps = parseInt(scModal.querySelector("#scFps .sc-tile--active")?.dataset.val ?? "30");
-        /* Звук демки запрашиваем всегда — тумблер из нашего окна убран, чтобы не
-           заставлять юзера включать звук дважды (у нас + в нативном пикере).
-           Теперь решение про звук принимается одним кликом в нативном пикере. */
-        const captureAudio = true;
+        /* Тумблер «звук демки» (дефолт вкл). На desktop звук берёт нативный
+           loopback, на web — getDisplayMedia. Выключен → демка без звука, без
+           трансляции системных звуков стримера. */
+        const captureAudio = document.getElementById("scAudio")?.checked ?? true;
         closeScModal();
         try {
             await startScreenShare(res, fps, captureAudio);

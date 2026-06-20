@@ -27,7 +27,7 @@
 //   по HWND. Фейл безопасен: в худшем случае индикатор останется, без крашей.
 
 use std::collections::HashSet;
-use std::sync::atomic::{AtomicIsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicIsize, Ordering};
 use std::sync::Mutex;
 
 use windows::core::{Result, PCWSTR};
@@ -54,6 +54,17 @@ struct HookCtx {
 static HOOK_CTX: Mutex<Option<HookCtx>> = Mutex::new(None);
 /// HWINEVENTHOOK как isize (0 = не установлен).
 static HOOK_HANDLE: AtomicIsize = AtomicIsize::new(0);
+/// Гейт: хук ПРЯЧЕТ окна только когда демка реально идёт (true). Во время пикера
+/// выбора источника (хук уже стоит с arming, но захват ещё не начат) — false, и
+/// callback ничего не трогает. Индикатор захвата появляется ТОЛЬКО при старте
+/// захвата, так что в режиме пикера прятать нечего — а вот случайно зацепить окна
+/// пикера/других приложений хук не должен. JS взводит флаг на screencast-active.
+static CAPTURING: AtomicBool = AtomicBool::new(false);
+
+/// Включает/выключает реальное скрытие индикатора. true — захват пошёл.
+pub fn set_capturing(on: bool) {
+    CAPTURING.store(on, Ordering::SeqCst);
+}
 
 struct ScanCtx {
     tree: HashSet<u32>,
@@ -178,6 +189,12 @@ unsafe extern "system" fn win_event_proc(
         return;
     }
     if hwnd.0.is_null() {
+        return;
+    }
+    // Во время пикера (хук стоит, но захват не начат) ничего не прячем — иначе
+    // рискуем зацепить окна пикера/чужих приложений. Индикатор появляется только
+    // при реальном старте захвата, когда флаг уже взведён.
+    if !CAPTURING.load(Ordering::SeqCst) {
         return;
     }
 

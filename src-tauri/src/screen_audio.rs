@@ -204,12 +204,20 @@ unsafe fn run_session(
     let handler: IActivateAudioInterfaceCompletionHandler =
         ActivationHandler { done: done.clone() }.into();
 
-    let op: IActivateAudioInterfaceAsyncOperation = ActivateAudioInterfaceAsync(
+    let activate_result = ActivateAudioInterfaceAsync(
         VAD_PROCESS_LOOPBACK,
         &IAudioClient::IID,
         Some(&propvar),
         &handler,
-    )?;
+    );
+    // КРИТИЧНО: propvar.blob.pBlobData указывает на СТЕКОВЫЙ `params`.
+    // ActivateAudioInterfaceAsync копирует params внутрь синхронно во время
+    // вызова, дальше propvar не нужен. Если дать ему дропнуться — PROPVARIANT::drop
+    // зовёт PropVariantClear → CoTaskMemFree на стек-указатель → heap corruption и
+    // молчаливый краш (проявлялся при остановке демки). forget гасит этот Drop.
+    // (Утечки нет: единственное «владение» — стековый указатель, не heap.)
+    std::mem::forget(propvar);
+    let op: IActivateAudioInterfaceAsyncOperation = activate_result?;
 
     // Ждём активацию (поллинг до ~3с), уважая stop.
     for _ in 0..300 {
