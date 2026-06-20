@@ -18,16 +18,23 @@
 (function () {
     try {
         /* DESKTOP (Tauri): окно фиксированного логического размера (1280×820,
-           см. lib.rs), дизайн рассчитан на baseline 14px, а физический размер
-           уже масштабирует ОС через DPI (devicePixelRatio). Поэтому авто-масштаб
-           здесь = 1.0 — «нативно» на любом мониторе. Fluid-формула от screen.width
-           раздувала UI в 1.3–3× на 2K/4K (окно-то фиксированное) — это и был баг
-           «всё слишком большое». Формула остаётся только для WEB, где вьюпорт
-           растягивается во всю ширину монитора и пропорциональный scale уместен.
+           см. lib.rs). ОС применяет DPI-масштаб ко ВСЕЙ системе (devicePixelRatio
+           = OS scale factor: 4K обычно @150%→1.5, 2K @125%→1.25). Для нашего
+           фикс-лейаута это делает окно непропорционально большим (на 4K@150% всё
+           ×1.5). Контр-масштабируем под постоянный компактный «нативный» размер,
+           независимый от монитора/OS-масштаба: auto = 1.05 / dpr (кап 1.0).
+           Точки: 4K@150%→0.70, 2K@125%→0.84, 1080p@100%→1.0 — совпадает с тем,
+           что пользователи выставляли вручную. Прошлый дефолт 1.0 не учитывал dpr
+           и оставался раздутым OS-масштабом.
+           WEB сохраняет fluid-формулу от screen.width (вьюпорт ≈ ширине монитора).
            __TAURI_INTERNALS__ инжектится WebView ДО любых скриптов (детерминирован). */
         var isDesktop = typeof window.__TAURI_INTERNALS__ !== "undefined";
         if (isDesktop) {
-            document.documentElement.style.setProperty('--auto-scale', '1');
+            var dpr = window.devicePixelRatio || 1;
+            var ds = 1.05 / dpr;
+            if (ds > 1) ds = 1;
+            if (ds < 0.5) ds = 0.5;
+            document.documentElement.style.setProperty('--auto-scale', ds.toFixed(3));
         } else {
             var w = (window.screen && window.screen.width) || window.innerWidth || 1920;
             var t = 1.4 * (w / 100) - 10;
