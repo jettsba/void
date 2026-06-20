@@ -103,6 +103,16 @@ pub fn run() {
                 }
             }
             show_main_window(app);
+            // Тёплый перезапуск: приложение уже работало (трей/автозапуск),
+            // возможно со старой версией (стартовый silent-чек был давно/пропущен).
+            // Перепроверяем апдейт → баннер (режим B). Только release.
+            if !cfg!(debug_assertions) {
+                let h = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    let mut last = None;
+                    check_update_banner(&h, &mut last).await;
+                });
+            }
         }))
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_clipboard_manager::init())
@@ -709,6 +719,10 @@ async fn startup_update_flow(app: AppHandle) {
 
     match checked {
         Ok(Ok(Some(update))) => {
+            let _ = app.emit(
+                "void:updater-status",
+                serde_json::json!({ "status": "startup-found", "version": update.version }),
+            );
             // Апдейт есть, юзер ещё не в приложении (окна нет) → тихий режим A.
             launch_updater_window(&app);
             // Даём странице окна обновления подняться и навесить листенеры.
@@ -754,42 +768,79 @@ async fn startup_update_flow(app: AppHandle) {
             }
         }
         Ok(Ok(None)) => {
+            let _ = app.emit("void:updater-status", serde_json::json!({ "status": "startup-uptodate" }));
             launch_main_window(&app);
             start_periodic_check(app);
         }
         Ok(Err(e)) => {
             eprintln!("[updater] startup check failed: {:?}", e);
+            let _ = app.emit(
+                "void:updater-status",
+                serde_json::json!({ "status": "startup-error", "message": format!("{e:?}") }),
+            );
             launch_main_window(&app);
             start_periodic_check(app);
         }
         Err(_) => {
-            // таймаут — не вешаем запуск, апдейт подхватит режим B
+            // таймаут (2.5с) — окно не вешаем; апдейт подхватит ранний режим B (~40с).
+            let _ = app.emit("void:updater-status", serde_json::json!({ "status": "startup-timeout" }));
             launch_main_window(&app);
             start_periodic_check(app);
         }
     }
 }
 
-/// Режим B: после показа главного окна — фоновая перепроверка раз в 15 мин.
-/// Новая версия → "void:updater-available" (баннер). Принудительного рестарта нет.
+/// Разовая проверка апдейта для режима B (баннер, без принудительного рестарта).
+/// Новее → "void:updater-available" (с dedup по `last`). Результат каждой
+/// проверки дублируется в "void:updater-status" — JS пишет это в лог (на Windows
+/// release eprintln невидим), чтобы было видно, ПОЧЕМУ баннер не показался
+/// (uptodate / error / снуз на стороне JS).
+async fn check_update_banner(app: &AppHandle, last: &mut Option<String>) {
+    let Ok(updater) = app.updater() else {
+        let _ = app.emit("void:updater-status", serde_json::json!({ "status": "init-error" }));
+        return;
+    };
+    match updater.check().await {
+        Ok(Some(update)) => {
+            let _ = app.emit(
+                "void:updater-status",
+                serde_json::json!({ "status": "available", "version": update.version }),
+            );
+            if last.as_deref() != Some(update.version.as_str()) {
+                *last = Some(update.version.clone());
+                let _ = app.emit(
+                    "void:updater-available",
+                    serde_json::json!({
+                        "version": update.version,
+                        "body": update.body.clone().unwrap_or_default(),
+                    }),
+                );
+            }
+        }
+        Ok(None) => {
+            let _ = app.emit("void:updater-status", serde_json::json!({ "status": "uptodate" }));
+        }
+        Err(e) => {
+            let _ = app.emit(
+                "void:updater-status",
+                serde_json::json!({ "status": "error", "message": format!("{e:?}") }),
+            );
+        }
+    }
+}
+
+/// Режим B: фоновая перепроверка обновления → баннер. Принудительного рестарта
+/// нет. ПЕРВАЯ проверка — скоро (~40с), а не через 15 мин: стартовый silent-чек
+/// имеет таймаут 2.5с и может быть пропущен (троттлинг запуска из Win Search,
+/// тёплый single-instance, медленная сеть). Раньше из-за этого старая версия
+/// могла висеть без баннера до 15 мин (а то и «никогда» при перезапусках).
 fn start_periodic_check(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
         let mut last_notified: Option<String> = None;
+        tokio::time::sleep(std::time::Duration::from_secs(40)).await;
         loop {
+            check_update_banner(&app, &mut last_notified).await;
             tokio::time::sleep(std::time::Duration::from_secs(15 * 60)).await;
-            let Ok(updater) = app.updater() else { continue };
-            if let Ok(Some(update)) = updater.check().await {
-                if last_notified.as_deref() != Some(update.version.as_str()) {
-                    last_notified = Some(update.version.clone());
-                    let _ = app.emit(
-                        "void:updater-available",
-                        serde_json::json!({
-                            "version": update.version,
-                            "body": update.body.clone().unwrap_or_default(),
-                        }),
-                    );
-                }
-            }
         }
     });
 }
