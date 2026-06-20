@@ -24,6 +24,8 @@ mod audio_session;
 #[cfg(windows)]
 mod proc_tree;
 #[cfg(windows)]
+mod screen_audio;
+#[cfg(windows)]
 mod screen_indicator;
 
 use std::collections::HashMap;
@@ -90,6 +92,33 @@ fn tray_menu_height(in_room: bool) -> f64 {
 #[derive(Default)]
 struct HotkeyMap(Mutex<HashMap<Shortcut, String>>);
 
+/// Старт нативного loopback-захвата звука демонстрации (см. screen_audio.rs).
+/// JS передаёт Channel — Rust стримит в него PCM-кадры (16-bit/48k/stereo, Raw).
+/// Err → JS делает fallback на getDisplayMedia system audio.
+#[tauri::command]
+fn start_screen_audio(
+    channel: tauri::ipc::Channel<tauri::ipc::InvokeResponseBody>,
+) -> std::result::Result<(), String> {
+    #[cfg(windows)]
+    {
+        screen_audio::start(channel)
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = channel;
+        Err("screen audio loopback is windows-only".into())
+    }
+}
+
+/// Останавливает нативный loopback-захват (идемпотентно).
+#[tauri::command]
+fn stop_screen_audio() {
+    #[cfg(windows)]
+    {
+        screen_audio::stop();
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -131,7 +160,9 @@ pub fn run() {
         .manage(HotkeyMap::default())
         .invoke_handler(tauri::generate_handler![
             take_pending_deep_link,
-            tray_menu_action
+            tray_menu_action,
+            start_screen_audio,
+            stop_screen_audio
         ])
         .setup(|app| {
             // Bundled-web архитектура (Phase 6 фикс, v0.10.48):
@@ -419,6 +450,10 @@ pub fn run() {
                             }
                         });
                     } else {
+                        // Бэкстоп нативного loopback-захвата звука демки —
+                        // на случай, если JS не дёрнул stop_screen_audio
+                        // (идемпотентно: no-op если захват не идёт).
+                        screen_audio::stop();
                         let _ = app_sc.run_on_main_thread(|| {
                             screen_indicator::uninstall_indicator_hook();
                         });

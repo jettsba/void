@@ -18,6 +18,11 @@ let volumeMap = new Map();
 let audioGraph = null;
 
 let screenStream = null;
+/* Desktop-only: AudioContext + Tauri Channel для нативного loopback-захвата
+   звука демки (см. startNativeScreenAudio / src-tauri/src/screen_audio.rs).
+   Reset в stopNativeScreenAudio. */
+let screenAudioCtx = null;
+let screenAudioChannel = null;
 /* Запомненные параметры активной screen-share: используется в
    applyDirectScreenVideoParams (при добавлении screen-sender'а в новый peer,
    например — re-join во время трансляции). Reset в stopScreenShare. */
@@ -1713,33 +1718,74 @@ function emitScreencastActive(active) {
     } catch (_) {}
 }
 
+/* ===== Desktop: чистый звук демки через нативный WASAPI loopback =====
+   Системный звук БЕЗ нашего процесс-дерева (без голосов void), стримится из Rust
+   (screen_audio.rs) через Tauri Channel в AudioWorklet-фидер → MediaStreamTrack
+   без голосов и без ducking. Подменяет getDisplayMedia audio на desktop.
+   Возвращает трек или null (→ caller логирует, демка идёт без звука). */
+async function startNativeScreenAudio() {
+    const core = window.__TAURI__?.core;
+    if (!core?.invoke || !core?.Channel) return null;
+    const ctx = new AudioContext({ sampleRate: 48000 });
+    /* AudioContext может стартовать suspended (autoplay-политика); startScreenShare
+       зовётся из click-хендлера, так что gesture активен — resume пройдёт. Без
+       resume MediaStreamDestination не тикает → трек молчит. */
+    if (ctx.state === "suspended") { try { await ctx.resume(); } catch (_) {} }
+    await ctx.audioWorklet.addModule("audio/screen-audio-feeder.js?v=1");
+    const node = new AudioWorkletNode(ctx, "screen-audio-feeder", {
+        numberOfInputs: 0,
+        numberOfOutputs: 1,
+        outputChannelCount: [2]
+    });
+    const dest = ctx.createMediaStreamDestination();
+    node.connect(dest);
+    const channel = new core.Channel();
+    channel.onmessage = (msg) => {
+        /* Raw-кадры PCM из Rust приходят как ArrayBuffer; transferable в worklet. */
+        if (msg instanceof ArrayBuffer) {
+            node.port.postMessage(msg, [msg]);
+        } else if (ArrayBuffer.isView(msg)) {
+            const buf = msg.buffer.slice(msg.byteOffset, msg.byteOffset + msg.byteLength);
+            node.port.postMessage(buf, [buf]);
+        }
+    };
+    await core.invoke("start_screen_audio", { channel });
+    screenAudioCtx = ctx;
+    screenAudioChannel = channel;
+    return dest.stream.getAudioTracks()[0] || null;
+}
+
+function stopNativeScreenAudio() {
+    try { window.__TAURI__?.core?.invoke?.("stop_screen_audio"); } catch (_) {}
+    screenAudioChannel = null;
+    if (screenAudioCtx) {
+        const ctx = screenAudioCtx;
+        screenAudioCtx = null;
+        ctx.close().catch(() => {});
+    }
+}
+
 async function startScreenShare(height = 1080, fps = 30, captureAudio = false) {
     const width = height === 480 ? 854 : height === 720 ? 1280 : 1920;
-    /* По дефолту getDisplayMedia({audio:true}) даёт mono 32-48kHz без явных
-       constraints — Chrome применяет VoIP-цепочку и opus в voip-mode, итог
-       «телефонное» качество для музыки/видео-демки. Просим стерео 48kHz.
+    /* На desktop звук демки берём НЕ из getDisplayMedia (он тащит голоса void),
+       а нативным WASAPI loopback с исключением нашего процесс-дерева (чисто, без
+       ducking). На web/нет-Tauri — старый путь через getDisplayMedia system audio. */
+    const isDesktop = window.VoidPlatform === "desktop";
+    const useNativeAudio = captureAudio && isDesktop;
+    /* audioConstraints применяется ТОЛЬКО на web (на desktop звук берёт нативный
+       loopback, см. useNativeAudio). По дефолту getDisplayMedia({audio:true}) даёт
+       mono 32-48kHz в opus voip-mode — «телефонно». Просим стерео 48kHz.
 
-       echoCancellation:false — КРИТИЧНО против ducking. С AEC=true Chrome
-       прогонял захваченный системный звук через эхоподавитель, у которого
-       reference = наш собственный playback (голоса пиров, включая зрителя B).
-       Когда B говорил, AEC видел «эхо», коррелирующее с его голосом, и давил
-       музыку демки → у всех зрителей звук проседал синхронно с речью говорящего.
-       Это была ducking-жалоба, и её НЕ лечила Панель управления Windows —
-       потому что дакал не OS, а Chrome-AEC. Отключаем.
+       echoCancellation:true на WEB — осознанный компромисс. AEC вычитает из
+       захваченного системного звука наш собственный playback (голоса пиров) →
+       зритель НЕ слышит сам себя. Цена: AEC при разговоре зрителя поддавливает
+       музыку (ducking) — но это меньшее зло, чем слышать свой голос в демке.
+       (Чисто без обоих — только на desktop через нативный loopback или на web
+       через tab-share, где звук вкладки изолирован сам.)
 
-       noiseSuppression/autoGainControl тоже off — не душить музыку.
-
-       ИЗВЕСТНОЕ ОГРАНИЧЕНИЕ (voice-leak): без AEC системный захват тащит в демку
-       весь микс рендера стримера, включая голоса пиров (их играет сам void) →
-       зритель слышит себя/других. Исключить «только своё приложение» из системного
-       звука браузерный API НЕ умеет. Чисто работает только tab-share (звук вкладки
-       изолирован) — браузер делает это сам, без доп. констрейнтов. Для шаринга
-       ВСЕГО экрана со звуком чистый фикс возможен лишь нативно (desktop: WASAPI
-       loopback с EXCLUDE_TARGET_PROCESS_TREE) — отдельная задача. До неё системный
-       звук на whole-screen неизбежно несёт голоса; ломать его (отключать звук)
-       нельзя — это рабочий сценарий. */
-    const audioConstraints = captureAudio ? {
-        echoCancellation: false,
+       noiseSuppression/autoGainControl off — не душить музыку. */
+    const audioConstraints = (captureAudio && !useNativeAudio) ? {
+        echoCancellation: true,
         noiseSuppression: false,
         autoGainControl: false,
         sampleRate: 48000,
@@ -1772,7 +1818,7 @@ async function startScreenShare(height = 1080, fps = 30, captureAudio = false) {
                весь экран → системный звук (несёт голоса, см. voice-leak выше). */
             selfBrowserSurface: "exclude",
             surfaceSwitching: "include",
-            systemAudio: captureAudio ? "include" : "exclude"
+            systemAudio: (captureAudio && !useNativeAudio) ? "include" : "exclude"
         });
     } catch (e) {
         emitScreencastActive(false); // отмена пикера / ошибка → снять хук
@@ -1789,6 +1835,21 @@ async function startScreenShare(height = 1080, fps = 30, captureAudio = false) {
     }
     screenStream = stream;
     emitScreencastActive(true);
+    /* Desktop: подменяем источник звука демки на чистый нативный loopback —
+       инжектим трек прямо в screenStream, дальше весь downstream-код (contentHint,
+       addTrack пирам, patchOpus, teardown в stopScreenShare) работает без изменений.
+       Фейл нативного капта (старый Windows / ошибка) → демка без звука + warn,
+       но видео не ломаем (population <Win10 2004 ничтожна). */
+    if (useNativeAudio) {
+        try {
+            const nativeTrack = await startNativeScreenAudio();
+            if (nativeTrack) screenStream.addTrack(nativeTrack);
+            else log.warn("rtc", "native screen audio unavailable, demo without sound");
+        } catch (err) {
+            log.warn("rtc", "native screen audio capture failed", { err: err?.message || String(err) });
+            stopNativeScreenAudio();
+        }
+    }
     const videoTrack = screenStream.getVideoTracks()[0];
     const audioTrack = screenStream.getAudioTracks()[0];
     /* contentHint="music" — подсказка W3C, что трек НЕ голос. Chrome переключает
@@ -2037,6 +2098,8 @@ function stopScreenShare() {
     screenSenders.clear();
     screenStream?.getTracks().forEach(t => t.stop());
     screenStream = null;
+    /* Останавливаем нативный loopback-захват (no-op если не desktop / не шёл). */
+    stopNativeScreenAudio();
     screenTargetHeight = 1080;
     screenTargetFps = 30;
     emitScreencastActive(false);
