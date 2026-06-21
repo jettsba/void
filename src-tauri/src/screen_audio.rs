@@ -89,44 +89,44 @@ pub fn diagnostics() -> String {
 unsafe fn diagnostics_inner() -> String {
     let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
     let our_pid = GetCurrentProcessId();
-    let tree = crate::proc_tree::collect_process_tree(our_pid).unwrap_or_default();
-    let names = process_names();
+    let (parents, names) = proc_table();
+    let tree = tree_of(our_pid, &parents);
 
-    // РЕАЛЬНЫЙ ЗАМЕР (вперёд — самое важное, чтобы не обрезалось в тосте):
-    // пик |амплитуды| за ~1.2с в каждом режиме.
-    //   INCLUDE(void) = ТОЛЬКО звук void (голоса пиров) → >0 если друг говорит.
-    //   EXCLUDE(void) = всё КРОМЕ void → если исключение работает и кроме голосов
-    //     ничего не играет, должен быть ≈0. Если EXCLUDE тоже ловит голоса (high) —
-    //     значит EXCLUDE_TARGET_PROCESS_TREE не срабатывает.
+    // Находим процесс webview, который рендерит звук void (голоса пиров):
+    // render-сессия, чей процесс в нашем ToolHelp-дереве и зовётся msedgewebview2.
+    let sessions = enum_render_session_pids().unwrap_or_default();
+    let void_audio = sessions.iter().copied().find(|p| {
+        *p != 0
+            && tree.contains(p)
+            && names
+                .get(p)
+                .map(|n| n.to_lowercase().contains("msedgewebview2"))
+                .unwrap_or(false)
+    });
+    // «Корень» webview — поднимаемся по родителям до прямого потомка void-desktop.
+    let webview_root = void_audio.map(|p| ancestor_under(p, our_pid, &parents));
+
     let fmt = |r: Result<(f32, usize)>| match r {
-        Ok((peak, frames)) => format!("{peak:.4}({frames}f)"),
-        Err(e) => format!("ERR {e:?}"),
+        Ok((peak, _)) => format!("{peak:.4}"),
+        Err(e) => format!("ERR{e:?}"),
     };
-    let inc = capture_peak(our_pid, PROCESS_LOOPBACK_MODE_INCLUDE_TARGET_PROCESS_TREE, 1200);
-    let exc = capture_peak(our_pid, PROCESS_LOOPBACK_MODE_EXCLUDE_TARGET_PROCESS_TREE, 1200);
-    let mut out = format!(
-        "INCLUDE(void)={} EXCLUDE(void)={} | pid={our_pid} tree={} | ",
-        fmt(inc),
-        fmt(exc),
-        tree.len()
-    );
+    let exc = PROCESS_LOOPBACK_MODE_EXCLUDE_TARGET_PROCESS_TREE;
+    let inc = PROCESS_LOOPBACK_MODE_INCLUDE_TARGET_PROCESS_TREE;
 
-    match enum_render_session_pids() {
-        Ok(pids) => {
-            for pid in pids {
-                let name = names.get(&pid).cloned().unwrap_or_else(|| "?".to_string());
-                let loc = if pid == 0 {
-                    "SYS"
-                } else if tree.contains(&pid) {
-                    "IN"
-                } else {
-                    "OUT"
-                };
-                out.push_str(&format!("{name}({pid})={loc} "));
-            }
-        }
-        Err(e) => out.push_str(&format!("sessions ERR {e:?}")),
+    // КАНДИДАТЫ исключения. При говорящем друге и тишине-кроме-голосов рабочий
+    // таргет даст EXC≈0 (голоса ушли). Текущий EXC(void) — заведомо broken (high).
+    let mut out = format!("EXC(void)={}", fmt(capture_peak(our_pid, exc, 1000)));
+    match void_audio {
+        Some(p) => out.push_str(&format!(" EXC(wvAudio:{p})={}", fmt(capture_peak(p, exc, 1000)))),
+        None => out.push_str(" EXC(wvAudio:none)"),
     }
+    match webview_root {
+        Some(p) => out.push_str(&format!(" EXC(wvRoot:{p})={}", fmt(capture_peak(p, exc, 1000)))),
+        None => out.push_str(" EXC(wvRoot:none)"),
+    }
+    out.push_str(&format!(" INC(void)={}", fmt(capture_peak(our_pid, inc, 1000))));
+    out.push_str(&format!(" | tree={}", tree.len()));
+
     CoUninitialize();
     out
 }
@@ -236,11 +236,12 @@ unsafe fn capture_peak(pid: u32, mode: PROCESS_LOOPBACK_MODE, ms: u64) -> Result
     Ok((peak, frames_total))
 }
 
-/// PID → имя exe (ToolHelp32 snapshot).
-unsafe fn process_names() -> HashMap<u32, String> {
-    let mut map = HashMap::new();
+/// ToolHelp32 snapshot → (pid→parent_pid, pid→exe_name).
+unsafe fn proc_table() -> (HashMap<u32, u32>, HashMap<u32, String>) {
+    let mut parents = HashMap::new();
+    let mut names = HashMap::new();
     let Ok(snap) = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) else {
-        return map;
+        return (parents, names);
     };
     let mut entry = PROCESSENTRY32W::default();
     entry.dwSize = std::mem::size_of::<PROCESSENTRY32W>() as u32;
@@ -251,15 +252,48 @@ unsafe fn process_names() -> HashMap<u32, String> {
                 .iter()
                 .position(|&c| c == 0)
                 .unwrap_or(entry.szExeFile.len());
-            let name = String::from_utf16_lossy(&entry.szExeFile[..end]);
-            map.insert(entry.th32ProcessID, name);
+            names.insert(
+                entry.th32ProcessID,
+                String::from_utf16_lossy(&entry.szExeFile[..end]),
+            );
+            parents.insert(entry.th32ProcessID, entry.th32ParentProcessID);
             if Process32NextW(snap, &mut entry).is_err() {
                 break;
             }
         }
     }
     let _ = CloseHandle(snap);
-    map
+    (parents, names)
+}
+
+/// Множество PID в дереве процессов root (BFS по parent-карте до сходимости).
+fn tree_of(root: u32, parents: &HashMap<u32, u32>) -> std::collections::HashSet<u32> {
+    let mut tree = std::collections::HashSet::new();
+    tree.insert(root);
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for (&pid, &parent) in parents {
+            if tree.contains(&parent) && !tree.contains(&pid) {
+                tree.insert(pid);
+                changed = true;
+            }
+        }
+    }
+    tree
+}
+
+/// Поднимается по родителям от `pid` до прямого потомка `root` (возвращает того
+/// потомка). Guard от циклов/сирот. Если родитель сразу root — вернёт сам pid.
+fn ancestor_under(mut pid: u32, root: u32, parents: &HashMap<u32, u32>) -> u32 {
+    for _ in 0..64 {
+        let parent = *parents.get(&pid).unwrap_or(&0);
+        if parent == root || parent == 0 {
+            return pid;
+        }
+        pid = parent;
+    }
+    pid
 }
 
 /// PID'ы всех render-сессий звука на дефолтном устройстве вывода.
