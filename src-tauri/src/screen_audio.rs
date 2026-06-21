@@ -47,7 +47,8 @@ use windows::Win32::Media::Audio::{
     IMMDeviceEnumerator, MMDeviceEnumerator, AUDCLNT_BUFFERFLAGS_SILENT, AUDCLNT_SHAREMODE_SHARED,
     AUDCLNT_STREAMFLAGS_LOOPBACK, AUDIOCLIENT_ACTIVATION_PARAMS, AUDIOCLIENT_ACTIVATION_PARAMS_0,
     AUDIOCLIENT_ACTIVATION_TYPE_PROCESS_LOOPBACK, AUDIOCLIENT_PROCESS_LOOPBACK_PARAMS,
-    PROCESS_LOOPBACK_MODE_EXCLUDE_TARGET_PROCESS_TREE, WAVEFORMATEX,
+    PROCESS_LOOPBACK_MODE, PROCESS_LOOPBACK_MODE_EXCLUDE_TARGET_PROCESS_TREE,
+    PROCESS_LOOPBACK_MODE_INCLUDE_TARGET_PROCESS_TREE, WAVEFORMATEX,
 };
 use windows::Win32::System::Com::StructuredStorage::PROPVARIANT;
 use windows::Win32::System::Com::{
@@ -74,36 +75,165 @@ const WAVE_FORMAT_IEEE_FLOAT: u16 = 3;
 /// если сессия WebView2 (msedgewebview2.exe, играет голоса пиров) помечена OUT —
 /// значит она НЕ потомок void → exclude её не ловит, и нужен другой подход.
 pub fn diagnostics() -> String {
-    unsafe {
-        let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
-        let our_pid = GetCurrentProcessId();
-        let tree = crate::proc_tree::collect_process_tree(our_pid).unwrap_or_default();
-        let names = process_names();
-        let mut out = format!("pid={our_pid} tree_size={} | sessions: ", tree.len());
-        match enum_render_session_pids() {
-            Ok(pids) => {
-                if pids.is_empty() {
-                    out.push_str("(none)");
-                }
-                for pid in pids {
-                    let name = names
-                        .get(&pid)
-                        .cloned()
-                        .unwrap_or_else(|| "?".to_string());
-                    let loc = if pid == 0 {
-                        "SYS"
-                    } else if tree.contains(&pid) {
-                        "IN"
-                    } else {
-                        "OUT"
-                    };
-                    out.push_str(&format!("{name}({pid})={loc}  "));
+    // COM-работа (особенно async-активация capture_peak) — на отдельном MTA-потоке,
+    // как и реальный захват; на STA-потоке команды completion-handler не доедет.
+    let (tx, rx) = mpsc::channel();
+    std::thread::spawn(move || {
+        let s = unsafe { diagnostics_inner() };
+        let _ = tx.send(s);
+    });
+    rx.recv_timeout(Duration::from_secs(12))
+        .unwrap_or_else(|_| "diag: timeout".to_string())
+}
+
+unsafe fn diagnostics_inner() -> String {
+    let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
+    let our_pid = GetCurrentProcessId();
+    let tree = crate::proc_tree::collect_process_tree(our_pid).unwrap_or_default();
+    let names = process_names();
+
+    // РЕАЛЬНЫЙ ЗАМЕР (вперёд — самое важное, чтобы не обрезалось в тосте):
+    // пик |амплитуды| за ~1.2с в каждом режиме.
+    //   INCLUDE(void) = ТОЛЬКО звук void (голоса пиров) → >0 если друг говорит.
+    //   EXCLUDE(void) = всё КРОМЕ void → если исключение работает и кроме голосов
+    //     ничего не играет, должен быть ≈0. Если EXCLUDE тоже ловит голоса (high) —
+    //     значит EXCLUDE_TARGET_PROCESS_TREE не срабатывает.
+    let fmt = |r: Result<(f32, usize)>| match r {
+        Ok((peak, frames)) => format!("{peak:.4}({frames}f)"),
+        Err(e) => format!("ERR {e:?}"),
+    };
+    let inc = capture_peak(our_pid, PROCESS_LOOPBACK_MODE_INCLUDE_TARGET_PROCESS_TREE, 1200);
+    let exc = capture_peak(our_pid, PROCESS_LOOPBACK_MODE_EXCLUDE_TARGET_PROCESS_TREE, 1200);
+    let mut out = format!(
+        "INCLUDE(void)={} EXCLUDE(void)={} | pid={our_pid} tree={} | ",
+        fmt(inc),
+        fmt(exc),
+        tree.len()
+    );
+
+    match enum_render_session_pids() {
+        Ok(pids) => {
+            for pid in pids {
+                let name = names.get(&pid).cloned().unwrap_or_else(|| "?".to_string());
+                let loc = if pid == 0 {
+                    "SYS"
+                } else if tree.contains(&pid) {
+                    "IN"
+                } else {
+                    "OUT"
+                };
+                out.push_str(&format!("{name}({pid})={loc} "));
+            }
+        }
+        Err(e) => out.push_str(&format!("sessions ERR {e:?}")),
+    }
+    CoUninitialize();
+    out
+}
+
+/// Активирует process-loopback IAudioClient в заданном режиме (INCLUDE/EXCLUDE
+/// дерева target-процесса). Общий путь для реального захвата и для замера —
+/// чтобы диагностика тестировала ровно ту же активацию.
+unsafe fn activate_loopback_client(pid: u32, mode: PROCESS_LOOPBACK_MODE) -> Result<IAudioClient> {
+    let mut params = AUDIOCLIENT_ACTIVATION_PARAMS {
+        ActivationType: AUDIOCLIENT_ACTIVATION_TYPE_PROCESS_LOOPBACK,
+        Anonymous: AUDIOCLIENT_ACTIVATION_PARAMS_0 {
+            ProcessLoopbackParams: AUDIOCLIENT_PROCESS_LOOPBACK_PARAMS {
+                TargetProcessId: pid,
+                ProcessLoopbackMode: mode,
+            },
+        },
+    };
+    let blob = BLOB {
+        cbSize: std::mem::size_of::<AUDIOCLIENT_ACTIVATION_PARAMS>() as u32,
+        pBlobData: &mut params as *mut _ as *mut u8,
+    };
+    let mut propvar = PROPVARIANT::default();
+    {
+        let inner = &mut *propvar.Anonymous.Anonymous;
+        inner.vt = VT_BLOB;
+        inner.Anonymous.blob = blob;
+    }
+    let done = Arc::new(AtomicBool::new(false));
+    let handler: IActivateAudioInterfaceCompletionHandler =
+        ActivationHandler { done: done.clone() }.into();
+    let activate_result = ActivateAudioInterfaceAsync(
+        VAD_PROCESS_LOOPBACK,
+        &IAudioClient::IID,
+        Some(&propvar),
+        &handler,
+    );
+    // propvar.blob → стековый params; activation копирует синхронно. forget гасит
+    // PROPVARIANT::drop (иначе PropVariantClear фримит стек-указатель → краш).
+    std::mem::forget(propvar);
+    let op: IActivateAudioInterfaceAsyncOperation = activate_result?;
+    for _ in 0..300 {
+        if done.load(Ordering::SeqCst) {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    let mut activate_hr = windows::core::HRESULT(0);
+    let mut audio_unknown: Option<windows::core::IUnknown> = None;
+    op.GetActivateResult(&mut activate_hr, &mut audio_unknown)?;
+    activate_hr.ok()?;
+    audio_unknown
+        .ok_or_else(windows::core::Error::from_win32)?
+        .cast()
+}
+
+/// Захватывает ~`ms` мс в заданном loopback-режиме и возвращает (пик|амплитуды|, кадров).
+unsafe fn capture_peak(pid: u32, mode: PROCESS_LOOPBACK_MODE, ms: u64) -> Result<(f32, usize)> {
+    let client = activate_loopback_client(pid, mode)?;
+    let format = WAVEFORMATEX {
+        wFormatTag: WAVE_FORMAT_IEEE_FLOAT,
+        nChannels: CHANNELS,
+        nSamplesPerSec: SAMPLE_RATE,
+        nAvgBytesPerSec: SAMPLE_RATE * IN_BLOCK_ALIGN as u32,
+        nBlockAlign: IN_BLOCK_ALIGN,
+        wBitsPerSample: IN_BITS,
+        cbSize: 0,
+    };
+    client.Initialize(
+        AUDCLNT_SHAREMODE_SHARED,
+        AUDCLNT_STREAMFLAGS_LOOPBACK,
+        2_000_000,
+        0,
+        &format,
+        None,
+    )?;
+    let capture: IAudioCaptureClient = client.GetService()?;
+    client.Start()?;
+    let mut peak = 0f32;
+    let mut frames_total = 0usize;
+    let start = std::time::Instant::now();
+    while start.elapsed().as_millis() < ms as u128 {
+        loop {
+            let packet = capture.GetNextPacketSize()?;
+            if packet == 0 {
+                break;
+            }
+            let mut data: *mut u8 = std::ptr::null_mut();
+            let mut num_frames: u32 = 0;
+            let mut flags: u32 = 0;
+            capture.GetBuffer(&mut data, &mut num_frames, &mut flags, None, None)?;
+            if (flags & AUDCLNT_BUFFERFLAGS_SILENT.0 as u32) == 0 && !data.is_null() {
+                let n = num_frames as usize * CHANNELS as usize;
+                let src = std::slice::from_raw_parts(data as *const f32, n);
+                for &s in src {
+                    let a = s.abs();
+                    if a > peak {
+                        peak = a;
+                    }
                 }
             }
-            Err(e) => out.push_str(&format!("ERR {e:?}")),
+            frames_total += num_frames as usize;
+            capture.ReleaseBuffer(num_frames)?;
         }
-        out
+        std::thread::sleep(Duration::from_millis(8));
     }
+    let _ = client.Stop();
+    Ok((peak, frames_total))
 }
 
 /// PID → имя exe (ToolHelp32 snapshot).
@@ -270,66 +400,13 @@ unsafe fn run_session(
     channel: &Channel<InvokeResponseBody>,
     ready: &mut Option<mpsc::Sender<std::result::Result<(), String>>>,
 ) -> Result<()> {
-    // Параметры process-loopback: исключаем наше дерево процессов.
-    let mut params = AUDIOCLIENT_ACTIVATION_PARAMS {
-        ActivationType: AUDIOCLIENT_ACTIVATION_TYPE_PROCESS_LOOPBACK,
-        Anonymous: AUDIOCLIENT_ACTIVATION_PARAMS_0 {
-            ProcessLoopbackParams: AUDIOCLIENT_PROCESS_LOOPBACK_PARAMS {
-                TargetProcessId: pid,
-                ProcessLoopbackMode: PROCESS_LOOPBACK_MODE_EXCLUDE_TARGET_PROCESS_TREE,
-            },
-        },
-    };
-
-    // Упаковываем params в PROPVARIANT(VT_BLOB) для ActivateAudioInterfaceAsync.
-    let blob = BLOB {
-        cbSize: std::mem::size_of::<AUDIOCLIENT_ACTIVATION_PARAMS>() as u32,
-        pBlobData: &mut params as *mut _ as *mut u8,
-    };
-    let mut propvar = PROPVARIANT::default();
-    {
-        let inner = &mut *propvar.Anonymous.Anonymous;
-        inner.vt = VT_BLOB;
-        inner.Anonymous.blob = blob;
-    }
-
-    let done = Arc::new(AtomicBool::new(false));
-    let handler: IActivateAudioInterfaceCompletionHandler =
-        ActivationHandler { done: done.clone() }.into();
-
-    let activate_result = ActivateAudioInterfaceAsync(
-        VAD_PROCESS_LOOPBACK,
-        &IAudioClient::IID,
-        Some(&propvar),
-        &handler,
-    );
-    // КРИТИЧНО: propvar.blob.pBlobData указывает на СТЕКОВЫЙ `params`.
-    // ActivateAudioInterfaceAsync копирует params внутрь синхронно во время
-    // вызова, дальше propvar не нужен. Если дать ему дропнуться — PROPVARIANT::drop
-    // зовёт PropVariantClear → CoTaskMemFree на стек-указатель → heap corruption и
-    // молчаливый краш (проявлялся при остановке демки). forget гасит этот Drop.
-    // (Утечки нет: единственное «владение» — стековый указатель, не heap.)
-    std::mem::forget(propvar);
-    let op: IActivateAudioInterfaceAsyncOperation = activate_result?;
-
-    // Ждём активацию (поллинг до ~3с), уважая stop.
-    for _ in 0..300 {
-        if done.load(Ordering::SeqCst) || stop.load(Ordering::SeqCst) {
-            break;
-        }
-        std::thread::sleep(Duration::from_millis(10));
-    }
+    // Активация process-loopback с исключением нашего дерева процессов (общий
+    // путь с диагностикой — activate_loopback_client).
+    let audio_client =
+        activate_loopback_client(pid, PROCESS_LOOPBACK_MODE_EXCLUDE_TARGET_PROCESS_TREE)?;
     if stop.load(Ordering::SeqCst) {
         return Ok(());
     }
-
-    let mut activate_hr = windows::core::HRESULT(0);
-    let mut audio_unknown: Option<windows::core::IUnknown> = None;
-    op.GetActivateResult(&mut activate_hr, &mut audio_unknown)?;
-    activate_hr.ok()?;
-    let audio_client: IAudioClient = audio_unknown
-        .ok_or_else(windows::core::Error::from_win32)?
-        .cast()?;
 
     // Формат захвата: float32 / 48k / stereo.
     let format = WAVEFORMATEX {
