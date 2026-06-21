@@ -1,279 +1,175 @@
 <div align="center">
 
-<img src="public/static/favicon/web-app-manifest-512x512.png" width="120" alt="void" />
+<img src="https://void-room.space/og.png" alt="void — leaves no trace." width="680">
 
-# void
+**a phone call for the internet — no accounts, no history, peer-to-peer.**
 
-**ephemeral voice rooms — no accounts, no history, peer-to-peer.**
+<sub>[void-room.space](https://void-room.space) · [try the web app](https://app.void-room.space) · [download for windows](https://github.com/jettsba/void-desktop/releases/latest)</sub>
 
-<sub>[void-room.space](https://void-room.space)</sub>
+<br>
+
+[![web app](https://img.shields.io/badge/web-app.void--room.space-101012?labelColor=2a2a2f)](https://app.void-room.space)
+[![desktop](https://img.shields.io/badge/desktop-windows%20x64-101012?labelColor=2a2a2f)](https://github.com/jettsba/void-desktop/releases/latest)
+[![no build step](https://img.shields.io/badge/build-none-101012?labelColor=2a2a2f)](#built-without-the-usual-stack)
+[![no database](https://img.shields.io/badge/database-none-101012?labelColor=2a2a2f)](#what-void-deliberately-doesnt-have)
 
 </div>
 
 ---
 
-## ▸ что это
+## what it is
 
-тихая голосовая комната, которая исчезает вместе с последним участником.
+Open a room, share the short code, talk — and the moment the last person leaves, the
+room is gone. Nothing was written down, because there was nowhere to write it.
 
-создаёшь комнату → даёшь код другу → разговариваете напрямую.
-ни аккаунтов, ни историй, ни сервера в середине вашего голоса.
+Voice, text chat, file transfer and screen sharing, all **peer-to-peer over WebRTC**.
+The server exists only to introduce two browsers to each other; once they shake hands,
+your audio goes straight from one person to the other. No sign-up. No database. No
+recording. **Nothing to leak, because nothing is stored.**
+
+> Try it right now, no install → **[app.void-room.space](https://app.void-room.space)**
+
+---
+
+## how it works
 
 ```text
-  you ──── mic ──── webrtc ──── mic ──── friend
-                       │
-                  signalling
-                  (5–20 kb/s)
-                       │
-                    void.srv
+   you ──── mic ──── webrtc ──── mic ──── friend
+                        │
+                   signalling
+                   (~5–20 kb/s)
+                        │
+                     void.srv
 ```
 
-сервер живёт только для того, чтобы вы нашли друг друга. дальше — мимо него.
+The server's entire job is to help two peers find each other — offers, answers, a
+handful of ICE candidates. After that it is out of the loop. **It never sees a single
+byte of your audio, your messages, or your files.** When direct connection is impossible
+(symmetric / CG-NAT), a TURN relay carries the still-encrypted stream — the relay can't
+read it either.
+
+This isn't a privacy *policy*. It's the architecture. There is no media server in the
+middle, no message store, no user table. The strongest guarantee a service can make is
+to not have the data in the first place.
 
 ---
 
-## ▸ что внутри
+## try it
 
-- **голос** — webrtc mesh, до 5 человек на комнату
-- **чат** — поверх datachannel: текст, файлы до 100мб, картинки до 10мб
-- **демонстрация экрана** — с системным звуком, до 1080p60
-- **арки громкости** — у каждого, с индикацией «говорит»
-- **ru / en** — переключение прямо в настройках
-- **режим стримера** — прячет код комнаты в футере
-- **мобильный лейаут** — отдельные стили, без bloat'а
-- **админ-дашборд** — `/adminstats` со statистикой за всё время
+| | |
+|---|---|
+| **Web** — works in any modern browser, nothing to install | **[app.void-room.space](https://app.void-room.space)** |
+| **Windows desktop** — native app: tray, global hotkeys, auto-update | **[download the latest release](https://github.com/jettsba/void-desktop/releases/latest)** |
 
----
-
-## ▸ чего здесь нет
-
-- регистраций, профилей, аватаров
-- базы данных и хранения сообщений
-- аналитики и трекеров
-- медиа-серверов между вами
-- куки и localStorage с pii
+The web app and the desktop app are the **same codebase** — the desktop is the web client
+running natively in a Tauri shell, with native Windows touches layered on top.
 
 ---
 
-## ▸ tech stack
+## what's inside
 
-| layer        | tech                                  |
-|--------------|---------------------------------------|
-| signalling   | node.js · express · ws                |
-| transport    | webrtc (perfect negotiation, mesh)    |
-| audio dsp    | web audio api (highpass/lowpass/comp) |
-| ui           | vanilla js, no frameworks             |
-| reverse proxy| caddy (auto-https)                    |
-| deploy       | docker + docker-compose               |
-
-вот и всё. никакого react, никаких сборщиков, никакого `npm run build`.
-кладёшь файлы рядом — браузер сам разбирается.
+- **voice** — full-mesh WebRTC, direct peer-to-peer audio between everyone in the room (up to 5 by design), no server in the path
+- **noise suppression** — RNNoise (ML model, WASM/AudioWorklet) strips out fans, keyboards, and background hum
+- **chat & files** — over the data channel: text, files up to 100 MB, images up to 10 MB
+- **screen sharing** — with real system audio, up to 1080p60
+- **resilient by design** — perfect negotiation, automatic ICE-restart, peer rebuild, a watchdog that detects "dead-but-connected" peers
+- **bilingual** — English / Russian, switchable in settings
+- **streamer mode** — hides the room code so it never leaks on stream
+- **native desktop** — frameless titlebar, system tray with live in-room status, global hotkeys, signed in-app auto-updates, `void://` deep links
 
 ---
 
-## ▸ быстрый старт (локально)
+## what void deliberately doesn't have
+
+- no accounts, profiles, or avatars
+- no database, no message history, no recording
+- no analytics, no trackers, no third-party scripts
+- no media server sitting between you and the other person
+- no cookies or local storage holding anything personal
+
+The only thing the server keeps on disk is a single JSON file of anonymous counters —
+rooms created, peak concurrent users, connection-success ratio. No user data ever
+touches it.
+
+---
+
+## built without the usual stack
+
+No React. No bundlers. No `npm run build`. No TypeScript toolchain.
+
+The entire frontend is **vanilla JavaScript**, loaded with `<script defer>` and served
+as-is — the browser figures it out. The backend is ~200 lines of entry-point plus a
+handful of focused modules. The whole thing is meant to be **read**: a complete,
+production-hardened WebRTC system you can actually follow end to end, rather than a black
+box behind an SDK.
+
+| layer | tech |
+|---|---|
+| signalling | Node.js 20 · Express · ws |
+| media transport | WebRTC mesh (perfect negotiation, DTLS-SRTP) |
+| chat & files | RTCDataChannel (binary chunked transfer) |
+| audio DSP | Web Audio API — RNNoise → high/low-pass → compressor → noise gate |
+| frontend | vanilla JS, no frameworks, no build step |
+| desktop | Tauri 2 (Rust + WebView2) |
+| relay | coturn (TURN, HMAC short-lived credentials) |
+| reverse proxy | Caddy (automatic HTTPS) |
+| deploy | Docker + docker-compose, CI on push |
+
+Production hardening is built in, not bolted on: strict CSP, security headers, origin
+allow-listing, per-IP connection caps, token-bucket flood control, anti-bruteforce on
+room joins, timing-safe admin auth, a read-only hardened container, and ed25519-signed
+desktop updates.
+
+---
+
+## status
+
+Active development — currently **v0.12.10**. Web and desktop ship independently.
+
+**Done:** voice · chat · file & image transfer · screen share with system audio ·
+reconnect / perfect negotiation / ICE-restart / zombie-watchdog · RNNoise · TURN (live
+in production) · i18n · invite links & `void://`
+deep-links · full Windows desktop (tray, hotkeys, autostart, signed auto-updater, custom
+installer/uninstaller).
+
+**Possible directions** (not commitments): camera video · push-to-talk · macOS / Linux
+desktop · optional local recording · themes.
+
+---
+
+## for developers
+
+Run it locally:
 
 ```bash
-git clone <repo>
+git clone https://github.com/jettsba/void.git
 cd void
 npm ci
-npm start
-# → http://localhost:3000
+npm start          # → http://localhost:3000
 ```
 
-микрофон браузер попросит на первом входе в комнату. интро-пароль — `тишина` (часть лора).
+Self-hosting, environment variables, the TURN setup, the desktop build pipeline and the
+in-browser debugging tools are all documented in **[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)**.
 
 ---
 
-## ▸ деплой (vps)
+## feedback
 
-### первый раз, с нуля (только VPS + репозиторий)
-
-```bash
-# 1. клонируешь репо
-git clone <repo>
-cd void
-
-# 2. конфиг — копируешь шаблон и заполняешь свои значения
-cp .env.example .env
-nano .env   # или любой редактор
-
-# 3. поднимаешь сервис(ы)
-# вариант А — без TURN (только STUN, как раньше; ок для dev и MVP):
-docker compose up -d --build
-
-# вариант Б — с TURN (для пользователей за CG-NAT / симметричным NAT):
-# (предварительно: A-запись turn.your-domain.com → IP vps; firewall ниже)
-sudo ufw allow 3478/udp
-sudo ufw allow 49152:49251/udp
-docker compose --profile turn up -d --build
-
-# 4. caddy + домен (один раз)
-sudo cp Caddyfile /etc/caddy/Caddyfile
-sudo systemctl reload caddy
-
-# 5. готово — https://void-room.space
-```
-
-caddy сам сходит за tls-сертификатом от let's encrypt и будет продлевать его раз в 60 дней без участия. для TURN caddy не нужен — coturn слушает UDP напрямую.
-
-### повторный деплой
-
-на проде висит github actions `.github/workflows/deploy.yml` — он триггерится на push в `main` и сам делает `git pull --ff-only && docker compose --profile turn up -d --build` по SSH. ничего вручную делать не надо: запушил → через ~30 секунд новая версия на проде. логи деплоя — в actions-вкладке репо.
-
-ручной деплой (если actions упали или нужно проверить локально на VPS):
-
-```bash
-ssh user@vps
-cd ~/void
-git pull
-docker compose --profile turn up -d --build
-```
-
-если меняешь только `.env` — `--build` не нужен:
-
-```bash
-docker compose --profile turn up -d
-```
-
-`.env` лежит только на сервере и в actions не передаётся — менять значения через ssh, рестарт компоуза подхватывает.
-
-### переменные окружения
-
-полный шаблон с комментариями — в `.env.example`. ключевое:
-
-```env
-# базовое — всё опционально, есть дефолты:
-ADMIN_STATS_PASSWORD=        # пароль к /adminstats; без него — отключено
-LOG_LEVEL=info               # error | warn | info | debug
-ALLOWED_ORIGINS=             # через запятую
-MAX_ROOM_USERS=5
-
-# багрепорты по почте — опционально:
-BUG_SMTP_USER=               # ящик-отправитель (Yandex)
-BUG_SMTP_PASS=               # app-password Яндекс.Почты
-
-# TURN — для прода с реальной аудиторией:
-TURN_HOST=turn.your-domain.com
-TURN_EXTERNAL_IP=1.2.3.4
-TURN_SECRET=                 # `openssl rand -base64 48`
-TURN_REALM=your-domain.com
-```
-
-### TURN (для symmetric NAT / CG-NAT)
-
-опционально, но без TURN ~10-20% пар обламываются (CG-NAT, мобильные сети, корпоративные firewall). TURN добавляет relay-fallback. без TURN-инфры проект продолжает работать — клиент молча обходится STUN.
-
-подъём:
-
-1. **A-запись** для `turn.your-domain.com` → IP VPS (можно использовать прямой IP в `TURN_HOST`, но домен удобнее на случай миграции).
-2. **TURN_SECRET** — `openssl rand -base64 48`, положить в `.env`.
-3. **остальные TURN_* в .env**: `TURN_HOST`, `TURN_EXTERNAL_IP`, `TURN_REALM`.
-4. **firewall** на VPS:
-
-   ```bash
-   sudo ufw allow 3478/udp
-   sudo ufw allow 49152:49251/udp
-   ```
-
-   (если внешний firewall у хостера — там же открыть)
-
-5. **запуск с `--profile turn`**:
-
-   ```bash
-   docker compose --profile turn up -d --build
-   ```
-
-проверка:
-
-- `curl 'https://app.your-domain.com/api/turn-credentials?uid=test'` — должен вернуть JSON с `iceServers`, не 503.
-- открыть [trickle-ice tool](https://webrtc.github.io/samples/src/content/peerconnection/trickle-ice/), вставить `turn:turn.your-domain.com:3478` + `username/credential` из curl-ответа, нажать "Gather candidates" — должен появиться candidate `Type: relay` с IP VPS.
-- созвониться вдвоём с разных сетей, открыть `/adminstats` → виджет "connectivity" покажет долю `direct/relay/failed`. **failed должен быть 0%.**
-
-если не работает — `docker logs void-coturn`, проверить firewall, проверить `TURN_EXTERNAL_IP`.
+Bugs, ideas, questions → open an [issue](https://github.com/jettsba/void/issues) or
+reach out on [Telegram](https://t.me/mtbibltww). The web app ships fixes continuously;
+the desktop app updates itself.
 
 ---
 
-## ▸ структура
+## license
 
-```text
-.
-├── server.js               — тонкий entry-point (~200 строк)
-├── lib/
-│   ├── handlers.js         — обработчики ws-сообщений
-│   ├── security.js         — лимиты, валидаторы, anti-bruteforce
-│   ├── admin-stats.js      — /adminstats endpoint
-│   ├── stats.js            — persistent статистика
-│   ├── state.js            — общие mutable коллекции
-│   └── log.js              — structured logger
-├── public/
-│   ├── index.html
-│   ├── css/                — 14 файлов: base, intro, app, chat, ...
-│   ├── js/                 — 13 файлов: config, state, controls, ...
-│   ├── webrtc.js           — peer setup + recovery
-│   ├── socket.js           — ws клиент + reconnect
-│   ├── chat.js             — datachannel чат
-│   ├── settings.js         — i18n + настройки
-│   └── log.js
-├── Caddyfile               — reverse-proxy + security headers
-├── Dockerfile              — node:20-alpine, USER node
-└── docker-compose.yml      — read-only fs, limits, log rotation
-```
-
----
-
-## ▸ отладка
-
-в браузере доступна глобальная `window.log` с уровнями (`error`/`warn`/`info`/`debug`),
-ring buffer'ом на 300 последних записей и набором утилит. дефолт — `info`,
-
-доступные команды:
-
-| команда | что делает |
-| --- | --- |
-| `log.getLevel()` | текущий уровень |
-| `log.setLevel("debug")` | включить подробные логи, сохранить в localStorage |
-| `log.setLevel("warn")` | потише — только проблемы |
-| `log.clearLevel()` | сбросить в дефолт (`info`) |
-| `log.dump()` | массив из последних 300 записей (любого уровня) |
-| `log.dumpString()` | то же, но одной строкой — удобно копипастить |
-| `log.clearBuffer()` | обнулить ring buffer (например, перед воспроизведением бага) |
-| `await log.dumpStats()` | `console.table` со статой по всем peer'ам: rtt, jitter, lost/sent |
-| `await log.bugReport()` | json со всем нужным для багрепорта: история + peers + окружение |
-
-быстрый багрепорт одной командой:
-
-```js
-copy(await log.bugReport())
-```
-
-enter → в буфер вносится json с историей, peer stats, версией, url, user-agent
-и id текущей комнаты
-
-если баг воспроизводится — `log.clearBuffer()` и повторить ровно, потом
-`log.bugReport()`. получится чистый лог с момента триггера.
-
-ещё есть `?debug=1` в url — поднимает уровень до `debug` на одну загрузку без
-изменения localStorage. полезно когда не хочется лезть в консоль чтобы что-то поменять.
-
-на сервере — то же самое через env `LOG_LEVEL` (см. секцию деплоя).
-
----
-
-## ▸ roadmap
-
-- [x] голос + чат + screen share
-- [x] reconnect, perfect negotiation, ice restart
-- [x] i18n + режим стримера
-- [x] settings панель
-- [x] прод-хардненинг (security headers, timing-safe auth, mem-leaks)
-- [ ] turn-сервер (для мобильных за симметричным NAT)
-- [ ] полноценное видео (камера)
-- [ ] ссылка-приглашение с `?room=ABCD`
-- [ ] постоянный никнейм в localStorage
+[AGPL-3.0](LICENSE) © 2026 void — open source, copyleft. You're free to use, study, and
+self-host it; network deployments of modified versions must share their changes.
 
 ---
 
 <div align="center">
-<sub>void 2026 · all rights reserved · made with care</sub>
+<br>
+<sub>crafted by <a href="https://t.me/mtbibltww">casheaterr</a></sub>
+<br>
 </div>

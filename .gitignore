@@ -9,6 +9,7 @@ data
 .env.*
 !.env.example
 logs
+temp
 
 # Tauri / Rust build artefacts
 src-tauri/target
