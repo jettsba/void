@@ -119,6 +119,20 @@ fn stop_screen_audio() {
     }
 }
 
+/// ВРЕМЕННАЯ диагностика: render-сессии звука + их принадлежность дереву void.
+/// JS показывает строку тостом, чтобы понять, почему loopback не исключает голоса.
+#[tauri::command]
+fn screen_audio_diag() -> String {
+    #[cfg(windows)]
+    {
+        screen_audio::diagnostics()
+    }
+    #[cfg(not(windows))]
+    {
+        "not windows".to_string()
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -162,7 +176,8 @@ pub fn run() {
             take_pending_deep_link,
             tray_menu_action,
             start_screen_audio,
-            stop_screen_audio
+            stop_screen_audio,
+            screen_audio_diag
         ])
         .setup(|app| {
             // Bundled-web архитектура (Phase 6 фикс, v0.10.48):

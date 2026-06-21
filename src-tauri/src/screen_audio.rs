@@ -35,19 +35,26 @@ use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::Duration;
 
+use std::collections::HashMap;
+
 use tauri::ipc::{Channel, InvokeResponseBody};
 use windows::core::{implement, w, Interface, Ref, Result, PCWSTR};
+use windows::Win32::Foundation::CloseHandle;
 use windows::Win32::Media::Audio::{
-    ActivateAudioInterfaceAsync, IActivateAudioInterfaceAsyncOperation,
+    eMultimedia, eRender, ActivateAudioInterfaceAsync, IActivateAudioInterfaceAsyncOperation,
     IActivateAudioInterfaceCompletionHandler, IActivateAudioInterfaceCompletionHandler_Impl,
-    IAudioCaptureClient, IAudioClient, AUDCLNT_BUFFERFLAGS_SILENT, AUDCLNT_SHAREMODE_SHARED,
+    IAudioCaptureClient, IAudioClient, IAudioSessionControl2, IAudioSessionManager2,
+    IMMDeviceEnumerator, MMDeviceEnumerator, AUDCLNT_BUFFERFLAGS_SILENT, AUDCLNT_SHAREMODE_SHARED,
     AUDCLNT_STREAMFLAGS_LOOPBACK, AUDIOCLIENT_ACTIVATION_PARAMS, AUDIOCLIENT_ACTIVATION_PARAMS_0,
     AUDIOCLIENT_ACTIVATION_TYPE_PROCESS_LOOPBACK, AUDIOCLIENT_PROCESS_LOOPBACK_PARAMS,
     PROCESS_LOOPBACK_MODE_EXCLUDE_TARGET_PROCESS_TREE, WAVEFORMATEX,
 };
 use windows::Win32::System::Com::StructuredStorage::PROPVARIANT;
 use windows::Win32::System::Com::{
-    BLOB, CoInitializeEx, CoUninitialize, COINIT_MULTITHREADED,
+    CoCreateInstance, CoInitializeEx, CoUninitialize, BLOB, CLSCTX_ALL, COINIT_MULTITHREADED,
+};
+use windows::Win32::System::Diagnostics::ToolHelp::{
+    CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS,
 };
 use windows::Win32::System::Threading::GetCurrentProcessId;
 use windows::Win32::System::Variant::VT_BLOB;
@@ -60,6 +67,92 @@ const CHANNELS: u16 = 2;
 const IN_BITS: u16 = 32; // float32 на входе (нативный shared-mode формат)
 const IN_BLOCK_ALIGN: u16 = CHANNELS * IN_BITS / 8; // 8 байт/кадр (2×f32)
 const WAVE_FORMAT_IEEE_FLOAT: u16 = 3;
+
+/// ДИАГНОСТИКА (временная): перечисляет активные render-аудио-сессии и для каждой
+/// показывает имя процесса + лежит ли её PID в дереве процессов void. Цель —
+/// понять, почему loopback с EXCLUDE_TARGET_PROCESS_TREE не исключает голоса:
+/// если сессия WebView2 (msedgewebview2.exe, играет голоса пиров) помечена OUT —
+/// значит она НЕ потомок void → exclude её не ловит, и нужен другой подход.
+pub fn diagnostics() -> String {
+    unsafe {
+        let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
+        let our_pid = GetCurrentProcessId();
+        let tree = crate::proc_tree::collect_process_tree(our_pid).unwrap_or_default();
+        let names = process_names();
+        let mut out = format!("pid={our_pid} tree_size={} | sessions: ", tree.len());
+        match enum_render_session_pids() {
+            Ok(pids) => {
+                if pids.is_empty() {
+                    out.push_str("(none)");
+                }
+                for pid in pids {
+                    let name = names
+                        .get(&pid)
+                        .cloned()
+                        .unwrap_or_else(|| "?".to_string());
+                    let loc = if pid == 0 {
+                        "SYS"
+                    } else if tree.contains(&pid) {
+                        "IN"
+                    } else {
+                        "OUT"
+                    };
+                    out.push_str(&format!("{name}({pid})={loc}  "));
+                }
+            }
+            Err(e) => out.push_str(&format!("ERR {e:?}")),
+        }
+        out
+    }
+}
+
+/// PID → имя exe (ToolHelp32 snapshot).
+unsafe fn process_names() -> HashMap<u32, String> {
+    let mut map = HashMap::new();
+    let Ok(snap) = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) else {
+        return map;
+    };
+    let mut entry = PROCESSENTRY32W::default();
+    entry.dwSize = std::mem::size_of::<PROCESSENTRY32W>() as u32;
+    if Process32FirstW(snap, &mut entry).is_ok() {
+        loop {
+            let end = entry
+                .szExeFile
+                .iter()
+                .position(|&c| c == 0)
+                .unwrap_or(entry.szExeFile.len());
+            let name = String::from_utf16_lossy(&entry.szExeFile[..end]);
+            map.insert(entry.th32ProcessID, name);
+            if Process32NextW(snap, &mut entry).is_err() {
+                break;
+            }
+        }
+    }
+    let _ = CloseHandle(snap);
+    map
+}
+
+/// PID'ы всех render-сессий звука на дефолтном устройстве вывода.
+unsafe fn enum_render_session_pids() -> Result<Vec<u32>> {
+    let device_enum: IMMDeviceEnumerator = CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)?;
+    let device = device_enum.GetDefaultAudioEndpoint(eRender, eMultimedia)?;
+    let session_mgr: IAudioSessionManager2 = device.Activate(CLSCTX_ALL, None)?;
+    let enumerator = session_mgr.GetSessionEnumerator()?;
+    let count = enumerator.GetCount()?;
+    let mut pids = Vec::new();
+    for i in 0..count {
+        let Ok(ctrl) = enumerator.GetSession(i) else {
+            continue;
+        };
+        let Ok(ctrl2) = ctrl.cast::<IAudioSessionControl2>() else {
+            continue;
+        };
+        if let Ok(pid) = ctrl2.GetProcessId() {
+            pids.push(pid);
+        }
+    }
+    Ok(pids)
+}
 
 struct CaptureHandle {
     stop: Arc<AtomicBool>,
