@@ -78,6 +78,13 @@ body {
     transition: opacity 0.3s ease;
 }
 
+/* Выделение текста — инверсия в стиле primary-кнопки (grayscale), вместо
+   дефолтного браузерного синего. Один тон на весь сервис. */
+::selection {
+    background: var(--fg);
+    color: var(--bg-0);
+}
+
 #background,
 #background-stars,
 #background-grain {

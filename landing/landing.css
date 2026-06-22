@@ -95,6 +95,13 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+/* Выделение текста — инверсия в стиле primary-кнопки (grayscale), вместо
+   дефолтного браузерного синего. Один тон на весь сервис (= app base.css). */
+::selection {
+  background: var(--fg);
+  color: var(--bg-0);
+}
+
 /* NB: don't set `scroll-behavior: smooth` here — it fights Lenis (each
    Lenis-driven scrollTo() triggers the browser's own smoothing, producing
    stutter and lag instead of the expected glide). Lenis owns scrolling.

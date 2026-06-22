@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "0.12.14";
+    const APP_VERSION = "0.12.15";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
@@ -180,8 +180,6 @@
             "settings.cat.interface": "интерфейс",
             "settings.cat.hotkeys": "горячие клавиши",
             "settings.cat.app": "приложение",
-            "settings.cat.on": "вкл",
-            "settings.cat.off": "выкл",
 
             "hotkeys.master": "горячие клавиши",
             "hotkeys.master.hint": "общий выключатель всех комбинаций",
@@ -361,8 +359,6 @@
             "settings.cat.interface": "interface",
             "settings.cat.hotkeys": "hotkeys",
             "settings.cat.app": "application",
-            "settings.cat.on": "on",
-            "settings.cat.off": "off",
 
             "hotkeys.master": "hotkeys",
             "hotkeys.master.hint": "master switch for all shortcuts",
@@ -832,8 +828,7 @@
 
                 <button type="button" class="settings-bug-btn" id="settingsBugBtn"
                     aria-haspopup="dialog" aria-controls="bugModal"
-                    data-i18n-attr="title:settings.bug;aria-label:settings.bug"
-                    title="${t("settings.bug")}"
+                    data-i18n-attr="aria-label:settings.bug"
                     aria-label="${t("settings.bug")}">
                     <svg class="settings-bug-icon" viewBox="0 0 24 24" aria-hidden="true">
                         <path d="M5 3v18"/>
@@ -1360,17 +1355,24 @@
             if (el) el.textContent = text || "";
         };
         set("catValueProfile", state.nickname || (window.currentUsername || ""));
+        set("catValueAudio", `in ${Math.round(state.audioInGain * 100)} / out ${Math.round(state.audioOutGain * 100)}`);
         set("catValueInterface", `${state.lang} · ${state.bgTheme} · ${Math.round(state.uiScale * 100)}%`);
-        /* hotkeysEnabled живёт в том же STORAGE_KEY, но переключается из
-           app-settings.js — поэтому читаем СВЕЖЕЕ значение из localStorage,
-           а не из (возможно устаревшего) state. */
+        /* hotkeysEnabled / closeAction / autoStart живут в том же STORAGE_KEY,
+           но переключаются из app-settings.js — поэтому читаем СВЕЖИЕ значения
+           из localStorage, а не из (возможно устаревшего) state. */
         let hkEnabled = state.hotkeysEnabled;
+        let closeAction = state.closeAction;
+        let autoStart = state.autoStart;
         try {
             const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
             if (typeof raw.hotkeysEnabled === "boolean") hkEnabled = raw.hotkeysEnabled;
+            if (raw.closeAction === "close" || raw.closeAction === "minimize") closeAction = raw.closeAction;
+            if (typeof raw.autoStart === "boolean") autoStart = raw.autoStart;
         } catch {}
-        set("catValueHotkeys", hkEnabled ? t("settings.cat.on") : t("settings.cat.off"));
-        set("catValueApp", window.VoidPlatform === "desktop" ? "desktop" : "web");
+        /* Поля английские во всех остальных категориях — держим "on"/"off"
+           без русификации, иначе одно русское слово выбивается из ряда. */
+        set("catValueHotkeys", hkEnabled ? "on" : "off");
+        set("catValueApp", `${closeAction === "close" ? "close" : "tray"} · ${autoStart ? "on" : "off"}`);
     }
 
     /* ===== support modal ===== */
@@ -1384,16 +1386,14 @@
                 <div class="support-coin-row">
                     <button type="button" class="support-coin-addr"
                         data-address="${c.address}"
-                        data-i18n-attr="title:support.copy.title;aria-label:support.copy.title"
-                        title="${t("support.copy.title")}"
+                        data-i18n-attr="aria-label:support.copy.title"
                         aria-label="${t("support.copy.title")}">
                         <span class="support-coin-addr-text">${c.address}</span>
                         <span class="support-coin-copied" data-i18n="support.copied">${t("support.copied")}</span>
                     </button>
                     <button type="button" class="support-coin-qr"
                         data-address="${c.address}" data-coin-id="${c.id}"
-                        data-i18n-attr="title:support.qr.show;aria-label:support.qr.show"
-                        title="${t("support.qr.show")}"
+                        data-i18n-attr="aria-label:support.qr.show"
                         aria-label="${t("support.qr.show")}">
                         <svg viewBox="0 0 24 24" aria-hidden="true">
                             <path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4z"/>
@@ -1414,9 +1414,8 @@
             <div class="support-backdrop" id="supportBackdrop"></div>
             <div class="support-card">
                 <button type="button" class="support-close" id="supportClose"
-                    data-i18n-attr="aria-label:support.qr.close;title:support.qr.close"
-                    aria-label="${t("support.qr.close")}"
-                    title="${t("support.qr.close")}">
+                    data-i18n-attr="aria-label:support.qr.close"
+                    aria-label="${t("support.qr.close")}">
                     <svg viewBox="0 0 24 24" aria-hidden="true">
                         <path d="M6 6l12 12"/>
                         <path d="M18 6L6 18"/>
@@ -1444,9 +1443,8 @@
             <div class="support-qr-backdrop" id="supportQrBackdrop"></div>
             <div class="support-qr-card">
                 <button type="button" class="support-qr-close" id="supportQrClose"
-                    data-i18n-attr="aria-label:support.qr.close;title:support.qr.close"
-                    aria-label="${t("support.qr.close")}"
-                    title="${t("support.qr.close")}">
+                    data-i18n-attr="aria-label:support.qr.close"
+                    aria-label="${t("support.qr.close")}">
                     <svg viewBox="0 0 24 24" aria-hidden="true">
                         <path d="M6 6l12 12"/>
                         <path d="M18 6L6 18"/>
@@ -1561,9 +1559,8 @@
             <div class="bug-backdrop" id="bugBackdrop"></div>
             <div class="bug-card">
                 <button type="button" class="bug-close" id="bugClose"
-                    data-i18n-attr="aria-label:bug.thanks.close;title:bug.thanks.close"
-                    aria-label="${t("bug.thanks.close")}"
-                    title="${t("bug.thanks.close")}">
+                    data-i18n-attr="aria-label:bug.thanks.close"
+                    aria-label="${t("bug.thanks.close")}">
                     <svg viewBox="0 0 24 24" aria-hidden="true">
                         <path d="M6 6l12 12"/>
                         <path d="M18 6L6 18"/>
@@ -1797,11 +1794,13 @@
             const v = Number(micGainEl.value) / 100;
             setAudioInGain(v);
             updateGainLabels();
+            updateCatValues();
         });
         spkGainEl.addEventListener("input", () => {
             const v = Number(spkGainEl.value) / 100;
             setAudioOutGain(v);
             updateGainLabels();
+            updateCatValues();
         });
         attachWheelToSlider(micGainEl);
         attachWheelToSlider(spkGainEl);

@@ -247,9 +247,12 @@
 }
 
 .chat-attach-btn:hover,
-.chat-send:hover {
+.chat-send:hover,
+.chat-attach-btn:focus-visible,
+.chat-send:focus-visible {
     color: var(--fg);
     border-color: var(--fg-2);
+    outline: none;
 }
 
 .chat-send:disabled,

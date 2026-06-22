@@ -182,7 +182,7 @@ function _ct(key, vars) {
 
 function syncChatToggleLabel() {
     if (!chatToggleBtn) return;
-    chatToggleBtn.title = chatOpen ? _ct("header.chat.close") : _ct("header.chat.show");
+    chatToggleBtn.setAttribute("aria-label", chatOpen ? _ct("header.chat.close") : _ct("header.chat.show"));
     chatToggleBtn.setAttribute("aria-expanded", chatOpen ? "true" : "false");
 }
 
@@ -781,7 +781,7 @@ function renderAttachment(msg, isSelf, attachState) {
         const dl = document.createElement("a");
         dl.className = "chat-attach-file-dl";
         dl.textContent = "↓";
-        dl.title = _ct("chat.download");
+        dl.setAttribute("aria-label", _ct("chat.download"));
         dl.download = msg.name || "file";
         if (attachState && attachState.url) dl.href = attachState.url;
 
@@ -935,7 +935,6 @@ function renderLikeBadge(msgId) {
         badge = document.createElement("button");
         badge.type = "button";
         badge.className = "chat-msg-likes";
-        badge.title = _ct("chat.like");
         badge.setAttribute("aria-label", _ct("chat.like"));
         badge.addEventListener("click", (e) => {
             e.stopPropagation();
@@ -1050,7 +1049,6 @@ function showLikePopup(msgId, anchorX, anchorY) {
     const popup = document.createElement("button");
     popup.type = "button";
     popup.className = "chat-like-popup";
-    popup.title = _ct("chat.like");
     popup.setAttribute("aria-label", _ct("chat.like"));
     popup.innerHTML = HEART_SVG;
 
@@ -1167,7 +1165,6 @@ function renderPendingAttachments() {
 
         const name = document.createElement("span");
         name.className = "chat-pending-name";
-        name.title = `${p.file.name} · ${formatSize(p.file.size)}`;
         name.textContent = p.file.name;
         item.appendChild(name);
 
@@ -1175,7 +1172,6 @@ function renderPendingAttachments() {
         rm.type = "button";
         rm.className = "chat-pending-remove";
         rm.textContent = "×";
-        rm.title = _ct("chat.remove");
         rm.setAttribute("aria-label", _ct("chat.remove"));
         rm.addEventListener("click", () => removePendingAttachment(p.id));
         item.appendChild(rm);

@@ -8,10 +8,10 @@
 
 <br>
 
-[![web app](https://img.shields.io/badge/web-app.void--room.space-101012?labelColor=2a2a2f)](https://app.void-room.space)
-[![desktop](https://img.shields.io/badge/desktop-windows%20x64-101012?labelColor=2a2a2f)](https://github.com/jettsba/void/releases/latest)
-[![no build step](https://img.shields.io/badge/build-none-101012?labelColor=2a2a2f)](#built-without-the-usual-stack)
-[![no database](https://img.shields.io/badge/database-none-101012?labelColor=2a2a2f)](#what-void-deliberately-doesnt-have)
+[![void-room.space](https://img.shields.io/badge/site-void--room.space-101012?labelColor=2a2a2f)](https://void-room.space)
+
+[![web app](https://img.shields.io/badge/web-launch-101012?labelColor=2a2a2f)](https://app.void-room.space)
+[![desktop](https://img.shields.io/badge/desktop-download-101012?labelColor=2a2a2f)](https://github.com/jettsba/void/releases/latest)
 
 </div>
 

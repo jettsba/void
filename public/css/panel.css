@@ -346,9 +346,11 @@
     transition: border-color var(--t-fast), color var(--t-fast), background var(--t-fast);
 }
 
-.control-btn:hover {
+.control-btn:hover,
+.control-btn:focus-visible {
     border-color: var(--fg-2);
     color: var(--fg);
+    outline: none;
 }
 
 .control-btn.off {
@@ -416,9 +418,11 @@
     transition: border-color var(--t-fast), color var(--t-fast);
 }
 
-.leave-btn:hover {
+.leave-btn:hover,
+.leave-btn:focus-visible {
     border-color: var(--signal-warn);
     color: var(--signal-warn);
+    outline: none;
 }
 
 .room-info {
@@ -430,13 +434,10 @@
     position: relative;
 }
 
-.room-info:hover {
-    color: var(--fg);
-}
-
+.room-info:hover,
 .room-info:focus-visible {
-    outline: 1px dashed var(--fg-3);
-    outline-offset: 3px;
+    color: var(--fg);
+    outline: none;
 }
 
 .room-code-view {
@@ -504,8 +505,7 @@
 }
 
 .invite-code-row:focus-visible {
-    outline: 1px dashed var(--fg-3);
-    outline-offset: 2px;
+    outline: none;
 }
 
 .invite-code-row-label {
@@ -566,14 +566,11 @@
     opacity: 0.75;
 }
 
-.invite-link-btn:hover {
+.invite-link-btn:hover,
+.invite-link-btn:focus-visible {
     border-color: var(--fg-3);
     color: var(--fg);
-}
-
-.invite-link-btn:focus-visible {
-    outline: 1px dashed var(--fg-3);
-    outline-offset: 2px;
+    outline: none;
 }
 
 /* Фидбэк «скопировано» — общий для обоих action-узлов. Перекрывает контент

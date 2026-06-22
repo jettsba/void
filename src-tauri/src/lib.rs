@@ -35,9 +35,15 @@ use std::sync::Mutex;
 use tauri::{
     image::Image,
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    window::Color,
     AppHandle, Emitter, Listener, LogicalSize, Manager, PhysicalPosition, WebviewUrl,
     WebviewWindowBuilder, WindowEvent,
 };
+
+/// Базовый фон приложения (--bg-0 = #0a0a0b из public/css/base.css). Красим им
+/// окно и слой WebView2 ДО загрузки страницы, иначе на cold-start мелькает
+/// дефолтный белый фон вебвью размером с окно.
+const APP_BG: Color = Color(0x0a, 0x0a, 0x0b, 0xff);
 use tauri_plugin_autostart::{ManagerExt as _, MacosLauncher};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_deep_link::DeepLinkExt;
@@ -518,6 +524,7 @@ fn launch_main_window(app: &AppHandle) {
         .center()
         .resizable(true)
         .decorations(false)
+        .background_color(APP_BG)
         .visible(true)
         .focused(true);
 
@@ -718,6 +725,7 @@ fn launch_updater_window(app: &AppHandle) {
         .inner_size(640.0, 468.0)
         .resizable(false)
         .decorations(false)
+        .background_color(APP_BG)
         .center()
         .visible(true)
         .focused(true)

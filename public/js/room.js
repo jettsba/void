@@ -208,7 +208,7 @@ function tearDownRoomState() {
     updateScreencastButton(false);
     screencastBtn.classList.add("control-btn-stub");
     screencastBtn.setAttribute("aria-disabled", "true");
-    screencastBtn.title = _t("controls.screencast.soon");
+    screencastBtn.setAttribute("aria-label", _t("controls.screencast.soon"));
 
     nicknameMap.clear();
     closeAllConnections();
@@ -463,7 +463,7 @@ function enterRoomUI() {
     setConnectionState("connected");
 
     screencastBtn.classList.remove("control-btn-stub");
-    screencastBtn.title = _t("controls.screencast.share");
+    screencastBtn.setAttribute("aria-label", _t("controls.screencast.share"));
     syncScreencastBtnBlocked();
 
     startConnQualityMonitor();
@@ -473,18 +473,18 @@ function enterRoomUI() {
 
 /* ========= LOCALE / STREAMER REACT =========
    После смены языка перерисовываем те куски UI, чьё содержимое не выражено
-   через data-i18n: динамические надписи коннекта, код комнаты, title кнопки
-   скринкаста, а также текстовое содержимое уже отрисованных watch-кнопок. */
+   через data-i18n: динамические надписи коннекта, код комнаты, aria-label
+   кнопки скринкаста, а также текстовое содержимое отрисованных watch-кнопок. */
 document.addEventListener("void:locale-changed", () => {
     setConnectionState(_lastConnState, _lastConnOpts);
     renderRoomCodeLabel(currentRoomCode);
 
     if (screencastBtn) {
         if (screencastBtn.classList.contains("control-btn-stub")) {
-            screencastBtn.title = _t("controls.screencast.soon");
+            screencastBtn.setAttribute("aria-label", _t("controls.screencast.soon"));
         } else {
             const isOn = screencastBtn.classList.contains("active");
-            screencastBtn.title = isOn ? _t("controls.screencast.stop") : _t("controls.screencast.share");
+            screencastBtn.setAttribute("aria-label", isOn ? _t("controls.screencast.stop") : _t("controls.screencast.share"));
         }
     }
 });

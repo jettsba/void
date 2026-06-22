@@ -30,20 +30,20 @@
          чтобы избежать FOUC между web-mode и desktop-mode (custom titlebar). -->
     <script src="desktop-bootstrap.js?v=3"></script>
 
-    <link rel="stylesheet" href="css/base.css?v=23">
+    <link rel="stylesheet" href="css/base.css?v=24">
     <link rel="stylesheet" href="css/intro.css?v=18">
     <link rel="stylesheet" href="css/app.css?v=18">
-    <link rel="stylesheet" href="css/header.css?v=23">
+    <link rel="stylesheet" href="css/header.css?v=24">
     <link rel="stylesheet" href="css/stage.css?v=24">
-    <link rel="stylesheet" href="css/panel.css?v=23">
+    <link rel="stylesheet" href="css/panel.css?v=24">
     <link rel="stylesheet" href="css/volume-arc.css?v=18">
     <link rel="stylesheet" href="css/ping.css?v=18">
-    <link rel="stylesheet" href="css/chat.css?v=22">
-    <link rel="stylesheet" href="css/chat-attach.css?v=18">
+    <link rel="stylesheet" href="css/chat.css?v=23">
+    <link rel="stylesheet" href="css/chat-attach.css?v=19">
     <link rel="stylesheet" href="css/chat-overlay.css?v=18">
     <link rel="stylesheet" href="css/screencast.css?v=22">
     <link rel="stylesheet" href="css/responsive.css?v=21">
-    <link rel="stylesheet" href="css/settings.css?v=32">
+    <link rel="stylesheet" href="css/settings.css?v=33">
     <link rel="stylesheet" href="css/app-settings.css?v=4">
     <link rel="stylesheet" href="css/titlebar.css?v=14">
     <link rel="stylesheet" href="css/updater-banner.css?v=5">
@@ -118,7 +118,7 @@
             <div class="brand">
                 <button type="button" class="brand-lockup" id="brandSettingsBtn"
                     aria-haspopup="dialog" aria-expanded="false"
-                    data-i18n-attr="aria-label:header.settings;title:header.settings">
+                    data-i18n-attr="aria-label:header.settings">
                     <span class="brand-logo" aria-hidden="true">
                         <span class="logo-eclipse"></span>
                         <svg class="brand-gear" viewBox="0 0 24 24" aria-hidden="true">
@@ -130,7 +130,7 @@
                     <span class="brand-mark">void</span>
                 </button>
             </div>
-            <button type="button" class="chat-toggle" id="chatToggleBtn" title="show chat" aria-pressed="false"
+            <button type="button" class="chat-toggle" id="chatToggleBtn" aria-pressed="false"
                 aria-expanded="false" aria-controls="chatPanel">
                 <span class="chat-toggle-stack" aria-hidden="true">
                     <span class="chat-toggle-pane chat-toggle-pane--idle">
@@ -195,8 +195,8 @@
                     </div>
 
                     <div class="panel-controls" id="controls">
-                        <button type="button" class="control-btn" id="micBtn" title="mute"
-                            data-i18n-attr="title:controls.mute">
+                        <button type="button" class="control-btn" id="micBtn" aria-label="mute"
+                            data-i18n-attr="aria-label:controls.mute">
                             <svg viewBox="0 0 24 24" aria-hidden="true">
                                 <rect x="9" y="3" width="6" height="12" rx="3" />
                                 <path d="M5 11a7 7 0 0 0 14 0" />
@@ -205,8 +205,8 @@
                                 <line class="strike" x1="20" y1="4" x2="4" y2="20" />
                             </svg>
                         </button>
-                        <button type="button" class="control-btn" id="soundBtn" title="deaf"
-                            data-i18n-attr="title:controls.deaf">
+                        <button type="button" class="control-btn" id="soundBtn" aria-label="deaf"
+                            data-i18n-attr="aria-label:controls.deaf">
                             <svg viewBox="0 0 24 24" aria-hidden="true">
                                 <path d="M4 9v6h4l5 4V5L8 9H4z" />
                                 <path class="wave" d="M16 8a5 5 0 0 1 0 8" />
@@ -215,7 +215,7 @@
                             </svg>
                         </button>
                         <button type="button" class="control-btn control-btn-stub" id="screencastBtn"
-                            title="screencast (soon)" data-i18n-attr="title:controls.screencast.soon"
+                            aria-label="screencast (soon)" data-i18n-attr="aria-label:controls.screencast.soon"
                             aria-disabled="true">
                             <span class="sc-btn-icon sc-btn-icon--idle" aria-hidden="true">
                                 <svg viewBox="0 0 24 24">
@@ -254,9 +254,9 @@
 
                 <div class="chat-messages" id="chatMessages" role="log" aria-live="polite"></div>
 
-                <button type="button" class="chat-jump-bottom" id="chatJumpBtn" title="jump to newest"
+                <button type="button" class="chat-jump-bottom" id="chatJumpBtn"
                     aria-label="jump to newest" aria-hidden="true"
-                    data-i18n-attr="title:chat.jump;aria-label:chat.jump">
+                    data-i18n-attr="aria-label:chat.jump">
                     <svg viewBox="0 0 24 24" aria-hidden="true">
                         <path d="M12 17V5" />
                         <path d="M6 12l6 6 6-6" />
@@ -272,9 +272,9 @@
                 <div class="chat-toast" id="chatToast" aria-live="polite"></div>
 
                 <div class="chat-input-row">
-                    <button type="button" class="chat-attach-btn" id="chatAttachBtn" title="attach file"
+                    <button type="button" class="chat-attach-btn" id="chatAttachBtn"
                         aria-label="attach"
-                        data-i18n-attr="title:chat.attach.full;aria-label:chat.attach">
+                        data-i18n-attr="aria-label:chat.attach">
                         <svg viewBox="0 0 24 24" aria-hidden="true">
                             <path
                                 d="M21.44 11.05L12.25 20.24a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66L9.41 17.41a2 2 0 0 1-2.83-2.83l8.49-8.49" />
@@ -283,8 +283,8 @@
                     <textarea id="chatInput" class="chat-input" placeholder="message…"
                         data-i18n-placeholder="chat.placeholder" rows="1" maxlength="2000"
                         autocomplete="off" spellcheck="false"></textarea>
-                    <button type="button" class="chat-send" id="chatSendBtn" title="send" aria-label="send"
-                        data-i18n-attr="title:chat.send;aria-label:chat.send">
+                    <button type="button" class="chat-send" id="chatSendBtn" aria-label="send"
+                        data-i18n-attr="aria-label:chat.send">
                         <svg viewBox="0 0 24 24" aria-hidden="true">
                             <path d="M5 12h14" />
                             <path d="M13 6l6 6-6 6" />
@@ -305,8 +305,8 @@
         <div class="chat-lightbox" id="chatLightbox" aria-hidden="true" role="dialog" aria-label="image preview"
             data-i18n-attr="aria-label:chat.lightbox">
             <img class="chat-lightbox-img" id="chatLightboxImg" alt="" />
-            <button type="button" class="chat-lightbox-close" id="chatLightboxClose" title="close" aria-label="close"
-                data-i18n-attr="title:chat.close;aria-label:chat.close">
+            <button type="button" class="chat-lightbox-close" id="chatLightboxClose" aria-label="close"
+                data-i18n-attr="aria-label:chat.close">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M6 6l12 12" />
                     <path d="M18 6L6 18" />
@@ -325,7 +325,7 @@
             <span class="footer-divider">·</span>
             <div class="room-info hidden" id="roomInfo" role="button" tabindex="0"
                 aria-haspopup="true" aria-expanded="false"
-                title="пригласить" data-i18n-attr="title:invite.button-title">
+                aria-label="пригласить" data-i18n-attr="aria-label:invite.button-title">
                 <span class="room-code-view">
                     <span id="roomCodeText" class="room-code-panel">room #XXXXX</span>
                 </span>
@@ -440,10 +440,10 @@
     </div>
 
     <script defer src="log.js?v=1"></script>
-    <script defer src="settings.js?v=81"></script>
+    <script defer src="settings.js?v=82"></script>
     <script defer src="webrtc.js?v=13"></script>
     <script defer src="socket.js"></script>
-    <script defer src="chat.js?v=2"></script>
+    <script defer src="chat.js?v=3"></script>
     <script defer src="js/config.js?v=2"></script>
     <script defer src="js/state.js?v=4"></script>
     <script defer src="js/toasts.js?v=1"></script>
@@ -454,9 +454,9 @@
     <script defer src="js/participants.js?v=4"></script>
     <script defer src="js/volume-arc.js?v=1"></script>
     <script defer src="js/ping-panel.js?v=2"></script>
-    <script defer src="js/screen-overlay.js?v=3"></script>
+    <script defer src="js/screen-overlay.js?v=4"></script>
     <script defer src="js/intro.js?v=3"></script>
-    <script defer src="js/room.js?v=6"></script>
+    <script defer src="js/room.js?v=7"></script>
     <script defer src="js/app.js?v=14"></script>
     <script defer src="js/desktop/titlebar.js?v=1"></script>
     <script defer src="js/desktop/tray-state.js?v=3"></script>

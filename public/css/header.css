@@ -157,8 +157,10 @@
 /* В режиме комнаты подсветка на hover — клик открывает ping-panel,
    как клик по room-code-panel открывает invite-panel (та же семантика
    "интерактивный элемент в шапке"). */
-.app[data-mode="room"] .conn-state:hover {
+.app[data-mode="room"] .conn-state:hover,
+.app[data-mode="room"] .conn-state:focus-visible {
     color: var(--fg);
+    outline: none;
 }
 
 .conn-dot {

@@ -71,9 +71,11 @@
     pointer-events: auto;
 }
 
-.chat-toggle:hover {
+.chat-toggle:hover,
+.chat-toggle:focus-visible {
     color: var(--fg);
     border-color: var(--fg-2);
+    outline: none;
 }
 
 .chat-toggle.is-open {

@@ -76,9 +76,11 @@
     transition: color var(--t-fast), background var(--t-fast);
 }
 
-.settings-close:hover {
+.settings-close:hover,
+.settings-close:focus-visible {
     color: var(--fg);
     background: rgba(255, 255, 255, 0.06);
+    outline: none;
 }
 
 .settings-close svg {

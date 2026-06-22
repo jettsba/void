@@ -105,7 +105,7 @@ function updateScreencastButton(isOn) {
     screencastBtn.classList.toggle("active", isOn);
     screencastBtn.classList.toggle("sc-btn-blocked", !isOn && !!roomScreencasterId && roomScreencasterId !== clientId);
     if (!screencastBtn.classList.contains("control-btn-stub")) {
-        screencastBtn.title = isOn ? _t("controls.screencast.stop") : _t("controls.screencast.share");
+        screencastBtn.setAttribute("aria-label", isOn ? _t("controls.screencast.stop") : _t("controls.screencast.share"));
     }
 }
 
