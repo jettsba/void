@@ -37,7 +37,9 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 1rem;
+    /* Равный зазор сверху (--panel-gap-input-tail) и снизу — «или» оптически
+       по центру между панелью ввода и кнопкой «создать». */
+    gap: var(--panel-gap-input-tail);
     white-space: nowrap;
 }
 
@@ -283,9 +285,11 @@
         background var(--t-fast);
 }
 
-.btn:hover {
+.btn:hover,
+.btn:focus-visible {
     border-color: var(--fg-2);
     color: var(--fg);
+    outline: none;
 }
 
 .btn:active {
@@ -298,9 +302,11 @@
     border-color: var(--fg);
 }
 
-.btn.primary:hover {
+.btn.primary:hover,
+.btn.primary:focus-visible {
     background: #fff;
     border-color: #fff;
+    outline: none;
 }
 
 .btn.primary:active {
@@ -312,8 +318,10 @@
     color: var(--fg-2);
 }
 
-.btn.ghost:hover {
+.btn.ghost:hover,
+.btn.ghost:focus-visible {
     color: var(--fg);
+    outline: none;
 }
 
 .entry-divider {
@@ -430,7 +438,8 @@
     cursor: pointer;
     transition: color var(--t-fast);
     text-transform: lowercase;
-    font-size: 0.86rem;
+    /* Один размер с #connLabel в футере (= --footer-meta 0.79rem). */
+    font-size: 0.79rem;
     position: relative;
 }
 
@@ -523,6 +532,17 @@
 .invite-code-row:hover .invite-code-row-value,
 .invite-code-row:focus-visible .invite-code-row-value {
     color: var(--fg);
+}
+
+/* Стример-режим: код замаскирован «звёздочками» (как поле пароля). Глиф «*»
+   в шрифте сидит у верхней линии — опускаем его к оптическому центру строки
+   (translateY) и раздаём межбуквенный зазор. margin-right гасит хвостовой
+   letter-spacing после последней звезды, чтобы маска осталась по правому краю. */
+.invite-code-row-value.is-masked {
+    display: inline-block;
+    letter-spacing: 0.32em;
+    margin-right: -0.32em;
+    transform: translateY(0.2em);
 }
 
 /* Кнопка «скопировать ссылку»: на всю ширину попапа, в стиле .btn /

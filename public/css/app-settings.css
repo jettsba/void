@@ -126,7 +126,8 @@
     transition: background var(--t-fast), color var(--t-fast);
 }
 
-.app-modal-close:hover { background: rgba(255, 255, 255, 0.06); color: var(--fg); }
+.app-modal-close:hover,
+.app-modal-close:focus-visible { background: rgba(255, 255, 255, 0.06); color: var(--fg); outline: none; }
 
 .app-modal-close svg {
     width: 0.86rem;
@@ -199,7 +200,8 @@
     transition: background var(--t-fast), color var(--t-fast);
 }
 
-.app-modal-seg:hover { color: var(--fg); }
+.app-modal-seg:hover,
+.app-modal-seg:focus-visible { color: var(--fg); outline: none; }
 
 .app-modal-seg.is-active {
     background: rgba(255, 255, 255, 0.1);
@@ -359,7 +361,8 @@ html:not(.desktop) #settingsAppBtn {
 .app-modal-title { font-weight: 400; letter-spacing: var(--tracking-wide); }
 
 .app-modal-close { border-radius: 2px; }
-.app-modal-close:hover { background: var(--bg-2); }
+.app-modal-close:hover,
+.app-modal-close:focus-visible { background: var(--bg-2); }
 
 /* Воздух по краям. */
 .app-modal-body { padding: 1.71rem; gap: 1.14rem; }
@@ -421,7 +424,8 @@ html:not(.desktop) #settingsAppBtn {
     cursor: pointer;
     transition: border-color var(--t-fast), color var(--t-fast), background var(--t-fast);
 }
-.close-action:hover { border-color: var(--fg-3); color: var(--fg-2); }
+.close-action:hover,
+.close-action:focus-visible { border-color: var(--fg-3); color: var(--fg-2); outline: none; }
 .close-action.is-active { border-color: var(--fg-2); background: var(--bg-2); color: var(--fg); }
 .close-action:active { background: var(--bg-2); }
 .close-action-ic {
@@ -535,6 +539,10 @@ html:not(.desktop) #settingsAppBtn {
     transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
 }
 .hotkey-row:hover .binding-cap { border-color: var(--fg-2); color: var(--fg); }
+/* Таб-фокус на кнопку ребинда = тот же hover: подсветка кэпа + фон строки. */
+.hotkey-binding:focus-visible { outline: none; }
+.hotkey-binding:focus-visible .binding-cap { border-color: var(--fg-2); color: var(--fg); }
+.hotkey-row:has(.hotkey-binding:focus-visible) { background: var(--bg-1); }
 .binding-plus { color: var(--fg-3); font-size: 0.71rem; }
 .binding-empty { color: var(--fg-3); font-size: 0.86rem; padding: 0 0.57rem; }
 .binding-prompt { color: var(--screen); font-size: 0.86rem; padding: 0 0.57rem; letter-spacing: 0.18em; }

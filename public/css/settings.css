@@ -160,8 +160,10 @@
     border-left: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-.settings-seg-btn:hover {
+.settings-seg-btn:hover,
+.settings-seg-btn:focus-visible {
     color: var(--fg);
+    outline: none;
 }
 
 .settings-seg-btn.is-active {
@@ -546,7 +548,8 @@
     transition: color var(--t-fast);
 }
 
-.profile-uid:hover { color: var(--fg-2); }
+.profile-uid:hover,
+.profile-uid:focus-visible { color: var(--fg-2); outline: none; }
 
 .profile-uid-text {
     overflow: hidden;
@@ -823,7 +826,8 @@
     font-size: 0.75rem;
     letter-spacing: var(--tracking);
 }
-.audio-device .settings-dropdown-trigger:hover { background: var(--bg-2); }
+.audio-device .settings-dropdown-trigger:hover,
+.audio-device .settings-dropdown-trigger:focus-visible { background: var(--bg-2); }
 .audio-device .settings-dropdown-current {
     font-size: 0.75rem;
     min-width: 0;
@@ -987,7 +991,8 @@
 }
 
 .vseg-btn + .vseg-btn { border-left: 1px solid var(--fg-4); }
-.vseg-btn:hover { color: var(--fg); }
+.vseg-btn:hover,
+.vseg-btn:focus-visible { color: var(--fg); outline: none; }
 .vseg-btn.is-active { background: var(--fg); color: var(--bg-0); }
 
 /* Фон комнаты — миниатюры */
@@ -1009,7 +1014,8 @@
     transition: border-color var(--t-fast);
 }
 
-.bg-thumb:hover { border-color: var(--fg-3); }
+.bg-thumb:hover,
+.bg-thumb:focus-visible { border-color: var(--fg-3); outline: none; }
 .bg-thumb.is-active { border-color: var(--fg-2); }
 
 .bg-thumb-prev {
@@ -1454,13 +1460,9 @@
     transition: border-color var(--t-fast), background var(--t-fast);
 }
 
-.settings-dropdown-trigger:hover {
-    border-color: rgba(255, 255, 255, 0.18);
-}
-
+.settings-dropdown-trigger:hover,
 .settings-dropdown-trigger:focus-visible {
-    border-color: rgba(255, 255, 255, 0.32);
-    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.18);
 }
 
 .settings-dropdown.is-open .settings-dropdown-trigger {
@@ -2136,11 +2138,9 @@
 /* ========= STREAMER MODE ========= */
 
 /* В стримерском режиме код комнаты в футере не показываем — текст
-   подставляет JS через formatRoomCodeLabel(). Сам класс ничего не прячет,
-   стиль остаётся прежний; здесь только лёгкий визуальный hint. */
-.app[data-streamer="on"] .room-info {
-    color: var(--fg-2);
-}
+   подставляет JS через renderRoomCodeLabel() («invite» вместо кода).
+   Отдельного цвета не задаём: базовый .room-info уже --fg-2, а лишний
+   override этого же значения только перебивал :hover по специфичности. */
 
 /* ========= REPORT-A-BUG BUTTON ========= */
 
@@ -2396,7 +2396,8 @@
     transition: opacity var(--t-fast), transform var(--t-fast);
 }
 
-.bug-submit:hover { opacity: 0.88; }
+.bug-submit:hover,
+.bug-submit:focus-visible { opacity: 0.88; outline: none; }
 .bug-submit:active { transform: scale(0.98); }
 
 .bug-submit:disabled {

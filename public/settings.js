@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "0.12.15";
+    const APP_VERSION = "0.12.16";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
@@ -1356,7 +1356,7 @@
         };
         set("catValueProfile", state.nickname || (window.currentUsername || ""));
         set("catValueAudio", `in ${Math.round(state.audioInGain * 100)} / out ${Math.round(state.audioOutGain * 100)}`);
-        set("catValueInterface", `${state.lang} · ${state.bgTheme} · ${Math.round(state.uiScale * 100)}%`);
+        set("catValueInterface", `${state.lang} · ${state.bgTheme}`);
         /* hotkeysEnabled / closeAction / autoStart живут в том же STORAGE_KEY,
            но переключаются из app-settings.js — поэтому читаем СВЕЖИЕ значения
            из localStorage, а не из (возможно устаревшего) state. */

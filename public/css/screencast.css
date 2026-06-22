@@ -306,6 +306,13 @@
     background: var(--screen);
 }
 
+/* Таб-фокус: тонкое кольцо вокруг трека — как у .vswitch/.settings-switch
+   (у тоггла нет hover-состояния, поэтому единый аккуратный фокус-ринг). */
+.sc-switch input:focus-visible+.sc-switch-track {
+    outline: 1px solid var(--fg-3);
+    outline-offset: 2px;
+}
+
 .sc-next-btn {
     width: 100%;
     padding: 0.86rem;

@@ -119,7 +119,14 @@ function renderRoomCodeLabel(code) {
 
     if (window.VoidSettings?.getStreamer?.()) {
         roomCodeText.textContent = _t("footer.copy.streamer");
-        if (inviteCodeValue) inviteCodeValue.textContent = "—";
+        /* В попапе код маскируем «звёздочками» (как поле пароля). Длину берём
+           по реальному коду, чтобы маска выглядела живой; класс is-masked даёт
+           центрирование по высоте + межбуквенный зазор (см. panel.css). */
+        if (inviteCodeValue) {
+            const len = code != null && String(code).length > 0 ? String(code).length : 5;
+            inviteCodeValue.textContent = "*".repeat(len);
+            inviteCodeValue.classList.add("is-masked");
+        }
         return;
     }
 
@@ -142,7 +149,10 @@ function renderRoomCodeLabel(code) {
     roomCodeText.append(codeSpan);
     if (suffix) roomCodeText.append(document.createTextNode(suffix));
 
-    if (inviteCodeValue) inviteCodeValue.textContent = segment;
+    if (inviteCodeValue) {
+        inviteCodeValue.textContent = segment;
+        inviteCodeValue.classList.remove("is-masked");
+    }
 }
 
 let _lastConnState = "ready";
