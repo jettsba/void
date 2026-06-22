@@ -41,18 +41,16 @@ use tauri::ipc::{Channel, InvokeResponseBody};
 use windows::core::{implement, w, Interface, Ref, Result, PCWSTR};
 use windows::Win32::Foundation::CloseHandle;
 use windows::Win32::Media::Audio::{
-    eMultimedia, eRender, ActivateAudioInterfaceAsync, IActivateAudioInterfaceAsyncOperation,
+    ActivateAudioInterfaceAsync, IActivateAudioInterfaceAsyncOperation,
     IActivateAudioInterfaceCompletionHandler, IActivateAudioInterfaceCompletionHandler_Impl,
-    IAudioCaptureClient, IAudioClient, IAudioSessionControl2, IAudioSessionManager2,
-    IMMDeviceEnumerator, MMDeviceEnumerator, AUDCLNT_BUFFERFLAGS_SILENT, AUDCLNT_SHAREMODE_SHARED,
+    IAudioCaptureClient, IAudioClient, AUDCLNT_BUFFERFLAGS_SILENT, AUDCLNT_SHAREMODE_SHARED,
     AUDCLNT_STREAMFLAGS_LOOPBACK, AUDIOCLIENT_ACTIVATION_PARAMS, AUDIOCLIENT_ACTIVATION_PARAMS_0,
     AUDIOCLIENT_ACTIVATION_TYPE_PROCESS_LOOPBACK, AUDIOCLIENT_PROCESS_LOOPBACK_PARAMS,
-    PROCESS_LOOPBACK_MODE, PROCESS_LOOPBACK_MODE_EXCLUDE_TARGET_PROCESS_TREE,
-    PROCESS_LOOPBACK_MODE_INCLUDE_TARGET_PROCESS_TREE, WAVEFORMATEX,
+    PROCESS_LOOPBACK_MODE, PROCESS_LOOPBACK_MODE_EXCLUDE_TARGET_PROCESS_TREE, WAVEFORMATEX,
 };
 use windows::Win32::System::Com::StructuredStorage::PROPVARIANT;
 use windows::Win32::System::Com::{
-    CoCreateInstance, CoInitializeEx, CoUninitialize, BLOB, CLSCTX_ALL, COINIT_MULTITHREADED,
+    CoInitializeEx, CoUninitialize, BLOB, COINIT_MULTITHREADED,
 };
 use windows::Win32::System::Diagnostics::ToolHelp::{
     CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS,
@@ -69,71 +67,8 @@ const IN_BITS: u16 = 32; // float32 на входе (нативный shared-mod
 const IN_BLOCK_ALIGN: u16 = CHANNELS * IN_BITS / 8; // 8 байт/кадр (2×f32)
 const WAVE_FORMAT_IEEE_FLOAT: u16 = 3;
 
-/// ДИАГНОСТИКА (временная): перечисляет активные render-аудио-сессии и для каждой
-/// показывает имя процесса + лежит ли её PID в дереве процессов void. Цель —
-/// понять, почему loopback с EXCLUDE_TARGET_PROCESS_TREE не исключает голоса:
-/// если сессия WebView2 (msedgewebview2.exe, играет голоса пиров) помечена OUT —
-/// значит она НЕ потомок void → exclude её не ловит, и нужен другой подход.
-pub fn diagnostics() -> String {
-    // COM-работа (особенно async-активация capture_peak) — на отдельном MTA-потоке,
-    // как и реальный захват; на STA-потоке команды completion-handler не доедет.
-    let (tx, rx) = mpsc::channel();
-    std::thread::spawn(move || {
-        let s = unsafe { diagnostics_inner() };
-        let _ = tx.send(s);
-    });
-    rx.recv_timeout(Duration::from_secs(12))
-        .unwrap_or_else(|_| "diag: timeout".to_string())
-}
-
-unsafe fn diagnostics_inner() -> String {
-    let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
-    let our_pid = GetCurrentProcessId();
-    let (parents, names) = proc_table();
-    let tree = tree_of(our_pid, &parents);
-
-    // Находим процесс webview, который рендерит звук void (голоса пиров):
-    // render-сессия, чей процесс в нашем ToolHelp-дереве и зовётся msedgewebview2.
-    let sessions = enum_render_session_pids().unwrap_or_default();
-    let void_audio = sessions.iter().copied().find(|p| {
-        *p != 0
-            && tree.contains(p)
-            && names
-                .get(p)
-                .map(|n| n.to_lowercase().contains("msedgewebview2"))
-                .unwrap_or(false)
-    });
-    // «Корень» webview — поднимаемся по родителям до прямого потомка void-desktop.
-    let webview_root = void_audio.map(|p| ancestor_under(p, our_pid, &parents));
-
-    let fmt = |r: Result<(f32, usize)>| match r {
-        Ok((peak, _)) => format!("{peak:.4}"),
-        Err(e) => format!("ERR{e:?}"),
-    };
-    let exc = PROCESS_LOOPBACK_MODE_EXCLUDE_TARGET_PROCESS_TREE;
-    let inc = PROCESS_LOOPBACK_MODE_INCLUDE_TARGET_PROCESS_TREE;
-
-    // КАНДИДАТЫ исключения. При говорящем друге и тишине-кроме-голосов рабочий
-    // таргет даст EXC≈0 (голоса ушли). Текущий EXC(void) — заведомо broken (high).
-    let mut out = format!("EXC(void)={}", fmt(capture_peak(our_pid, exc, 1000)));
-    match void_audio {
-        Some(p) => out.push_str(&format!(" EXC(wvAudio:{p})={}", fmt(capture_peak(p, exc, 1000)))),
-        None => out.push_str(" EXC(wvAudio:none)"),
-    }
-    match webview_root {
-        Some(p) => out.push_str(&format!(" EXC(wvRoot:{p})={}", fmt(capture_peak(p, exc, 1000)))),
-        None => out.push_str(" EXC(wvRoot:none)"),
-    }
-    out.push_str(&format!(" INC(void)={}", fmt(capture_peak(our_pid, inc, 1000))));
-    out.push_str(&format!(" | tree={}", tree.len()));
-
-    CoUninitialize();
-    out
-}
-
 /// Активирует process-loopback IAudioClient в заданном режиме (INCLUDE/EXCLUDE
-/// дерева target-процесса). Общий путь для реального захвата и для замера —
-/// чтобы диагностика тестировала ровно ту же активацию.
+/// дерева target-процесса).
 unsafe fn activate_loopback_client(pid: u32, mode: PROCESS_LOOPBACK_MODE) -> Result<IAudioClient> {
     let mut params = AUDIOCLIENT_ACTIVATION_PARAMS {
         ActivationType: AUDIOCLIENT_ACTIVATION_TYPE_PROCESS_LOOPBACK,
@@ -180,60 +115,6 @@ unsafe fn activate_loopback_client(pid: u32, mode: PROCESS_LOOPBACK_MODE) -> Res
     audio_unknown
         .ok_or_else(windows::core::Error::from_win32)?
         .cast()
-}
-
-/// Захватывает ~`ms` мс в заданном loopback-режиме и возвращает (пик|амплитуды|, кадров).
-unsafe fn capture_peak(pid: u32, mode: PROCESS_LOOPBACK_MODE, ms: u64) -> Result<(f32, usize)> {
-    let client = activate_loopback_client(pid, mode)?;
-    let format = WAVEFORMATEX {
-        wFormatTag: WAVE_FORMAT_IEEE_FLOAT,
-        nChannels: CHANNELS,
-        nSamplesPerSec: SAMPLE_RATE,
-        nAvgBytesPerSec: SAMPLE_RATE * IN_BLOCK_ALIGN as u32,
-        nBlockAlign: IN_BLOCK_ALIGN,
-        wBitsPerSample: IN_BITS,
-        cbSize: 0,
-    };
-    client.Initialize(
-        AUDCLNT_SHAREMODE_SHARED,
-        AUDCLNT_STREAMFLAGS_LOOPBACK,
-        2_000_000,
-        0,
-        &format,
-        None,
-    )?;
-    let capture: IAudioCaptureClient = client.GetService()?;
-    client.Start()?;
-    let mut peak = 0f32;
-    let mut frames_total = 0usize;
-    let start = std::time::Instant::now();
-    while start.elapsed().as_millis() < ms as u128 {
-        loop {
-            let packet = capture.GetNextPacketSize()?;
-            if packet == 0 {
-                break;
-            }
-            let mut data: *mut u8 = std::ptr::null_mut();
-            let mut num_frames: u32 = 0;
-            let mut flags: u32 = 0;
-            capture.GetBuffer(&mut data, &mut num_frames, &mut flags, None, None)?;
-            if (flags & AUDCLNT_BUFFERFLAGS_SILENT.0 as u32) == 0 && !data.is_null() {
-                let n = num_frames as usize * CHANNELS as usize;
-                let src = std::slice::from_raw_parts(data as *const f32, n);
-                for &s in src {
-                    let a = s.abs();
-                    if a > peak {
-                        peak = a;
-                    }
-                }
-            }
-            frames_total += num_frames as usize;
-            capture.ReleaseBuffer(num_frames)?;
-        }
-        std::thread::sleep(Duration::from_millis(8));
-    }
-    let _ = client.Stop();
-    Ok((peak, frames_total))
 }
 
 /// ToolHelp32 snapshot → (pid→parent_pid, pid→exe_name).
@@ -296,26 +177,41 @@ fn ancestor_under(mut pid: u32, root: u32, parents: &HashMap<u32, u32>) -> u32 {
     pid
 }
 
-/// PID'ы всех render-сессий звука на дефолтном устройстве вывода.
-unsafe fn enum_render_session_pids() -> Result<Vec<u32>> {
-    let device_enum: IMMDeviceEnumerator = CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)?;
-    let device = device_enum.GetDefaultAudioEndpoint(eRender, eMultimedia)?;
-    let session_mgr: IAudioSessionManager2 = device.Activate(CLSCTX_ALL, None)?;
-    let enumerator = session_mgr.GetSessionEnumerator()?;
-    let count = enumerator.GetCount()?;
-    let mut pids = Vec::new();
-    for i in 0..count {
-        let Ok(ctrl) = enumerator.GetSession(i) else {
-            continue;
-        };
-        let Ok(ctrl2) = ctrl.cast::<IAudioSessionControl2>() else {
-            continue;
-        };
-        if let Ok(pid) = ctrl2.GetProcessId() {
-            pids.push(pid);
-        }
+/// PID «корня» webview-дерева — `msedgewebview2.exe`, прямой потомок
+/// void-desktop. Его дерево рендерит ВЕСЬ звук void (голоса пиров), и именно его
+/// надо исключать из loopback. EXCLUDE самого void-desktop НЕ работает: loopback-
+/// API не считает webview его потомком (диагностика: INC(void)=0, EXC(void) ловит
+/// голоса, EXC(webview-root)=0). Находим без аудио-сессии — по любому webview-
+/// процессу в дереве (gpu/renderer присутствуют всегда), поднимаясь к корню.
+unsafe fn find_webview_root(our_pid: u32) -> Option<u32> {
+    let (parents, names) = proc_table();
+    let is_wv = |p: u32| {
+        names
+            .get(&p)
+            .map(|n| n.to_lowercase().contains("msedgewebview2"))
+            .unwrap_or(false)
+    };
+    let tree = tree_of(our_pid, &parents);
+
+    // Предпочтительно: «глубокий» webview-процесс (его родитель ТОЖЕ webview —
+    // renderer/gpu/utility, гарантированно под главным webview-деревом, а НЕ
+    // crashpad-handler-лист, висящий прямо под void). От него поднимаемся к корню —
+    // тот корень и есть дерево, рендерящее аудио (проверено: EXC(этого корня)=0).
+    if let Some(seed) = tree
+        .iter()
+        .copied()
+        .find(|&p| p != our_pid && is_wv(p) && is_wv(*parents.get(&p).unwrap_or(&0)))
+    {
+        return Some(ancestor_under(seed, our_pid, &parents));
     }
-    Ok(pids)
+
+    // Fallback: прямой webview-потомок void с наибольшим числом потомков (браузер
+    // спавнит renderer/gpu/utility; crashpad — лист с нулём потомков).
+    parents
+        .iter()
+        .filter(|(pid, parent)| **parent == our_pid && is_wv(**pid))
+        .map(|(pid, _)| *pid)
+        .max_by_key(|&c| tree_of(c, &parents).len())
 }
 
 struct CaptureHandle {
@@ -434,10 +330,13 @@ unsafe fn run_session(
     channel: &Channel<InvokeResponseBody>,
     ready: &mut Option<mpsc::Sender<std::result::Result<(), String>>>,
 ) -> Result<()> {
-    // Активация process-loopback с исключением нашего дерева процессов (общий
-    // путь с диагностикой — activate_loopback_client).
+    // Исключаем из loopback дерево WEBVIEW (оно рендерит голоса пиров), а НЕ
+    // void-desktop: loopback-API не видит webview потомком void, поэтому
+    // EXCLUDE(void) голоса не убирает (подтверждено замером EXC(void) ловит
+    // голоса, EXC(webview-root)=0). Fallback на pid — если webview не нашёлся.
+    let target = find_webview_root(pid).unwrap_or(pid);
     let audio_client =
-        activate_loopback_client(pid, PROCESS_LOOPBACK_MODE_EXCLUDE_TARGET_PROCESS_TREE)?;
+        activate_loopback_client(target, PROCESS_LOOPBACK_MODE_EXCLUDE_TARGET_PROCESS_TREE)?;
     if stop.load(Ordering::SeqCst) {
         return Ok(());
     }

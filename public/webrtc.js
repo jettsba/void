@@ -1849,17 +1849,6 @@ async function startScreenShare(height = 1080, fps = 30, captureAudio = false) {
             log.warn("rtc", "native screen audio capture failed", { err: err?.message || String(err) });
             stopNativeScreenAudio();
         }
-        /* ВРЕМЕННАЯ ДИАГНОСТИКА (убрать после фикса утечки голосов): показываем
-           render-сессии звука + кто в дереве процессов void. Если сессия
-           msedgewebview2.exe (голоса пиров) помечена OUT — значит loopback
-           EXCLUDE её не ловит. Тост живёт 25с — заскриншоть его. */
-        try {
-            const diag = await window.__TAURI__?.core?.invoke?.("screen_audio_diag");
-            if (diag) {
-                console.log("[screen_audio_diag]", diag);
-                window.VoidToast?.showToast("DIAG: " + diag, { priority: "warn", duration: 25000 });
-            }
-        } catch (_) {}
     }
     const videoTrack = screenStream.getVideoTracks()[0];
     const audioTrack = screenStream.getAudioTracks()[0];
