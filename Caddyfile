@@ -88,7 +88,23 @@ void-room.space {
     @egg path /the-void-egg /en/the-void-egg
     header @egg X-Robots-Tag "noindex, nofollow, noarchive, nosnippet"
 
-    reverse_proxy localhost:3000
+    # ---- Desktop-артефакты (зеркало раздачи) --------------------------------
+    # GitHub в РФ нестабилен → инсталлер и авто-апдейты раздаём со своего
+    # домена. CI на каждом релизе scp'ит сюда latest.json + *.exe (перезаписью,
+    # т.е. всегда одна, последняя версия). Апдейтер (endpoint #1 в tauri.conf)
+    # и кнопки лендинга «скачать» ходят именно сюда. handle_path срезает /dl →
+    # файл /dl/latest.json отдаётся из /srv/void-dl/latest.json.
+    # Файлы версионно-неизменны по имени (void_setup.exe), а содержимое меняется
+    # → НЕ кэшируем (иначе юзер получит старый бинарь): no-store на /dl/*.
+    handle_path /dl/* {
+        root * /srv/void-dl
+        header Cache-Control "no-store"
+        file_server
+    }
+
+    handle {
+        reverse_proxy localhost:3000
+    }
 }
 
 # ---- Приложение (поддомен app) -----------------------------------------------

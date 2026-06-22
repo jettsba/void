@@ -121,14 +121,13 @@ jobs:
     # (см. шаг кэша) делает сборки инкрементальными и быстрыми.
     timeout-minutes: 90
     permissions:
-      contents: write  # default token (для самого release не используется — он идёт в публичный репо по PAT)
+      contents: write  # релиз идёт в ЭТОТ же репо → хватает встроенного GITHUB_TOKEN
     env:
-      # Публичный репо ТОЛЬКО под бинарники desktop. Основной репо приватный —
-      # его release-URL отдают 404 анонимам, а апдейтер на машинах юзеров и
-      # кнопки скачивания на лендинге ходят БЕЗ авторизации. Поэтому exe+sig+
-      # latest.json публикуем сюда. Source приватного репо в этот репо не
-      # попадает (тут только бинарники), исходники остаются закрытыми.
-      RELEASES_REPO: jettsba/void-desktop
+      # Основной репо теперь публичный → отдельный релизный репо больше не нужен,
+      # релизы идут сюда же. Анонимный доступ к release-URL работает (нужен
+      # апдейтеру и кнопкам лендинга без авторизации). Бинарники к тому же
+      # дублируются на свой домен (/dl) — см. шаг «Upload artifacts to VPS».
+      RELEASES_REPO: jettsba/void
 
     steps:
       - uses: actions/checkout@v4
@@ -145,7 +144,7 @@ jobs:
         id: check
         shell: pwsh
         env:
-          GH_TOKEN: ${{ secrets.RELEASES_REPO_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # gh release view для несуществующего тега возвращает exit 1 и
           # пишет в stderr — иначе PowerShell в GH Actions считает шаг
@@ -292,7 +291,7 @@ jobs:
         if: steps.check.outputs.exists == 'false'
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.RELEASES_REPO_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release create "${{ steps.ver.outputs.tag }}" \
             --repo "${{ env.RELEASES_REPO }}" \
@@ -305,3 +304,41 @@ jobs:
             "src-tauri/target/release/bundle/nsis/void_setup.exe.sig" \
             "src-tauri/target/release/void_portable.exe" \
             "latest.json"
+
+      # Зеркало раздачи: дублируем артефакты на свой домен (void-room.space/dl),
+      # т.к. GitHub в РФ нестабилен. Перезаписью → на сервере всегда одна,
+      # последняя версия. Манифест для зеркала генерим заново с url, указывающим
+      # на /dl (а не на GitHub). Переиспользуем те же deploy-секреты, что и web —
+      # ничего нового, и переезд на новый сервер = смена DEPLOY_HOST + DNS.
+      - name: Upload artifacts to VPS mirror
+        if: steps.check.outputs.exists == 'false'
+        shell: bash
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+          # Манифест для зеркала: url → void-room.space/dl (не GitHub).
+          MANIFEST_URL="https://void-room.space/dl/void_setup.exe" \
+            MANIFEST_OUT="latest.vps.json" \
+            node scripts/build-manifest.mjs
+
+          SSH="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new"
+          SCP="scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new"
+
+          $SSH "$DEPLOY_USER@$DEPLOY_HOST" 'mkdir -p /srv/void-dl'
+          $SCP \
+            "installer/src-tauri/target/release/void_installer.exe" \
+            "src-tauri/target/release/void_portable.exe" \
+            "src-tauri/target/release/bundle/nsis/void_setup.exe" \
+            "src-tauri/target/release/bundle/nsis/void_setup.exe.sig" \
+            "$DEPLOY_USER@$DEPLOY_HOST:/srv/void-dl/"
+          $SCP "latest.vps.json" "$DEPLOY_USER@$DEPLOY_HOST:/srv/void-dl/latest.json"
+          # Caddy (юзер caddy) должен читать файлы и обходить каталог.
+          $SSH "$DEPLOY_USER@$DEPLOY_HOST" 'chmod -R a+rX /srv/void-dl'

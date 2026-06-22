@@ -4,12 +4,12 @@
 
 **a phone call for the internet — no accounts, no history, peer-to-peer.**
 
-<sub>[void-room.space](https://void-room.space) · [try the web app](https://app.void-room.space) · [download for windows](https://github.com/jettsba/void-desktop/releases/latest)</sub>
+<sub>[void-room.space](https://void-room.space) · [try the web app](https://app.void-room.space) · [download for windows](https://github.com/jettsba/void/releases/latest)</sub>
 
 <br>
 
 [![web app](https://img.shields.io/badge/web-app.void--room.space-101012?labelColor=2a2a2f)](https://app.void-room.space)
-[![desktop](https://img.shields.io/badge/desktop-windows%20x64-101012?labelColor=2a2a2f)](https://github.com/jettsba/void-desktop/releases/latest)
+[![desktop](https://img.shields.io/badge/desktop-windows%20x64-101012?labelColor=2a2a2f)](https://github.com/jettsba/void/releases/latest)
 [![no build step](https://img.shields.io/badge/build-none-101012?labelColor=2a2a2f)](#built-without-the-usual-stack)
 [![no database](https://img.shields.io/badge/database-none-101012?labelColor=2a2a2f)](#what-void-deliberately-doesnt-have)
 
@@ -59,7 +59,7 @@ to not have the data in the first place.
 | | |
 |---|---|
 | **Web** — works in any modern browser, nothing to install | **[app.void-room.space](https://app.void-room.space)** |
-| **Windows desktop** — native app: tray, global hotkeys, auto-update | **[download the latest release](https://github.com/jettsba/void-desktop/releases/latest)** |
+| **Windows desktop** — native app: tray, global hotkeys, auto-update | **[download the latest release](https://github.com/jettsba/void/releases/latest)** |
 
 The web app and the desktop app are the **same codebase** — the desktop is the web client
 running natively in a Tauri shell, with native Windows touches layered on top.

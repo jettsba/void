@@ -730,8 +730,20 @@ if (__voidEntrance) { try { window.scrollTo(0, 0); } catch (_) {} }
 (function initDownload() {
     function triggerDownload(url) {
         if (!url) return;
-        // download-атрибут cross-origin игнорится, но github отдаёт ассет с
-        // Content-Disposition: attachment — загрузка стартует, со страницы не уводит.
+        // Клик-счётчик: шлём намерение скачать на свой бэкенд (см. lib/dl-beacon.js).
+        // GitHub-счётчик отвалился — загрузки переехали на свой домен. Fire-and-forget.
+        try {
+            const asset = url.includes('void_installer') ? 'installer'
+                        : url.includes('void_portable') ? 'portable' : null;
+            if (asset && navigator.sendBeacon) {
+                navigator.sendBeacon(
+                    '/api/dl-hit',
+                    new Blob([JSON.stringify({ asset })], { type: 'application/json' })
+                );
+            }
+        } catch (_) {}
+        // Ассеты раздаются с нашего же домена (void-room.space/dl) → download-
+        // атрибут same-origin honored, файл качается, со страницы не уводит.
         const a = document.createElement('a');
         a.href = url;
         a.rel = 'noopener';

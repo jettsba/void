@@ -69,7 +69,7 @@ offer/answer/ICE) и раздачей статики. Две поверхнос�
 | reverse proxy | Caddy (авто-HTTPS от Let's Encrypt) |
 | TURN-relay | coturn 4.6-alpine, опциональный compose-сервис (`--profile turn`), HMAC-credentials |
 | deploy (web) | Docker + docker-compose; CI `.github/workflows/deploy.yml` |
-| deploy (desktop) | GitHub Actions → GitHub Releases (`jettsba/void-desktop`), подпись апдейтов ed25519 |
+| deploy (desktop) | GitHub Actions → GitHub Releases (`jettsba/void`) + зеркало на `void-room.space/dl` (scp на VPS), подпись апдейтов ed25519 |
 | persistence | один JSON-файл `data/stats.json` — только анонимные метрики, никаких пользовательских данных |
 
 Рантайм-зависимости (server): `express`, `ws`, `nodemailer` (SMTP-багрепорты).
@@ -273,8 +273,11 @@ TTL ~1ч. coturn валидирует тем же `--static-auth-secret`. Баз
 - `npm run tauri:build` → NSIS (`void_setup.exe`) + portable (через `rename-bundles.mjs`).
   CI дополнительно собирает кастомный `void_installer.exe` (installer-крейт вшивает
   `void_setup.exe`) и `void-uninstaller.exe`.
-- Релиз уходит в GitHub Releases репо `jettsba/void-desktop`. `latest.json` (генерит
-  `build-manifest.mjs`) обслуживает `tauri-plugin-updater`.
+- Релиз уходит в GitHub Releases основного репо `jettsba/void` И дублируется на свой
+  домен `void-room.space/dl` (scp на VPS, перезаписью = всегда последняя версия) —
+  GitHub в РФ нестабилен. `build-manifest.mjs` генерит `latest.json` в двух вариантах
+  (url → GitHub и url → /dl). Апдейтер (`tauri-plugin-updater`) ходит по endpoints из
+  `tauri.conf.json`: сперва `/dl`, GitHub как fallback.
 - Сборка десктопа **3-стадийная**: uninstaller → main app → installer. Требует заранее
   собранный `src-tauri/bundled/void-uninstaller.exe` (его кладёт CI).
 - У апдейтера два режима: режим A (silent на старте, до главного окна, с окном прогресса;

@@ -21,7 +21,7 @@ import {
     getClientIp,
 } from "./lib/security.js";
 import { mountAdminStats } from "./lib/admin-stats.js";
-import { startDesktopDownloadsPolling } from "./lib/desktop-downloads.js";
+import { mountDownloadBeaconEndpoint } from "./lib/dl-beacon.js";
 import { mountBugReport } from "./lib/bug-report.js";
 import { mountTurnEndpoint } from "./lib/turn.js";
 import { mountLeaveBeaconEndpoint } from "./lib/leave-beacon.js";
@@ -247,6 +247,10 @@ mountTurnEndpoint(app);
    это `{code, userId}`, ничего больше не ждём. */
 mountLeaveBeaconEndpoint(app, express.json({ limit: "256b" }));
 
+/* /api/dl-hit — клик-счётчик скачиваний desktop с зеркала /dl (загрузки
+   переехали на свой домен, GitHub в РФ нестабилен). 256b — body это {asset}. */
+mountDownloadBeaconEndpoint(app, express.json({ limit: "256b" }));
+
 /* Кастомный 404. Лендинг получает стилизованную страницу в тоне сайта
    (landing/404.html для RU, landing/en/404.html для EN-путей). App-сабдомен
    обычно SPA — все маршруты сводятся к /, поэтому отдаём минимум.
@@ -269,10 +273,6 @@ const server = http.createServer(app);
 server.listen(PORT, HOST, () => {
     log.info("boot", "server running", { host: HOST, port: PORT });
 });
-
-/* Фоновый опрос GitHub Releases — счётчик загрузок desktop-приложения для
-   /adminstats. Первый fetch сразу, дальше раз в 30 мин (см. desktop-downloads.js). */
-startDesktopDownloadsPolling();
 
 /* ========= WEBSOCKET ========= */
 

@@ -57,12 +57,16 @@ const preferred =
 console.log("✓ using:", path.relative(process.cwd(), preferred));
 const signature = fs.readFileSync(preferred, "utf8").trim();
 
-// URL'ы указывают на GitHub Release artifacts в ПУБЛИЧНОМ репо-обёртке
-// (основной репо приватный → его release-URL отдают 404 анонимам, а апдейтер
-// на машинах юзеров ходит без авторизации). RELEASES_REPO задаётся в workflow.
+// URL инсталлера в манифесте. По умолчанию — GitHub Release основного (теперь
+// публичного) репо. Но генерим манифест ДВАЖДЫ: для GitHub (этот дефолт) и для
+// зеркала на своём домене (MANIFEST_URL=https://void-room.space/dl/void_setup.exe),
+// т.к. GitHub в РФ нестабилен. Какой источник ответит апдейтеру первым (endpoints
+// в tauri.conf), из того же `url` он и качает. MANIFEST_OUT — путь вывода.
 // `releases/latest/download/...` GitHub автоматом редиректит на latest release.
-const repo = process.env.RELEASES_REPO || "jettsba/void-desktop";
-const releaseUrl = `https://github.com/${repo}/releases/latest/download/void_setup.exe`;
+const repo = process.env.RELEASES_REPO || "jettsba/void";
+const releaseUrl =
+    process.env.MANIFEST_URL ||
+    `https://github.com/${repo}/releases/latest/download/void_setup.exe`;
 
 const manifest = {
     version,
@@ -76,7 +80,7 @@ const manifest = {
     },
 };
 
-const outPath = path.resolve("latest.json");
+const outPath = path.resolve(process.env.MANIFEST_OUT || "latest.json");
 fs.writeFileSync(outPath, JSON.stringify(manifest, null, 2));
 console.log("✓ manifest →", path.relative(process.cwd(), outPath));
 console.log("  version:  ", version);
