@@ -169,6 +169,8 @@ function addParticipant(userId, nickname) {
     participantsContainer.appendChild(participant);
     participantElements.set(userId, participant);
 
+    applySelfCenteringOrder();
+
     requestAnimationFrame(() => {
         participant.classList.add("pop-in");
         updateInviteHint();
@@ -210,9 +212,37 @@ function removeParticipant(userId) {
 
     _onAnimationEndOrFallback(el, () => {
         el.remove();
+        applySelfCenteringOrder();
         animateLayoutFlip(siblings, firstRects);
         updateInviteHint();
     });
+}
+
+/**
+ * «Свой» блоб тяготеет к центру ряда. При нечётном числе участников он ровно
+ * посередине; при чётном — одно из двух центральных мест (не с краю). До двух
+ * участников порядок не трогаем — там обе позиции и так у центральной линии
+ * («оставляем как есть» для пары).
+ *
+ * Реализовано через flex `order`. DOM-порядок (= порядок входа) сохраняется,
+ * поэтому раскладка детерминирована и не «прыгает» при повторных пересчётах:
+ * первые floor((n-1)/2) «чужих» уходят влево, остальные вправо, свой — между.
+ */
+function applySelfCenteringOrder() {
+    if (!participantsContainer) return;
+    const els = [...participantsContainer.querySelectorAll(".participant:not(.pop-out)")];
+    const n = els.length;
+    const self = els.find(el => el.classList.contains("self"));
+
+    if (n < 3 || !self) {
+        els.forEach(el => { el.style.order = ""; });
+        return;
+    }
+
+    const others = els.filter(el => el !== self);
+    const before = Math.floor((n - 1) / 2);
+    const ordered = [...others.slice(0, before), self, ...others.slice(before)];
+    ordered.forEach((el, i) => { el.style.order = String(i); });
 }
 
 /**

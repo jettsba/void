@@ -80,6 +80,7 @@ let _hoverX = -1;
 let _hoverY = -1;
 let _gridMoveHandler = null;
 let _gridLeaveHandler = null;
+let _gridStageRO = null;
 
 /* ===== utility: smooth radial fill ===== */
 
@@ -342,6 +343,25 @@ function _rebuildGridDots() {
     }
 }
 
+/* Центр сетки = центр `.users-area` (блоба). Он съезжает не только при resize
+   окна (это ловит sizeCanvas→resizeGrid), но и при ЛЮБОМ изменении геометрии
+   стейджа: открытие/закрытие чата (padding-right у .stage), позднее применение
+   --ui-scale из настроек, загрузка шрифтов, смена режима. Чтобы сетка держалась
+   под блобом пиксель-в-пиксель в любом состоянии — наблюдаем .stage одним
+   ResizeObserver'ом и пересобираем точки на каждое его изменение. Раньше сетка
+   собиралась один раз на init и устаревала → блоб уезжал на пару px. */
+function recenterGrid() {
+    if (_theme === "grid") _rebuildGridDots();
+}
+
+function _observeStageForGrid() {
+    if (_gridStageRO || typeof ResizeObserver === "undefined") return;
+    const stage = document.querySelector(".stage");
+    if (!stage) return;
+    _gridStageRO = new ResizeObserver(() => recenterGrid());
+    _gridStageRO.observe(stage);
+}
+
 function setupGrid() {
     /* Звёзд тут нет — гасим star-canvas. */
     _stars = [];
@@ -349,6 +369,7 @@ function setupGrid() {
         _starsCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
     }
     _rebuildGridDots();
+    _observeStageForGrid();
 
     /* Hover-handler ставим только пока активна эта тема. mousemove на window
        летит независимо от того, что под курсором (canvas → pointer-events:none,
@@ -379,6 +400,10 @@ function teardownGrid() {
         window.removeEventListener("blur", _gridLeaveHandler);
         _gridMoveHandler = null;
         _gridLeaveHandler = null;
+    }
+    if (_gridStageRO) {
+        _gridStageRO.disconnect();
+        _gridStageRO = null;
     }
     _hoverX = -1;
     _hoverY = -1;
