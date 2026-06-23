@@ -135,3 +135,16 @@ html.desktop .settings-panel {
 html.desktop .settings-hint {
     top: calc(5rem + var(--titlebar-h));
 }
+
+/* Close-кнопки полноэкранных оверлеев (картинка из чата + демка). Сами оверлеи
+   z-index:90 < titlebar z-index:200 → крестик в правом-верхнем углу попадает ПОД
+   titlebar и его кнопки. Сдвигаем close вниз на высоту титлбара.
+   Для демки — только когда titlebar виден: в нативном fullscreen окна
+   (html.screen-native-fs) titlebar спрятан, поправка не нужна. */
+html.desktop .chat-lightbox-close {
+    top: calc(1rem + var(--titlebar-h));
+}
+
+html.desktop:not(.screen-native-fs) .screen-overlay-close {
+    top: calc(1.14rem + var(--titlebar-h));
+}

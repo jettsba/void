@@ -1860,11 +1860,10 @@ async function startScreenShare(height = 1080, fps = 30, captureAudio = false) {
     }
     /* contentHint="detail" — резкость для скрин-контента (текст/код/UI). Это НЕ
        возврат к лагам: 5-10 fps давал НЕ detail, а degradationPreference=
-       "maintain-resolution" (держал разрешение, жал fps). Теперь degradation=
-       "balanced" (см. applyDirectScreenVideoParams) → fps не проваливается.
-       Золотая середина для скрин-контента: статика почти бесплатна по битрейту →
-       detail держит её резкой; на движении balanced мягко жертвует разрешением,
-       сохраняя fps (читать в скролле всё равно нельзя). См. W3C MST § contentHint. */
+       "maintain-resolution" (держал разрешение, жал fps). Сейчас degradation=
+       "balanced" (см. applyDirectScreenVideoParams) — золотая середина: под
+       congestion плавно проседают И fps, И разрешение (не 5fps и не 360p). Статика
+       почти бесплатна по битрейту → detail держит её резкой. См. W3C MST § contentHint. */
     if (videoTrack) {
         try { videoTrack.contentHint = "detail"; } catch (_) {}
     }
@@ -1892,58 +1891,6 @@ async function startScreenShare(height = 1080, fps = 30, captureAudio = false) {
         if (typeof broadcastScreencastState === 'function') broadcastScreencastState(false);
         if (typeof updateScreencastButton === 'function') updateScreencastButton(false);
     };
-    startScreencastStatsDiag(); // ВРЕМЕННО: замер энкодера (HW/SW, fps, qLimit)
-}
-
-/* ВРЕМЕННАЯ ДИАГНОСТИКА (убрать после решения по HW-энкодеру): живой замер
-   stats video-sender'а — encoderImplementation (HW/SW), реальный fps,
-   разрешение, qualityLimitationReason (cpu/bandwidth), битрейт. Выводим в
-   СОБСТВЕННЫЙ overlay-div с МАКСИМАЛЬНЫМ z-index (НЕ через toast-host: у того
-   z-index:1, его перекрыло бы; а тут гарантированно поверх всего). Обновляется
-   каждые 2.5с пока идёт демка. По нему решаем, нужен ли форс HW-энкодера. */
-let _scStatsTimer = null;
-function _scStatsEl() {
-    let el = document.getElementById("__scStatsDiag");
-    if (!el) {
-        el = document.createElement("div");
-        el.id = "__scStatsDiag";
-        el.style.cssText =
-            "position:fixed;top:0;left:0;right:0;z-index:2147483647;" +
-            "background:rgba(0,0,0,.85);color:#7CFC00;font:12px/1.4 monospace;" +
-            "padding:6px 10px;text-align:center;pointer-events:none;white-space:pre-wrap;";
-        document.body.appendChild(el);
-    }
-    return el;
-}
-function startScreencastStatsDiag() {
-    if (_scStatsTimer) clearInterval(_scStatsTimer);
-    let prevBytes = 0, prevTs = 0;
-    _scStatsTimer = setInterval(async () => {
-        let vsender = null;
-        for (const senders of screenSenders.values()) {
-            const v = senders.find(s => s.track?.kind === "video");
-            if (v) { vsender = v; break; }
-        }
-        if (!vsender?.getStats) return;
-        try {
-            const stats = await vsender.getStats();
-            stats.forEach(r => {
-                if (r.type !== "outbound-rtp" || r.kind !== "video") return;
-                let kbps = 0;
-                if (prevTs && r.timestamp > prevTs) {
-                    kbps = Math.round(((r.bytesSent - prevBytes) * 8) / (r.timestamp - prevTs)); // bytes*8/ms = kbps
-                }
-                prevBytes = r.bytesSent; prevTs = r.timestamp;
-                const line = `STATS: ${r.encoderImplementation || "?"} | ${r.frameWidth || 0}x${r.frameHeight || 0}@${Math.round(r.framesPerSecond || 0)}fps | qLim=${r.qualityLimitationReason || "?"} | ${kbps}kbps`;
-                console.log("[sc-stats]", line);
-                _scStatsEl().textContent = line;
-            });
-        } catch (_) {}
-    }, 2500);
-}
-function stopScreencastStatsDiag() {
-    if (_scStatsTimer) { clearInterval(_scStatsTimer); _scStatsTimer = null; }
-    document.getElementById("__scStatsDiag")?.remove();
 }
 
 /**
@@ -2090,13 +2037,18 @@ async function applyScreenAudioParams(senders) {
  * maxFramerate — иначе encoder сам решает резать ли fps; на 60fps это
  * частая причина «реальных 30fps» при ideal:60 в constraints.
  *
- * degradationPreference="balanced" — приоритет ПЛАВНОСТИ. Раньше тут был
- * "maintain-resolution" (держать 1080p, резать fps) — он душил демку до 5-10
- * fps на 1080p, особенно на raw BWE / relay (1080p не влезает в полосу → fps
- * в пол). Это была главная жалоба на лаги. "balanced" даёт Chromium самому
- * балансировать fps↔разрешение: при нехватке мягко проседает разрешение, а fps
- * держится — демка плавная. Размен: лёгкая мягкость на сильном движении/узком
- * канале (то, что лечил maintain-resolution). См. W3C MST § degradationPreference.
+ * degradationPreference="balanced" — ЗОЛОТАЯ СЕРЕДИНА (осознанный финальный
+ * выбор, НЕ флип-флопить). Три варианта и почему именно balanced:
+ *   - "maintain-resolution": держит 1080p, режет fps → 5-10 fps под нагрузкой.
+ *     Это и были лаги. ОТКЛОНЕНО.
+ *   - "maintain-framerate": держит fps, режет разрешение → может упасть до 360p
+ *     ради 60fps. «Фпс любой ценой» — не хотим. ОТКЛОНЕНО.
+ *   - "balanced": Chromium роняет И fps, И разрешение плавно/пропорционально →
+ *     оба адекватны (напр. 900p@45, а не 1080p@5 или 360p@60). ВЫБРАНО.
+ * На чистом direct деградации НЕТ вообще (qLim=none) → честные 1080p60. Все три
+ * варианта на direct дают 60 — degradationPreference важен ТОЛЬКО под congestion.
+ * fps контента это не повышает: фильм 24-30fps так и идёт 30 (дубликаты слать
+ * незачем), 60 — на 60fps-источнике (игра/60p). См. W3C MST § degradationPreference.
  *
  * Старт-битрейт (выход из cold-start BWE) — через SDP-патч
  * patchVideoStartBitrate (x-google-start-bitrate / -min-bitrate / -max-bitrate).
@@ -2153,7 +2105,6 @@ function stopScreenShare() {
     screenStream = null;
     /* Останавливаем нативный loopback-захват (no-op если не desktop / не шёл). */
     stopNativeScreenAudio();
-    stopScreencastStatsDiag(); // ВРЕМЕННО
     screenTargetHeight = 1080;
     screenTargetFps = 30;
     emitScreencastActive(false);
@@ -2354,7 +2305,7 @@ async function reportConnectivity(peer) {
  * взрывной: статика (чтение) почти бесплатна, к 3 Mbps подходит лишь на активном
  * движении. СРЕДНИЙ битрейт relay-зрителя ≪ cap → поднятие 2→3 Mbps даёт запас
  * резкости на движении, почти не меняя средний egress сервера. balanced: на пике
- * мягко роняет разрешение, ДЕРЖА fps (раньше "maintain-resolution" ронял fps в
+ * плавно проседают И fps, И разрешение (раньше "maintain-resolution" ронял fps в
  * пол 5-10 — это и были лаги). Трафик безлимитный, узкое место — 1 vCPU coturn.
  *
  * НЕ трогаем audio-sender'ы — ни mic (voice), ни screen-audio (music-mode

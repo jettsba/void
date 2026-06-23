@@ -340,9 +340,21 @@ function openScreenOverlay(userId) {
  *   через notifyScreenVideoReady авто-реоткрыл оверлей. Дефолт false — юзер
  *   закрыл сам (Esc, кнопка, fullscreen-close), реоткрывать не надо.
  */
+/* Desktop fullscreen демки = нативный fullscreen ОКНА Tauri (см.
+   toggleScreenFullscreen). Состояние держим здесь, чтобы close/Esc могли выйти. */
+let _screenNativeFs = false;
+function _setDesktopScreenFs(on) {
+    _screenNativeFs = on;
+    screenOverlay.classList.toggle("is-fullscreen", on);
+    document.documentElement.classList.toggle("screen-native-fs", on);
+    try { window.__TAURI__?.window?.getCurrentWindow?.()?.setFullscreen?.(on); } catch (_) {}
+}
+
 function closeScreenOverlay(opts) {
     if (!screenOverlay) return;
-    if (document.fullscreenElement === screenOverlay) {
+    if (_screenNativeFs) {
+        _setDesktopScreenFs(false); // desktop: выйти из нативного fullscreen окна
+    } else if (document.fullscreenElement === screenOverlay) {
         document.exitFullscreen?.();
     } else if (document.webkitFullscreenElement === screenOverlay) {
         document.webkitExitFullscreen?.();
@@ -363,6 +375,16 @@ function closeScreenOverlay(opts) {
 }
 
 function toggleScreenFullscreen() {
+    /* Desktop (WebView2): HTML Fullscreen API ломает аппаратный видео-путь
+       (DirectComposition overlay) → демка виснет на 1 кадре. В оконном режиме
+       видео идёт обычным compositing-путём и плавно. Поэтому делаем fullscreen
+       НАТИВНО на окне Tauri, а оверлей (fixed inset:0 + .is-fullscreen) его
+       заполняет — видео остаётся в плавном пути, titlebar прячется по CSS-классу
+       html.screen-native-fs. На web — обычный HTML Fullscreen API (рабочий). */
+    if (window.VoidPlatform === "desktop") {
+        _setDesktopScreenFs(!_screenNativeFs);
+        return;
+    }
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
     const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
     if (fsEl) {

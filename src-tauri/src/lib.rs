@@ -440,23 +440,24 @@ pub fn run() {
                         .unwrap_or(false);
                     let main_hwnd = MAIN_HWND.load(Ordering::SeqCst);
                     if active {
-                        // Захват реально пошёл — разрешаем хуку прятать индикатор
-                        // (во время пикера флаг был false, окна не трогались).
-                        screen_indicator::set_capturing(true);
-                        // Хук уже стоит с arming; переустановим идемпотентно
+                        // Хук уже стоит с arming (ловит индикатор на CREATE, до
+                        // отрисовки → без мелькания); переустановим идемпотентно
                         // (страховка, если arming не дошёл) и запустим поллинг-
                         // бэкстоп от старта захвата (40мс×60 ≈ 2.4с).
                         let _ = app_sc.run_on_main_thread(move || {
                             screen_indicator::install_indicator_hook(main_hwnd);
                         });
                         std::thread::spawn(move || {
-                            for _ in 0..60 {
-                                std::thread::sleep(std::time::Duration::from_millis(40));
+                            // Первый скан СРАЗУ (без сна), затем плотно 8мс×~120
+                            // (≈1с) — чтобы поймать индикатор в момент появления,
+                            // даже если хук пропустил CREATE. Снимок дерева <1мс.
+                            for _ in 0..120 {
                                 if let Ok(true) =
                                     screen_indicator::hide_capture_indicator_for_our_tree(main_hwnd)
                                 {
                                     break;
                                 }
+                                std::thread::sleep(std::time::Duration::from_millis(8));
                             }
                         });
                     } else {
@@ -464,7 +465,6 @@ pub fn run() {
                         // на случай, если JS не дёрнул stop_screen_audio
                         // (идемпотентно: no-op если захват не идёт).
                         screen_audio::stop();
-                        screen_indicator::set_capturing(false);
                         let _ = app_sc.run_on_main_thread(|| {
                             screen_indicator::uninstall_indicator_hook();
                         });
