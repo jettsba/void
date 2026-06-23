@@ -62,7 +62,17 @@ jobs:
           ssh "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
             'set -euo pipefail
              cd ~/void
-             git pull --ff-only
+             # Деплой-копия — ЧИСТОЕ зеркало origin/main. Раньше тут был
+             # `git pull --ff-only`: он падал ("Not possible to fast-forward"),
+             # как только на VPS заводился локальный коммит / история расходилась
+             # — и блокировал весь деплой на первом шаге. fetch + reset --hard
+             # всегда приводит рабочую копию ровно к origin/main и самоисцеляет
+             # дивергенцию. БЕЗОПАСНО: runtime-состояние (data/, .env) —
+             # untracked/gitignored, reset --hard их не трогает; tracked-файлы и
+             # так обязаны совпадать с origin. git clean НЕ зовём — он снёс бы
+             # data/ и .env.
+             git fetch origin main
+             git reset --hard origin/main
 
              if ! cmp -s ~/void/Caddyfile /etc/caddy/Caddyfile 2>/dev/null; then
                echo "Caddyfile changed, syncing..."
