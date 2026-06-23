@@ -12,6 +12,12 @@
                 + многослойный центральный глоу (3 наложенных radial-gradient
                 по 12 стопов с easing → без видимых ступеней) + медленное
                 «дыхание». Без звёзд.
+   mesh       — дрейфующие точки + линии между близкими («сеть узлов»). Перенос
+                фона со страницы docs/why-void.html (там — иллюстрация P2P).
+                Отличия от оригинала: контраст приглушён (фон не спорит с
+                контентом), тёплый акцент линии к курсору убран → нейтральный
+                графит. Курсор слегка «притягивает» линии к ближним точкам.
+                Без звёзд.
 
    API (что зовёт app.js):
      sizeCanvas()  — resize обоих canvas, re-seed текущей темы под новый размер
@@ -81,6 +87,26 @@ let _hoverY = -1;
 let _gridMoveHandler = null;
 let _gridLeaveHandler = null;
 let _gridStageRO = null;
+
+/* ===== mesh state =====
+   Параметры подобраны под «фоновость»: точки/линии заметно тусклее, чем в
+   оригинале на why-void.html (там 0.30 alpha), а линия к курсору — холодный
+   графит вместо тёплого песочного (184,122,90). */
+const MESH_LINK = 132;                       // CSS-px: дистанция линковки точек
+const MESH_LINK_SQ = MESH_LINK * MESH_LINK;
+const MESH_MOUSE_LINK = 170;                 // CSS-px: радиус притяжения к курсору
+const MESH_MOUSE_LINK_SQ = MESH_MOUSE_LINK * MESH_MOUSE_LINK;
+const MESH_DOT_RGB = [142, 145, 156];        // нейтральный графит, без тёплого
+const MESH_LINE_RGB = [86, 90, 102];
+const MESH_DOT_ALPHA = 0.22;                 // было 0.30 — приглушено «в фон»
+const MESH_LINE_ALPHA = 0.16;                // было 0.30
+const MESH_MOUSE_ALPHA = 0.16;               // было 0.22 + тёплый → холодный
+
+let _meshDots = [];
+let _meshHoverX = -1;
+let _meshHoverY = -1;
+let _meshMoveHandler = null;
+let _meshLeaveHandler = null;
 
 /* ===== utility: smooth radial fill ===== */
 
@@ -486,6 +512,142 @@ function frameGrid(t) {
     ctx.globalCompositeOperation = "source-over";
 }
 
+/* ===== MESH =====
+   Дрейфующие точки + линии между близкими. Линии рисуем ДО точек, чтобы узлы
+   лежали поверх связей. Hover как у grid: курсор тянет линии к ближним точкам.
+   Кол-во точек кап 64 (O(n²) линковка → держим дёшево, как в оригинале). */
+
+function _seedMeshDots() {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const target = Math.min(64, Math.round((w * h) / 26000));
+    _meshDots = [];
+    for (let i = 0; i < target; i++) {
+        _meshDots.push({
+            x: Math.random() * w,
+            y: Math.random() * h,
+            vx: (Math.random() - 0.5) * 0.12,
+            vy: (Math.random() - 0.5) * 0.12,
+            r: Math.random() * 0.9 + 0.6,
+        });
+    }
+}
+
+function setupMesh() {
+    /* Звёзд тут нет — гасим star-canvas (как grid). */
+    _stars = [];
+    if (_starsCtx) {
+        _starsCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+    }
+    _seedMeshDots();
+
+    /* Hover-handler ставим только пока активна тема (см. grid — те же причины:
+       mousemove на window всплывает поверх canvas pointer-events:none). */
+    _meshHoverX = -1;
+    _meshHoverY = -1;
+    _meshMoveHandler = (e) => {
+        _meshHoverX = e.clientX;
+        _meshHoverY = e.clientY;
+    };
+    _meshLeaveHandler = (e) => {
+        if (e && e.type === "mouseout" && e.relatedTarget !== null) return;
+        _meshHoverX = -1;
+        _meshHoverY = -1;
+    };
+    window.addEventListener("mousemove", _meshMoveHandler, { passive: true });
+    document.addEventListener("mouseout", _meshLeaveHandler, { passive: true });
+    window.addEventListener("blur", _meshLeaveHandler, { passive: true });
+}
+
+function teardownMesh() {
+    if (_meshMoveHandler) {
+        window.removeEventListener("mousemove", _meshMoveHandler);
+        document.removeEventListener("mouseout", _meshLeaveHandler);
+        window.removeEventListener("blur", _meshLeaveHandler);
+        _meshMoveHandler = null;
+        _meshLeaveHandler = null;
+    }
+    _meshHoverX = -1;
+    _meshHoverY = -1;
+}
+
+function resizeMesh(ratioX, ratioY) {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    _meshDots.forEach(d => {
+        if (ratioX && ratioX !== 1) d.x *= ratioX;
+        if (ratioY && ratioY !== 1) d.y *= ratioY;
+        d.x = Math.min(Math.max(0, d.x), w);
+        d.y = Math.min(Math.max(0, d.y), h);
+    });
+}
+
+function frameMesh() {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    ctx.clearRect(0, 0, w, h);
+
+    const dots = _meshDots;
+    const n = dots.length;
+
+    /* drift + wrap по краям */
+    for (let i = 0; i < n; i++) {
+        const d = dots[i];
+        d.x += d.vx;
+        d.y += d.vy;
+        if (d.x < 0) d.x += w; else if (d.x > w) d.x -= w;
+        if (d.y < 0) d.y += h; else if (d.y > h) d.y -= h;
+    }
+
+    const hoverActive = _meshHoverX >= 0 && _meshHoverY >= 0;
+    const [lr, lg, lb] = MESH_LINE_RGB;
+    const [dr, dg, db] = MESH_DOT_RGB;
+    ctx.lineWidth = 1;
+
+    /* линии: к курсору (нейтральный графит) + между близкими точками */
+    for (let i = 0; i < n; i++) {
+        const d = dots[i];
+
+        if (hoverActive) {
+            const mdx = d.x - _meshHoverX;
+            const mdy = d.y - _meshHoverY;
+            const md2 = mdx * mdx + mdy * mdy;
+            if (md2 < MESH_MOUSE_LINK_SQ) {
+                const a = MESH_MOUSE_ALPHA * (1 - Math.sqrt(md2) / MESH_MOUSE_LINK);
+                ctx.strokeStyle = `rgba(${dr},${dg},${db},${a.toFixed(3)})`;
+                ctx.beginPath();
+                ctx.moveTo(d.x, d.y);
+                ctx.lineTo(_meshHoverX, _meshHoverY);
+                ctx.stroke();
+            }
+        }
+
+        for (let j = i + 1; j < n; j++) {
+            const e = dots[j];
+            const dx = d.x - e.x;
+            const dy = d.y - e.y;
+            const dist2 = dx * dx + dy * dy;
+            if (dist2 < MESH_LINK_SQ) {
+                const a = MESH_LINE_ALPHA * (1 - Math.sqrt(dist2) / MESH_LINK);
+                ctx.strokeStyle = `rgba(${lr},${lg},${lb},${a.toFixed(3)})`;
+                ctx.beginPath();
+                ctx.moveTo(d.x, d.y);
+                ctx.lineTo(e.x, e.y);
+                ctx.stroke();
+            }
+        }
+    }
+
+    /* точки поверх линий — одна alpha на всех, fillStyle ставим раз */
+    ctx.fillStyle = `rgba(${dr},${dg},${db},${MESH_DOT_ALPHA})`;
+    for (let i = 0; i < n; i++) {
+        const d = dots[i];
+        ctx.beginPath();
+        ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
+        ctx.fill();
+    }
+}
+
 /* ===== stars ===== */
 
 function _seedStars(targetAt1080) {
@@ -550,6 +712,10 @@ const THEMES = {
     silence: { setup: setupSilence, frame: frameSilence, resize: resizeSilence },
     nebula:  { setup: setupNebula,  frame: frameNebula,  resize: resizeNebula },
     grid:    { setup: setupGrid,    frame: frameGrid,    resize: resizeGrid, teardown: teardownGrid },
+    /* mesh — нативный rAF (fps:60 → без 30fps-гейта): интерактивная и лёгкая,
+       плавность движения курсора важнее экономии (≈64 точки, дёшево). Скорость
+       дрейфа ±0.12px/кадр рассчитана именно на 60fps — как в оригинале. */
+    mesh:    { setup: setupMesh,    frame: frameMesh,    resize: resizeMesh, teardown: teardownMesh, fps: 60 },
 };
 
 const DEFAULT_THEME = "silence";
@@ -617,9 +783,15 @@ function seedBlobs() {
    и подвешивал весь браузер (другие вкладки в воздухе, спиннеры лагают).
    Реализация — gate по wall-clock: рисуем кадр, только если прошло
    >= FRAME_MIN_MS с предыдущего. rAF-цикл сам по себе остаётся: браузеру
-   нужен hook для естественной паузы при сворачивании / переходе вкладки. */
+   нужен hook для естественной паузы при сворачивании / переходе вкладки.
+
+   Per-theme override: тема может объявить `fps` в реестре. 30fps — компромисс
+   для «ленивых» блобных тем (silence/nebula), где дрейф ~0.05px/frame и разница
+   с 60 неразличима. Но mesh интерактивна (линии тянутся за курсором) и лёгкая —
+   на 30fps движение курсора заметно «степпит» рядом с нативным оригиналом.
+   fps>=60 → не гейтим вовсе, отдаём нативный rAF (на 60Гц мониторе gate 16.6мс
+   против ~16.6мс интервала rAF из-за дрожания таймера ронял бы до 30). */
 const TARGET_FPS = 30;
-const FRAME_MIN_MS = 1000 / TARGET_FPS;
 let _lastFrameMs = 0;
 
 function paint() {
@@ -631,7 +803,9 @@ function paint() {
             setTimeout(() => { _rafId = requestAnimationFrame(loop); }, 200);
             return;
         }
-        if (now - _lastFrameMs >= FRAME_MIN_MS) {
+        const cap = (_theme && THEMES[_theme]?.fps) || TARGET_FPS;
+        /* cap>=60 → нативный rAF без гейта (плавность), иначе wall-clock gate. */
+        if (cap >= 60 || now - _lastFrameMs >= 1000 / cap) {
             _lastFrameMs = now;
             const t = now * 0.001;
             const handler = _theme ? THEMES[_theme]?.frame : null;

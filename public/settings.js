@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "0.12.18";
+    const APP_VERSION = "0.12.19";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
@@ -58,7 +58,7 @@
         hotkeysEnabled: true
     };
 
-    const BG_THEMES = ["silence", "nebula", "grid"];
+    const BG_THEMES = ["silence", "nebula", "grid", "mesh"];
 
     const AUDIO_IN_GAIN_MIN = 0;
     const AUDIO_IN_GAIN_MAX = 1.5;
@@ -496,6 +496,19 @@
 
     function saveState() {
         try {
+            /* closeAction / autoStart / hotkeysEnabled живут в этом же
+               STORAGE_KEY, но переключаются из app-settings.js (модалки
+               приложения) напрямую в localStorage. Наш in-memory снимок этих
+               полей мог устареть → перечитываем свежие значения перед записью,
+               иначе saveState() при смене ЛЮБОЙ другой настройки (язык, фон,
+               масштаб…) затёр бы выбор пользователя обратно в дефолт. Именно
+               это ломало превью категории «application» (всегда tray · off). */
+            const fresh = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+            if (fresh.closeAction === "close" || fresh.closeAction === "minimize") {
+                state.closeAction = fresh.closeAction;
+            }
+            if (typeof fresh.autoStart === "boolean") state.autoStart = fresh.autoStart;
+            if (typeof fresh.hotkeysEnabled === "boolean") state.hotkeysEnabled = fresh.hotkeysEnabled;
             localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
         } catch {
             /* квота, приватный режим — настройка проживёт сессию */
@@ -1172,6 +1185,44 @@
                     <button type="button" class="bg-thumb" data-val="grid" role="tab">
                         <span class="bg-thumb-prev bg-thumb-prev--grid"></span>
                         <span class="bg-thumb-name">grid<span class="bg-thumb-dot"></span></span>
+                    </button>
+                    <button type="button" class="bg-thumb" data-val="mesh" role="tab">
+                        <span class="bg-thumb-prev bg-thumb-prev--mesh">
+                            <svg class="bg-thumb-mesh-svg" viewBox="0 0 140 58" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+                                <g class="mesh-links">
+                                    <line x1="16" y1="14" x2="40" y2="10"/>
+                                    <line x1="16" y1="14" x2="30" y2="32"/>
+                                    <line x1="40" y1="10" x2="30" y2="32"/>
+                                    <line x1="40" y1="10" x2="58" y2="24"/>
+                                    <line x1="30" y1="32" x2="50" y2="46"/>
+                                    <line x1="58" y1="24" x2="50" y2="46"/>
+                                    <line x1="58" y1="24" x2="78" y2="14"/>
+                                    <line x1="78" y1="14" x2="84" y2="38"/>
+                                    <line x1="58" y1="24" x2="84" y2="38"/>
+                                    <line x1="78" y1="14" x2="104" y2="28"/>
+                                    <line x1="84" y1="38" x2="104" y2="28"/>
+                                    <line x1="84" y1="38" x2="98" y2="50"/>
+                                    <line x1="104" y1="28" x2="98" y2="50"/>
+                                    <line x1="104" y1="28" x2="122" y2="16"/>
+                                    <line x1="104" y1="28" x2="126" y2="42"/>
+                                    <line x1="122" y1="16" x2="126" y2="42"/>
+                                </g>
+                                <g class="mesh-nodes">
+                                    <circle cx="16" cy="14" r="1.1"/>
+                                    <circle cx="40" cy="10" r="1.1"/>
+                                    <circle cx="30" cy="32" r="1.1"/>
+                                    <circle cx="58" cy="24" r="1.1"/>
+                                    <circle cx="50" cy="46" r="1"/>
+                                    <circle cx="78" cy="14" r="1.1"/>
+                                    <circle cx="84" cy="38" r="1.1"/>
+                                    <circle cx="104" cy="28" r="1.1"/>
+                                    <circle cx="98" cy="50" r="1"/>
+                                    <circle cx="122" cy="16" r="1.1"/>
+                                    <circle cx="126" cy="42" r="1"/>
+                                </g>
+                            </svg>
+                        </span>
+                        <span class="bg-thumb-name">mesh<span class="bg-thumb-dot"></span></span>
                     </button>
                 </div>
             </div>

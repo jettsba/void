@@ -12,8 +12,8 @@
       {
         "label": "main",
         "title": "void",
-        "width": 640,
-        "height": 468,
+        "width": 768,
+        "height": 562,
         "resizable": false,
         "maximizable": false,
         "decorations": false,

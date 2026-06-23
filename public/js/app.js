@@ -625,16 +625,17 @@ function showInviteBanner(code) {
 }
 
 /* === UI auto-scale ===
-   Пересчитывает корневой --auto-scale по screen.width (физическая CSS-ширина
-   монитора). Используется при init() и на window.resize (если юзер
-   перетащил окно между мониторами разной плотности).
-   Формула — линейная, та же что в inline-скрипте <head>: на FHD ≈1.21,
-   2K ≈1.86, 4K ≈3.14, пегается на 1.0/3.14 по краям.
-   Браузерный zoom screen.width не трогает, поэтому zoom работает чисто. */
+   Пересчитывает корневой --auto-scale при init() и на window.resize (юзер
+   перетащил окно между мониторами разной плотности → screen.width/dpr меняются).
+
+   ⚠ ЕДИНЫЙ источник истины — window.__voidApplyAutoScale из ui-scale-bootstrap.js
+   (blocking-<script> в <head>). РАНЬШЕ тут жила СВОЯ копия формулы — только web-
+   ветка от screen.width, БЕЗ desktop-ветки по dpr. Она затирала desktop-масштаб,
+   выставленный bootstrap'ом, на каждом init/resize → весь desktop-фикс масштаба
+   (v0.12.8+) был мёртвым кодом, UI на 2K/4K оставался раздутым. Не дублировать
+   формулу здесь — только делегировать. */
 function updateAutoScale() {
-    const w = (window.screen && window.screen.width) || window.innerWidth || 1920;
-    let t = 1.4 * (w / 100) - 10;
-    if (t < 14) t = 14;
-    if (t > 44) t = 44;
-    document.documentElement.style.setProperty("--auto-scale", (t / 14).toFixed(3));
+    if (typeof window.__voidApplyAutoScale === "function") {
+        window.__voidApplyAutoScale();
+    }
 }

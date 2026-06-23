@@ -36,8 +36,8 @@ use tauri::{
     image::Image,
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     window::Color,
-    AppHandle, Emitter, Listener, LogicalSize, Manager, PhysicalPosition, WebviewUrl,
-    WebviewWindowBuilder, WindowEvent,
+    AppHandle, Emitter, Listener, LogicalSize, Manager, PhysicalPosition, PhysicalSize,
+    WebviewUrl, WebviewWindowBuilder, WindowEvent,
 };
 
 /// Базовый фон приложения (--bg-0 = #0a0a0b из public/css/base.css). Красим им
@@ -517,15 +517,18 @@ fn launch_main_window(app: &AppHandle) {
         WebviewUrl::App("index.html".into())
     };
 
+    // Окно создаём СКРЫТЫМ: сразу после build подгоняем размер/позицию под
+    // рабочую область монитора (fit_main_window_to_monitor) и только потом
+    // показываем — иначе на FHD@125% и т.п. окно фикс-размера 1280×820
+    // вылезало под таскбар и мелькало до репозиционирования.
     let mut builder = WebviewWindowBuilder::new(app, "main", webview_url)
         .title("Void")
         .inner_size(1280.0, 820.0)
         .min_inner_size(900.0, 600.0)
-        .center()
         .resizable(true)
         .decorations(false)
         .background_color(APP_BG)
-        .visible(true)
+        .visible(false)
         .focused(true);
 
     // Язык, выбранный в кастомном установщике, приходит один раз через файл-маркер
@@ -543,6 +546,12 @@ fn launch_main_window(app: &AppHandle) {
             return;
         }
     };
+
+    // Подгоняем под рабочую область монитора (любой размер/любой OS-масштаб),
+    // центрируем в ней, затем показываем (окно построено скрытым — без мелькания).
+    fit_main_window_to_monitor(&window);
+    let _ = window.show();
+    let _ = window.set_focus();
 
     #[cfg(windows)]
     {
@@ -574,6 +583,51 @@ fn launch_main_window(app: &AppHandle) {
             }
         }
     });
+}
+
+/// Подгоняет главное окно под монитор: комфортный «общепринятый» размер
+/// (1280×820 логических), но НЕ больше рабочей области экрана (work_area уже
+/// без таскбара), и центрирует ВНУТРИ рабочей области. Работает на любом
+/// мониторе и любом OS-масштабе: на FHD@125% окно фикс-размера раньше вылезало
+/// под таскбар — теперь высота ужимается под доступную область, низ всегда над
+/// таскбаром. Всё считаем в ФИЗИЧЕСКИХ px (work_area физический), target
+/// переводим logical→physical через scale_factor.
+fn fit_main_window_to_monitor(window: &tauri::WebviewWindow) {
+    // Комфортный таргет в логических px и нижний предел (как min_inner_size).
+    const TARGET_W: f64 = 1280.0;
+    const TARGET_H: f64 = 820.0;
+    const MIN_W: f64 = 900.0;
+    const MIN_H: f64 = 600.0;
+    // Не занимать всю рабочую область — оставить «воздух» по краям.
+    const WA_FRAC: f64 = 0.92;
+
+    let Ok(Some(monitor)) = window.current_monitor() else {
+        // Монитор не определился — оставляем как есть (центр от билдера-фоллбэка).
+        let _ = window.center();
+        return;
+    };
+    let scale = monitor.scale_factor();
+    let wa = monitor.work_area();
+    let wa_x = wa.position.x as f64;
+    let wa_y = wa.position.y as f64;
+    let wa_w = wa.size.width as f64;
+    let wa_h = wa.size.height as f64;
+
+    // Таргет (физический) ограничиваем долей рабочей области, но не ниже минимума
+    // (а минимум — не больше самой рабочей области, чтобы влезть на мелкий экран).
+    let w = (TARGET_W * scale)
+        .min(wa_w * WA_FRAC)
+        .max((MIN_W * scale).min(wa_w));
+    let h = (TARGET_H * scale)
+        .min(wa_h * WA_FRAC)
+        .max((MIN_H * scale).min(wa_h));
+
+    // Центр ВНУТРИ рабочей области (не полного экрана) → не под таскбар.
+    let x = wa_x + (wa_w - w) / 2.0;
+    let y = wa_y + (wa_h - h) / 2.0;
+
+    let _ = window.set_size(PhysicalSize::new(w as u32, h as u32));
+    let _ = window.set_position(PhysicalPosition::new(x as i32, y as i32));
 }
 
 /// Авто-грант разрешения на микрофон (и камеру) в WebView2.

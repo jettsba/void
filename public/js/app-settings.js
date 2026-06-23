@@ -464,6 +464,9 @@
                 if (tauriEvent) {
                     tauriEvent.emit("void:set-close-behavior", { behavior: value }).catch(() => {});
                 }
+                /* Обновляем сводку в строке категории «application» сразу —
+                   иначе превью застывает на прошлом значении (tray · off). */
+                window.VoidSettings?.refreshCats?.();
             });
         });
 
@@ -475,6 +478,7 @@
             if (tauriEvent) {
                 tauriEvent.emit("void:set-autostart", { enabled }).catch(() => {});
             }
+            window.VoidSettings?.refreshCats?.();
         });
     }
 
@@ -502,6 +506,7 @@
             .listen("void:autostart-state", (event) => {
                 const enabled = event && event.payload === true;
                 patchAppState({ autoStart: enabled });
+                window.VoidSettings?.refreshCats?.();
             })
             .catch(() => {});
 

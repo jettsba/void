@@ -21,6 +21,10 @@
 
 * { margin:0; padding:0; box-sizing:border-box; }
 html, body { height:100%; background:transparent; }
+/* Контент свёрстан в фиксированных px под маленькое окно — масштабируем целиком
+   тем же коэффициентом, что и размер окна в tauri.conf.json (768×562 = 640×468 × 1.2),
+   чтобы установщик не был мелковат. zoom (Chromium/WebView2) тянет и layout, и vh. */
+html { zoom: 1.2; }
 
 /* ----- the window ---------------------------------------------------------- */
 .void-win {

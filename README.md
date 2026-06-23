@@ -4,14 +4,14 @@
 
 **a phone call for the internet — no accounts, no history, peer-to-peer.**
 
-<sub>[void-room.space](https://void-room.space) · [try the web app](https://app.void-room.space) · [download for windows](https://github.com/jettsba/void/releases/latest)</sub>
+<sub>[void-room.space](https://void-room.space) · [try the web app](https://app.void-room.space) · [download for windows](https://github.com/jettsba/void/releases/latest/download/void_installer.exe)</sub>
 
 <br>
 
 [![void-room.space](https://img.shields.io/badge/site-void--room.space-101012?labelColor=2a2a2f)](https://void-room.space)
 
 [![web app](https://img.shields.io/badge/web-launch-101012?labelColor=2a2a2f)](https://app.void-room.space)
-[![desktop](https://img.shields.io/badge/desktop-download-101012?labelColor=2a2a2f)](https://github.com/jettsba/void/releases/latest)
+[![desktop](https://img.shields.io/badge/desktop-download-101012?labelColor=2a2a2f)](https://github.com/jettsba/void/releases/latest/download/void_installer.exe)
 
 </div>
 
@@ -59,7 +59,7 @@ to not have the data in the first place.
 | | |
 |---|---|
 | **Web** — works in any modern browser, nothing to install | **[app.void-room.space](https://app.void-room.space)** |
-| **Windows desktop** — native app: tray, global hotkeys, auto-update | **[download the latest release](https://github.com/jettsba/void/releases/latest)** |
+| **Windows desktop** — native app: tray, global hotkeys, auto-update | **[download the installer](https://github.com/jettsba/void/releases/latest/download/void_installer.exe)** — one click, installs and auto-updates |
 
 The web app and the desktop app are the **same codebase** — the desktop is the web client
 running natively in a Tauri shell, with native Windows touches layered on top.

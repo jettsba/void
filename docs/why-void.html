@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>void · почему это работает не так, как всё остальное</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg-0: #0a0a0b;
+    --bg-1: #101012;
+    --bg-2: #16161a;
+    --fg:   #e6e6e8;
+    --fg-2: #8a8a90;
+    --fg-3: #4d4d54;
+    --fg-4: #2a2a2f;
+    --signal:      #c8c8cc;
+    --signal-warn: #b87a5a;
+    --screen:      #5faa7a;
+    --ease: cubic-bezier(.2,.6,.2,1);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg-0);
+    color: var(--fg);
+    font-family: "JetBrains Mono", monospace;
+    font-weight: 400; font-size: 14px; line-height: 1.5; letter-spacing: 0.02em;
+    -webkit-font-smoothing: antialiased; overflow-x: hidden;
+  }
+
+  /* ambient background canvas */
+  #ambient { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+
+  .vignette {
+    position: fixed; inset: 0; pointer-events: none; z-index: 2;
+    background: radial-gradient(125% 90% at 50% 46%, transparent 52%, rgba(0,0,0,0.55) 100%);
+  }
+
+  /* scroll progress hairline */
+  #progress {
+    position: fixed; top: 0; left: 0; height: 2px; width: 0%;
+    background: var(--fg); opacity: 0.5; z-index: 10000;
+    transition: width 80ms linear;
+  }
+
+  .wrap { max-width: 880px; margin: 0 auto; padding: 0 28px; position: relative; z-index: 3; }
+
+  section { padding: 92px 0; border-bottom: 1px solid var(--fg-4); position: relative; z-index: 3; }
+  section:last-of-type { border-bottom: none; }
+
+  .kicker {
+    font-size: 12px; letter-spacing: 0.18em; text-transform: lowercase;
+    color: var(--fg-3); margin-bottom: 18px;
+  }
+  .kicker .num { color: var(--signal-warn); }
+
+  h1 { font-weight: 300; font-size: 40px; line-height: 1.16; letter-spacing: 0.01em; margin-bottom: 22px; }
+  h2 { font-weight: 400; font-size: 26px; line-height: 1.24; letter-spacing: 0.01em; margin-bottom: 20px; }
+  h3 { font-weight: 500; font-size: 13px; letter-spacing: 0.16em; text-transform: lowercase; color: var(--fg-2); margin-bottom: 14px; }
+
+  p { color: var(--fg-2); margin-bottom: 16px; max-width: 64ch; }
+  p strong { color: var(--fg); font-weight: 500; }
+  .big { font-size: 16px; color: var(--fg-2); }
+  .accent { color: var(--signal-warn); }
+  .green  { color: var(--screen); }
+
+  /* hero */
+  .hero {
+    min-height: 100vh; display: flex; flex-direction: column; justify-content: center;
+    padding: 90px 0; border-bottom: 1px solid var(--fg-4); position: relative; z-index: 3;
+  }
+  /* brand lockup — эклипс со свечением + wordmark (как на лендинге) */
+  .brand-lockup { display: inline-flex; align-items: center; margin-bottom: 56px; }
+  .brand-logo-slot { position: relative; width: 30px; height: 30px; flex: none; }
+  .logo-eclipse {
+    position: absolute; inset: 0; border-radius: 50%;
+    border: 1.5px solid rgba(230, 230, 232, 0.92);
+    background: var(--bg-0);
+    box-shadow:
+      0 0 6px   rgba(255, 255, 255, 0.10),
+      0 0 14px  rgba(245, 245, 247, 0.07),
+      0 0 28px  rgba(230, 230, 236, 0.05),
+      0 0 52px  rgba(210, 210, 220, 0.035),
+      0 0 90px  rgba(190, 190, 205, 0.022),
+      0 0 140px rgba(170, 170, 190, 0.012);
+    animation: eclipse-breath 7200ms ease-in-out infinite;
+  }
+  .brand-mark {
+    margin-left: 12px; color: var(--fg);
+    font-weight: 500; font-size: 15px; letter-spacing: 0.18em; text-transform: lowercase; white-space: nowrap;
+    text-shadow:
+      0 0 1px  rgba(255, 255, 255, 0.9),
+      0 0 12px rgba(255, 255, 255, 0.25),
+      0 0 28px rgba(255, 255, 255, 0.12);
+  }
+  @keyframes eclipse-breath {
+    0%, 100% {
+      transform: scale(1);
+      box-shadow:
+        0 0 6px   rgba(255, 255, 255, 0.08),
+        0 0 14px  rgba(245, 245, 247, 0.055),
+        0 0 28px  rgba(230, 230, 236, 0.04),
+        0 0 52px  rgba(210, 210, 220, 0.028),
+        0 0 90px  rgba(190, 190, 205, 0.018),
+        0 0 140px rgba(170, 170, 190, 0.010);
+    }
+    50% {
+      transform: scale(1.018);
+      box-shadow:
+        0 0 7px   rgba(255, 255, 255, 0.13),
+        0 0 16px  rgba(245, 245, 247, 0.09),
+        0 0 32px  rgba(230, 230, 236, 0.065),
+        0 0 60px  rgba(210, 210, 220, 0.045),
+        0 0 105px rgba(190, 190, 205, 0.028),
+        0 0 160px rgba(170, 170, 190, 0.016);
+    }
+  }
+  .hero p.lead { font-size: 16px; max-width: 58ch; }
+  .hero .meta { margin-top: 48px; font-size: 12px; letter-spacing: 0.12em; color: var(--fg-3); display: flex; gap: 22px; flex-wrap: wrap; }
+  .hero .meta span::before { content: "· "; color: var(--fg-4); }
+  .scroll-hint {
+    margin-top: 64px; font-size: 11px; letter-spacing: 0.18em; color: var(--fg-3);
+    display: inline-flex; align-items: center; gap: 10px;
+  }
+  .scroll-hint .bar { width: 1px; height: 22px; background: var(--fg-4); position: relative; overflow: hidden; }
+  .scroll-hint .bar::after {
+    content: ""; position: absolute; left: 0; top: -22px; width: 1px; height: 22px; background: var(--fg-2);
+    animation: scrolldown 2.2s var(--ease) infinite;
+  }
+  @keyframes scrolldown { 0%{transform:translateY(0)} 60%,100%{transform:translateY(44px)} }
+
+  /* two-diagram compare */
+  .vs { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin: 32px 0 8px; }
+  @media (max-width: 640px){ .vs { grid-template-columns: 1fr; } }
+  .vs-card { background: var(--bg-1); border: 1px solid var(--fg-4); border-radius: 2px; padding: 24px 22px; transition: border-color 320ms var(--ease); }
+  .vs-card.good { border-color: var(--fg-4); }
+  .vs-card.good:hover { border-color: var(--screen); }
+  .vs-card:hover { border-color: var(--fg-2); }
+  .vs-card .tag { font-size: 11px; letter-spacing: 0.16em; color: var(--fg-3); margin-bottom: 14px; }
+  .vs-card svg { width: 100%; height: auto; display: block; }
+  .vs-card .nodelabel { font-family: "JetBrains Mono", monospace; font-size: 11px; letter-spacing: 0.1em; fill: var(--fg-2); }
+  .vs-card .nodelabel.srv { fill: var(--signal-warn); }
+  .vs-card .nodelabel.you { fill: var(--screen); }
+  .vs-card .note { margin-top: 16px; font-size: 12px; color: var(--fg-3); }
+  .vs-card .roundtrip { margin-top: 12px; font-size: 11px; letter-spacing: 0.12em; color: var(--fg-3); display: flex; align-items: center; gap: 8px; }
+  .vs-card .roundtrip .led { width: 5px; height: 5px; border-radius: 50%; background: var(--fg-3); }
+  .vs-card.good .roundtrip .led { background: var(--screen); box-shadow: 0 0 5px var(--screen); }
+
+  /* scenario list */
+  .scn { margin: 8px 0; border: 1px solid var(--fg-4); border-radius: 2px; overflow: hidden; }
+  .scn-row {
+    padding: 24px 24px 24px 24px; position: relative;
+    transition: background-color 240ms var(--ease), padding-left 240ms var(--ease);
+  }
+  .scn-row + .scn-row { border-top: 1px solid var(--fg-4); }
+  .scn-row::before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 2px;
+    background: var(--signal-warn); transform: scaleY(0); transform-origin: center;
+    transition: transform 240ms var(--ease);
+  }
+  .scn-row:hover { background: var(--bg-1); padding-left: 30px; }
+  .scn-row:hover::before { transform: scaleY(1); }
+  .scn-row .when { font-size: 12px; letter-spacing: 0.14em; color: var(--fg-3); margin-bottom: 12px; transition: color 240ms var(--ease); }
+  .scn-row:hover .when { color: var(--signal-warn); }
+  .scn-row .what { font-size: 17px; font-weight: 400; color: var(--fg); line-height: 1.35; margin-bottom: 10px; }
+  .scn-row .why  { font-size: 13px; color: var(--fg-2); max-width: 62ch; }
+
+  /* path-finder — иллюстрация внутри callout, сверху над текстом */
+  .pf-illus { display: block; width: 100%; max-width: 600px; height: auto; margin: 2px auto 22px; }
+  .pf-cand { fill: none; stroke: var(--fg-4); stroke-width: 1.4; stroke-dasharray: 3 6; }
+  .pf-live { fill: none; stroke: var(--screen); stroke-width: 1.6; stroke-dasharray: 520; stroke-dashoffset: 520; }
+  .pf-node { fill: var(--bg-1); stroke: var(--fg-3); stroke-width: 1.4; }
+
+  /* pull quote */
+  .pull {
+    border-left: 2px solid var(--signal-warn); padding: 6px 0 6px 24px; margin: 10px 0;
+    font-size: 21px; font-weight: 300; line-height: 1.4; color: var(--fg); max-width: 58ch;
+  }
+
+  .callout { background: var(--bg-1); border: 1px solid var(--fg-4); border-radius: 2px; padding: 24px; margin: 24px 0; }
+  .callout .h { font-size: 12px; letter-spacing: 0.16em; color: var(--fg-3); margin-bottom: 12px; }
+  .callout p { margin-bottom: 0; max-width: none; }
+
+  .reveal { opacity: 0; transform: translateY(8px); transition: opacity 600ms var(--ease), transform 600ms var(--ease); }
+  .reveal.in { opacity: 1; transform: none; }
+
+  /* финальный CTA — атмосферный, центр всего экрана */
+  footer {
+    display: flex; align-items: center; justify-content: center;
+    text-align: center; position: relative; z-index: 3; padding: 120px 28px 20px;
+  }
+  /* фоновое свечение по центру — особый фон только для финала */
+  footer .closing-bloom {
+    position: absolute; left: 50%; top: 50%; width: 560px; height: 560px;
+    transform: translate(-50%, -50%); border-radius: 50%; pointer-events: none; z-index: 0;
+    background: radial-gradient(circle,
+      rgba(230, 230, 240, 0.05) 0%,
+      rgba(184, 122, 90, 0.022) 36%,
+      rgba(10, 10, 11, 0) 70%);
+    animation: closingbloom 9s ease-in-out infinite;
+  }
+  @keyframes closingbloom {
+    0%, 100% { opacity: 0.7; transform: translate(-50%, -50%) scale(1); }
+    50%      { opacity: 1;   transform: translate(-50%, -50%) scale(1.06); }
+  }
+  footer .closing-stage { position: relative; z-index: 1; max-width: 560px; }
+  footer .closing-kicker {
+    font-size: 12px; letter-spacing: 0.2em; text-transform: lowercase; color: var(--fg-3); margin-bottom: 24px;
+  }
+  footer .closing-word {
+    font-size: 58px; font-weight: 300; letter-spacing: 0.04em; line-height: 1;
+    text-transform: lowercase; color: var(--fg);
+    text-shadow: 0 0 1px rgba(255,255,255,0.5), 0 0 26px rgba(255,255,255,0.14), 0 0 60px rgba(255,255,255,0.07);
+  }
+  footer .closing-word span { color: var(--signal-warn); }
+  footer .closing-rule {
+    width: 1px; height: 48px; margin: 36px auto;
+    background: linear-gradient(to bottom, transparent, var(--fg-4), transparent);
+  }
+  footer .contact { font-size: 12px; letter-spacing: 0.14em; }
+  footer a { color: var(--fg-3); text-decoration: none; transition: color 240ms var(--ease); }
+  footer a:hover { color: var(--fg-2); }
+  @media (max-width: 640px) { footer .closing-word { font-size: 40px; } footer .closing-bloom { width: 360px; height: 360px; } }
+  @media (prefers-reduced-motion: reduce) { footer .closing-bloom { animation: none; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    .scroll-hint .bar::after, .logo-eclipse { animation: none; }
+    * { scroll-behavior: auto; }
+  }
+</style>
+</head>
+<body>
+<canvas id="ambient"></canvas>
+<div class="vignette"></div>
+<div id="progress"></div>
+
+<!-- ============ HERO ============ -->
+<header class="hero">
+  <div class="wrap reveal in">
+    <div class="brand-lockup" id="brandLockup">
+      <span class="brand-logo-slot" aria-hidden="true"><span class="logo-eclipse"></span></span>
+      <span class="brand-mark">void</span>
+    </div>
+    <h1>почему void работает<br>не так, как всё остальное</h1>
+    <p class="lead">обычные звонки идут через чужие серверы. void соединяет вас напрямую - кратчайшим путем. отсюда всё остальное: скорость, приватность и устойчивость. за пять минут - почему это реально круто.</p>
+    <div class="meta">
+      <span>голос напрямую</span>
+      <span>без аккаунтов</span>
+      <span>поговорили → исчезло</span>
+    </div>
+    <div class="scroll-hint"><span class="bar"></span>листай вниз</div>
+  </div>
+</header>
+
+<!-- ============ 1. НАПРЯМУЮ ============ -->
+<section>
+  <div class="wrap reveal">
+    <div class="kicker"><span class="num">01</span> &nbsp;·&nbsp; главное отличие</div>
+    <h2>сервер только знакомит собеседников.<br>дальше разговор - напрямую.</h2>
+    <p class="big">почти все звонилки проводят голос через свои дата-центры.</br>void устроен иначе: сервер сводит двоих — и уходит. голос летит без посредников, как при личной встрече.</p>
+
+    <div class="vs">
+      <!-- как обычно -->
+      <div class="vs-card">
+        <div class="tag">как обычно</div>
+        <svg viewBox="0 0 300 150" aria-hidden="true">
+          <!-- lines -->
+          <path id="usualPath" d="M34,118 L150,34 L266,118" fill="none" stroke="var(--fg-4)" stroke-width="1.4"/>
+          <!-- nodes -->
+          <circle cx="34"  cy="118" r="5" fill="var(--bg-0)" stroke="var(--fg-2)" stroke-width="1.4"/>
+          <circle cx="266" cy="118" r="5" fill="var(--bg-0)" stroke="var(--fg-2)" stroke-width="1.4"/>
+          <circle cx="150" cy="34"  r="6" fill="var(--bg-0)" stroke="var(--signal-warn)" stroke-width="1.4"/>
+          <!-- packets making the detour -->
+          <circle r="3.2" fill="var(--fg)">
+            <animateMotion dur="2.4s" repeatCount="indefinite" path="M34,118 L150,34 L266,118" keyPoints="0;1" keyTimes="0;1" calcMode="linear"/>
+          </circle>
+          <circle r="3.2" fill="var(--fg-3)">
+            <animateMotion dur="2.4s" begin="1.2s" repeatCount="indefinite" path="M266,118 L150,34 L34,118" keyPoints="0;1" keyTimes="0;1" calcMode="linear"/>
+          </circle>
+          <!-- labels -->
+          <text class="nodelabel" x="34"  y="138" text-anchor="middle">ты</text>
+          <text class="nodelabel" x="266" y="138" text-anchor="middle">кто-то</text>
+          <text class="nodelabel srv" x="150" y="22" text-anchor="middle">сервер</text>
+        </svg>
+        <div class="note">каждое слово делает крюк через чужой сервер. сервер слышит весь разговор.</div>
+        <div class="roundtrip"><span class="led"></span>длинный путь · через посредника</div>
+      </div>
+
+      <!-- как в void -->
+      <div class="vs-card good">
+        <div class="tag">как в void</div>
+        <svg viewBox="0 0 300 150" aria-hidden="true">
+          <path d="M40,75 L260,75" fill="none" stroke="var(--fg-4)" stroke-width="1.4"/>
+          <circle cx="40"  cy="75" r="5" fill="var(--bg-0)" stroke="var(--screen)" stroke-width="1.4"/>
+          <circle cx="260" cy="75" r="5" fill="var(--bg-0)" stroke="var(--screen)" stroke-width="1.4"/>
+          <!-- fast bidirectional packets -->
+          <circle r="3.2" fill="var(--screen)">
+            <animateMotion dur="1.0s" repeatCount="indefinite" path="M40,75 L260,75" keyPoints="0;1" keyTimes="0;1" calcMode="linear"/>
+          </circle>
+          <circle r="3.2" fill="var(--fg)">
+            <animateMotion dur="1.0s" begin="0.5s" repeatCount="indefinite" path="M260,75 L40,75" keyPoints="0;1" keyTimes="0;1" calcMode="linear"/>
+          </circle>
+          <text class="nodelabel you" x="40"  y="98" text-anchor="middle">ты</text>
+          <text class="nodelabel you" x="260" y="98" text-anchor="middle">кто-то</text>
+        </svg>
+        <div class="note">голос идёт напрямую. сервер не получает ни одного слова — ему нечего слушать.</div>
+        <div class="roundtrip"><span class="led"></span>кратчайший путь · напрямую</div>
+      </div>
+    </div>
+
+    <p style="margin: auto; margin-top: 20px; text-align: center;">это не настройка приватности, которую можно включить. это сама конструкция: <strong>серверу физически нечего слушать</strong>, потому что разговор через него не проходит.</p>
+  </div>
+</section>
+
+<!-- ============ 2. СЦЕНАРИИ ============ -->
+<section>
+  <div class="wrap reveal">
+    <div class="kicker"><span class="num">02</span> &nbsp;·&nbsp; что это даёт в жизни</div>
+    <h2>одна идея - куча вытекающих</h2>
+
+    <div class="scn">
+      <div class="scn-row">
+        <div class="when">когда хочешь быстро созвониться</div>
+        <div class="what">отправил ссылку — говорите.</div>
+        <div class="why">без регистрации, без обмена контактами, без «скачай приложение». комната живёт, пока вы в ней, и исчезает, когда все вышли.</div>
+      </div>
+      <div class="scn-row">
+        <div class="when">когда важна скорость</div>
+        <div class="what">звук, будто собеседник в соседней комнате.</div>
+        <div class="why">прямое соединение — это кратчайший путь, который вообще есть в интернете между вами. никакого лишнего крюка через сервер на другом конце страны.</div>
+      </div>
+      <div class="scn-row">
+        <div class="when">когда включен vpn</div>
+        <div class="what">vpn притормозит только вход. разговор он не затронет.</div>
+        <div class="why">vpn отрабатывает пару секунд при установлении соединения — а сам звонок дальше идёт напрямую и остаётся быстрым, даже если vpn остается включенным.</div>
+      </div>
+      <div class="scn-row">
+        <div class="when">когда вокруг всё блокируют</div>
+        <div class="what">даже если закроют сайт - разговор летит мимо.</div>
+        <div class="why">зайти можно через vpn, а сам голос идёт напрямую между вами, по обычному интернету. заблокировать такое — несоизмеримо дорого.</div>
+      </div>
+      <div class="scn-row">
+        <div class="when">когда не хочешь следов</div>
+        <div class="what">поговорили — и всё исчезло.</div>
+        <div class="why">нет аккаунтов, нет базы данных, нет истории. как телефонный звонок: положил трубку — ничего не осталось.</div>
+      </div>
+      <div class="scn-row">
+        <div class="when">когда нужно больше, чем голос</div>
+        <div class="what">чат, файлы и демонстрация экрана — тем же прямым каналом.</div>
+        <div class="why">показать экран или скинуть файл — всё идёт напрямую между вами, с тем же качеством и приватностью, что и голос.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 3. УСТОЙЧИВОСТЬ ============ -->
+<section>
+  <div class="wrap reveal">
+    <div class="kicker"><span class="num">03</span> &nbsp;·&nbsp; почему это так стабильно</div>
+    <h2>соединение само находит лучший путь —<br>и держится за него</h2>
+    <p class="big">сеть дёрнулась, vpn моргнул, wi-fi переключился — void не падает. он за пару секунд тихо пересобирает соединение и садится на самый устойчивый маршрут. ты этого почти не замечаешь.</p>
+
+    <div class="callout">
+      <svg class="pf-illus" viewBox="0 0 520 160" aria-hidden="true">
+        <!-- candidate paths (dashed, faint) -->
+        <path class="pf-cand" d="M60,80 Q260,18 460,80"/>
+        <path class="pf-cand" d="M60,80 L460,80"/>
+        <path class="pf-cand" d="M60,80 Q260,142 460,80"/>
+        <!-- the "chosen" path animates over each in turn -->
+        <path class="pf-live" id="pfA" d="M60,80 Q260,18 460,80"/>
+        <path class="pf-live" id="pfB" d="M60,80 L460,80"/>
+        <path class="pf-live" id="pfC" d="M60,80 Q260,142 460,80"/>
+        <!-- nodes -->
+        <circle class="pf-node" cx="60"  cy="80" r="6"/>
+        <circle class="pf-node" cx="460" cy="80" r="6"/>
+      </svg>
+      <div class="h">простыми словами</div>
+      <p>void не пытается удержать одну хрупкую ниточку. он постоянно знает все возможные пути до собеседника и при любой тряске мгновенно перепрыгивает на тот, что работает лучше всего. поэтому звонок ощущается «прибитым гвоздями», даже когда сеть нестабильна.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 4. ГОРДОСТЬ + ЧЕСТНОСТЬ ============ -->
+<section>
+  <div class="wrap reveal">
+    <div class="kicker"><span class="num">04</span> &nbsp;·&nbsp; коротко о сути</div>
+    <div class="pull">обычный звонок — это разговор через посредника.</br>void — это разговор напрямую.</br>всё остальное вытекает само.</div>
+    <p>прямое соединение — причина, по которой void быстрый, приватный и трудный для блокировки одновременно. это не три отдельные фичи, а три следствия одного решения.</p>
+    <p>и да — мы не обещаем магии: планету не сожмёшь, и звонок из одного полушария в другое всё равно упрётся в скорость света. но void не добавляет ни миллисекунды сверх того, что диктует физика. честный максимум — и ничего лишнего поверх.</p>
+  </div>
+</section>
+
+<footer>
+  <div class="closing-bloom" aria-hidden="true"></div>
+  <div class="closing-stage reveal">
+    <div class="closing-kicker">что есть музыка жизни?</div>
+    <div class="closing-word">тишина.</div>
+    <div class="closing-rule"></div>
+    <div class="contact"><a href="https://t.me/mtbibltww">crafted by @casheaterr</a></div>
+  </div>
+</footer>
+
+<style>
+  /* path-finder: rotating "chosen" highlight via dash draw + fade */
+  #pfA, #pfB, #pfC { animation: pfdraw 6s var(--ease) infinite; }
+  #pfB { animation-delay: 2s; }
+  #pfC { animation-delay: 4s; }
+  @keyframes pfdraw {
+    0%   { stroke-dashoffset: 520; opacity: 0; }
+    8%   { opacity: 1; }
+    30%  { stroke-dashoffset: 0;   opacity: 1; }
+    38%  { stroke-dashoffset: 0;   opacity: 1; }
+    44%  { stroke-dashoffset: 0;   opacity: 0; }
+    100% { stroke-dashoffset: 0;   opacity: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #pfA, #pfB, #pfC { animation: none; opacity: 0; }
+    #pfB { opacity: 1; stroke-dashoffset: 0; }
+  }
+</style>
+
+<script>
+  /* ---- scroll progress ---- */
+  const progress = document.getElementById("progress");
+  function updateProgress() {
+    const h = document.documentElement;
+    const max = h.scrollHeight - h.clientHeight;
+    progress.style.width = (max > 0 ? (h.scrollTop / max) * 100 : 0) + "%";
+  }
+  document.addEventListener("scroll", updateProgress, { passive: true });
+  updateProgress();
+
+  /* ---- reveal on scroll ---- */
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } });
+  }, { threshold: 0.12 });
+  document.querySelectorAll(".reveal:not(.in)").forEach(el => io.observe(el));
+
+  /* ---- ambient particle field ---- */
+  (function () {
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const canvas = document.getElementById("ambient");
+    const ctx = canvas.getContext("2d");
+    let w, h, dpr, dots = [], mouse = { x: -999, y: -999 };
+
+    function resize() {
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      w = canvas.width = innerWidth * dpr;
+      h = canvas.height = innerHeight * dpr;
+      canvas.style.width = innerWidth + "px";
+      canvas.style.height = innerHeight + "px";
+      const target = Math.min(64, Math.round((innerWidth * innerHeight) / 26000));
+      dots = [];
+      for (let i = 0; i < target; i++) {
+        dots.push({
+          x: Math.random() * w, y: Math.random() * h,
+          vx: (Math.random() - 0.5) * 0.12 * dpr,
+          vy: (Math.random() - 0.5) * 0.12 * dpr,
+          r: (Math.random() * 1.1 + 0.6) * dpr
+        });
+      }
+    }
+
+    addEventListener("mousemove", (e) => { mouse.x = e.clientX * dpr; mouse.y = e.clientY * dpr; }, { passive: true });
+    addEventListener("mouseout", () => { mouse.x = mouse.y = -999; }, { passive: true });
+    addEventListener("resize", resize);
+
+    const LINK = 130, MOUSE_LINK = 170;
+    function frame() {
+      ctx.clearRect(0, 0, w, h);
+      for (let i = 0; i < dots.length; i++) {
+        const d = dots[i];
+        d.x += d.vx; d.y += d.vy;
+        if (d.x < 0) d.x += w; else if (d.x > w) d.x -= w;
+        if (d.y < 0) d.y += h; else if (d.y > h) d.y -= h;
+
+        ctx.beginPath();
+        ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(138,138,144,0.30)";
+        ctx.fill();
+
+        // link to cursor
+        const mdx = d.x - mouse.x, mdy = d.y - mouse.y;
+        const md = Math.hypot(mdx, mdy);
+        if (md < MOUSE_LINK * dpr) {
+          ctx.beginPath();
+          ctx.moveTo(d.x, d.y); ctx.lineTo(mouse.x, mouse.y);
+          ctx.strokeStyle = "rgba(184,122,90," + (0.22 * (1 - md / (MOUSE_LINK * dpr))).toFixed(3) + ")";
+          ctx.lineWidth = dpr; ctx.stroke();
+        }
+
+        // links between near dots
+        for (let j = i + 1; j < dots.length; j++) {
+          const e = dots[j];
+          const dx = d.x - e.x, dy = d.y - e.y;
+          const dist = Math.hypot(dx, dy);
+          if (dist < LINK * dpr) {
+            ctx.beginPath();
+            ctx.moveTo(d.x, d.y); ctx.lineTo(e.x, e.y);
+            ctx.strokeStyle = "rgba(74,77,84," + (0.30 * (1 - dist / (LINK * dpr))).toFixed(3) + ")";
+            ctx.lineWidth = dpr; ctx.stroke();
+          }
+        }
+      }
+      requestAnimationFrame(frame);
+    }
+
+    resize();
+    if (reduce) {
+      // static single paint, no animation loop
+      ctx.clearRect(0, 0, w, h);
+      dots.forEach(d => { ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2); ctx.fillStyle = "rgba(138,138,144,0.18)"; ctx.fill(); });
+    } else {
+      frame();
+    }
+  })();
+</script>
+</body>
+</html>

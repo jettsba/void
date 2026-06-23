@@ -1,54 +1,73 @@
-/* ===== UI scale bootstrap (v0.10.1) =====
-   Считаем масштаб ДО загрузки CSS, чтобы избежать FOUC.
+/* ===== UI scale bootstrap (v0.12.19) =====
+   Единственный источник истины для --auto-scale. Считаем масштаб ДО загрузки
+   CSS (чтобы избежать FOUC) и экспонируем window.__voidApplyAutoScale, чтобы
+   resize-хук в app.js пересчитывал ТЕМ ЖЕ кодом.
 
-   Источник масштаба — screen.width (физическая CSS-ширина монитора, иммунна
-   к zoom браузера). Если бы использовали vw в clamp() — браузерный zoom
-   менял бы vw и перекомпенсировал scaling (Ctrl+Minus → интерфейс становился
-   крупнее). JS-based подход делает zoom ортогональным нашему scaling.
+   ⚠ ИСТОРИЯ БАГА (почему «desktop-масштаб не чинился 10 версий»):
+   раньше desktop-ветка жила только здесь, а app.js на init()/resize звал
+   СВОЮ updateAutoScale() — она знала ТОЛЬКО web-формулу от screen.width и
+   безусловно ЗАТИРАЛА выставленный тут desktop-масштаб через пару мс после
+   загрузки. Любой desktop-фикс (v0.12.8 и далее) был мёртвым кодом: страница
+   всегда отрисовывалась с раздутым web-значением. Теперь формула одна.
 
-   Раньше этот код жил инлайном в <head> public/index.html, но строгий CSP
-   (script-src 'self' без 'unsafe-inline') блокировал его в проде: на 4K
-   мониторах --auto-scale оставался дефолтным, юзер получал слишком мелкий
-   интерфейс. Вынесли в внешний файл — теперь CSP остаётся строгим, а
-   масштаб работает корректно. Грузится синхронно через blocking <script>
-   (БЕЗ defer/async) — должен выполниться ДО парсинга CSS.
+   Источник fluid-базы — screen.width (физическая CSS-ширина монитора, иммунна
+   к zoom браузера). vw НЕ используем: браузерный zoom менял бы vw и
+   перекомпенсировал scaling (Ctrl+Minus → интерфейс крупнее). screen.width к
+   zoom иммунен → zoom ортогонален нашему scaling.
 
-   КЭШ: подключён как ?v=N в public/index.html. При правке этого файла
-   бампать N (см. memory rule про cache-busters). */
+   Грузится синхронно blocking-<script> (БЕЗ defer/async) — должен выполниться
+   ДО парсинга CSS. КЭШ: ?v=N в index.html — бампать при правке (cache-buster). */
 (function () {
-    try {
-        /* DESKTOP (Tauri): окно фиксированного логического размера (1280×820,
-           см. lib.rs). ОС применяет DPI-масштаб ко ВСЕЙ системе (devicePixelRatio
-           = OS scale factor: 4K обычно @150%→1.5, 2K @125%→1.25). Для нашего
-           фикс-лейаута это делает окно непропорционально большим (на 4K@150% всё
-           ×1.5). Контр-масштабируем под постоянный компактный «нативный» размер,
-           независимый от монитора/OS-масштаба: auto = 1.05 / dpr (кап 1.0).
-           Точки: 4K@150%→0.70, 2K@125%→0.84, 1080p@100%→1.0 — совпадает с тем,
-           что пользователи выставляли вручную. Прошлый дефолт 1.0 не учитывал dpr
-           и оставался раздутым OS-масштабом.
-           WEB сохраняет fluid-формулу от screen.width (вьюпорт ≈ ширине монитора).
-           __TAURI_INTERNALS__ инжектится WebView ДО любых скриптов (детерминирован). */
+    /* Канонический расчёт --auto-scale. Используется и тут (до CSS), и из
+       app.js (resize-хук) — через window.__voidApplyAutoScale. */
+    function computeAutoScale() {
         var isDesktop = typeof window.__TAURI_INTERNALS__ !== "undefined";
-        if (isDesktop) {
-            var dpr = window.devicePixelRatio || 1;
-            var ds = 1.05 / dpr;
-            if (ds > 1) ds = 1;
-            if (ds < 0.5) ds = 0.5;
-            document.documentElement.style.setProperty('--auto-scale', ds.toFixed(3));
-        } else {
-            var w = (window.screen && window.screen.width) || window.innerWidth || 1920;
-            var t = 1.4 * (w / 100) - 10;
-            if (t < 14) t = 14;
-            if (t > 44) t = 44;
-            document.documentElement.style.setProperty('--auto-scale', (t / 14).toFixed(3));
-        }
 
-        var raw = localStorage.getItem('void:settings');
+        /* Fluid-база по физической ширине монитора: FHD≈1.21, 2K≈1.86, 4K≈3.14,
+           пегается 1.0..3.14 по краям. На web это финальный масштаб. */
+        var w = (window.screen && window.screen.width) || window.innerWidth || 1920;
+        var t = 1.4 * (w / 100) - 10;
+        if (t < 14) t = 14;
+        if (t > 44) t = 44;
+        var base = t / 14;
+
+        if (!isDesktop) return base;
+
+        /* DESKTOP (Tauri): окно фиксированного ЛОГИЧЕСКОГО размера (1280×820,
+           см. lib.rs). ОС уже домножает ВЕСЬ контент на DPI (devicePixelRatio =
+           OS scale factor: 4K обычно @150%→1.5, 2K @125%→1.25). Контр-масштабируем
+           fluid-базу множителем 1.05/dpr, чтобы hi-DPI не раздувал UI поверх
+           OS-масштаба. Множитель (НЕ замена базы!): dpr1.0→1.0 (FHD без изм.),
+           1.25→0.84, 1.5→0.70 — ровно то, что пользователи выставляли вручную
+           (85%/70%) поверх раздутого UI. Кап 1.0 (вниз не растим на FHD),
+           пол 0.5 (страховка от экстремального DPI).
+           __TAURI_INTERNALS__ инжектится WebView ДО любых скриптов. */
+        var dpr = window.devicePixelRatio || 1;
+        var factor = 1.05 / dpr;
+        if (factor > 1) factor = 1;
+        if (factor < 0.5) factor = 0.5;
+        return base * factor;
+    }
+
+    function applyAutoScale() {
+        try {
+            document.documentElement.style.setProperty(
+                "--auto-scale", computeAutoScale().toFixed(3));
+        } catch (e) { /* доступ к DOM/screen недоступен — оставляем дефолт */ }
+    }
+
+    /* Экспортируем для resize-хука app.js — единая точка пересчёта. */
+    window.__voidApplyAutoScale = applyAutoScale;
+
+    try {
+        applyAutoScale();
+
+        var raw = localStorage.getItem("void:settings");
         if (raw) {
             var s = JSON.parse(raw);
             var ui = parseFloat(s && s.uiScale);
             if (isFinite(ui) && ui >= 0.5 && ui <= 2.0) {
-                document.documentElement.style.setProperty('--ui-scale', ui);
+                document.documentElement.style.setProperty("--ui-scale", ui);
             }
         }
     } catch (e) { /* приватный режим, мусор в storage — оставляем дефолты */ }
