@@ -129,6 +129,20 @@
   function minimizeWindow() { const w = tauriWin(); if (w) w.minimize(); else console.log("[mock] minimize"); }
   function showWindow() { const w = tauriWin(); if (w) { try { w.show(); if (w.setFocus) w.setFocus(); } catch (_) {} } }
 
+  // ----- масштаб контента под размер окна -----------------------------------
+  // Контент свёрстан в канвасе шириной 640 CSS px; растягиваем его на реальную
+  // ЛОГИЧЕСКУЮ ширину окна (её под монитор/DPI выбрал Rust → fit_installer_window).
+  // Так нет завязки на 100vh — а значит и вертикального скролла/пустоты на 2K/4K
+  // и при Windows scale. resize-слушатель ловит ресайз от Rust (set_size).
+  function applyZoom() {
+    // Вне Tauri (браузер-превью) окно не подгоняет Rust → не растягиваем на всю
+    // вкладку, держим прежний фикс-масштаб 1.2 как было в CSS.
+    if (!hasTauri) { document.documentElement.style.zoom = 1.2; return; }
+    const w = window.innerWidth || 640;
+    document.documentElement.style.zoom = w / 640;
+  }
+  window.addEventListener("resize", applyZoom);
+
   // ----- кольцо -------------------------------------------------------------
   const ringIdle = (s) => s === 0 || s === 1 || s === "exists";
   const ringDone = (s) => s === 3;
@@ -392,9 +406,10 @@
       } catch (e) { console.warn("boot", e); }
     }
     if (location.hash === "#exists") startStep = "exists";
+    applyZoom();
     render(startStep);
-    requestAnimationFrame(() => requestAnimationFrame(showWindow));
-    setTimeout(showWindow, 400);
+    requestAnimationFrame(() => requestAnimationFrame(() => { applyZoom(); showWindow(); }));
+    setTimeout(() => { applyZoom(); showWindow(); }, 400);
   }
 
   boot();

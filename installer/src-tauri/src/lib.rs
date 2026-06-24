@@ -21,6 +21,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use serde::Serialize;
+use tauri::{Manager, PhysicalPosition, PhysicalSize};
 
 const PRODUCT: &str = "Void";
 const APP_EXE: &str = "void-desktop.exe";
@@ -299,12 +300,62 @@ fn purge_app_data() {
 #[cfg(not(windows))]
 fn purge_app_data() {}
 
+/// Подгоняет окно установщика под монитор и его DPI.
+///
+/// Контент свёрстан в фиксированном дизайн-канвасе 640×468 CSS px и
+/// масштабируется фронтом (`document.documentElement.style.zoom = innerWidth/640`,
+/// см. applyZoom в installer.js). Здесь выбираем ФИЗИЧЕСКИЙ размер окна как долю
+/// рабочей области (work_area уже физический, без таскбара) с сохранением
+/// пропорции 640:468. Поэтому установщик занимает одинаковую долю экрана на
+/// любом разрешении и любом OS-масштабе (раньше окно было фикс-логических
+/// 768×562 → на FHD@125% выглядело огромным, а на 2K/4K — нормально).
+/// Центрируем внутри рабочей области.
+fn fit_installer_window(window: &tauri::WebviewWindow) {
+    const ASPECT: f64 = 640.0 / 468.0; // ширина / высота дизайн-канваса
+    const H_FRAC: f64 = 0.58; // доля высоты рабочей области под окно
+    const MIN_H: f64 = 468.0; // не мельче 1:1 дизайн-канваса
+    const MAX_H: f64 = 820.0;
+    const W_FRAC_MAX: f64 = 0.9; // ширина не больше 90% рабочей области
+
+    let Ok(Some(monitor)) = window.current_monitor() else {
+        let _ = window.center();
+        return;
+    };
+    let wa = monitor.work_area();
+    let wa_x = wa.position.x as f64;
+    let wa_y = wa.position.y as f64;
+    let wa_w = wa.size.width as f64;
+    let wa_h = wa.size.height as f64;
+
+    // Высота — доля рабочей области, в пределах [MIN_H, MAX_H] и не выше самой
+    // области; ширина из пропорции, но не шире доли рабочей области.
+    let mut h = (wa_h * H_FRAC).clamp(MIN_H, MAX_H).min(wa_h);
+    let mut w = h * ASPECT;
+    let max_w = wa_w * W_FRAC_MAX;
+    if w > max_w {
+        w = max_w;
+        h = w / ASPECT;
+    }
+
+    let x = wa_x + (wa_w - w) / 2.0;
+    let y = wa_y + (wa_h - h) / 2.0;
+
+    let _ = window.set_size(PhysicalSize::new(w.round() as u32, h.round() as u32));
+    let _ = window.set_position(PhysicalPosition::new(x.round() as i32, y.round() as i32));
+}
+
 // ============================ run ============================
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .setup(|app| {
+            if let Some(win) = app.get_webview_window("main") {
+                fit_installer_window(&win);
+            }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             bundled_version,
             detect_existing,
