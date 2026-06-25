@@ -45,6 +45,16 @@
     const isDesktop = window.VoidPlatform === "desktop";
     const tauriEvent = window.__TAURI__ && window.__TAURI__.event;
 
+    /* Tauri-unlisten'ы, привязанные к открытой модалке (напр. слушатели апдейтера
+       в «настройках приложения»). Снимаются при закрытии модалки — чтобы не
+       копить подписки при повторных открытиях. */
+    let appModalCleanups = [];
+    function trackCleanup(promise) {
+        if (promise && typeof promise.then === "function") {
+            promise.then((un) => appModalCleanups.push(un)).catch(() => {});
+        }
+    }
+
     /* Монолайн-иконки заголовков модалок (по гайду: stroke, round caps). */
     const ICON_KEYBOARD = `<svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></svg>`;
     const ICON_APP = `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg>`;
@@ -149,6 +159,8 @@
         if (!scrim) return;
         scrim.classList.remove("is-open");
         document.removeEventListener("keydown", escClose);
+        appModalCleanups.forEach((un) => { try { un(); } catch (_) {} });
+        appModalCleanups = [];
         setTimeout(() => scrim.remove(), 180);
     }
 
@@ -446,6 +458,26 @@
                     <span class="sc-switch-track"></span>
                 </label>
             </div>
+            ${isDesktop ? `
+            <div class="app-modal-divider"></div>
+
+            <div class="app-modal-row app-modal-row--lead">
+                <span class="app-modal-ic-lead" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 4v5h-5"/></svg>
+                </span>
+                <div class="app-modal-row-text">
+                    <span class="app-modal-row-label">${escape(T("app.updates.label"))}</span>
+                    <span class="app-modal-row-hint">${escape(T("app.updates.current"))} v${escape(window.VoidVersion || "")}</span>
+                </div>
+                <div class="app-update-ctl">
+                    <span class="app-update-toast" id="appUpdateToast" aria-live="polite"></span>
+                    <button type="button" class="app-update-btn" id="appCheckUpdatesBtn">
+                        <svg class="app-update-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 4v5h-5"/></svg>
+                        <span class="app-update-label">${escape(T("app.updates.btn"))}</span>
+                    </button>
+                </div>
+            </div>
+            ` : ""}
             `,
             ICON_APP
         );
@@ -480,6 +512,104 @@
             }
             window.VoidSettings?.refreshCats?.();
         });
+
+        /* «Проверить обновления» — самодостаточный инлайн-флоу (альтернатива
+           баннеру): проверка → инлайн-тост над кнопкой → если апдейт есть, кнопка
+           становится «обновить» и качает/ставит прямо из настроек. Отдельный
+           канал void:updater-probe — баннер не дёргаем. */
+        const upBtn = card.querySelector("#appCheckUpdatesBtn");
+        if (upBtn && tauriEvent) {
+            const toastEl = card.querySelector("#appUpdateToast");
+            const labelEl = upBtn.querySelector(".app-update-label");
+            const icEl = upBtn.querySelector(".app-update-ic");
+            const ICON_REFRESH = `<path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 4v5h-5"/>`;
+            const ICON_DOWNLOAD = `<path d="M12 4v11"/><path d="M7 11l5 5 5-5"/><path d="M5 19.5h14"/>`;
+
+            let mode = "check"; // check | update | installing
+            let foundVersion = "";
+            let toastTimer = null;
+            let probeTimer = null;
+
+            const tmpl = (key, val) => T(key).replace("{v}", val).replace("{p}", val);
+            function showToast(text, autoDismiss, accent) {
+                if (!toastEl) return;
+                toastEl.textContent = text;
+                toastEl.classList.toggle("is-available", !!accent);
+                toastEl.classList.add("is-visible");
+                clearTimeout(toastTimer);
+                if (autoDismiss) toastTimer = setTimeout(() => toastEl.classList.remove("is-visible"), 2600);
+            }
+            const setIcon = (paths) => { if (icEl) icEl.innerHTML = paths; };
+
+            function toCheckMode() {
+                mode = "check";
+                upBtn.classList.remove("is-checking", "is-installing", "is-update");
+                upBtn.disabled = false;
+                setIcon(ICON_REFRESH);
+                if (labelEl) labelEl.textContent = T("app.updates.btn");
+            }
+            function toUpdateMode(version) {
+                mode = "update";
+                foundVersion = version;
+                upBtn.classList.remove("is-checking");
+                upBtn.classList.add("is-update");
+                upBtn.disabled = false;
+                setIcon(ICON_DOWNLOAD);
+                if (labelEl) labelEl.textContent = T("app.updates.update");
+            }
+
+            trackCleanup(tauriEvent.listen("void:updater-probe-result", (event) => {
+                const p = (event && event.payload) || {};
+                clearTimeout(probeTimer);
+                if (mode === "installing") return;
+                if (p.status === "available") {
+                    showToast(tmpl("app.updates.available", "v" + (p.version || "")), false, true);
+                    toUpdateMode(p.version || "");
+                } else if (p.status === "uptodate") {
+                    showToast(T("app.updates.latest"), true);
+                    toCheckMode();
+                } else {
+                    showToast(T("app.updates.failed"), true);
+                    toCheckMode();
+                }
+            }));
+
+            trackCleanup(tauriEvent.listen("void:updater-progress", (event) => {
+                if (mode !== "installing") return;
+                const p = (event && event.payload) || {};
+                const total = Number(p.total || 0), down = Number(p.downloaded || 0);
+                const pct = total > 0 ? Math.min(100, Math.floor((down / total) * 100)) : 0;
+                if (labelEl) labelEl.textContent = tmpl("app.updates.downloading", String(pct));
+            }));
+
+            trackCleanup(tauriEvent.listen("void:updater-error", () => {
+                if (mode !== "installing") return;
+                showToast(T("app.updates.failed"), true);
+                toUpdateMode(foundVersion);
+            }));
+
+            upBtn.addEventListener("click", () => {
+                if (mode === "installing" || upBtn.disabled) return;
+                if (mode === "update") {
+                    /* Загрузка+установка прямо из настроек (плагин сам рестартнёт). */
+                    mode = "installing";
+                    upBtn.classList.add("is-installing");
+                    setIcon(ICON_DOWNLOAD);
+                    if (labelEl) labelEl.textContent = tmpl("app.updates.downloading", "0");
+                    tauriEvent.emit("void:updater-install").catch(() => {});
+                    return;
+                }
+                /* mode === "check" */
+                if (toastEl) toastEl.classList.remove("is-visible");
+                upBtn.classList.add("is-checking");
+                upBtn.disabled = true;
+                tauriEvent.emit("void:updater-probe").catch(() => {});
+                clearTimeout(probeTimer);
+                probeTimer = setTimeout(() => {
+                    if (mode === "check") { showToast(T("app.updates.failed"), true); toCheckMode(); }
+                }, 20000);
+            });
+        }
     }
 
     // -------------------- Hotkey-pressed handler (Rust → JS) --------------------

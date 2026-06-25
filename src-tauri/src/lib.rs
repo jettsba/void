@@ -145,8 +145,7 @@ pub fn run() {
             if !cfg!(debug_assertions) {
                 let h = app.clone();
                 tauri::async_runtime::spawn(async move {
-                    let mut last = None;
-                    check_update_banner(&h, &mut last).await;
+                    check_update_banner(&h).await;
                 });
             }
         }))
@@ -326,6 +325,52 @@ pub fn run() {
                             );
                         }
                     }
+                });
+            });
+
+            // Инициирующая само-проверка updater.js на старте → обычный
+            // check_update_banner (БАННЕР при наличии).
+            let app_for_check = app.handle().clone();
+            app.listen("void:updater-check", move |_event| {
+                let h = app_for_check.clone();
+                tauri::async_runtime::spawn(async move {
+                    check_update_banner(&h).await;
+                });
+            });
+
+            // Проверка для КНОПКИ в настройках — отдельный канал
+            // void:updater-probe → void:updater-probe-result, БЕЗ баннера (кнопка
+            // самодостаточна: инлайн-фидбэк + инлайн-обновление). {status:
+            // available|uptodate|error, version?, body?, message?}.
+            let app_for_probe = app.handle().clone();
+            app.listen("void:updater-probe", move |_event| {
+                let h = app_for_probe.clone();
+                tauri::async_runtime::spawn(async move {
+                    let result = match h.updater() {
+                        Err(e) => {
+                            serde_json::json!({ "status": "error", "message": format!("{e:?}") })
+                        }
+                        Ok(updater) => match tokio::time::timeout(
+                            std::time::Duration::from_secs(15),
+                            updater.check(),
+                        )
+                        .await
+                        {
+                            Err(_) => {
+                                serde_json::json!({ "status": "error", "message": "timeout" })
+                            }
+                            Ok(Ok(Some(u))) => serde_json::json!({
+                                "status": "available",
+                                "version": u.version,
+                                "body": u.body.clone().unwrap_or_default(),
+                            }),
+                            Ok(Ok(None)) => serde_json::json!({ "status": "uptodate" }),
+                            Ok(Err(e)) => {
+                                serde_json::json!({ "status": "error", "message": format!("{e:?}") })
+                            }
+                        },
+                    };
+                    let _ = h.emit("void:updater-probe-result", result);
                 });
             });
 
@@ -893,40 +938,51 @@ async fn startup_update_flow(app: AppHandle) {
 }
 
 /// Разовая проверка апдейта для режима B (баннер, без принудительного рестарта).
-/// Новее → "void:updater-available" (с dedup по `last`). Результат каждой
-/// проверки дублируется в "void:updater-status" — JS пишет это в лог (на Windows
-/// release eprintln невидим), чтобы было видно, ПОЧЕМУ баннер не показался
-/// (uptodate / error / снуз на стороне JS).
-async fn check_update_banner(app: &AppHandle, last: &mut Option<String>) {
+/// Новее → ВСЕГДА эмитит "void:updater-available" (без dedup: иначе при пропуске
+/// единственного эмита webview'ом баннер не покажется до перезапуска — JS сам
+/// гейтит snooze и idempotent-показ). Результат каждой проверки дублируется в
+/// "void:updater-status" (JS пишет в лог + тостит при ручной проверке).
+///
+/// ТАЙМАУТ 15с: без него зависшее соединение блокировало бы попытку надолго, а
+/// следующая — только через интервал. Возвращает true, если проверка ЗАВЕРШИЛАСЬ
+/// (есть апдейт или актуально), false при ошибке/таймауте — для ретрая-после-фейла.
+async fn check_update_banner(app: &AppHandle) -> bool {
     let Ok(updater) = app.updater() else {
         let _ = app.emit("void:updater-status", serde_json::json!({ "status": "init-error" }));
-        return;
+        return false;
     };
-    match updater.check().await {
-        Ok(Some(update)) => {
+    match tokio::time::timeout(std::time::Duration::from_secs(15), updater.check()).await {
+        Err(_) => {
+            let _ = app.emit(
+                "void:updater-status",
+                serde_json::json!({ "status": "error", "message": "timeout" }),
+            );
+            false
+        }
+        Ok(Ok(Some(update))) => {
             let _ = app.emit(
                 "void:updater-status",
                 serde_json::json!({ "status": "available", "version": update.version }),
             );
-            if last.as_deref() != Some(update.version.as_str()) {
-                *last = Some(update.version.clone());
-                let _ = app.emit(
-                    "void:updater-available",
-                    serde_json::json!({
-                        "version": update.version,
-                        "body": update.body.clone().unwrap_or_default(),
-                    }),
-                );
-            }
+            let _ = app.emit(
+                "void:updater-available",
+                serde_json::json!({
+                    "version": update.version,
+                    "body": update.body.clone().unwrap_or_default(),
+                }),
+            );
+            true
         }
-        Ok(None) => {
+        Ok(Ok(None)) => {
             let _ = app.emit("void:updater-status", serde_json::json!({ "status": "uptodate" }));
+            true
         }
-        Err(e) => {
+        Ok(Err(e)) => {
             let _ = app.emit(
                 "void:updater-status",
                 serde_json::json!({ "status": "error", "message": format!("{e:?}") }),
             );
+            false
         }
     }
 }
@@ -938,11 +994,13 @@ async fn check_update_banner(app: &AppHandle, last: &mut Option<String>) {
 /// могла висеть без баннера до 15 мин (а то и «никогда» при перезапусках).
 fn start_periodic_check(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
-        let mut last_notified: Option<String> = None;
         tokio::time::sleep(std::time::Duration::from_secs(40)).await;
         loop {
-            check_update_banner(&app, &mut last_notified).await;
-            tokio::time::sleep(std::time::Duration::from_secs(15 * 60)).await;
+            // Ретрай-после-фейла: успех → 15 мин, ошибка/таймаут → 2 мин (чтобы
+            // на нестабильном канале не ждать 15 мин до следующей попытки).
+            let ok = check_update_banner(&app).await;
+            let delay = if ok { 15 * 60 } else { 120 };
+            tokio::time::sleep(std::time::Duration::from_secs(delay)).await;
         }
     });
 }

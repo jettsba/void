@@ -252,6 +252,11 @@
             dlog("update available", { version });
             lastVersion = version;
             if (isSnoozed(version)) { dlog("snoozed — banner suppressed", { version }); return; }
+            /* Loosened dedup: Rust теперь эмитит available на каждой удачной
+               проверке (страховка от пропуска эмита). Не сбиваем активную
+               загрузку/установку повторным показом. */
+            const st = banner && banner.dataset.state;
+            if (st === "downloading" || st === "ready") return;
             setState("idle");
             showBanner();
         })
@@ -288,5 +293,15 @@
        следующее обновление точно показалось без задержки. */
     if (window.VoidVersion && lastVersion === window.VoidVersion) {
         clearSnooze();
+    }
+
+    /* Само-проверка на старте: гарантируем, что webview получит актуальный статус,
+       даже если ранний emit режима B разошёлся по времени с подключением
+       слушателя (см. lessons: пропуск единственного эмита). Не manual → тостов
+       нет, только баннер при наличии апдейта. */
+    if (window.__TAURI__ && window.__TAURI__.event) {
+        setTimeout(() => {
+            window.__TAURI__.event.emit("void:updater-check").catch(() => {});
+        }, 3000);
     }
 })();

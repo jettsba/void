@@ -377,6 +377,95 @@ html:not(.desktop) #settingsAppBtn {
     align-items: center;
     gap: 0.86rem;
 }
+
+/* Обёртка кнопки апдейта — контекст позиционирования для инлайн-тоста. */
+.app-update-ctl {
+    position: relative;
+    flex-shrink: 0;
+    display: inline-flex;
+}
+
+/* Инлайн-тост под кнопкой (как «сохранено» у ника): выезжает сверху вниз,
+   фейдится. Только текст — без фона/обводки, центрирован по кнопке. Для
+   «актуально»/«ошибка» — авто-скрытие; для «доступна» висит (зелёный). */
+.app-update-toast {
+    position: absolute;
+    left: 50%;
+    top: calc(100% + 0.43rem);
+    white-space: nowrap;
+    font-size: 0.71rem;
+    letter-spacing: var(--tracking);
+    text-transform: lowercase;
+    color: var(--fg-2);
+    opacity: 0;
+    transform: translate(-50%, -0.29rem);
+    transition: opacity var(--t-fast), transform var(--t-fast);
+    pointer-events: none;
+}
+.app-update-toast.is-visible { opacity: 1; transform: translate(-50%, 0); }
+.app-update-toast.is-available { color: var(--screen); }
+
+/* «Проверить обновления» — компактная кнопка в правой части строки (на месте
+   тумблера). В покое прозрачная с акцентной обводкой, на hover заливается. */
+.app-update-btn {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    width: 13rem;
+    background: transparent;
+    border: 1px solid var(--screen);
+    color: var(--screen);
+    border-radius: 2px;
+    padding: 0.43rem 0.79rem;
+    font: inherit;
+    font-size: 0.79rem;
+    text-transform: lowercase;
+    letter-spacing: var(--tracking);
+    cursor: pointer;
+    transition: background var(--t-fast), color var(--t-fast), opacity var(--t-fast);
+}
+
+.app-update-btn:hover,
+.app-update-btn:focus-visible {
+    outline: none;
+    background: var(--screen);
+    color: var(--bg-0);
+}
+
+.app-update-btn .app-update-ic {
+    width: 0.93rem;
+    height: 0.93rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.7;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* Во время проверки — иконка крутится, кнопка приглушена. */
+.app-update-btn.is-checking { opacity: 0.6; cursor: default; }
+.app-update-btn.is-checking .app-update-ic { animation: app-update-spin 0.8s linear infinite; }
+@keyframes app-update-spin { to { transform: rotate(360deg); } }
+
+/* Режим «обновить» (апдейт найден) — залитая акцентом, как primary-действие. */
+.app-update-btn.is-update {
+    background: var(--screen);
+    color: var(--bg-0);
+}
+.app-update-btn.is-update:hover,
+.app-update-btn.is-update:focus-visible {
+    filter: brightness(1.08);
+}
+
+/* Во время загрузки — приглушена, не кликается (label показывает %). */
+.app-update-btn.is-installing {
+    opacity: 0.85;
+    cursor: default;
+    background: var(--screen);
+    color: var(--bg-0);
+}
 .app-modal-ic-lead { flex-shrink: 0; display: inline-flex; color: var(--fg-2); }
 .app-modal-ic-lead svg {
     width: 1.29rem;

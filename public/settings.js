@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "0.12.20";
+    const APP_VERSION = "0.12.21";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
@@ -198,6 +198,14 @@
             "app.close.quit.sub": "выход из приложения",
             "app.autostart.label": "запускать при старте windows",
             "app.autostart.hint": "откроется автоматически при входе в систему",
+            "app.updates.label": "обновления",
+            "app.updates.current": "текущая версия",
+            "app.updates.btn": "проверить обновления",
+            "app.updates.available": "доступна {v}",
+            "app.updates.update": "обновить",
+            "app.updates.downloading": "загрузка {p}%",
+            "app.updates.latest": "версия актуальна",
+            "app.updates.failed": "не удалось проверить",
 
             "settings.lang": "язык интерфейса",
             "settings.streamer": "режим стримера",
@@ -377,6 +385,14 @@
             "app.close.quit.sub": "exits the app",
             "app.autostart.label": "launch on windows startup",
             "app.autostart.hint": "opens automatically on system login",
+            "app.updates.label": "updates",
+            "app.updates.current": "current version",
+            "app.updates.btn": "check for updates",
+            "app.updates.available": "{v} available",
+            "app.updates.update": "update",
+            "app.updates.downloading": "downloading {p}%",
+            "app.updates.latest": "up to date",
+            "app.updates.failed": "check failed",
 
             "settings.lang": "interface language",
             "settings.streamer": "streamer mode",
