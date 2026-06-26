@@ -16,6 +16,7 @@
     "core:window:allow-hide",
     "core:window:allow-start-dragging",
     "core:window:allow-is-maximized",
+    "core:window:allow-set-fullscreen",
     "core:tray:default",
     "core:menu:default",
     "notification:default",

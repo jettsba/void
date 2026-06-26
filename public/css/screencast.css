@@ -358,8 +358,11 @@
 
 /* Desktop нативный fullscreen демки (toggleScreenFullscreen: окно Tauri в
    fullscreen вместо HTML Fullscreen API — иначе WebView2 виснет на видео).
-   Прячем кастомный titlebar, иначе он остаётся полоской сверху поверх видео. */
-html.screen-native-fs .void-titlebar {
+   Прячем кастомный titlebar, иначе он остаётся полоской сверху поверх видео.
+   Селектор `html.desktop.screen-native-fs` (специфичность 0,3,1) НАМЕРЕННО
+   сильнее `html.desktop .void-titlebar{display:flex}` из titlebar.css (0,2,1),
+   которая грузится позже — иначе она бы перебила это правило. */
+html.desktop.screen-native-fs .void-titlebar {
     display: none;
 }
 
