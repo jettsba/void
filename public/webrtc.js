@@ -1925,15 +1925,24 @@ function patchOpusForStereo(sdp) {
  * Парсим SDP посекционно по `m=` строкам, чтобы случайно не задеть аудио-fmtp.
  */
 function patchVideoStartBitrate(sdp, height, fps) {
-    /* Стартовый битрейт ≈ половина target'а: высокий enough чтобы первые
-       2-3 секунды дать приличную картинку, не настолько большой чтобы
-       захлестнуть канал. min ≈ четверть target'а — нижний предел при
-       congestion'е. Цифры в КБИТАХ для x-google-* (не байтах, как maxBitrate). */
+    /* Цифры в КБИТАХ для x-google-* (не байтах, как maxBitrate).
+       max — потолок (помогает стабильности BWE, см. rtcbits).
+       start — УМЕРЕННЫЙ (≤2.5 Mbps): даёт приличную картинку в первые секунды
+       без overshoot'а, дальше GCC доезжает до max сам.
+
+       КРИТИЧНО: x-google-min-bitrate НЕ СТАВИМ. Раньше стоял 25% target'а
+       (~2800 kbps на 1080p60) — и это была ГЛАВНАЯ причина лагов/осцилляции
+       демки: min форсит энкодер слать не ниже него ДАЖЕ когда сеть не тянет
+       (особенно screen-content с тяжёлыми keyframe-всплесками) → congestion →
+       packet loss → BWE рушится в пол → min форсит назад → снова loss = вечная
+       осцилляция «битрейт в бездну → восстановление → опять падение», у зрителя
+       каша (потери), при qLim=none на отправителе. Дефолт Chrome — 30kbps, и
+       поднимать его «очень опасно вне полностью контролируемой среды» (rtcbits).
+       Floor отдаём congestion control'у — он сам найдёт реальную полосу. */
     const target = height >= 1080 ? (fps >= 60 ? 11200 : 7000)
                   : height >= 720  ? (fps >= 60 ? 5600  : 3500)
                   :                   (fps >= 60 ? 2400  : 1500);
-    const start = Math.round(target * 0.6);
-    const min   = Math.round(target * 0.25);
+    const start = Math.min(2500, target);
     const max   = target;
 
     const lines = sdp.split(/\r?\n/);
@@ -1957,7 +1966,7 @@ function patchVideoStartBitrate(sdp, height, fps) {
         const m = line.match(/^a=fmtp:(\d+) (.*)$/);
         if (!m || !videoPts.has(m[1])) continue;
         if (m[2].includes("x-google-start-bitrate")) continue;
-        lines[i] = `a=fmtp:${m[1]} ${m[2]};x-google-start-bitrate=${start};x-google-min-bitrate=${min};x-google-max-bitrate=${max}`;
+        lines[i] = `a=fmtp:${m[1]} ${m[2]};x-google-start-bitrate=${start};x-google-max-bitrate=${max}`;
     }
     return lines.join("\r\n");
 }
@@ -2108,6 +2117,74 @@ function stopScreenShare() {
     screenTargetHeight = 1080;
     screenTargetFps = 30;
     emitScreencastActive(false);
+}
+
+/* ===== ВРЕМЕННАЯ ДИАГНОСТИКА скринкаста (toggle: Ctrl+Alt+S) =====
+   Живой замер для отладки качества демки. По дефолту СКРЫТО. Показывает:
+   conn=direct/RELAY (+ udp/tcp) — relay = потолок 3 Мбит через 1-vCPU VPS;
+   rtt, bitrate, разрешение@fps, qLim (bandwidth/cpu/none), loss% (потери у
+   зрителя — ключевое: высокий loss = сеть/relay не тянет), encoder. Убрать
+   после стабилизации скринкаста. */
+let _scDebugTimer = null;
+let _scDebugPrev = { bytes: 0, ts: 0 };
+async function _collectScDebug() {
+    for (const [userId, senders] of screenSenders) {
+        const peer = peers.get(userId);
+        const vsender = senders.find(s => s.track?.kind === "video");
+        if (!peer || !vsender) continue;
+        let stats;
+        try { stats = await peer.getStats(); } catch (_) { continue; }
+        let out = null, rin = null, pair = null;
+        stats.forEach(r => {
+            if (r.type === "outbound-rtp" && r.kind === "video") out = r;
+            else if (r.type === "remote-inbound-rtp" && r.kind === "video") rin = r;
+            else if (r.type === "candidate-pair" && r.nominated && r.state === "succeeded") pair = r;
+        });
+        if (!out) continue;
+        const lc = pair && stats.get(pair.localCandidateId);
+        const rc = pair && stats.get(pair.remoteCandidateId);
+        const conn = (lc?.candidateType === "relay" || rc?.candidateType === "relay") ? "RELAY⚠" : "direct";
+        const proto = (lc?.protocol || rc?.protocol || "?").toUpperCase();
+        let kbps = 0;
+        if (_scDebugPrev.ts && out.timestamp > _scDebugPrev.ts) {
+            kbps = Math.round(((out.bytesSent - _scDebugPrev.bytes) * 8) / (out.timestamp - _scDebugPrev.ts));
+        }
+        _scDebugPrev = { bytes: out.bytesSent, ts: out.timestamp };
+        const rtt = pair?.currentRoundTripTime != null ? Math.round(pair.currentRoundTripTime * 1000)
+                  : rin?.roundTripTime != null ? Math.round(rin.roundTripTime * 1000) : "?";
+        const loss = (rin && rin.fractionLost != null) ? (rin.fractionLost * 100).toFixed(1) : "?";
+        return `sc  conn=${conn} ${proto}  rtt=${rtt}ms  loss=${loss}%\n` +
+               `bitrate=${kbps}kbps  ${out.frameWidth || 0}x${out.frameHeight || 0}@${Math.round(out.framesPerSecond || 0)}fps  qLim=${out.qualityLimitationReason || "?"}\n` +
+               `enc=${(out.encoderImplementation || "?").slice(0, 30)}`;
+    }
+    return null;
+}
+function toggleScreencastDebug() {
+    if (_scDebugTimer) {
+        clearInterval(_scDebugTimer);
+        _scDebugTimer = null;
+        document.getElementById("__scDebug")?.remove();
+        return;
+    }
+    const el = document.createElement("div");
+    el.id = "__scDebug";
+    el.style.cssText = "position:fixed;left:8px;bottom:8px;z-index:2147483647;" +
+        "background:rgba(0,0,0,.85);color:#7CFC00;font:11px/1.5 monospace;" +
+        "padding:8px 10px;border-radius:4px;pointer-events:none;white-space:pre;";
+    el.textContent = "sc-debug: запуск…";
+    document.body.appendChild(el);
+    _scDebugPrev = { bytes: 0, ts: 0 };
+    _scDebugTimer = setInterval(async () => {
+        el.textContent = (await _collectScDebug()) || "sc-debug: нет активного screen-sender (нужна демка + пир)";
+    }, 1000);
+}
+if (typeof document !== "undefined") {
+    document.addEventListener("keydown", (e) => {
+        if (e.ctrlKey && e.altKey && e.code === "KeyS") {
+            e.preventDefault();
+            toggleScreencastDebug();
+        }
+    });
 }
 
 /**
