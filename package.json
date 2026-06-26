@@ -1,6 +1,6 @@
 {
   "name": "void-room",
-  "version": "0.12.22",
+  "version": "0.12.23",
   "type": "module",
   "scripts": {
     "start": "node server.js",

@@ -341,6 +341,10 @@
 .screen-overlay {
     position: fixed;
     inset: 0;
+    /* Верх оверлея — ПОД титлбаром (он fixed top:0, z-index:200), иначе верх
+       демки уезжает под него. На web --titlebar-h=0 → top:0 (титлбара нет).
+       В нативном fullscreen титлбар скрыт → top сбрасывается в 0 ниже. */
+    top: var(--titlebar-h);
     z-index: 90;
     background: rgba(0, 0, 0, 0.92);
     display: flex;
@@ -349,6 +353,11 @@
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.2s ease;
+}
+
+/* Нативный fullscreen демки — титлбара нет, оверлей до самого верха. */
+html.screen-native-fs .screen-overlay {
+    top: 0;
 }
 
 .screen-overlay.is-visible {
