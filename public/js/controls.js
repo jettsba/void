@@ -10,6 +10,9 @@ function toggleMic() {
     }
 
     applyAudioState();
+
+    // Звук микрофона слышит только self (другим не шлём).
+    if (window.VoidSounds) VoidSounds.mic(isMicOn);
 }
 
 function toggleSound() {
@@ -25,6 +28,9 @@ function toggleSound() {
     }
 
     applyAudioState();
+
+    // Звук вкл/выкл звука слышит только self.
+    if (window.VoidSounds) VoidSounds.sound(isSoundOn);
 }
 
 function updateMicUI() {

@@ -455,6 +455,9 @@ function handleSocketMessage(data) {
             if (typeof handleScreencastStateMsg === "function") {
                 handleScreencastStateMsg(data);
             }
+            /* Звук скринкаста слышат все в комнате (self играет у себя в момент
+               тоггла; сюда приходит только чужой стейт — не self-эхо). */
+            if (window.VoidSounds) VoidSounds.screencast(!!data.screen);
             break;
 
         case "screencast-rejected":
@@ -481,6 +484,8 @@ function handleSocketMessage(data) {
             removeParticipant(data.userId);
             // Закрываем peer + audio + analyser + health timer.
             cleanupPeerSlot(data.userId);
+            // Звук выхода другого участника (вариант 0) — слышат все в комнате.
+            if (window.VoidSounds) VoidSounds.peerLeave();
             break;
 
         case "new-participant":
@@ -497,6 +502,8 @@ function handleSocketMessage(data) {
                 cleanupPeerSlot(data.userId);
             }
             callUser(data.userId);
+            // Звук входа другого участника (вариант 0) — слышат все в комнате.
+            if (window.VoidSounds) VoidSounds.peerJoin();
             break;
 
         case "user-list":

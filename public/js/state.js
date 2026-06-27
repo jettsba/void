@@ -38,8 +38,6 @@ let entryErrorHideTimer = null;
 
 let ambientSound;
 let welcomeSound;
-let joinSound;
-let leaveSound;
 let hasStartedAudio = false;
 let hasPlayedWelcome = false;
 

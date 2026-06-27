@@ -60,6 +60,8 @@ function handleScreencastBtnClick() {
         stopScreenShare();
         broadcastScreencastState(false);
         updateScreencastButton(false);
+        // Звук стопа скринкаста — слышат все (self здесь, остальные по WS).
+        if (window.VoidSounds) VoidSounds.screencast(false);
         return;
     }
     openScModal();

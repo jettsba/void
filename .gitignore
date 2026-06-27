@@ -10,6 +10,7 @@ data
 !.env.example
 logs
 temp
+sfx-lab
 
 # Tauri / Rust build artefacts
 src-tauri/target

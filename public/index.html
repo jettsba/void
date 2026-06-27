@@ -87,11 +87,9 @@
     <canvas id="background-stars"></canvas>
     <div id="background-grain"></div>
 
+    <!-- ambient/welcome — интро-звуки; событийные звуки синтезируются (js/void-sfx.js) -->
     <audio id="ambientSound" src="static/ambient.mp3"></audio>
     <audio id="welcomeSound" src="static/welcome.mp3"></audio>
-    <audio id="joinSound" src="static/audio-in.mp3"></audio>
-    <audio id="leaveSound" src="static/audio-out.mp3"></audio>
-    <audio id="messageSound" src="static/message.mp3" preload="auto"></audio>
 
     <div class="intro" id="intro">
         <div class="intro-content">
@@ -440,24 +438,25 @@
     </div>
 
     <script defer src="log.js?v=1"></script>
-    <script defer src="settings.js?v=89"></script>
-    <script defer src="webrtc.js?v=16"></script>
-    <script defer src="socket.js"></script>
-    <script defer src="chat.js?v=3"></script>
+    <script defer src="settings.js?v=90"></script>
+    <script defer src="webrtc.js?v=17"></script>
+    <script defer src="socket.js?v=1"></script>
+    <script defer src="chat.js?v=4"></script>
     <script defer src="js/config.js?v=2"></script>
-    <script defer src="js/state.js?v=5"></script>
+    <script defer src="js/state.js?v=6"></script>
     <script defer src="js/toasts.js?v=1"></script>
     <script defer src="js/background.js?v=9"></script>
-    <script defer src="js/audio.js?v=1"></script>
+    <script defer src="js/void-sfx.js?v=1"></script>
+    <script defer src="js/audio.js?v=4"></script>
     <script defer src="js/username.js?v=1"></script>
-    <script defer src="js/controls.js?v=2"></script>
+    <script defer src="js/controls.js?v=3"></script>
     <script defer src="js/participants.js?v=5"></script>
     <script defer src="js/volume-arc.js?v=1"></script>
     <script defer src="js/ping-panel.js?v=2"></script>
-    <script defer src="js/screen-overlay.js?v=5"></script>
+    <script defer src="js/screen-overlay.js?v=6"></script>
     <script defer src="js/intro.js?v=3"></script>
     <script defer src="js/room.js?v=7"></script>
-    <script defer src="js/app.js?v=15"></script>
+    <script defer src="js/app.js?v=16"></script>
     <script defer src="js/desktop/titlebar.js?v=1"></script>
     <script defer src="js/desktop/tray-state.js?v=3"></script>
     <script defer src="js/desktop/deep-link.js?v=1"></script>

@@ -51,8 +51,6 @@ function init() {
 
     ambientSound = document.getElementById("ambientSound");
     welcomeSound = document.getElementById("welcomeSound");
-    joinSound = document.getElementById("joinSound");
-    leaveSound = document.getElementById("leaveSound");
 
     joinBtn = document.getElementById("joinBtn");
     createBtn = document.getElementById("createBtn");
@@ -181,6 +179,8 @@ function init() {
             broadcastScreencastState(true);
             updateScreencastButton(true);
             updateParticipantScreenState(clientId, true);
+            // Звук старта скринкаста — слышат все (self здесь, остальные по WS).
+            if (window.VoidSounds) VoidSounds.screencast(true);
         } catch (e) {
             log.debug("rtc", "screen share cancelled", { err: e?.message || String(e) });
         }

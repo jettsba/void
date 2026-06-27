@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "0.12.24";
+    const APP_VERSION = "0.13.0";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
@@ -2286,22 +2286,11 @@
 
     /* ===== speaker test ===== */
 
-    async function playTestTone() {
-        /* Короткий «дзынь» через существующий звук join'а. Создаём временный
-           <audio>-элемент, чтобы применить setSinkId именно к нему, не
-           ломая основные системные звуки (у них может быть другой sink в
-           процессе работы). */
-        const audio = new Audio("/static/audio-in.mp3");
-        audio.volume = state.audioOutGain;
-        try {
-            if (audio.setSinkId && state.audioOutId) {
-                await audio.setSinkId(state.audioOutId);
-            }
-        } catch (_) {
-            /* Безымянное устройство пропало / нет permission на sinkId.
-               Падать в системный default — приемлемо. */
-        }
-        audio.play().catch(() => {});
+    function playTestTone() {
+        /* Короткий синтез-тон на ВЫБРАННОМ устройстве (VoidSounds.testOnDevice
+           поднимает отдельный одноразовый AudioContext с setSinkId именно к нему,
+           не трогая основной звук). */
+        if (window.VoidSounds) window.VoidSounds.testOnDevice(state.audioOutId);
     }
 
     function applyNickInputUI() {

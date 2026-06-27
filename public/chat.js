@@ -89,7 +89,6 @@ let chatDropOverlay;
 let chatLightbox;
 let chatLightboxImg;
 let chatLightboxCloseBtn;
-let messageSoundEl;
 
 let chatOpen = false;
 let chatToastTimer = null;
@@ -119,7 +118,6 @@ function initChat() {
     chatLightbox         = document.getElementById("chatLightbox");
     chatLightboxImg      = document.getElementById("chatLightboxImg");
     chatLightboxCloseBtn = document.getElementById("chatLightboxClose");
-    messageSoundEl       = document.getElementById("messageSound");
 
     if (!chatPanel || !chatToggleBtn) return;
 
@@ -1414,14 +1412,7 @@ function clearUnreadBadge() {
     if (chatToggleBtn) chatToggleBtn.classList.remove("has-unread");
 }
 
-function playMessageSound() {
-    if (!messageSoundEl) return;
-    try {
-        messageSoundEl.currentTime = 0;
-        messageSoundEl.volume = 0.5;
-        messageSoundEl.play().catch(() => {});
-    } catch (_) {}
-}
+/* playMessageSound() определён в js/audio.js (синтез, js/void-sfx.js). */
 
 /* ========= IMAGE DOWNSCALE ========= */
 

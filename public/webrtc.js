@@ -515,11 +515,9 @@ function applyOutputVolumeAll() {
     const master = getMasterOutputGain();
     applyMasterToSystemSound(window.ambientSound, 0.2 * master);
     applyMasterToSystemSound(window.welcomeSound, 0.4 * master);
-    applyMasterToSystemSound(window.joinSound, 0.4 * master);
-    applyMasterToSystemSound(window.leaveSound, 0.4 * master);
-    /* messageSound — играется через chat.js, volume там фиксирован 0.5;
-       обновим при следующем play(). Менять текущий .volume не имеет
-       смысла, потому что playMessageSound сам выставляет его перед play. */
+    /* Событийные звуки (join/leave/mic/sound/screencast/message) — синтез
+       (js/void-sfx.js); мастер уходит в VoidSounds (js/audio.js). */
+    if (window.VoidSounds) VoidSounds.setMaster(master);
 }
 
 function applyMasterToSystemSound(el, finalVolume) {
@@ -543,10 +541,8 @@ function applyOutputSinkToAll() {
     /* Системные звуки тоже маршрутизируем в выбранный output. */
     applyOutputSinkToAudio(window.ambientSound);
     applyOutputSinkToAudio(window.welcomeSound);
-    applyOutputSinkToAudio(window.joinSound);
-    applyOutputSinkToAudio(window.leaveSound);
-    const msg = document.getElementById("messageSound");
-    if (msg) applyOutputSinkToAudio(msg);
+    // Событийные звуки — синтез (AudioContext.setSinkId через VoidSounds).
+    if (window.VoidSounds) VoidSounds.setSink(window.VoidSettings?.getAudioOutId?.() || "");
 }
 
 function applyInputGain() {
@@ -1890,6 +1886,8 @@ async function startScreenShare(height = 1080, fps = 30, captureAudio = false) {
         stopScreenShare();
         if (typeof broadcastScreencastState === 'function') broadcastScreencastState(false);
         if (typeof updateScreencastButton === 'function') updateScreencastButton(false);
+        // OS «остановить показ» — тоже звук стопа (self здесь, остальные по WS).
+        if (window.VoidSounds) VoidSounds.screencast(false);
     };
 }
 
