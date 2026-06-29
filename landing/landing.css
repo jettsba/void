@@ -102,6 +102,13 @@ body {
   color: var(--bg-0);
 }
 
+/* Клавиатурный фокус (tab-навигация) — как в app: НЕ браузерное кольцо
+   (оно читается как «дефолт»), а повтор hover-состояния + outline:none.
+   Реализовано не здесь, а прямо в hover-правилах интерактивных элементов
+   ниже (`.x:hover, .x:focus-visible`) — один источник истины на состояние.
+   Элементы без явного правила (прозаические ссылки) сохраняют дефолтный
+   браузерный outline как видимый cue — так же, как в app. */
+
 /* NB: don't set `scroll-behavior: smooth` here — it fights Lenis (each
    Lenis-driven scrollTo() triggers the browser's own smoothing, producing
    stutter and lag instead of the expected glide). Lenis owns scrolling.
@@ -210,9 +217,11 @@ p {
     background var(--t-fast),
     transform 380ms var(--ease);
 }
-.btn:hover {
+.btn:hover,
+.btn:focus-visible {
   border-color: var(--fg-2);
   transform: translateY(-1px);
+  outline: none;
 }
 .btn:active {
   background: var(--bg-1);
@@ -233,12 +242,14 @@ p {
   box-shadow: 0 0 0 rgba(255, 255, 255, 0);
   transition: box-shadow 480ms var(--ease);
 }
-.btn.primary:hover {
+.btn.primary:hover,
+.btn.primary:focus-visible {
   background: #fff;
   border-color: #fff;
   transform: translateY(-2px);
 }
-.btn.primary:hover::before {
+.btn.primary:hover::before,
+.btn.primary:focus-visible::before {
   box-shadow:
     0 0 16px rgba(255, 255, 255, 0.24),
     0 0 42px rgba(255, 255, 255, 0.14),
@@ -252,7 +263,8 @@ p {
   border-color: transparent;
   color: var(--fg-2);
 }
-.btn.ghost:hover {
+.btn.ghost:hover,
+.btn.ghost:focus-visible {
   color: var(--fg);
 }
 
@@ -272,7 +284,8 @@ p {
   flex-shrink: 0;
   transition: transform var(--t-med);
 }
-.btn:hover .btn-arrow {
+.btn:hover .btn-arrow,
+.btn:focus-visible .btn-arrow {
   transform: translateX(4px);
 }
 
@@ -2351,7 +2364,8 @@ section.what {
   align-items: stretch;
   transition: transform 380ms var(--ease);
 }
-.dl-split:hover {
+.dl-split:hover,
+.dl-split:focus-within {
   transform: translateY(-2px);
 }
 .dl-main {
@@ -2370,12 +2384,16 @@ section.what {
    перебивал бы transform:none и каждая половинка поднималась бы сама. */
 .dl-split .dl-main:hover,
 .dl-split .dl-toggle:hover,
+.dl-split .dl-main:focus-visible,
+.dl-split .dl-toggle:focus-visible,
 .dl-split .dl-main:active,
 .dl-split .dl-toggle:active {
   transform: none;
 }
 .dl-split:hover .dl-main,
-.dl-split:hover .dl-toggle {
+.dl-split:hover .dl-toggle,
+.dl-split:focus-within .dl-main,
+.dl-split:focus-within .dl-toggle {
   background: #fff;
   border-color: #fff;
 }
@@ -2447,15 +2465,18 @@ section.what {
     background var(--t-fast),
     color var(--t-fast);
 }
-.dl-opt:hover {
+.dl-opt:hover,
+.dl-opt:focus-visible {
   background: var(--bg-0);
   color: var(--fg);
+  outline: none;
 }
 .dl-opt .dl-ico {
   color: var(--fg-3);
   transition: color var(--t-fast);
 }
-.dl-opt:hover .dl-ico {
+.dl-opt:hover .dl-ico,
+.dl-opt:focus-visible .dl-ico {
   color: var(--fg);
 }
 
@@ -2687,9 +2708,11 @@ section.what {
     color var(--t-fast),
     background var(--t-fast);
 }
-.contrib-cta:hover {
+.contrib-cta:hover,
+.contrib-cta:focus-visible {
   border-color: var(--fg-2);
   background: var(--bg-1);
+  outline: none;
 }
 .contrib-cta:active { background: var(--bg-2); }
 
@@ -2866,10 +2889,13 @@ section.contrib[hidden] { display: none; }
     opacity 520ms cubic-bezier(0.22, 1, 0.36, 1),
     transform 680ms cubic-bezier(0.22, 1, 0.36, 1);
 }
-.footer-copy a:hover {
+.footer-copy a:hover,
+.footer-copy a:focus-visible {
   transform: translateX(-1.4em);
+  outline: none;
 }
-.footer-copy a:hover::after {
+.footer-copy a:hover::after,
+.footer-copy a:focus-visible::after {
   opacity: 1;
   transform: translate(5px, calc(-50% - 0.06em));
 }
@@ -2880,7 +2906,8 @@ section.contrib[hidden] { display: none; }
 .footer-copy a.internal::after {
   content: none;
 }
-.footer-copy a.internal:hover {
+.footer-copy a.internal:hover,
+.footer-copy a.internal:focus-visible {
   transform: none;
   color: var(--fg-2);
 }
@@ -2900,9 +2927,11 @@ section.contrib[hidden] { display: none; }
   padding-bottom: 1px;
   transition: color var(--t-fast), border-color var(--t-fast);
 }
-.footer-lang:hover {
+.footer-lang:hover,
+.footer-lang:focus-visible {
   color: var(--fg);
   border-bottom-color: var(--fg-3);
+  outline: none;
 }
 .footer-copy {
   margin: 0;
@@ -2950,6 +2979,10 @@ section.contrib[hidden] { display: none; }
 
    transition (not animation) is used so the initial hidden state is
    declarative, no fill-mode quirks; will-change keeps it composited.
+
+   NB: will-change is dropped (→ auto) in landing.js on transitionend — a
+   permanent composite layer makes Chrome ignore custom ::selection and revert
+   to the default blue. We only need the hint while the reveal is animating.
    ============================================================================ */
 .reveal {
   opacity: 0;

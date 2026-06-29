@@ -364,6 +364,14 @@ if (__voidEntrance) { try { window.scrollTo(0, 0); } catch (_) {} }
                 e.target.classList.add('in');
                 io.unobserve(e.target);
                 if (e.target.dataset.type === 'cursor') triggerTyping(e.target);
+                /* Drop the compositing hint once the reveal settles. Leaving
+                   will-change (i.e. a permanent composite layer) on the element
+                   makes Chrome fall back to the DEFAULT blue ::selection — our
+                   custom grayscale highlight only paints on non-promoted layers.
+                   transitionend also fires (near-instantly) under reduced motion. */
+                e.target.addEventListener('transitionend', () => {
+                    e.target.style.willChange = 'auto';
+                }, { once: true });
             }
         }
     }, { rootMargin: '0px 0px -80px 0px', threshold: 0.05 });
