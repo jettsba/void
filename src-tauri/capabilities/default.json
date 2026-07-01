@@ -23,6 +23,19 @@
     "autostart:default",
     "global-shortcut:default",
     "clipboard-manager:allow-write-text",
+    "clipboard-manager:allow-write-image",
+    "dialog:allow-save",
+    "fs:allow-write-file",
+    {
+      "identifier": "fs:scope",
+      "allow": [
+        { "path": "$HOME/**" },
+        { "path": "$DOWNLOAD/**" },
+        { "path": "$DOCUMENT/**" },
+        { "path": "$DESKTOP/**" },
+        { "path": "$TEMP/**" }
+      ]
+    },
     "deep-link:default",
     "updater:default"
   ]

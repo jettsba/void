@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "0.13.1";
+    const APP_VERSION = "0.14.0";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
@@ -131,6 +131,10 @@
             "chat.image": "изображение",
             "chat.file": "файл",
             "chat.like": "лайк",
+            "chat.copy": "копировать",
+            "chat.open-link": "открыть ссылку",
+            "chat.like.add": "лайкнуть",
+            "chat.like.remove": "убрать лайк",
 
             "footer.ready": "готово",
             "footer.connected": "подключено",
@@ -318,6 +322,10 @@
             "chat.image": "image",
             "chat.file": "file",
             "chat.like": "like",
+            "chat.copy": "copy",
+            "chat.open-link": "open link",
+            "chat.like.add": "like",
+            "chat.like.remove": "unlike",
 
             "footer.ready": "ready",
             "footer.connected": "connected",

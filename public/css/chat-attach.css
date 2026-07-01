@@ -14,7 +14,7 @@
     object-fit: cover;
     border-radius: 4px;
     background: var(--bg-1);
-    cursor: zoom-in;
+    cursor: pointer;
     transition: opacity var(--t-fast);
 }
 

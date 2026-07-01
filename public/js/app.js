@@ -132,6 +132,10 @@ function init() {
            в верхнем углу до ручного refresh страницы. */
         if (window.visualViewport) {
             window.visualViewport.addEventListener("resize", sizeCanvas);
+            /* Тот же zoom меняет и геометрию футер↔панель — пересчитываем fit.
+               На тач visualViewport дёргается ещё и виртуальной клавиатурой,
+               поэтому этот хук — только для desktop-ветки (не тач). */
+            window.visualViewport.addEventListener("resize", scheduleLobbyPanelFit);
         }
     }
 
@@ -142,6 +146,26 @@ function init() {
        поддерживаем актуальность в живой сессии. */
     updateAutoScale();
     window.addEventListener("resize", updateAutoScale);
+
+    /* === Lobby panel fit ===
+       Футер «отталкивает» панель при низком окне / крупном масштабе. Считаем
+       после resize (высота окна), при смене режима entry↔room (меняется
+       нижний суб-блок панели) и после загрузки шрифтов (layout-сдвиг). */
+    window.addEventListener("resize", scheduleLobbyPanelFit);
+    if (typeof MutationObserver !== "undefined") {
+        if (app) {
+            new MutationObserver(scheduleLobbyPanelFit)
+                .observe(app, { attributes: true, attributeFilter: ["data-mode"] });
+        }
+        /* Слайдер «масштаб интерфейса» (settings.js) меняет --ui-scale на :root
+           → rem-геометрия едет, но resize НЕ стреляет. Ловим правку root-стилей. */
+        new MutationObserver(scheduleLobbyPanelFit)
+            .observe(document.documentElement, { attributes: true, attributeFilter: ["style"] });
+    }
+    if (document.fonts && document.fonts.ready) {
+        document.fonts.ready.then(scheduleLobbyPanelFit);
+    }
+    scheduleLobbyPanelFit();
     /* M2.2: intro теперь <form id="introForm">. Submit-event универсален
        для любой клавиатуры (включая Android IME, где keydown('Enter')
        приходит как key="Unidentified"). Стрелка-кнопка type="submit"
@@ -638,4 +662,77 @@ function updateAutoScale() {
     if (typeof window.__voidApplyAutoScale === "function") {
         window.__voidApplyAutoScale();
     }
+}
+
+/* === Lobby panel fit («футер отталкивает панель») ===
+   Панель (.panel-area) сдвинута ВНИЗ от якоря (users-area/ripple) на
+   --panel-offset-y. Центр ripple фиксирован — двигать нельзя. Но при сильном
+   ui-масштабе / низком окне низ панели (кнопка «создать» в lobby, controls в
+   комнате «свисают» ниже собственного бокса из-за absolute-позиционирования)
+   наезжает на футер. Тут футер «отталкивает» панель вверх: меряем перекрытие и
+   поднимаем панель ровно на него через --panel-squeeze, но НЕ выше её
+   статической позиции (offset) — margin к ripple сохраняется, ripple не двигается.
+
+   Читаем геометрию с текущим squeeze и добавляем его обратно, получая позиции
+   «при squeeze=0» — так не нужен write-before-read (без layout-трэша). */
+let _panelSqueeze = 0;
+let _panelFitScheduled = false;
+
+function reflowLobbyPanel() {
+    _panelFitScheduled = false;
+
+    const panel = document.querySelector(".panel-area");
+    const footer = document.querySelector(".footer-meta");
+    const users = document.querySelector(".users-area");
+    if (!panel || !footer || !users) return;
+
+    const pr = panel.getBoundingClientRect();
+
+    /* Самый нижний ВИДИМЫЙ суб-блок: tail (lobby) / controls (комната) уходят
+       ниже бокса .panel-area. offsetParent === null у скрытых по режиму. */
+    let bottom = pr.bottom;
+    panel.querySelectorAll(".panel-tail, .panel-controls").forEach((el) => {
+        if (el.offsetParent !== null) {
+            bottom = Math.max(bottom, el.getBoundingClientRect().bottom);
+        }
+    });
+
+    const rootPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+    const footerGap = rootPx * 0.5;      /* небольшой зазор до строки футера */
+
+    const bottomNatural = bottom + _panelSqueeze;                 /* при squeeze=0 */
+    const topNatural = pr.top + _panelSqueeze;                    /* при squeeze=0 */
+    const footerTop = footer.getBoundingClientRect().top;
+
+    /* Пол подъёма: панель не должна налезть на «якорь». Держим её ниже самого
+       нижнего из: (1) бокса users-area (ripple), сохраняя штатный margin — т.е.
+       не выше статической позиции; (2) подписей участников, которые в комнате
+       свисают НИЖЕ бокса (position:absolute) и в бокс не входят. marginTop и
+       рект приходят из getComputedStyle/rect уже в px — без разбора rem. */
+    const usersRect = users.getBoundingClientRect();
+    let anchorBottom = usersRect.bottom;
+    users.querySelectorAll(".participant-name").forEach((el) => {
+        if (el.offsetParent !== null) {
+            anchorBottom = Math.max(anchorBottom, el.getBoundingClientRect().bottom);
+        }
+    });
+    const marginTopPx = parseFloat(getComputedStyle(panel).marginTop) || 0;
+    const floorTop = Math.max(usersRect.bottom + marginTopPx, anchorBottom + footerGap);
+    const maxSqueeze = Math.max(0, topNatural - floorTop);
+
+    const overlap = bottomNatural + footerGap - footerTop;
+    const next = Math.min(Math.max(overlap, 0), maxSqueeze);
+
+    if (Math.abs(next - _panelSqueeze) > 0.5) {
+        _panelSqueeze = next;
+        panel.style.setProperty("--panel-squeeze", next.toFixed(1) + "px");
+    }
+}
+
+/* rAF-дебаунс: reflow читает и пишет layout — на потоке resize-событий
+   схлопываем в один вызов на кадр. */
+function scheduleLobbyPanelFit() {
+    if (_panelFitScheduled) return;
+    _panelFitScheduled = true;
+    requestAnimationFrame(reflowLobbyPanel);
 }

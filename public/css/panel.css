@@ -8,6 +8,13 @@
     /* === Сдвиг панели ВНИЗ от ripple. Через transform — не меняет высоту стека,
            поэтому ripple остаётся на месте, а панель уезжает ниже. === */
     --panel-offset-y: 7.14rem;
+    /* === «Отталкивание» футером ===
+       При сильном ui-масштабе / низком окне низ панели (кнопка «создать» в
+       lobby, controls в комнате) наезжает на футер. reflowLobbyPanel() в app.js
+       считает перекрытие и поднимает панель на эту величину через --panel-squeeze
+       (px), но НЕ выше её статической позиции (offset), т.е. не крадёт margin у
+       ripple и не двигает сам ripple. По умолчанию 0 → панель на штатном offset. */
+    --panel-squeeze: 0px;
 
     position: relative;
     margin-top: 1.71rem;
@@ -15,7 +22,7 @@
     width: 100%;
     max-width: 30rem;
     height: var(--panel-h);
-    transform: translateY(var(--panel-offset-y));
+    transform: translateY(calc(var(--panel-offset-y) - var(--panel-squeeze)));
 }
 
 /* Один и тот же top — input и controls стартуют в одной точке */

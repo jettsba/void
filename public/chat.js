@@ -50,11 +50,10 @@ const CHAT_MAX_TEXT_LEN = 4000;
  *  сотни МБ. Когда переполняем, прибиваем самый старый URL. */
 const CHAT_MAX_LIVE_BLOB_URLS = 30;
 
-/* Like-жест: время удержания pointer'а до показа всплывающего сердца,
+/* Long-press-жест: время удержания pointer'а до показа контекстного меню,
    и максимальный сдвиг (px²) — больше → считаем за drag/scroll и отменяем. */
 const LIKE_LONGPRESS_MS    = 420;
 const LIKE_LONGPRESS_MAX_DIST_SQ = 100; // 10px радиус
-const LIKE_POPUP_TIMEOUT_MS = 2600;
 const LIKE_TARGET_MAX_LEN  = 80;        // sanity cap для msgId извне
 
 /* ========= STATE ========= */
@@ -97,9 +96,8 @@ let dragCounter = 0;
 let lightboxState = null; // {sourceImg, escHandler}
 let lightboxCloseTimer = null;
 
-let likePopupEl = null;
-let likePopupTimer = null;
-let likePopupOutsideHandler = null;
+let ctxMenuEl = null;
+let ctxMenuOutsideHandler = null;
 
 /* ========= INIT ========= */
 
@@ -148,9 +146,22 @@ function initChat() {
         if (e.target === chatLightbox) closeLightbox();
     });
 
+    /* ПКМ по увеличенному фото — своё меню вместо дефолтного webview/браузера.
+       Пункты строим от исходного thumbnail-<img> (lightboxState.sourceImg) —
+       у него есть .chat-attach-image класс и alt/src, которые buildContextMenuItems
+       ожидает; сам chatLightboxImg — другой узел с другим классом. */
+    chatLightboxImg.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        if (!lightboxState || !lightboxState.sourceImg) return;
+        const img = lightboxState.sourceImg;
+        const wrap = img.closest(".chat-msg");
+        const msgId = wrap?.dataset.msgId;
+        openContextMenu(buildContextMenuItems(img, wrap, msgId), e.clientX, e.clientY);
+    });
+
     document.addEventListener("keydown", (e) => {
         if (e.key !== "Escape") return;
-        if (likePopupEl)   { hideLikePopup(); return; }
+        if (ctxMenuEl)     { closeContextMenu(); return; }
         if (lightboxState) { closeLightbox(); return; }
         if (chatOpen)      { setChatOpen(false); }
     });
@@ -259,7 +270,7 @@ function resetChatOnLeave() {
     channelInbox.clear();
     channelSendQueues.clear();
     messageLikes.clear();
-    hideLikePopup();
+    closeContextMenu();
 
     if (lightboxState) closeLightbox();
 
@@ -714,22 +725,35 @@ function appendMessage(msg, isSelf, attachState = null) {
     requestAnimationFrame(refreshChatJumpButton);
 }
 
+/* Домен без протокола (claude.ai, example.co.uk) тоже линкуется — не только
+   явный https://. Финальный лейбл обязан быть буквенным 2-24 симв. (TLD),
+   поэтому "e.g." / "3.14" / версии вида "1.2.3" не задеваются (см. VOID
+   CLAUDE.md-обсуждение). Протокол в href всегда есть — bare-домен получает
+   https:// сам (иначе браузер трактует "claude.ai" как relative-путь). */
+const DOMAIN_LABEL_RX = "[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?";
+const URL_RX = new RegExp(
+    "(?:https?://)?(?:" + DOMAIN_LABEL_RX + "\\.)+[a-zA-Z]{2,24}(?::\\d{1,5})?(?:/[^\\s<>\"']*)?",
+    "g"
+);
+
 function renderTextWithLinks(el, text) {
-    const urlRegex = /(https?:\/\/[^\s<>"']+)/g;
+    URL_RX.lastIndex = 0;
     let lastIdx = 0;
     let m;
-    while ((m = urlRegex.exec(text)) !== null) {
+    while ((m = URL_RX.exec(text)) !== null) {
         if (m.index > lastIdx) {
             el.appendChild(document.createTextNode(text.slice(lastIdx, m.index)));
         }
+        const raw = m[0];
+        const href = /^https?:\/\//i.test(raw) ? raw : "https://" + raw;
         const a = document.createElement("a");
-        a.href = m[0];
+        a.href = href;
         a.target = "_blank";
         a.rel = "noopener noreferrer";
         a.className = "chat-msg-link";
-        a.textContent = m[0];
+        a.textContent = raw;
         el.appendChild(a);
-        lastIdx = m.index + m[0].length;
+        lastIdx = m.index + raw.length;
     }
     if (lastIdx < text.length) {
         el.appendChild(document.createTextNode(text.slice(lastIdx)));
@@ -967,10 +991,53 @@ function renderLikeBadge(msgId) {
 }
 
 /* Material-style сердце. ViewBox 24×24, fill=currentColor — управляем
-   цветом через .chat-msg-likes-heart / .chat-like-popup. */
+   цветом через .chat-msg-likes-heart / .chat-ctx-item-icon.is-like. */
 const HEART_SVG =
     '<svg viewBox="0 0 24 24" aria-hidden="true">' +
     '<path d="M12 21.05l-1.32-1.2C5.6 15.16 2.25 12.12 2.25 8.4 2.25 5.36 4.64 3 7.7 3c1.73 0 3.39.8 4.3 2.07C12.91 3.8 14.57 3 16.3 3c3.06 0 5.45 2.36 5.45 5.4 0 3.72-3.35 6.76-8.43 11.46L12 21.05z"/>' +
+    '</svg>';
+
+/* Сердце для пунктов меню — тот же контур, но уменьшенный (scale вокруг
+   центра 12,12): исходный Material-путь рисован edge-to-edge на 24×24 и
+   рядом с компактными copy/save/link/open выглядел заметно крупнее их. Сам
+   HEART_SVG (бейдж под сообщением) не трогаем — там масштаб уже верный. */
+const HEART_MENU_SVG =
+    '<svg viewBox="0 0 24 24" aria-hidden="true">' +
+    '<g transform="translate(12 12) scale(0.78) translate(-12 -12)">' +
+    '<path d="M12 21.05l-1.32-1.2C5.6 15.16 2.25 12.12 2.25 8.4 2.25 5.36 4.64 3 7.7 3c1.73 0 3.39.8 4.3 2.07C12.91 3.8 14.57 3 16.3 3c3.06 0 5.45 2.36 5.45 5.4 0 3.72-3.35 6.76-8.43 11.46L12 21.05z"/>' +
+    '</g></svg>';
+
+/* «Убрать лайк» — тот же уменьшенный контур, просто outline (не залитый),
+   без перечёркивания — диагональ на кривых сердца читалась неровно на любом
+   исполнении (bg-cutout не спас), проще и чище без неё. */
+const HEART_OUTLINE_SVG =
+    '<svg viewBox="0 0 24 24" aria-hidden="true">' +
+    '<g transform="translate(12 12) scale(0.78) translate(-12 -12)">' +
+    '<path d="M12 21.05l-1.32-1.2C5.6 15.16 2.25 12.12 2.25 8.4 2.25 5.36 4.64 3 7.7 3c1.73 0 3.39.8 4.3 2.07C12.91 3.8 14.57 3 16.3 3c3.06 0 5.45 2.36 5.45 5.4 0 3.72-3.35 6.76-8.43 11.46L12 21.05z"/>' +
+    '</g>' +
+    '</svg>';
+
+/* ========= Иконки контекстного меню =========
+   Переиспользуем существующие монолайн-SVG из других частей приложения
+   (единый визуальный язык), кроме ICON_OPEN — для него аналога не было. */
+const ICON_COPY =
+    '<svg viewBox="0 0 24 24" aria-hidden="true">' +
+    '<rect x="9" y="9" width="11" height="11" rx="1.4"/>' +
+    '<path d="M5 15V5.5A1.5 1.5 0 0 1 6.5 4H15"/>' +
+    '</svg>';
+const ICON_SAVE =
+    '<svg viewBox="0 0 24 24" aria-hidden="true">' +
+    '<path d="M12 4v11"/><path d="M7 11l5 5 5-5"/><path d="M5 19.5h14"/>' +
+    '</svg>';
+const ICON_LINK =
+    '<svg viewBox="0 0 24 24" aria-hidden="true">' +
+    '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>' +
+    '<path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>' +
+    '</svg>';
+const ICON_OPEN =
+    '<svg viewBox="0 0 24 24" aria-hidden="true">' +
+    '<path d="M9 6H6.5A1.5 1.5 0 0 0 5 7.5v11A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V15"/>' +
+    '<path d="M14 4h6v6"/><path d="M20 4l-9 9"/>' +
     '</svg>';
 
 /* Биндим жесты на каждое сообщение. Pointer Events унифицируют мышь/тач. */
@@ -998,23 +1065,26 @@ function attachLikeGestures(wrap, msgId) {
         if (e.detail >= 2 && !isInteractiveTarget(e.target)) e.preventDefault();
     });
 
-    /* Подавляем системное меню «копировать/выбрать» по long-press на тач —
-       иначе наша всплывашка перебивается нативной. На мыши контекстное меню
-       оставляем (правый клик не задействован). */
+    /* ПКМ — открываем контекстное меню вместо системного. */
     wrap.addEventListener("contextmenu", (e) => {
-        if (e.pointerType === "touch" || e.pointerType === "pen") e.preventDefault();
+        e.preventDefault();
+        openContextMenu(buildContextMenuItems(e.target, wrap, msgId), e.clientX, e.clientY);
     });
 
+    /* Long-press (тач и мышь) — то же меню. Фильтр цели — НЕ isInteractiveTarget:
+       long-press должен доставать до пунктов картинки/ссылки, а не только текста. */
     wrap.addEventListener("pointerdown", (e) => {
         if (e.button !== undefined && e.button !== 0) return;
-        if (isInteractiveTarget(e.target)) return;
+        if (isMenuGestureBlockedTarget(e.target)) return;
 
         const startX = e.clientX;
         const startY = e.clientY;
+        const startTarget = e.target;
         let timer = setTimeout(() => {
             timer = null;
             cleanup();
-            showLikePopup(msgId, startX, startY);
+            armGhostClickSuppression(wrap);
+            openContextMenu(buildContextMenuItems(startTarget, wrap, msgId), startX, startY);
         }, LIKE_LONGPRESS_MS);
 
         const onMove = (ev) => {
@@ -1041,60 +1111,217 @@ function isInteractiveTarget(node) {
         node.closest("a, button, input, textarea, .chat-attach-image"));
 }
 
-function showLikePopup(msgId, anchorX, anchorY) {
-    hideLikePopup();
-
-    const popup = document.createElement("button");
-    popup.type = "button";
-    popup.className = "chat-like-popup";
-    popup.setAttribute("aria-label", _ct("chat.like"));
-    popup.innerHTML = HEART_SVG;
-
-    document.body.appendChild(popup);
-
-    /* Позиционируем над пальцем/курсором, прижимая к viewport, чтобы не
-       вылезти за край (актуально на тач — long-press у самого края экрана). */
-    const w = popup.offsetWidth  || 40;
-    const h = popup.offsetHeight || 40;
-    const pad = 8;
-    let x = anchorX - w / 2;
-    let y = anchorY - h - 14;
-    x = Math.max(pad, Math.min(window.innerWidth  - w - pad, x));
-    y = Math.max(pad, Math.min(window.innerHeight - h - pad, y));
-    popup.style.left = x + "px";
-    popup.style.top  = y + "px";
-
-    popup.addEventListener("click", (e) => {
-        e.stopPropagation();
-        toggleOwnLike(msgId);
-        hideLikePopup();
-    });
-
-    likePopupEl = popup;
-    requestAnimationFrame(() => popup.classList.add("is-visible"));
-
-    likePopupTimer = setTimeout(hideLikePopup, LIKE_POPUP_TIMEOUT_MS);
-
-    /* Закрываем по любому касанию вне всплывашки. capture=true — ловим раньше,
-       чем кто-то ещё успеет stopPropagation. Слушаем pointerdown — реагируем
-       синхронно с тач-стартом, до click. */
-    likePopupOutsideHandler = (ev) => {
-        if (ev.target === popup || popup.contains(ev.target)) return;
-        hideLikePopup();
-    };
-    document.addEventListener("pointerdown", likePopupOutsideHandler, true);
-    chatMessagesEl?.addEventListener("scroll", hideLikePopup, { once: true });
+/* Уже сами являются пунктом действия (кнопка лайка, скачивание файла) или
+   системным контролом — long-press на них не должен открывать меню. Ссылки
+   и картинки НАМЕРЕННО не исключены — на них меню как раз и нужно. */
+function isMenuGestureBlockedTarget(node) {
+    return !!(node && node.closest &&
+        node.closest("button, input, textarea, .chat-attach-file-dl"));
 }
 
-function hideLikePopup() {
-    if (likePopupTimer) { clearTimeout(likePopupTimer); likePopupTimer = null; }
-    if (likePopupOutsideHandler) {
-        document.removeEventListener("pointerdown", likePopupOutsideHandler, true);
-        likePopupOutsideHandler = null;
+/* После long-press браузер всё равно шлёт "призрачный" click по pointerup —
+   он открыл бы lightbox (по клику на картинку) или увёл по ссылке. Гасим его
+   capture-листенером на wrap: перехватывает раньше, чем событие дойдёт до
+   <img>/<a>, а preventDefault там же отменяет и переход по ссылке. */
+function armGhostClickSuppression(wrap) {
+    const swallow = (e) => { e.preventDefault(); e.stopPropagation(); };
+    wrap.addEventListener("click", swallow, { capture: true, once: true });
+    setTimeout(() => wrap.removeEventListener("click", swallow, true), 500);
+}
+
+/* ========= Контекстное меню ========= */
+
+function buildContextMenuItems(targetEl, wrap, msgId) {
+    const items = [];
+    const link = targetEl.closest?.(".chat-msg-link");
+    /* .chat-attach — ОБЩИЙ контейнер и для картинки, и для файла (иконка+имя+
+       размер+↓). Ищем от wrap (всё сообщение), а не от targetEl (closest) —
+       у вложения ещё есть .chat-msg-head (ник+время) РЯДОМ с .chat-attach, а
+       не внутри неё; клик по нику/времени тоже должен резолвиться как
+       «это attachment-сообщение», а не проваливаться в text-ветку и
+       копировать мусор из textContent (глиф+имя+размер+"↓"). */
+    const attach = !link ? wrap?.querySelector(".chat-attach") : null;
+    const img = attach?.querySelector(".chat-attach-image");
+    const fileDl = (attach && !(img && img.src)) ? attach.querySelector(".chat-attach-file-dl") : null;
+
+    if (link) {
+        items.push({
+            icon: ICON_LINK, label: _ct("invite.copy-link"), flashCopied: true,
+            onClick: () => copyText(link.href)
+        });
+        items.push({
+            icon: ICON_OPEN, label: _ct("chat.open-link"),
+            onClick: () => { window.open(link.href, "_blank", "noopener,noreferrer"); return true; }
+        });
+    } else if (img && img.src) {
+        items.push({
+            icon: ICON_COPY, label: _ct("chat.copy"), flashCopied: true,
+            onClick: () => copyImage(img.src)
+        });
+        items.push({
+            icon: ICON_SAVE, label: _ct("chat.download"),
+            onClick: () => saveBlobUrl(img.src, img.alt || "image")
+        });
+    } else if (fileDl && fileDl.href) {
+        items.push({
+            icon: ICON_SAVE, label: _ct("chat.download"),
+            onClick: () => saveBlobUrl(fileDl.href, fileDl.download || "file")
+        });
+    } else if (!attach) {
+        items.push({
+            icon: ICON_COPY, label: _ct("chat.copy"), flashCopied: true,
+            onClick: () => copyText(wrap.querySelector(".chat-msg-body")?.textContent || "")
+        });
     }
-    if (likePopupEl) {
-        const el = likePopupEl;
-        likePopupEl = null;
+    /* else: attach есть, но ни картинка, ни файл ещё не готовы (в процессе
+       передачи) — copy/save не показываем, только лайк ниже. */
+
+    if (msgId) {
+        items.push({ divider: true });
+        const likers = messageLikes.get(msgId);
+        const isMine = likers && likers.has(getSelfId());
+        items.push({
+            icon: isMine ? HEART_OUTLINE_SVG : HEART_MENU_SVG,
+            iconClass: isMine ? "" : "is-like",
+            label: isMine ? _ct("chat.like.remove") : _ct("chat.like.add"),
+            onClick: () => { toggleOwnLike(msgId); return true; }
+        });
+    }
+
+    return items;
+}
+
+async function copyText(text) {
+    try {
+        await navigator.clipboard.writeText(text);
+        return true;
+    } catch (e) {
+        log.warn("chat", "copy failed", { err: e?.message || String(e) });
+        return false;
+    }
+}
+
+async function copyImage(url) {
+    try {
+        /* WebView2 не тянет navigator.clipboard.write() с картинками надёжно —
+           на десктопе идём в обход через нативный Tauri clipboard-plugin
+           (js/desktop/clipboard.js). В web-сборке VoidDesktop не определён. */
+        if (window.VoidDesktop && typeof window.VoidDesktop.copyImage === "function") {
+            await window.VoidDesktop.copyImage(url);
+            return true;
+        }
+        const blob = await fetch(url).then((r) => r.blob());
+        await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+        return true;
+    } catch (e) {
+        log.warn("chat", "copy image failed", { err: e?.message || String(e) });
+        return false;
+    }
+}
+
+async function saveBlobUrl(url, filename) {
+    /* `<a download>` на blob:-URL молча не срабатывает в WebView2 (клик
+       проходит без единой ошибки — ни исключения, ни события, поэтому
+       раньше это выглядело как полная тишина даже с log level=info: логировать
+       было просто нечего). На десктопе идём в обход через нативный диалог
+       сохранения + запись байт (js/desktop/save-file.js). */
+    if (window.VoidDesktop && typeof window.VoidDesktop.saveFile === "function") {
+        try {
+            await window.VoidDesktop.saveFile(url, filename);
+        } catch (e) {
+            log.warn("chat", "native save failed", { err: e?.message || String(e) });
+        }
+        return;
+    }
+
+    try {
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        a.style.display = "none";
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => a.remove(), 1000);
+    } catch (e) {
+        log.warn("chat", "save failed", { err: e?.message || String(e) });
+    }
+}
+
+function openContextMenu(items, x, y) {
+    closeContextMenu();
+
+    const menu = document.createElement("div");
+    menu.className = "chat-ctx-menu";
+
+    items.forEach((item) => {
+        if (item.divider) {
+            const d = document.createElement("div");
+            d.className = "chat-ctx-divider";
+            menu.appendChild(d);
+            return;
+        }
+
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "chat-ctx-item";
+
+        const icon = document.createElement("span");
+        icon.className = "chat-ctx-item-icon" + (item.iconClass ? " " + item.iconClass : "");
+        icon.innerHTML = item.icon;
+
+        const label = document.createElement("span");
+        label.className = "chat-ctx-item-label";
+        label.textContent = item.label;
+
+        btn.appendChild(icon);
+        btn.appendChild(label);
+
+        btn.addEventListener("click", async (e) => {
+            e.stopPropagation();
+            const ok = await item.onClick();
+            if (item.flashCopied && ok !== false) {
+                label.textContent = _ct("support.copied");
+                btn.disabled = true;
+                setTimeout(closeContextMenu, 700);
+            } else {
+                closeContextMenu();
+            }
+        });
+
+        menu.appendChild(btn);
+    });
+
+    document.body.appendChild(menu);
+
+    /* Прижимаем к viewport, чтобы не вылезти за край (тот же приём, что был
+       у прежней like-всплывашки). */
+    const w = menu.offsetWidth, h = menu.offsetHeight, pad = 8;
+    const cx = Math.max(pad, Math.min(window.innerWidth  - w - pad, x));
+    const cy = Math.max(pad, Math.min(window.innerHeight - h - pad, y));
+    menu.style.left = cx + "px";
+    menu.style.top  = cy + "px";
+
+    ctxMenuEl = menu;
+    requestAnimationFrame(() => menu.classList.add("is-visible"));
+
+    /* Закрываем по любому касанию вне меню. capture=true — ловим раньше,
+       чем кто-то ещё успеет stopPropagation. */
+    ctxMenuOutsideHandler = (ev) => {
+        if (ev.target === menu || menu.contains(ev.target)) return;
+        closeContextMenu();
+    };
+    document.addEventListener("pointerdown", ctxMenuOutsideHandler, true);
+    chatMessagesEl?.addEventListener("scroll", closeContextMenu, { once: true });
+}
+
+function closeContextMenu() {
+    if (ctxMenuOutsideHandler) {
+        document.removeEventListener("pointerdown", ctxMenuOutsideHandler, true);
+        ctxMenuOutsideHandler = null;
+    }
+    if (ctxMenuEl) {
+        const el = ctxMenuEl;
+        ctxMenuEl = null;
         el.classList.remove("is-visible");
         setTimeout(() => { try { el.remove(); } catch (_) {} }, 160);
     }
