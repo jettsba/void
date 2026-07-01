@@ -63,7 +63,10 @@ const PREMIUM_NICKNAMES = new Set([
     "casheaterr",
     "nakharaktere",
     "fergjo",
-    "michael"
+    "michael",
+    "aoki",
+    "artej",
+    "garik"
 ]);
 
 function isPremiumNickname(nickname) {

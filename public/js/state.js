@@ -58,6 +58,11 @@ let currentRoomCode = null;
 
 let clientId = null;
 
+/* Dev-режим: принудительный TURN-relay (iceTransportPolicy:"relay"). Читается
+   в createPeer (webrtc.js). Переключается тумблером в dev-настройках через
+   window.__voidSetForceRelay — тест relay-пути без реального CG-NAT. */
+let forceRelay = false;
+
 /**
  * Один раз на загрузку вкладки шлём серверу "hello" — это считается как
  * "регистрация" (лимит-метрика "users" в админ-статистике). Reconnect/повторные

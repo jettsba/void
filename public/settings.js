@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "0.14.0";
+    const APP_VERSION = "0.15.0";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
@@ -184,6 +184,7 @@
             "settings.cat.interface": "интерфейс",
             "settings.cat.hotkeys": "горячие клавиши",
             "settings.cat.app": "приложение",
+            "settings.cat.dev": "dev.tools",
 
             "hotkeys.master": "горячие клавиши",
             "hotkeys.master.hint": "общий выключатель всех комбинаций",
@@ -254,6 +255,13 @@
             "support.coin.usdt": "usdt (tron, trc-20)",
 
             "settings.bug": "сообщить о проблеме",
+            "settings.admin": "админ-панель",
+            "dev.devtools": "открыть devtools",
+            "dev.hud": "оверлей статистики",
+            "dev.copyDiag": "скопировать диагностику",
+            "dev.copyDiag.done": "скопировано",
+            "dev.forceRelay": "принудительный relay",
+            "dev.forceRelay.hint": "гнать медиа через turn — тест relay-пути",
             "bug.title": "сообщить о проблеме",
             "bug.body": "опиши, что пошло не так или что хотелось бы добавить. к заявке автоматически приложится короткий технический лог — поможет быстрее разобраться.",
             "bug.desc.placeholder": "опиши проблему или предложение",
@@ -375,6 +383,7 @@
             "settings.cat.interface": "interface",
             "settings.cat.hotkeys": "hotkeys",
             "settings.cat.app": "application",
+            "settings.cat.dev": "dev.tools",
 
             "hotkeys.master": "hotkeys",
             "hotkeys.master.hint": "master switch for all shortcuts",
@@ -445,6 +454,13 @@
             "support.coin.usdt": "usdt (tron, trc-20)",
 
             "settings.bug": "report a bug",
+            "settings.admin": "admin panel",
+            "dev.devtools": "open devtools",
+            "dev.hud": "stats overlay",
+            "dev.copyDiag": "copy diagnostics",
+            "dev.copyDiag.done": "copied",
+            "dev.forceRelay": "force relay",
+            "dev.forceRelay.hint": "route media via turn — test relay path",
             "bug.title": "report a bug",
             "bug.body": "describe what went wrong or what you'd like to see added. a short technical log will be attached automatically — it helps me figure out the issue faster.",
             "bug.desc.placeholder": "describe the problem or suggestion",
@@ -759,6 +775,10 @@
         bugDescEl, bugContactEl, bugSubmitEl, bugErrorEl;
     /* Чтобы не дать спамить кнопкой submit на медленной сети. */
     let bugSubmitting = false;
+    /* Dev-режим (админ-режим): кнопка админ-панели, dev-категория, галочка у
+       версии, dev-модалка. Показываются только при активном devMode (см.
+       js/dev-mode.js, событие void:devmode-changed). */
+    let devCatBtnEl, devCheckEl, devModalEl = null, forceRelayEl;
 
     /* Адреса намеренно зашиты в код: они привязаны к одному автору,
        никакой динамики тут не нужно. Если кошельки сменятся — правка здесь
@@ -861,6 +881,15 @@
                         <span class="settings-cat-value" id="catValueApp"></span>
                         <svg class="settings-cat-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
                     </button>
+
+                    <button type="button" class="settings-cat settings-cat--dev" id="settingsCatDev">
+                        <svg class="settings-cat-icon" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M8 8l-4 4 4 4M16 8l4 4-4 4M13 5l-2 14"/>
+                        </svg>
+                        <span class="settings-cat-label" data-i18n="settings.cat.dev">${t("settings.cat.dev")}</span>
+                        <span class="settings-cat-value" id="catValueDev"></span>
+                        <svg class="settings-cat-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+                    </button>
                 </nav>
 
                 <button type="button" class="settings-bug-btn" id="settingsBugBtn"
@@ -876,7 +905,12 @@
 
                 <footer class="settings-footer">
                     <div class="settings-footer-meta">
-                        <span class="settings-footer-pill">void v${APP_VERSION}</span>
+                        <span class="settings-footer-pillrow">
+                            <span class="settings-footer-pill">void v${APP_VERSION}</span>
+                            <span class="settings-devmode-check" aria-hidden="true">
+                                <svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-11"/></svg>
+                            </span>
+                        </span>
                         <a class="settings-footer-author"
                            href="https://t.me/mtbibltww"
                            target="_blank"
@@ -990,8 +1024,21 @@
         bugBtnEl = panelEl.querySelector("#settingsBugBtn");
         bugBtnEl?.addEventListener("click", openBugModal);
 
+        /* ===== Dev-режим ===== */
+        devCheckEl = panelEl.querySelector(".settings-devmode-check");
+        devCatBtnEl = panelEl.querySelector("#settingsCatDev");
+        devCatBtnEl?.addEventListener("click", () => openCatModal(devModalEl, onDevModalOpen));
+        /* Негласная активация: 10 кликов по пилюле версии (при нике casheaterr).
+           На пилюле НЕ ставим cursor:pointer — жест намеренно незаметный. */
+        panelEl.querySelector(".settings-footer-pill")
+            ?.addEventListener("click", () => window.VoidDev?.registerPillClick());
+        document.addEventListener("void:devmode-changed", revealDevUi);
+        /* Если dev-режим включили до построения панели — показать сразу. */
+        if (window.VoidDev?.isEnabled()) revealDevUi();
+
         buildSupportModal();
         buildBugModal();
+        buildDevModal();
 
         document.addEventListener("keydown", e => {
             if (e.key !== "Escape") return;
@@ -1703,6 +1750,130 @@
         bugModalEl.querySelector("#bugClose").addEventListener("click", closeBugModal);
         bugModalEl.querySelector("#bugSuccessClose").addEventListener("click", closeBugModal);
         bugModalEl.querySelector("#bugForm").addEventListener("submit", submitBugReport);
+    }
+
+    /* ===== Dev-режим: показ UI + инструменты ===== */
+
+    /* Реакция на активацию dev-режима (событие void:devmode-changed): раскрываем
+       dev-категорию в настройках и мигаем галочкой у версии. */
+    function revealDevUi() {
+        /* Класс .dev-on на панели показывает dev-категорию (см. settings.css).
+           Остальные dev-инструменты живут в её модалке «разработчик». */
+        panelEl?.classList.add("dev-on");
+        flashDevCheck();
+    }
+
+    function flashDevCheck() {
+        if (!devCheckEl) return;
+        devCheckEl.classList.add("is-visible");
+        clearTimeout(devCheckEl._t);
+        devCheckEl._t = setTimeout(() => devCheckEl.classList.remove("is-visible"), 1500);
+    }
+
+    /* /adminstats живёт на app-поддомене (Basic auth спросит браузер). В desktop
+       Tauri блокирует window.open (новые окна webview не открываются) — идём в
+       команду open_external (opener-плагин), которая открывает URL в системном
+       браузере. На web — обычный window.open. Абсолютный URL: VoidApiBase (прод в
+       bundled) либо origin текущей страницы (web / dev-desktop localhost). */
+    function openAdminPanel() {
+        const base = window.VoidApiBase || window.location.origin;
+        const url = base + "/adminstats";
+        if (window.VoidPlatform === "desktop" && window.__TAURI__?.core) {
+            try { window.__TAURI__.core.invoke("open_external", { url }); return; } catch (_) {}
+        }
+        window.open(url, "_blank", "noopener,noreferrer");
+    }
+
+    function buildDevModal() {
+        if (document.getElementById("catModalDev")) return;
+        const devIcon = `<svg viewBox="0 0 24 24"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4M13 5l-2 14"/></svg>`;
+        const devtoolsTile = window.VoidPlatform === "desktop" ? `
+                <button type="button" class="dev-tile" id="devOpenDevtools">
+                    <svg class="dev-tile-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4"/></svg>
+                    <span class="dev-tile-label" data-i18n="dev.devtools">${t("dev.devtools")}</span>
+                </button>` : "";
+        devModalEl = buildCatModalShell("catModalDev", "settings.cat.dev", `
+            <div class="dev-grid">
+                <button type="button" class="dev-tile" id="devAdminPanel"
+                    data-i18n-attr="aria-label:settings.admin" aria-label="${t("settings.admin")}">
+                    <svg class="dev-tile-icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <rect x="4.5" y="11" width="3.6" height="9" rx="0.6"/>
+                        <rect x="10.2" y="5" width="3.6" height="15" rx="0.6"/>
+                        <rect x="15.9" y="14" width="3.6" height="6" rx="0.6"/>
+                    </svg>
+                    <span class="dev-tile-label" data-i18n="settings.admin">${t("settings.admin")}</span>
+                </button>
+                ${devtoolsTile}
+                <button type="button" class="dev-tile" id="devToggleHud">
+                    <svg class="dev-tile-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 20h8"/></svg>
+                    <span class="dev-tile-label" data-i18n="dev.hud">${t("dev.hud")}</span>
+                </button>
+                <button type="button" class="dev-tile" id="devCopyDiag">
+                    <svg class="dev-tile-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="1.4"/><path d="M5 15V5.5A1.5 1.5 0 0 1 6.5 4H15"/></svg>
+                    <span class="dev-tile-label" data-i18n="dev.copyDiag">${t("dev.copyDiag")}</span>
+                </button>
+            </div>
+            <label class="toggle-row">
+                <span class="toggle-row-text">
+                    <span class="toggle-row-label" data-i18n="dev.forceRelay">${t("dev.forceRelay")}</span>
+                    <span class="toggle-row-hint" data-i18n="dev.forceRelay.hint">${t("dev.forceRelay.hint")}</span>
+                </span>
+                <span class="vswitch">
+                    <input type="checkbox" id="devForceRelay"/>
+                    <span class="vswitch-track"></span>
+                </span>
+            </label>
+        `, devIcon);
+
+        devModalEl.querySelector("#devAdminPanel")?.addEventListener("click", openAdminPanel);
+        devModalEl.querySelector("#devOpenDevtools")?.addEventListener("click", () => {
+            try { window.__TAURI__?.core?.invoke("open_devtools"); } catch (_) {}
+        });
+        devModalEl.querySelector("#devToggleHud")?.addEventListener("click", () => {
+            try { window.__voidToggleHud?.(); } catch (_) {}
+        });
+        devModalEl.querySelector("#devCopyDiag")?.addEventListener("click", copyDiagnostics);
+        forceRelayEl = devModalEl.querySelector("#devForceRelay");
+        forceRelayEl?.addEventListener("change", () => {
+            try { window.__voidSetForceRelay?.(forceRelayEl.checked); } catch (_) {}
+        });
+        applyI18n(devModalEl);
+    }
+
+    function onDevModalOpen() {
+        /* Синхронизируем тумблер с реальным состоянием (на случай если его
+           меняли, а модалку переоткрыли). */
+        if (forceRelayEl) forceRelayEl.checked = (typeof forceRelay !== "undefined") && !!forceRelay;
+    }
+
+    async function copyDiagnostics() {
+        let text;
+        try {
+            const rep = window.__voidCollectDiag ? await window.__voidCollectDiag() : {};
+            text = JSON.stringify(rep, null, 2);
+        } catch (e) {
+            text = "diag error: " + (e && e.message ? e.message : String(e));
+        }
+        let ok = false;
+        try {
+            await navigator.clipboard.writeText(text);
+            ok = true;
+        } catch (_) {
+            try {
+                const ta = document.createElement("textarea");
+                ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+                document.body.appendChild(ta); ta.select();
+                document.execCommand("copy"); document.body.removeChild(ta);
+                ok = true;
+            } catch (_) {}
+        }
+        const btn = devModalEl?.querySelector("#devCopyDiag .dev-tile-label");
+        if (ok && btn) {
+            const prev = btn.textContent;
+            btn.textContent = t("dev.copyDiag.done");
+            clearTimeout(btn._t);
+            btn._t = setTimeout(() => { btn.textContent = prev; }, 1200);
+        }
     }
 
     function openBugModal() {

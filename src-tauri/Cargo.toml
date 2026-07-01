@@ -1,6 +1,6 @@
 [package]
 name = "void-desktop"
-version = "0.14.0"
+version = "0.15.0"
 description = "Void — эфемерные P2P голосовые комнаты"
 authors = ["Void"]
 edition = "2021"
@@ -15,7 +15,7 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = ["tray-icon", "devtools"] }
-tauri-plugin-shell = "2"
+tauri-plugin-opener = "2"
 tauri-plugin-clipboard-manager = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
@@ -62,6 +62,10 @@ windows = { version = "0.59", features = [
     # захвата без мелькания). См. screen_indicator.rs.
     "Win32_UI_WindowsAndMessaging",
     "Win32_UI_Accessibility",
+    # Win32_UI_Input_KeyboardAndMouse — GetKeyState (детект Ctrl/Shift в
+    # AcceleratorKeyPressed для гейта DevTools у обычных юзеров). См. lib.rs
+    # setup_dev_access_gate.
+    "Win32_UI_Input_KeyboardAndMouse",
 ] }
 
 [features]

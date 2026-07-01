@@ -60,6 +60,12 @@ const ICON_IN_ROOM_PNG: &[u8] = include_bytes!("../icons/tray/in_room.png");
 static SHOWN_HIDE_TOAST: AtomicBool = AtomicBool::new(false);
 static CLOSE_TO_TRAY: AtomicBool = AtomicBool::new(true);
 
+/// Dev-режим (админ-режим): доступ к DevTools у обычных юзеров закрыт по
+/// умолчанию. JS (js/dev-mode.js) при активации зовёт команду set_dev_access,
+/// которая переключает этот флаг; AcceleratorKeyPressed-хендлер (windows)
+/// читает его в рантайме и гасит/пропускает F12 и Ctrl+Shift+I/J/C.
+static DEV_ACCESS: AtomicBool = AtomicBool::new(false);
+
 /// HWND главного окна (как isize). Нужен screen_indicator'у, чтобы исключить
 /// главное окно при скрытии индикатора захвата из таскбара. 0 = окна ещё нет.
 #[cfg(windows)]
@@ -125,6 +131,30 @@ fn stop_screen_audio() {
     }
 }
 
+/// Dev-режим: включить/выключить доступ к DevTools (F12/Ctrl+Shift+I/J/C).
+/// Зовётся из js/dev-mode.js при активации. Флаг читает AcceleratorKeyPressed
+/// (windows). На non-windows — no-op (там гейта клавиш нет).
+#[tauri::command]
+fn set_dev_access(enabled: bool) {
+    DEV_ACCESS.store(enabled, Ordering::SeqCst);
+}
+
+/// Dev-режим: явно открыть DevTools (кнопка в dev-настройках). Фича `devtools`
+/// включена в Cargo.toml → метод доступен и в release-сборке.
+#[tauri::command]
+fn open_devtools(window: tauri::WebviewWindow) {
+    window.open_devtools();
+}
+
+/// Открыть внешний URL в системном браузере (кнопка «админ-панель» → /adminstats).
+/// В Tauri window.open из webview не открывает окно, поэтому идём через opener-плагин
+/// (вызов из Rust не требует JS-ACL). Basic-auth /adminstats спросит сам браузер.
+#[tauri::command]
+fn open_external(app: tauri::AppHandle, url: String) -> std::result::Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    app.opener().open_url(url, None::<&str>).map_err(|e| e.to_string())
+}
+
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -149,7 +179,7 @@ pub fn run() {
                 });
             }
         }))
-        .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
@@ -170,7 +200,10 @@ pub fn run() {
             take_pending_deep_link,
             tray_menu_action,
             start_screen_audio,
-            stop_screen_audio
+            stop_screen_audio,
+            set_dev_access,
+            open_devtools,
+            open_external
         ])
         .setup(|app| {
             // Bundled-web архитектура (Phase 6 фикс, v0.10.48):
@@ -605,6 +638,8 @@ fn launch_main_window(app: &AppHandle) {
         // Авто-грант разрешения на микрофон — чтобы не всплывал нативный виндовый
         // промпт «… хочет использовать микрофон» (см. setup_media_permissions).
         setup_media_permissions(&window);
+        // Dev-режим: по умолчанию гасим F12/Ctrl+Shift+I/J/C (доступ к консоли).
+        setup_dev_access_gate(&window);
         // Запоминаем HWND главного окна — screen_indicator исключает его при
         // скрытии индикатора захвата экрана из таскбара.
         if let Ok(h) = window.hwnd() {
@@ -715,6 +750,63 @@ fn setup_media_permissions(window: &tauri::WebviewWindow) {
                             || kind == COREWEBVIEW2_PERMISSION_KIND_CAMERA
                         {
                             args.SetState(COREWEBVIEW2_PERMISSION_STATE_ALLOW)?;
+                        }
+                    }
+                    Ok(())
+                },
+            )),
+            &mut token,
+        );
+    });
+}
+
+/// Гейт доступа к DevTools для обычных пользователей (dev-режим выключен).
+/// По умолчанию DEV_ACCESS=false → перехватываем акселераторы открытия консоли
+/// (F12, Ctrl+Shift+I/J/C) и помечаем событие Handled, чтобы WebView2 не
+/// открывал DevTools. В dev-режиме (set_dev_access(true)) пропускаем как есть.
+/// Проверка по атомику В РАНТАЙМЕ → мгновенно и реверсивно, без «применяется на
+/// следующей навигации» (поэтому НЕ трогаем put_AreDevToolsEnabled). ПКМ-меню
+/// WebView2 гасится отдельно в JS (js/dev-mode.js). ICoreWebView2 достаём как в
+/// setup_media_permissions.
+#[cfg(windows)]
+fn setup_dev_access_gate(window: &tauri::WebviewWindow) {
+    use webview2_com::AcceleratorKeyPressedEventHandler;
+    use webview2_com::Microsoft::Web::WebView2::Win32::{
+        ICoreWebView2AcceleratorKeyPressedEventArgs, COREWEBVIEW2_KEY_EVENT_KIND,
+        COREWEBVIEW2_KEY_EVENT_KIND_KEY_DOWN, COREWEBVIEW2_KEY_EVENT_KIND_SYSTEM_KEY_DOWN,
+    };
+    use windows::Win32::UI::Input::KeyboardAndMouse::{GetKeyState, VK_CONTROL, VK_SHIFT};
+
+    let _ = window.with_webview(|webview| unsafe {
+        let controller = webview.controller();
+        let mut token = Default::default();
+        let _ = controller.add_AcceleratorKeyPressed(
+            &AcceleratorKeyPressedEventHandler::create(Box::new(
+                |_sender, args: Option<ICoreWebView2AcceleratorKeyPressedEventArgs>| {
+                    // Dev-режим активен → не мешаем консоли.
+                    if DEV_ACCESS.load(Ordering::SeqCst) {
+                        return Ok(());
+                    }
+                    if let Some(args) = args {
+                        // Геттеры в этом биндинге — out-param (как в media perms).
+                        let mut kind = COREWEBVIEW2_KEY_EVENT_KIND::default();
+                        args.KeyEventKind(&mut kind)?;
+                        // Реагируем только на нажатие (down), чтобы не дублировать на up.
+                        if kind != COREWEBVIEW2_KEY_EVENT_KIND_KEY_DOWN
+                            && kind != COREWEBVIEW2_KEY_EVENT_KIND_SYSTEM_KEY_DOWN
+                        {
+                            return Ok(());
+                        }
+                        let mut vk = 0u32;
+                        args.VirtualKey(&mut vk)?;
+                        // Старший бит GetKeyState = клавиша сейчас нажата.
+                        let ctrl = (GetKeyState(VK_CONTROL.0 as i32) as u16 & 0x8000) != 0;
+                        let shift = (GetKeyState(VK_SHIFT.0 as i32) as u16 & 0x8000) != 0;
+                        // F12 или Ctrl+Shift+I/J/C — открытие DevTools.
+                        let is_devtools =
+                            vk == 0x7B || (ctrl && shift && matches!(vk, 0x49 | 0x4A | 0x43));
+                        if is_devtools {
+                            args.SetHandled(true)?;
                         }
                     }
                     Ok(())

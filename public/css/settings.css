@@ -1755,6 +1755,92 @@
     line-height: 1.4;
 }
 
+/* Ряд «пилюля версии + галочка dev-режима». Пилюля — секретный триггер
+   dev-режима (10 кликов при нике casheaterr); cursor намеренно НЕ pointer. */
+.settings-footer-pillrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.36rem;
+}
+
+/* Галочка появляется на ~1.5с после активации dev-режима. Тёплый акцент
+   (--signal-warn) — единый акцентный цвет сервиса. */
+.settings-devmode-check {
+    display: inline-flex;
+    align-items: center;
+    opacity: 0;
+    transform: scale(0.7);
+    transition: opacity var(--t-med), transform var(--t-med);
+    pointer-events: none;
+}
+
+.settings-devmode-check.is-visible {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.settings-devmode-check svg {
+    width: 0.93rem;
+    height: 0.93rem;
+    fill: none;
+    stroke: var(--fg);
+    stroke-width: 2.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* Dev-инструменты в модалке «разработчик» — плитки 2-в-ряд, как выбор фона
+   (.bg-thumbs): иконка сверху, подпись снизу. Отступ над/под блоком одинаковый
+   (симметричный padding .cat-modal-body). */
+.dev-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.71rem;
+}
+.dev-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.57rem;
+    min-height: 5.7rem;
+    padding: 1rem 0.86rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--fg-4);
+    border-radius: 2px;
+    color: var(--fg-2);
+    font: inherit;
+    font-size: 0.86rem;
+    text-transform: lowercase;
+    letter-spacing: var(--tracking);
+    cursor: pointer;
+    transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
+}
+.dev-tile:hover,
+.dev-tile:focus-visible {
+    outline: none;
+    color: var(--fg);
+    background: rgba(255, 255, 255, 0.06);
+    border-color: var(--fg-3);
+}
+.dev-tile-icon {
+    width: 1.5rem;
+    height: 1.5rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.dev-tile-label { line-height: 1.2; text-align: center; }
+
+/* Dev-категория скрыта, пока не активирован dev-режим (класс .dev-on на панели
+   вешает settings.js по событию void:devmode-changed). Селектор с
+   .settings-panel-предком — чтобы перебить более позднее в файле правило
+   .settings-cat{display:flex} (равная специфичность → выиграло бы). */
+.settings-panel .settings-cat--dev { display: none; }
+.settings-panel.dev-on .settings-cat--dev { display: flex; }
+
 .settings-footer-author {
     color: var(--fg-3);
     text-decoration: none;

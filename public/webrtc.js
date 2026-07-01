@@ -763,7 +763,11 @@ setInterval(ensureTurnCredentials, 60_000);
 function createPeer(userId, isChatInitiator) {
 
     const peer = new RTCPeerConnection({
-        iceServers: _iceServersCached
+        iceServers: _iceServersCached,
+        /* Dev-режим force-relay: гоним медиа только через TURN — тест relay-пути
+           и битрейт-капа без реального CG-NAT. Требует поднятый TURN (иначе
+           кандидатов не будет — это ожидаемо для теста). Обычный режим — "all". */
+        iceTransportPolicy: forceRelay ? "relay" : "all"
     });
 
     peer._userId = userId;
@@ -2117,50 +2121,60 @@ function stopScreenShare() {
     emitScreencastActive(false);
 }
 
-/* ===== ВРЕМЕННАЯ ДИАГНОСТИКА скринкаста (toggle: Ctrl+Alt+S) =====
-   Живой замер для отладки качества демки. По дефолту СКРЫТО. Показывает:
-   conn=direct/RELAY (+ udp/tcp) — relay = потолок 3 Мбит через 1-vCPU VPS;
-   rtt, bitrate, разрешение@fps, qLim (bandwidth/cpu/none), loss% (потери у
-   зрителя — ключевое: высокий loss = сеть/relay не тянет), encoder. Убрать
-   после стабилизации скринкаста. */
-let _scDebugTimer = null;
-let _scDebugPrev = { bytes: 0, ts: 0 };
-async function _collectScDebug() {
-    for (const [userId, senders] of screenSenders) {
-        const peer = peers.get(userId);
-        const vsender = senders.find(s => s.track?.kind === "video");
-        if (!peer || !vsender) continue;
+/* ===== DEV: peer-HUD (включается из dev-меню «оверлей статистики») =====
+   Живой per-peer замер для отладки. По каждому пиру: conn=direct/RELAY (relay =
+   потолок ~3 Мбит через 1-vCPU VPS), rtt; для голоса — kbps + loss%; для демки —
+   разрешение@fps + kbps + qLim + loss%. Доступ только в dev-режиме (кнопка в
+   настройках видна лишь при активном devMode). */
+let _hudTimer = null;
+const _hudPrev = new Map(); // userId → { vbytes, abytes, ts }
+
+async function _collectPeerHud() {
+    if (!peers || peers.size === 0) return null;
+    const now = performance.now();
+    const lines = [];
+    for (const [userId, peer] of peers) {
         let stats;
         try { stats = await peer.getStats(); } catch (_) { continue; }
-        let out = null, rin = null, pair = null;
+        let vout = null, aout = null, vrin = null, arin = null, pair = null;
         stats.forEach(r => {
-            if (r.type === "outbound-rtp" && r.kind === "video") out = r;
-            else if (r.type === "remote-inbound-rtp" && r.kind === "video") rin = r;
+            if (r.type === "outbound-rtp" && r.kind === "video") vout = r;
+            else if (r.type === "outbound-rtp" && r.kind === "audio") aout = r;
+            else if (r.type === "remote-inbound-rtp" && r.kind === "video") vrin = r;
+            else if (r.type === "remote-inbound-rtp" && r.kind === "audio") arin = r;
             else if (r.type === "candidate-pair" && r.nominated && r.state === "succeeded") pair = r;
         });
-        if (!out) continue;
         const lc = pair && stats.get(pair.localCandidateId);
         const rc = pair && stats.get(pair.remoteCandidateId);
         const conn = (lc?.candidateType === "relay" || rc?.candidateType === "relay") ? "RELAY⚠" : "direct";
         const proto = (lc?.protocol || rc?.protocol || "?").toUpperCase();
-        let kbps = 0;
-        if (_scDebugPrev.ts && out.timestamp > _scDebugPrev.ts) {
-            kbps = Math.round(((out.bytesSent - _scDebugPrev.bytes) * 8) / (out.timestamp - _scDebugPrev.ts));
-        }
-        _scDebugPrev = { bytes: out.bytesSent, ts: out.timestamp };
         const rtt = pair?.currentRoundTripTime != null ? Math.round(pair.currentRoundTripTime * 1000)
-                  : rin?.roundTripTime != null ? Math.round(rin.roundTripTime * 1000) : "?";
-        const loss = (rin && rin.fractionLost != null) ? (rin.fractionLost * 100).toFixed(1) : "?";
-        return `sc  conn=${conn} ${proto}  rtt=${rtt}ms  loss=${loss}%\n` +
-               `bitrate=${kbps}kbps  ${out.frameWidth || 0}x${out.frameHeight || 0}@${Math.round(out.framesPerSecond || 0)}fps  qLim=${out.qualityLimitationReason || "?"}\n` +
-               `enc=${(out.encoderImplementation || "?").slice(0, 30)}`;
+                  : (arin?.roundTripTime != null ? Math.round(arin.roundTripTime * 1000) : "?");
+        const prev = _hudPrev.get(userId) || { vbytes: 0, abytes: 0, ts: 0 };
+        const dt = prev.ts ? (now - prev.ts) / 1000 : 0;
+        const nick = (typeof nicknameMap !== "undefined" && nicknameMap.get?.(userId)) || String(userId).slice(0, 8);
+        let line = `${nick}  ${conn} ${proto}  rtt=${rtt}ms`;
+        if (aout) {
+            const kbps = dt ? Math.round(((aout.bytesSent - prev.abytes) * 8) / 1000 / dt) : 0;
+            const loss = arin?.fractionLost != null ? (arin.fractionLost * 100).toFixed(1) : "?";
+            line += `\n   voice: ${kbps}kbps loss=${loss}%`;
+        }
+        if (vout) {
+            const kbps = dt ? Math.round(((vout.bytesSent - prev.vbytes) * 8) / 1000 / dt) : 0;
+            const loss = vrin?.fractionLost != null ? (vrin.fractionLost * 100).toFixed(1) : "?";
+            line += `\n   screen: ${vout.frameWidth || 0}x${vout.frameHeight || 0}@${Math.round(vout.framesPerSecond || 0)} ${kbps}kbps qLim=${vout.qualityLimitationReason || "?"} loss=${loss}%`;
+        }
+        _hudPrev.set(userId, { vbytes: vout?.bytesSent || 0, abytes: aout?.bytesSent || 0, ts: now });
+        lines.push(line);
     }
-    return null;
+    return lines.length ? lines.join("\n") : null;
 }
-function toggleScreencastDebug() {
-    if (_scDebugTimer) {
-        clearInterval(_scDebugTimer);
-        _scDebugTimer = null;
+
+function toggleDebugHud() {
+    if (_hudTimer) {
+        clearInterval(_hudTimer);
+        _hudTimer = null;
+        _hudPrev.clear();
         document.getElementById("__scDebug")?.remove();
         return;
     }
@@ -2168,21 +2182,67 @@ function toggleScreencastDebug() {
     el.id = "__scDebug";
     el.style.cssText = "position:fixed;left:8px;bottom:8px;z-index:2147483647;" +
         "background:rgba(0,0,0,.85);color:#7CFC00;font:11px/1.5 monospace;" +
-        "padding:8px 10px;border-radius:4px;pointer-events:none;white-space:pre;";
-    el.textContent = "sc-debug: запуск…";
+        "padding:8px 10px;border-radius:4px;pointer-events:none;white-space:pre;max-width:62ch;";
+    el.textContent = "peer-hud: запуск…";
     document.body.appendChild(el);
-    _scDebugPrev = { bytes: 0, ts: 0 };
-    _scDebugTimer = setInterval(async () => {
-        el.textContent = (await _collectScDebug()) || "sc-debug: нет активного screen-sender (нужна демка + пир)";
+    _hudPrev.clear();
+    _hudTimer = setInterval(async () => {
+        el.textContent = (await _collectPeerHud()) || "peer-hud: нет активных пиров (нужна комната)";
     }, 1000);
 }
-if (typeof document !== "undefined") {
-    document.addEventListener("keydown", (e) => {
-        if (e.ctrlKey && e.altKey && e.code === "KeyS") {
-            e.preventDefault();
-            toggleScreencastDebug();
+
+/* Диагностический отчёт для кнопки «скопировать диагностику» (dev-настройки). */
+async function collectDiagReport() {
+    const report = {
+        version: window.VoidVersion || null,
+        platform: window.VoidPlatform || "web",
+        ua: navigator.userAgent,
+        room: (typeof currentRoomCode !== "undefined") ? currentRoomCode : null,
+        forceRelay: !!forceRelay,
+        ts: new Date().toISOString(),
+        peers: []
+    };
+    if (peers) {
+        for (const [userId, peer] of peers) {
+            let stats;
+            try { stats = await peer.getStats(); } catch (_) { continue; }
+            let vout = null, pair = null;
+            stats.forEach(r => {
+                if (r.type === "outbound-rtp" && r.kind === "video") vout = r;
+                else if (r.type === "candidate-pair" && r.nominated && r.state === "succeeded") pair = r;
+            });
+            const lc = pair && stats.get(pair.localCandidateId);
+            const rc = pair && stats.get(pair.remoteCandidateId);
+            report.peers.push({
+                userId,
+                nick: (typeof nicknameMap !== "undefined" && nicknameMap.get?.(userId)) || null,
+                conn: (lc?.candidateType === "relay" || rc?.candidateType === "relay") ? "relay" : (pair ? "direct" : "n/a"),
+                proto: lc?.protocol || null,
+                rttMs: pair?.currentRoundTripTime != null ? Math.round(pair.currentRoundTripTime * 1000) : null,
+                iceState: peer.iceConnectionState,
+                recoveryPhase: peer._recoveryPhase,
+                relay: !!peer._isRelay,
+                encoder: vout?.encoderImplementation || null,
+                screen: vout ? `${vout.frameWidth}x${vout.frameHeight}@${Math.round(vout.framesPerSecond || 0)}` : null
+            });
         }
-    });
+    }
+    return report;
+}
+
+/* Force-relay: пересобираем активные peer'ы, чтобы новый iceTransportPolicy
+   применился (он читается в createPeer при создании peer'а). */
+function setForceRelay(on) {
+    forceRelay = !!on;
+    if (peers) for (const userId of peers.keys()) rebuildPeer(userId);
+}
+
+/* Экспорт для dev-настроек (settings.js). HUD включается ТОЛЬКО из dev-меню
+   (кнопка «оверлей статистики») — хоткея нет. Вызовы гейтятся devMode в UI. */
+if (typeof window !== "undefined") {
+    window.__voidToggleHud = toggleDebugHud;
+    window.__voidCollectDiag = collectDiagReport;
+    window.__voidSetForceRelay = setForceRelay;
 }
 
 /**
