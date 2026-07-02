@@ -214,6 +214,22 @@ function init() {
 
     document.getElementById("screenOverlayFullscreen").addEventListener("click", toggleScreenFullscreen);
 
+    /* Кнопка громкости демки: клик по иконке — mute; слайдер (drag) и колёсико —
+       уровень. Слайдер кастомный (см. initDemoVolumeSlider в screen-overlay.js). */
+    document.getElementById("screenOverlayVolBtn")?.addEventListener("click", toggleDemoMute);
+    initDemoVolumeSlider();
+
+    /* Авто-скрытие контролов: любое движение/касание/фокус — показать; наведение
+       на контрол — держать открытым (иначе слайдер громкости схлопнется). */
+    screenOverlay.addEventListener("mousemove", showScreenControls);
+    screenOverlay.addEventListener("pointerdown", showScreenControls);
+    screenOverlay.addEventListener("focusin", showScreenControls);
+    ["screenOverlayVolume", "screenOverlayFullscreen", "screenOverlayClose"].forEach(id => {
+        const el = document.getElementById(id);
+        el?.addEventListener("mouseenter", () => setPointerOnScreenControls(true));
+        el?.addEventListener("mouseleave", () => setPointerOnScreenControls(false));
+    });
+
     const syncFullscreenClass = () => {
         const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
         screenOverlay.classList.toggle("is-fullscreen", fsEl === screenOverlay);

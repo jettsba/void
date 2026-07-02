@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "0.15.0";
+    const APP_VERSION = "0.15.1";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
@@ -177,6 +177,7 @@
             "screencast.audio": "звук экрана",
             "screencast.next": "далее →",
             "screencast.fullscreen": "на весь экран",
+            "screencast.volume": "громкость",
 
             "settings.title": "настройки",
             "settings.cat.profile": "профиль",
@@ -376,6 +377,7 @@
             "screencast.audio": "screen audio",
             "screencast.next": "next →",
             "screencast.fullscreen": "fullscreen",
+            "screencast.volume": "volume",
 
             "settings.title": "settings",
             "settings.cat.profile": "profile",

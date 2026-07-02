@@ -171,6 +171,16 @@ let lastWatchedUserId = null;
 let lastWatchedExpiresAt = 0;
 const _AUTO_REOPEN_TTL_MS = 5 * 60_000;
 
+/* Громкость/mute демки, управляемые кнопкой громкости в оверлее.
+   demoVolume — множитель поверх мастер-громкости (0..1), demoMuted — явный mute
+   кнопкой. Session-scoped: сохраняются между открытиями оверлея (как на YouTube),
+   сбрасываются на перезагрузку. */
+let demoVolume = 1;
+let demoMuted = false;
+let _volContainerEl = null;
+let _volSliderEl = null;
+let _volSliderBound = false;
+
 /* Screen-audio playback: ИГРАЕМ НАТИВНО через <video>.srcObject (без
    AudioContext-роутинга и без `<audio>` обёрток). Это критично для Windows
    ducking: Chrome специально пометил HTMLMediaElement playback с WebRTC
@@ -180,8 +190,116 @@ const _AUTO_REOPEN_TTL_MS = 5 * 60_000;
    через него playback демки дакался при разговоре зрителя.
    Громкость и mute контролируются прямыми свойствами screenOverlayVideo:
    .volume, .muted, .setSinkId. */
-function setScreenOverlayAudioMuted(muted) {
-    if (screenOverlayVideo) screenOverlayVideo.muted = !!muted;
+function setScreenOverlayAudioMuted(_muted) {
+    /* Зовётся из controls.js при переключении room-sound-тоггла. Реальное
+       muted-состояние всегда пересчитываем в syncScreenOverlayMuted (учитывает
+       и demoMuted кнопки громкости, и !isSoundOn). Аргумент игнорим — читаем
+       isSoundOn напрямую. */
+    syncScreenOverlayMuted();
+}
+
+/* Единый источник истины для screenOverlayVideo.muted: демку глушит ЛИБО кнопка
+   громкости (demoMuted), ЛИБО выключенный room-sound (!isSoundOn). */
+function syncScreenOverlayMuted() {
+    if (!screenOverlayVideo) return;
+    const soundOff = (typeof isSoundOn !== "undefined" && !isSoundOn);
+    screenOverlayVideo.muted = demoMuted || soundOff;
+    updateVolumeBtnUI();
+}
+
+/* ===== Кнопка/слайдер громкости демки в оверлее ===== */
+
+function _volContainer() { return _volContainerEl || (_volContainerEl = document.getElementById("screenOverlayVolume")); }
+
+/* Клик по иконке — toggle mute. */
+function toggleDemoMute() {
+    demoMuted = !demoMuted;
+    /* Размьютили при нулевой громкости — вернём слышимый уровень, иначе off ничего
+       не даст. */
+    if (!demoMuted && demoVolume === 0) demoVolume = 1;
+    applyMasterVolumeToScreenOverlay();
+    syncScreenOverlayMuted();
+}
+
+/* Слайдер/колёсико — множитель громкости демки поверх мастер-громкости. */
+function setDemoVolume(v) {
+    demoVolume = Math.max(0, Math.min(1, v));
+    /* Тронул слайдер при активном mute — снимаем mute (звук возвращается). */
+    if (demoVolume > 0 && demoMuted) demoMuted = false;
+    applyMasterVolumeToScreenOverlay();
+    syncScreenOverlayMuted();
+}
+
+/* Иконка (on/off) + рендер кастомного слайдера по текущему demoVolume/demoMuted. */
+function updateVolumeBtnUI() {
+    const c = _volContainer();
+    const silent = demoMuted || demoVolume === 0;
+    if (c) c.classList.toggle("is-muted", silent);
+    renderDemoVolumeSlider();
+}
+
+/* Кастомный вертикальный слайдер (div-track/fill/handle в стиле volume-arc):
+   заливка снизу до текущего уровня, круглый хэндл на этом уровне. */
+function renderDemoVolumeSlider() {
+    const slider = _volSliderEl || (_volSliderEl = document.getElementById("screenOverlayVolSlider"));
+    if (!slider) return;
+    const pct = Math.round(demoVolume * 100);
+    const fill = slider.querySelector(".screen-overlay-volfill");
+    const handle = slider.querySelector(".screen-overlay-volhandle");
+    if (fill) fill.style.height = pct + "%";
+    if (handle) handle.style.bottom = pct + "%";
+    slider.setAttribute("aria-valuenow", String(pct));
+}
+
+/* Один раз навешиваем drag (pointer) на слайдер и wheel на контейнер (±5%,
+   как у volume-arc). Зовётся из app.js на init. */
+function initDemoVolumeSlider() {
+    if (_volSliderBound) return;
+    const slider = document.getElementById("screenOverlayVolSlider");
+    const container = _volContainer();
+    if (!slider || !container) return;
+    _volSliderBound = true;
+
+    const track = slider.querySelector(".screen-overlay-voltrack") || slider;
+    const valueFromY = (clientY) => {
+        const rect = track.getBoundingClientRect();
+        /* Верх дорожки = 1 (max), низ = 0 (min). */
+        return Math.max(0, Math.min(1, 1 - (clientY - rect.top) / rect.height));
+    };
+
+    let dragging = false;
+    let pid = null;
+    const onMove = (e) => { if (!dragging) return; e.preventDefault(); setDemoVolume(valueFromY(e.clientY)); };
+    const onUp = () => {
+        if (!dragging) return;
+        dragging = false;
+        slider.classList.remove("is-dragging");
+        try { slider.releasePointerCapture(pid); } catch (_) {}
+        pid = null;
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+        window.removeEventListener("pointercancel", onUp);
+    };
+    slider.addEventListener("pointerdown", (e) => {
+        e.preventDefault();
+        dragging = true;
+        pid = e.pointerId;
+        try { slider.setPointerCapture(pid); } catch (_) {}
+        slider.classList.add("is-dragging");
+        setDemoVolume(valueFromY(e.clientY));
+        window.addEventListener("pointermove", onMove);
+        window.addEventListener("pointerup", onUp);
+        window.addEventListener("pointercancel", onUp);
+    });
+
+    /* Колёсико — ±5% за щелчок. На всём контейнере, чтобы крутить даже наведясь
+       на иконку. deltaY нормализуем по знаку (deltaMode разный в FF/Chrome). */
+    container.addEventListener("wheel", (e) => {
+        e.preventDefault();
+        setDemoVolume(demoVolume + (e.deltaY < 0 ? 0.05 : -0.05));
+    }, { passive: false });
+
+    renderDemoVolumeSlider();
 }
 
 /**
@@ -233,9 +351,9 @@ function refreshOverlayStreamIfOpen(userId, stream) {
     if (screenOverlayVideo.srcObject === stream) return;
     log.info("rtc", "screen overlay hot-swap stream", { userId });
     screenOverlayVideo.srcObject = stream;
-    screenOverlayVideo.muted = (typeof isSoundOn !== "undefined" && !isSoundOn);
     applyMasterVolumeToScreenOverlay();
     applySinkIdToScreenOverlay();
+    syncScreenOverlayMuted();
     /* Обновим cleanup-листенеры на новый stream — старые висят на мёртвом. */
     screenOverlayTrackCleanup?.();
     const videoTrack = stream.getVideoTracks?.()[0];
@@ -258,7 +376,8 @@ function refreshOverlayStreamIfOpen(userId, stream) {
 function applyMasterVolumeToScreenOverlay() {
     if (!screenOverlayVideo) return;
     const master = (typeof getMasterOutputGain === "function") ? getMasterOutputGain() : 1;
-    screenOverlayVideo.volume = Math.max(0, Math.min(1, master));
+    /* Итоговая громкость = мастер × множитель кнопки громкости демки. */
+    screenOverlayVideo.volume = Math.max(0, Math.min(1, master * demoVolume));
 }
 
 /**
@@ -274,6 +393,36 @@ async function applySinkIdToScreenOverlay() {
 
 document.addEventListener("void:audio-out-gain-changed", applyMasterVolumeToScreenOverlay);
 document.addEventListener("void:audio-out-device-changed", applySinkIdToScreenOverlay);
+
+/* ===== Авто-скрытие контролов при бездействии (YouTube-style) ===== */
+let _controlsHideTimer = null;
+let _pointerOnScreenControls = false;
+const _CONTROLS_IDLE_MS = 2500;
+
+function showScreenControls() {
+    if (!screenOverlay) return;
+    screenOverlay.classList.add("controls-active");
+    scheduleControlsHide();
+}
+
+function scheduleControlsHide() {
+    clearTimeout(_controlsHideTimer);
+    _controlsHideTimer = setTimeout(() => {
+        /* Курсор на контроле (наведён слайдер громкости и т.п.) — не прячем,
+           перепланируем, чтобы не схлопнуть открытый слайдер. */
+        if (_pointerOnScreenControls) { scheduleControlsHide(); return; }
+        screenOverlay?.classList.remove("controls-active");
+    }, _CONTROLS_IDLE_MS);
+}
+
+function stopScreenControlsIdle() {
+    clearTimeout(_controlsHideTimer);
+    _controlsHideTimer = null;
+    _pointerOnScreenControls = false;
+    screenOverlay?.classList.remove("controls-active");
+}
+
+function setPointerOnScreenControls(on) { _pointerOnScreenControls = on; }
 
 function openScreenOverlay(userId) {
     const videoEl = videoMap.get(userId);
@@ -304,10 +453,11 @@ function openScreenOverlay(userId) {
     screenOverlayVideo.srcObject = stream;
     /* Нативный playback аудио через video-элемент — попадает в Chrome WebRTC
        ducking opt-out (codereview 281814), Windows не дакает на 80% при
-       активном mic'е. См. комментарий у setScreenOverlayAudioMuted выше. */
-    screenOverlayVideo.muted = (typeof isSoundOn !== "undefined" && !isSoundOn);
+       активном mic'е. См. комментарий у setScreenOverlayAudioMuted выше.
+       muted пересчитываем через syncScreenOverlayMuted (demoMuted || !isSoundOn). */
     applyMasterVolumeToScreenOverlay();
     applySinkIdToScreenOverlay();
+    syncScreenOverlayMuted();
     /* Явный play() — autoplay attribute не всегда срабатывает после смены
        srcObject (особенно на reopen с другим stream). Promise может отказать
        если autoplay policy не позволяет unmuted playback без user gesture —
@@ -317,6 +467,7 @@ function openScreenOverlay(userId) {
     screenOverlay.removeAttribute("inert");
     screenOverlay.setAttribute("aria-hidden", "false");
     screenOverlay.classList.add("is-visible");
+    showScreenControls();
 
     screenOverlayTrackCleanup?.();
     const videoTrack = stream.getVideoTracks?.()[0];
@@ -362,6 +513,7 @@ function closeScreenOverlay(opts) {
         document.webkitExitFullscreen?.();
     }
     screenOverlay.classList.remove("is-visible");
+    stopScreenControlsIdle();
     hideOverlayElement(screenOverlay);
     if (screenOverlayVideo) {
         screenOverlayVideo.srcObject = null;

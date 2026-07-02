@@ -346,6 +346,8 @@
        В нативном fullscreen титлбар скрыт → top сбрасывается в 0 ниже. */
     top: var(--titlebar-h);
     z-index: 90;
+    /* Размер кнопок оверлея (item: кнопки чуть уменьшены с 2.57rem). */
+    --sc-btn: 2.2rem;
     background: rgba(0, 0, 0, 0.92);
     display: flex;
     align-items: center;
@@ -385,53 +387,213 @@ html.desktop.screen-native-fs .void-titlebar {
     pointer-events: none;
 }
 
+/* Общий вид кнопок оверлея (крестик / fullscreen / контейнер громкости).
+   ВАЖНО: --t-med/--t-fast — компаунд «время + easing» (base.css), поэтому
+   НЕ дописывать после них timing-функцию (иначе вся transition-декларация
+   становится невалидной и браузер её отбрасывает — контролы «дёргались»). */
 .screen-overlay-close,
-.screen-overlay-fullscreen {
+.screen-overlay-fullscreen,
+.screen-overlay-volume {
     position: absolute;
+    right: 1.43rem;
     z-index: 2;
     background: rgba(16, 16, 18, 0.6);
     border: 1px solid var(--fg-4);
     color: var(--fg-2);
+    /* Дизайн-гайд: border-radius 2px на прямоугольных элементах (не больше). */
+    border-radius: 2px;
+    backdrop-filter: blur(4px);
+    transition:
+        color var(--t-fast),
+        border-color var(--t-fast),
+        background var(--t-fast),
+        opacity var(--t-med),
+        height var(--t-med);
+}
+
+.screen-overlay-close,
+.screen-overlay-fullscreen {
+    width: var(--sc-btn);
+    height: var(--sc-btn);
     cursor: pointer;
-    border-radius: 0.29rem;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    transition: color 0.15s, border-color 0.15s, background 0.15s;
-    backdrop-filter: blur(4px);
 }
 
 .screen-overlay-close:hover,
-.screen-overlay-fullscreen:hover {
+.screen-overlay-fullscreen:hover,
+.screen-overlay-volume:hover {
     color: var(--fg);
     border-color: var(--fg-2);
     background: rgba(16, 16, 18, 0.88);
 }
 
 .screen-overlay-close {
-    top: 1.14rem;
-    right: 1.43rem;
-    width: 2.57rem;
-    height: 2.57rem;
-    font-size: 1rem;
+    /* top совпадает с bottom у fullscreen — крестик и fullscreen симметричны.
+       Глиф ✕ визуально мельче SVG-иконок → берём крупнее размер. */
+    top: 1.43rem;
+    font-size: 1.2rem;
 }
 
 .screen-overlay-fullscreen {
     bottom: 1.43rem;
-    right: 1.43rem;
-    width: 2.57rem;
-    height: 2.57rem;
 }
 
-.screen-overlay-fullscreen svg {
-    width: 1.14rem;
-    height: 1.14rem;
+.screen-overlay-fullscreen svg,
+.screen-overlay-volbtn svg {
+    width: 1rem;
+    height: 1rem;
     stroke: currentColor;
     stroke-width: 1.5;
     fill: none;
     stroke-linecap: round;
     stroke-linejoin: round;
     vector-effect: non-scaling-stroke;
+}
+
+/* ===== Регулятор громкости демки =====
+   Единый морфящийся контейнер: в покое — квадрат с иконкой; при наведении
+   растёт ВВЕРХ (bottom-anchored) в вытянутый прямоугольник, открывая
+   вертикальный слайдер над иконкой. Никакого отдельного «окошка». */
+.screen-overlay-volume {
+    bottom: calc(1.43rem + var(--sc-btn) + 0.5rem);
+    width: var(--sc-btn);
+    height: var(--sc-btn);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    overflow: hidden;
+}
+
+.screen-overlay-volume:hover,
+.screen-overlay-volume:focus-within {
+    height: 8.6rem;
+}
+
+.screen-overlay-volbtn {
+    flex: 0 0 var(--sc-btn);
+    width: var(--sc-btn);
+    height: var(--sc-btn);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    background: none;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+}
+
+.screen-overlay-volbtn .icon-vol-off {
+    display: none;
+}
+
+.screen-overlay-volume.is-muted .icon-vol-on {
+    display: none;
+}
+
+.screen-overlay-volume.is-muted .icon-vol-off {
+    display: inline-block;
+}
+
+/* Слайдер заполняет верх контейнера, проявляется при раскрытии. Дорожка/
+   заливка/хэндл — в стиле volume-arc (см. volume-arc.css), но полосой. */
+.screen-overlay-volslider {
+    flex: 1 1 auto;
+    align-self: stretch;
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    padding: 0.75rem 0 0.35rem;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--t-fast);
+    touch-action: none;
+    cursor: pointer;
+}
+
+.screen-overlay-volume:hover .screen-overlay-volslider,
+.screen-overlay-volume:focus-within .screen-overlay-volslider {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.screen-overlay-voltrack {
+    position: relative;
+    width: 3px;
+    border-radius: 3px;
+    background: rgba(230, 230, 232, 0.14);
+}
+
+.screen-overlay-volfill {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    border-radius: 3px;
+    background: rgba(230, 230, 232, 0.7);
+    transition: background var(--t-fast);
+}
+
+.screen-overlay-volhandle {
+    position: absolute;
+    left: 50%;
+    bottom: 0;
+    width: 0.72rem;
+    height: 0.72rem;
+    border-radius: 50%;
+    background: var(--fg);
+    transform: translate(-50%, 50%);
+    filter: drop-shadow(0 0 4px rgba(230, 230, 232, 0.45));
+    transition: filter var(--t-fast);
+}
+
+.screen-overlay-volslider.is-dragging .screen-overlay-volfill {
+    background: var(--fg);
+}
+
+.screen-overlay-volslider.is-dragging .screen-overlay-volhandle {
+    filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.7));
+}
+
+/* Muted — гасим слайдер, но он ОСТАЁТСЯ интерактивным: тронул → звук вернётся.
+   Прозрачность на РОДИТЕЛЕ (voltrack), а не на fill/handle по отдельности:
+   group-opacity сначала композитит track+fill+handle в один слой и гасит его
+   целиком — иначе полупрозрачный кружок «просвечивал» бы полосу под собой. */
+.screen-overlay-volume.is-muted .screen-overlay-voltrack {
+    opacity: 0.35;
+}
+
+/* ===== Авто-скрытие контролов при бездействии (YouTube-style) ===== */
+.screen-overlay-close,
+.screen-overlay-fullscreen,
+.screen-overlay-volume {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.screen-overlay.controls-active .screen-overlay-close,
+.screen-overlay.controls-active .screen-overlay-fullscreen,
+.screen-overlay.controls-active .screen-overlay-volume {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* В простое (чистое видео) прячем курсор. */
+.screen-overlay.is-visible:not(.controls-active) {
+    cursor: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+    .screen-overlay-close,
+    .screen-overlay-fullscreen,
+    .screen-overlay-volume,
+    .screen-overlay-volslider {
+        transition-duration: 0.01ms;
+    }
 }
 
 .screen-overlay-fullscreen .icon-collapse,

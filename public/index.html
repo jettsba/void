@@ -41,7 +41,7 @@
     <link rel="stylesheet" href="css/chat.css?v=24">
     <link rel="stylesheet" href="css/chat-attach.css?v=20">
     <link rel="stylesheet" href="css/chat-overlay.css?v=19">
-    <link rel="stylesheet" href="css/screencast.css?v=26">
+    <link rel="stylesheet" href="css/screencast.css?v=30">
     <link rel="stylesheet" href="css/responsive.css?v=21">
     <link rel="stylesheet" href="css/settings.css?v=36">
     <link rel="stylesheet" href="css/app-settings.css?v=6">
@@ -424,6 +424,27 @@
         <button class="screen-overlay-close" id="screenOverlayClose" aria-label="close"
             data-i18n-attr="aria-label:chat.close">&#x2715;</button>
         <video class="screen-overlay-video" id="screenOverlayVideo" autoplay playsinline></video>
+        <div class="screen-overlay-volume" id="screenOverlayVolume">
+            <div class="screen-overlay-volslider" id="screenOverlayVolSlider" role="slider" aria-label="volume"
+                data-i18n-attr="aria-label:screencast.volume" aria-valuemin="0" aria-valuemax="100"
+                aria-valuenow="100" tabindex="-1">
+                <div class="screen-overlay-voltrack">
+                    <div class="screen-overlay-volfill"></div>
+                    <div class="screen-overlay-volhandle"></div>
+                </div>
+            </div>
+            <button class="screen-overlay-volbtn" id="screenOverlayVolBtn" type="button" aria-label="volume"
+                data-i18n-attr="aria-label:screencast.volume">
+                <svg class="icon-vol-on" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M11 5 6 9H2v6h4l5 4V5z" />
+                    <path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13" />
+                </svg>
+                <svg class="icon-vol-off" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M11 5 6 9H2v6h4l5 4V5z" />
+                    <path d="M22 9l-6 6M16 9l6 6" />
+                </svg>
+            </button>
+        </div>
         <button class="screen-overlay-fullscreen" id="screenOverlayFullscreen" aria-label="fullscreen"
             data-i18n-attr="aria-label:screencast.fullscreen">
             <svg class="icon-expand" viewBox="0 0 24 24" aria-hidden="true">
@@ -438,7 +459,7 @@
     </div>
 
     <script defer src="log.js?v=1"></script>
-    <script defer src="settings.js?v=92"></script>
+    <script defer src="settings.js?v=93"></script>
     <script defer src="webrtc.js?v=18"></script>
     <script defer src="socket.js?v=1"></script>
     <script defer src="chat.js?v=5"></script>
@@ -454,10 +475,10 @@
     <script defer src="js/participants.js?v=5"></script>
     <script defer src="js/volume-arc.js?v=1"></script>
     <script defer src="js/ping-panel.js?v=2"></script>
-    <script defer src="js/screen-overlay.js?v=6"></script>
+    <script defer src="js/screen-overlay.js?v=8"></script>
     <script defer src="js/intro.js?v=3"></script>
     <script defer src="js/room.js?v=7"></script>
-    <script defer src="js/app.js?v=17"></script>
+    <script defer src="js/app.js?v=19"></script>
     <script defer src="js/desktop/titlebar.js?v=1"></script>
     <script defer src="js/desktop/tray-state.js?v=3"></script>
     <script defer src="js/desktop/clipboard.js?v=1"></script>
