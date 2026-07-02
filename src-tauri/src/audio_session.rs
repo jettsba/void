@@ -31,7 +31,8 @@
 //   (отвалился mic / поменяли устройство) сессия может пересоздаваться. Периодический
 //   rescan (30s) гарантирует что новые сессии тоже получат opt-out.
 
-use windows::core::{Interface, Result};
+use std::os::windows::ffi::OsStrExt;
+use windows::core::{Interface, Result, PCWSTR};
 use windows::Win32::Media::Audio::{
     eMultimedia, eRender, IAudioSessionControl2, IAudioSessionManager2, IMMDeviceEnumerator,
     MMDeviceEnumerator,
@@ -59,6 +60,17 @@ pub fn disable_communications_ducking_for_our_tree() -> Result<()> {
         let enumerator = session_mgr.GetSessionEnumerator()?;
         let count = enumerator.GetCount()?;
 
+        // Имя + иконка для микшера громкости (одинаковы для всех сессий — считаем
+        // один раз). По умолчанию WebView2-сессия зовётся "Microsoft Edge
+        // WebView2"; переименовываем в "Void" и ставим иконку из exe.
+        let void_name: Vec<u16> = "Void\0".encode_utf16().collect();
+        let icon_path: Option<Vec<u16>> = std::env::current_exe().ok().map(|p| {
+            // Ссылка на иконку — формат "путь,индекс"; иконка Void вшита в exe (0).
+            let mut v: Vec<u16> = p.as_os_str().encode_wide().collect();
+            v.extend([',' as u16, '0' as u16, 0u16]);
+            v
+        });
+
         for i in 0..count {
             let Ok(ctrl) = enumerator.GetSession(i) else {
                 continue;
@@ -73,6 +85,15 @@ pub fn disable_communications_ducking_for_our_tree() -> Result<()> {
                 // SetDuckingPreference(true) — opt out of triggering ducking
                 // когда наша сессия становится communications.
                 let _ = ctrl2.SetDuckingPreference(true);
+                // Микшер громкости Windows: имя "Void" + иконка из exe вместо
+                // дефолтного "Microsoft Edge WebView2". SetDisplayName/SetIconPath —
+                // на IAudioSessionControl (базовый для ...Control2), eventcontext =
+                // null. WebView2 может пересоздать сессию → периодический rescan
+                // (lib.rs, каждые 30с) переприменит.
+                let _ = ctrl.SetDisplayName(PCWSTR(void_name.as_ptr()), std::ptr::null());
+                if let Some(ic) = &icon_path {
+                    let _ = ctrl.SetIconPath(PCWSTR(ic.as_ptr()), std::ptr::null());
+                }
             }
         }
         Ok(())

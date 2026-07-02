@@ -622,6 +622,10 @@ function showInviteBanner(code) {
         if (typeof joinRoomByCode === "function") joinRoomByCode(code);
     };
     const openDownload = () => {
+        /* Desktop: window.open в WebView2 браузер не откроет, а fallback
+           location.href увёл бы сам webview на страницу загрузки — идём через
+           общий хелпер (opener). Web — как было (новый таб + location fallback). */
+        if (window.VoidPlatform === "desktop") { openExternalUrl(DOWNLOAD_URL); return; }
         const w = window.open(DOWNLOAD_URL, "_blank");
         if (!w) window.location.href = DOWNLOAD_URL;
     };

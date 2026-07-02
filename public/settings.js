@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "0.15.3";
+    const APP_VERSION = "0.15.4";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
@@ -1044,6 +1044,16 @@
            На пилюле НЕ ставим cursor:pointer — жест намеренно незаметный. */
         panelEl.querySelector(".settings-footer-pill")
             ?.addEventListener("click", () => window.VoidDev?.registerPillClick());
+        /* Ссылка авторства (Telegram): на десктопе голый <a target=_blank> не
+           открывает системный браузер — идём через общий хелпер (js/config.js:
+           desktop→opener-плагин, web→новый таб). */
+        panelEl.querySelector(".settings-footer-author")
+            ?.addEventListener("click", (e) => {
+                e.preventDefault();
+                const url = e.currentTarget.href;
+                if (typeof openExternalUrl === "function") openExternalUrl(url);
+                else window.open(url, "_blank", "noopener,noreferrer");
+            });
         document.addEventListener("void:devmode-changed", revealDevUi);
         /* Если dev-режим включили до построения панели — показать сразу. */
         if (window.VoidDev?.isEnabled()) revealDevUi();
@@ -1782,18 +1792,13 @@
         devCheckEl._t = setTimeout(() => devCheckEl.classList.remove("is-visible"), 1500);
     }
 
-    /* /adminstats живёт на app-поддомене (Basic auth спросит браузер). В desktop
-       Tauri блокирует window.open (новые окна webview не открываются) — идём в
-       команду open_external (opener-плагин), которая открывает URL в системном
-       браузере. На web — обычный window.open. Абсолютный URL: VoidApiBase (прод в
-       bundled) либо origin текущей страницы (web / dev-desktop localhost). */
+    /* /adminstats живёт на app-поддомене (Basic auth спросит браузер). Открываем
+       через общий хелпер openExternalUrl (desktop→open_external, web→новый таб) —
+       в WebView2 window.open новых окон не создаёт. Абсолютный URL: VoidApiBase
+       (прод в bundled) либо origin текущей страницы (web / dev-desktop localhost). */
     function openAdminPanel() {
         const base = window.VoidApiBase || window.location.origin;
-        const url = base + "/adminstats";
-        if (window.VoidPlatform === "desktop" && window.__TAURI__?.core) {
-            try { window.__TAURI__.core.invoke("open_external", { url }); return; } catch (_) {}
-        }
-        window.open(url, "_blank", "noopener,noreferrer");
+        openExternalUrl(base + "/adminstats");
     }
 
     function buildDevModal() {
