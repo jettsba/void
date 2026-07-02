@@ -326,9 +326,9 @@
     animation: chat-msg-in 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* Бейдж лайков выезжает за нижний край бабла — даём дополнительный
+/* Бейдж реакций выезжает за нижний край бабла — даём дополнительный
    нижний отступ, иначе цепляется за соседнее сообщение. */
-.chat-msg.has-likes {
+.chat-msg.has-reactions {
     margin-bottom: 0.57rem;
 }
 
@@ -399,14 +399,29 @@
     text-decoration-color: var(--fg);
 }
 
-/* ===== Likes =====
-   Бейдж — стопка сердечек, заезжающих друг на друга. Без цифры:
-   количество читается визуально. Cap = 5 (в чате максимум 5 юзеров —
-   совпадает с MAX_ROOM_USERS). */
-.chat-msg-likes {
+/* ===== Реакции (лайки / дизлайки) =====
+   Два бейджа-стопки (♥ и серые разбитые ♥) в обёртке .chat-msg-reactions,
+   выезжающей за нижний край бабла. Без цифры — количество читается визуально.
+   Cap = 5 (максимум юзеров в чате — совпадает с MAX_ROOM_USERS). */
+.chat-msg-reactions {
     position: absolute;
     bottom: -0.71rem;
     right: 0.57rem;
+    display: flex;
+    align-items: center;
+    gap: 0.29rem;
+    z-index: 1;
+}
+
+/* Self-msg выровнен вправо — переносим обёртку на левую сторону, чтобы
+   она не утыкалась в правый край панели. */
+.chat-msg-self .chat-msg-reactions {
+    right: auto;
+    left: 0.57rem;
+}
+
+.chat-msg-likes,
+.chat-msg-dislikes {
     display: inline-flex;
     align-items: center;
     height: 1.29rem;
@@ -416,7 +431,6 @@
     border-radius: 999px;
     line-height: 1;
     cursor: pointer;
-    z-index: 1;
     user-select: none;
     -webkit-user-select: none;
     transform-origin: 50% 50%;
@@ -433,8 +447,9 @@
 }
 
 /* Пульс на изменение счётчика — короткая «дрожь» без overshoot, чтобы не
-   перебивала like-badge-in при быстрой серии лайков. */
-.chat-msg-likes.is-pulsing {
+   перебивала like-badge-in при быстрой серии реакций. */
+.chat-msg-likes.is-pulsing,
+.chat-msg-dislikes.is-pulsing {
     animation: like-badge-pulse 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
@@ -444,20 +459,13 @@
     100% { transform: scale(1); }
 }
 
-/* Self-msg выровнен вправо — переносим бейдж на левую сторону, чтобы
-   он не утыкался в правый край панели. */
-.chat-msg-self .chat-msg-likes {
-    right: auto;
-    left: 0.57rem;
-}
-
-.chat-msg-likes:hover {
+.chat-msg-likes:hover,
+.chat-msg-dislikes:hover {
     border-color: var(--fg-2);
 }
 
-/* Сердечко 11×11. Сосед заезжает на ~30% слева — margin-left отрицательный
-   на каждое сердце КРОМЕ первого. z-index растёт по DOM-порядку (более
-   поздние сердца сверху), чтобы стопка читалась как «нарастает вправо». */
+/* Иконка 11×11. Сосед заезжает на ~30% слева — margin-left отрицательный на
+   каждую КРОМЕ первой. z-index растёт по DOM-порядку (поздние сверху). */
 .chat-msg-likes-heart {
     display: inline-flex;
     align-items: center;
@@ -489,6 +497,26 @@
 .chat-msg-likes.is-mine {
     border-color: rgba(226, 107, 122, 0.45);
     background: rgba(50, 22, 28, 0.96);
+}
+
+/* Дизлайк — «противоположность» лайка: серое разбитое сердечко. Тело залито
+   серым (наследует color), .bh-crack — «разрез» цветом фона бейджа (иллюзия
+   трещины на залитом теле). is-mine НЕ меняет фон (иначе разрез разъедется по
+   цвету) — только бордер. */
+.chat-msg-dislikes .chat-msg-likes-heart {
+    color: var(--fg-3);
+}
+
+.chat-msg-dislikes .bh-crack {
+    fill: none;
+    stroke: rgba(20, 20, 22, 0.96);
+    stroke-width: 2.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.chat-msg-dislikes.is-mine {
+    border-color: rgba(230, 230, 232, 0.3);
 }
 
 /* ===== Контекстное меню сообщений (ПКМ / long-press) =====

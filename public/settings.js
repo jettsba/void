@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "0.15.2";
+    const APP_VERSION = "0.15.3";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
@@ -137,6 +137,9 @@
             "chat.open-link": "открыть ссылку",
             "chat.like.add": "лайкнуть",
             "chat.like.remove": "убрать лайк",
+            "chat.dislike": "дизлайк",
+            "chat.dislike.add": "дизлайкнуть",
+            "chat.dislike.remove": "убрать дизлайк",
 
             "footer.ready": "готово",
             "footer.connected": "подключено",
@@ -339,6 +342,9 @@
             "chat.open-link": "open link",
             "chat.like.add": "like",
             "chat.like.remove": "unlike",
+            "chat.dislike": "dislike",
+            "chat.dislike.add": "dislike",
+            "chat.dislike.remove": "remove dislike",
 
             "footer.ready": "ready",
             "footer.connected": "connected",

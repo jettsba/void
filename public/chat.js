@@ -63,10 +63,11 @@ const channelSendQueues  = new Map(); // userId → Promise (последова�
 const channelInbox       = new Map(); // userId → {meta, chunks:[], received, totalBytes}
 const objectUrlsToRevoke = new Set(); // URL.createObjectURL — чистим при выходе
 
-/** msgId → Set<userId>. Лайки эфемерны как и сам чат: сохраняются только
- *  пока DOM-узел сообщения жив. Поздним джойнерам прошлые лайки не видны
- *  (как и сами прошлые сообщения). */
-const messageLikes = new Map();
+/** msgId → Map<userId, "like"|"dislike">. Реакции эфемерны как и сам чат:
+ *  хранятся только пока DOM-узел сообщения жив. У каждого юзера ОДНА реакция на
+ *  сообщение (лайк ЛИБО дизлайк — взаимоисключающие). Поздним джойнерам прошлые
+ *  реакции не видны (как и сами прошлые сообщения). */
+const messageReactions = new Map();
 
 /** LRU для blob-URL'ов: Map сохраняет порядок вставки, переставляем
  *  через delete + set когда URL переиспользуется. */
@@ -291,7 +292,7 @@ function resetChatOnLeave() {
     channelInbox.forEach(inbox => clearInboxWatchdog(inbox));
     channelInbox.clear();
     channelSendQueues.clear();
-    messageLikes.clear();
+    messageReactions.clear();
     closeContextMenu();
 
     if (lightboxState) closeLightbox();
@@ -595,7 +596,10 @@ function handleIncoming(data, userId) {
             const target = json.target;
             if (typeof target !== "string" || !target || target.length > LIKE_TARGET_MAX_LEN) return;
             if (json.op !== "add" && json.op !== "remove") return;
-            applyLike(target, userId, json.op);
+            /* feel — новое поле (v0.15.3). Старые клиенты его не шлют → дефолт
+               "like" (обратная совместимость: их лайки остаются лайками). */
+            const feel = json.feel === "dislike" ? "dislike" : "like";
+            applyReaction(target, userId, json.op, feel);
             return;
         }
 
@@ -724,7 +728,7 @@ function appendMessage(msg, isSelf, attachState = null) {
     wrap.appendChild(body);
     attachLikeGestures(wrap, msg.msgId);
     chatMessagesEl.appendChild(wrap);
-    renderLikeBadge(msg.msgId);
+    renderReactionBadge(msg.msgId);
 
     if (!chatHasMessages) {
         chatHasMessages = true;
@@ -905,72 +909,113 @@ function scrollChatToBottom(smooth) {
     if (!smooth) refreshChatJumpButton();
 }
 
-/* ========= LIKES =========
- * Двойной клик / долгое удержание на сообщении → toggle собственного лайка.
- * Несколько участников могут «накладывать» свои лайки — рисуем общий счётчик.
- * Кто конкретно лайкнул — намеренно не показываем. Состояние эфемерное:
- * хранится только пока DOM-узел сообщения жив (как и сам чат). Поздним
- * джойнерам прошлые лайки не приходят. */
+/* ========= РЕАКЦИИ (лайки / дизлайки) =========
+ * Двойной клик / долгое удержание → toggle собственного ЛАЙКА. Дизлайк ставится
+ * из контекстного меню. У каждого юзера ОДНА реакция на сообщение: лайк ЛИБО
+ * дизлайк (взаимоисключающие). Несколько участников «накладывают» свои реакции —
+ * рисуем два счётчика (стопка ♥ и стопка серых разбитых ♥). Кто именно —
+ * намеренно не показываем. Состояние эфемерное: живёт пока жив DOM-узел (как и
+ * сам чат); поздним джойнерам прошлые реакции не приходят. */
 
-function applyLike(msgId, userId, op) {
-    /* Если сообщения нет в DOM (например, мы джойнились позже и не видели
-       оригинал) — лайк игнорируем, чтобы не копить мёртвые записи в Map'е. */
+/* Применить реакцию (свою или чужую). op=add ставит feel, ЗАМЕЩАЯ другую реакцию
+   того же юзера (взаимоисключение). op=remove снимает только если текущая
+   реакция совпадает с feel (защита от гонок / устаревших remove). */
+function applyReaction(msgId, userId, op, feel) {
+    /* Нет сообщения в DOM (джойнились позже) — игнор, чтобы не копить мусор. */
     const wrap = chatMessagesEl?.querySelector(`[data-msg-id="${cssEscape(msgId)}"]`);
     if (!wrap) return;
 
-    let likers = messageLikes.get(msgId);
-    if (!likers) {
-        if (op === "remove") return;
-        likers = new Set();
-        messageLikes.set(msgId, likers);
+    let reactions = messageReactions.get(msgId);
+    if (op === "add") {
+        if (!reactions) { reactions = new Map(); messageReactions.set(msgId, reactions); }
+        reactions.set(userId, feel);
+    } else {
+        if (!reactions) return;
+        if (reactions.get(userId) === feel) reactions.delete(userId);
+        if (reactions.size === 0) messageReactions.delete(msgId);
     }
-    const before = likers.size;
-    if (op === "add") likers.add(userId);
-    else likers.delete(userId);
-    if (likers.size === 0) messageLikes.delete(msgId);
-    if (likers.size !== before) renderLikeBadge(msgId);
+    renderReactionBadge(msgId);
 }
 
-function toggleOwnLike(msgId) {
+/* Клик юзера: поставить/снять свою реакцию feel. Тот же feel повторно → снять
+   (toggle off); другой feel → заместить (лайк↔дизлайк). Один broadcast покрывает
+   и замену — add нового feel у получателя тоже заместит старую реакцию. */
+function setOwnReaction(msgId, feel) {
     const selfId = getSelfId();
-    const likers = messageLikes.get(msgId);
-    const op = likers && likers.has(selfId) ? "remove" : "add";
+    const reactions = messageReactions.get(msgId);
+    const current = reactions && reactions.get(selfId);
+    const op = current === feel ? "remove" : "add";
 
-    applyLike(msgId, selfId, op);
+    applyReaction(msgId, selfId, op, feel);
+    broadcastReaction(msgId, op, feel, selfId);
+}
 
+function broadcastReaction(msgId, op, feel, from) {
     const json = JSON.stringify({
         type: "msg",
         kind: "like",
         target: msgId,
         op,
+        feel,
         ts: Date.now(),
-        from: selfId
+        from
     });
     chatChannels.forEach((channel, uid) => {
         enqueueSend(uid, async () => {
             if (channel.readyState !== "open") return;
             try { channel.send(json); }
-            catch (err) { log.warn("chat", "like send failed", { userId: uid, err: err?.message || String(err) }); }
+            catch (err) { log.warn("chat", "reaction send failed", { userId: uid, err: err?.message || String(err) }); }
         });
     });
 }
 
-/* Визуально: вместо «♥ N» рендерим N сердечек подряд (cap = LIKE_MAX_HEARTS,
-   практически совпадает с MAX_ROOM_USERS=5). Сердечки заезжают друг на друга
-   ~30% (margin-left отрицательный, см. .chat-msg-likes-heart + heart в CSS),
-   так что бейдж не вытягивается шире, чем нужно. Цифру не показываем намеренно. */
+/* Визуально: вместо «♥ N» рендерим N иконок подряд (cap = LIKE_MAX_HEARTS,
+   практически совпадает с MAX_ROOM_USERS=5). Иконки заезжают друг на друга
+   (margin-left отрицательный, см. .chat-msg-likes-heart в CSS), так что бейдж не
+   растягивается. Цифру не показываем намеренно. Лайки и дизлайки — два отдельных
+   бейджа в обёртке .chat-msg-reactions (лайки слева, дизлайки справа). */
 const LIKE_MAX_HEARTS = 5;
 
-function renderLikeBadge(msgId) {
+function renderReactionBadge(msgId) {
     const wrap = chatMessagesEl.querySelector(`[data-msg-id="${cssEscape(msgId)}"]`);
     if (!wrap) return;
-    const likers = messageLikes.get(msgId);
-    const count = likers ? likers.size : 0;
+    const reactions = messageReactions.get(msgId);
 
-    let badge = wrap.querySelector(":scope > .chat-msg-likes");
+    let likeCount = 0, dislikeCount = 0, mine = null;
+    const selfId = getSelfId();
+    if (reactions) {
+        reactions.forEach((feel, uid) => {
+            if (feel === "dislike") dislikeCount++; else likeCount++;
+            if (uid === selfId) mine = feel;
+        });
+    }
+
+    let container = wrap.querySelector(":scope > .chat-msg-reactions");
+    if (likeCount === 0 && dislikeCount === 0) {
+        if (container) container.remove();
+        wrap.classList.remove("has-reactions");
+        return;
+    }
+    if (!container) {
+        container = document.createElement("div");
+        container.className = "chat-msg-reactions";
+        wrap.appendChild(container);
+    }
+    wrap.classList.add("has-reactions");
+
+    renderReactionGroup(container, msgId, "like", likeCount, mine === "like");
+    renderReactionGroup(container, msgId, "dislike", dislikeCount, mine === "dislike");
+}
+
+/* Один бейдж (стопка иконок) под конкретный feel. Создаёт/обновляет/удаляет
+   .chat-msg-likes или .chat-msg-dislikes внутри обёртки .chat-msg-reactions. */
+function renderReactionGroup(container, msgId, feel, count, isMine) {
+    const cls = feel === "dislike" ? "chat-msg-dislikes" : "chat-msg-likes";
+    const icon = feel === "dislike" ? BROKEN_HEART_SVG : HEART_SVG;
+    let badge = container.querySelector(":scope > ." + cls);
+
     if (count === 0) {
         if (badge) badge.remove();
-        wrap.classList.remove("has-likes");
         return;
     }
 
@@ -978,33 +1023,32 @@ function renderLikeBadge(msgId) {
     if (!badge) {
         badge = document.createElement("button");
         badge.type = "button";
-        badge.className = "chat-msg-likes";
-        badge.setAttribute("aria-label", _ct("chat.like"));
+        badge.className = cls;
+        badge.setAttribute("aria-label", _ct(feel === "dislike" ? "chat.dislike" : "chat.like"));
         badge.addEventListener("click", (e) => {
             e.stopPropagation();
-            toggleOwnLike(msgId);
+            setOwnReaction(msgId, feel);
         });
-        wrap.appendChild(badge);
+        /* Порядок фиксирован: лайки слева (prepend), дизлайки справа (append) —
+           независимо от того, какой бейдж появился первым. */
+        if (feel === "dislike") container.appendChild(badge);
+        else container.prepend(badge);
     }
-
-    const isMine = likers.has(getSelfId());
     badge.classList.toggle("is-mine", isMine);
 
-    /* Ребилдим стопку сердечек на каждом изменении: новых = N (cap 5).
-       Дешевле, чем диффить — N ≤ 5. */
+    /* Ребилдим стопку на каждом изменении: N ≤ 5, дешевле чем диффить. */
     const shown = Math.min(count, LIKE_MAX_HEARTS);
     const prev = badge.childElementCount;
     badge.innerHTML = "";
     for (let i = 0; i < shown; i++) {
-        const heart = document.createElement("span");
-        heart.className = "chat-msg-likes-heart";
-        heart.setAttribute("aria-hidden", "true");
-        heart.innerHTML = HEART_SVG;
-        badge.appendChild(heart);
+        const h = document.createElement("span");
+        h.className = "chat-msg-likes-heart";
+        h.setAttribute("aria-hidden", "true");
+        h.innerHTML = icon;
+        badge.appendChild(h);
     }
-    wrap.classList.add("has-likes");
 
-    /* Пульс — лёгкая реакция на любое изменение количества (вверх или вниз). */
+    /* Пульс — лёгкая реакция на изменение количества (вверх или вниз). */
     if (!isFirstAppearance && shown !== prev) {
         badge.classList.remove("is-pulsing");
         void badge.offsetWidth;
@@ -1036,6 +1080,26 @@ const HEART_OUTLINE_SVG =
     '<svg viewBox="0 0 24 24" aria-hidden="true">' +
     '<g transform="translate(12 12) scale(0.78) translate(-12 -12)">' +
     '<path d="M12 21.05l-1.32-1.2C5.6 15.16 2.25 12.12 2.25 8.4 2.25 5.36 4.64 3 7.7 3c1.73 0 3.39.8 4.3 2.07C12.91 3.8 14.57 3 16.3 3c3.06 0 5.45 2.36 5.45 5.4 0 3.72-3.35 6.76-8.43 11.46L12 21.05z"/>' +
+    '</g>' +
+    '</svg>';
+
+/* Разбитое сердце для бейджа под сообщением — залитое тело (тот же путь, что
+   HEART_SVG) + «разрез»: зигзаг цветом фона бейджа (см. .chat-msg-dislikes
+   .bh-crack в chat.css) создаёт иллюзию трещины на залитом сердце. */
+const BROKEN_HEART_SVG =
+    '<svg viewBox="0 0 24 24" aria-hidden="true">' +
+    '<path d="M12 21.05l-1.32-1.2C5.6 15.16 2.25 12.12 2.25 8.4 2.25 5.36 4.64 3 7.7 3c1.73 0 3.39.8 4.3 2.07C12.91 3.8 14.57 3 16.3 3c3.06 0 5.45 2.36 5.45 5.4 0 3.72-3.35 6.76-8.43 11.46L12 21.05z"/>' +
+    '<path class="bh-crack" d="M12.7 4 L10 9.2 L13 11.3 L10.4 15 L12 20.2"/>' +
+    '</svg>';
+
+/* Разбитое сердце для пунктов меню — уменьшенный monoline (как copy/link):
+   контур сердца + зигзаг-трещина, оба штрихом через default .chat-ctx-item-icon
+   svg (серый). Отдельного iconClass не нужно — дефолтный цвет уже серый. */
+const BROKEN_HEART_MENU_SVG =
+    '<svg viewBox="0 0 24 24" aria-hidden="true">' +
+    '<g transform="translate(12 12) scale(0.78) translate(-12 -12)">' +
+    '<path d="M12 21.05l-1.32-1.2C5.6 15.16 2.25 12.12 2.25 8.4 2.25 5.36 4.64 3 7.7 3c1.73 0 3.39.8 4.3 2.07C12.91 3.8 14.57 3 16.3 3c3.06 0 5.45 2.36 5.45 5.4 0 3.72-3.35 6.76-8.43 11.46L12 21.05z"/>' +
+    '<path d="M12.7 4 L10 9.2 L13 11.3 L10.4 15 L12 20.2"/>' +
     '</g>' +
     '</svg>';
 
@@ -1072,7 +1136,8 @@ function attachLikeGestures(wrap, msgId) {
     wrap.addEventListener("dblclick", (e) => {
         if (isInteractiveTarget(e.target)) return;
         e.preventDefault();
-        toggleOwnLike(msgId);
+        /* Дабл-клик = быстрый лайк (при активном дизлайке — переключит на лайк). */
+        setOwnReaction(msgId, "like");
         try {
             const sel = window.getSelection && window.getSelection();
             if (sel && sel.removeAllRanges) sel.removeAllRanges();
@@ -1200,14 +1265,47 @@ function buildContextMenuItems(targetEl, wrap, msgId) {
 
     if (msgId) {
         items.push({ divider: true });
-        const likers = messageLikes.get(msgId);
-        const isMine = likers && likers.has(getSelfId());
-        items.push({
-            icon: isMine ? HEART_OUTLINE_SVG : HEART_MENU_SVG,
-            iconClass: isMine ? "" : "is-like",
-            label: isMine ? _ct("chat.like.remove") : _ct("chat.like.add"),
-            onClick: () => { toggleOwnLike(msgId); return true; }
-        });
+        const reactions = messageReactions.get(msgId);
+        const mine = reactions && reactions.get(getSelfId());
+        if (mine === "like") {
+            /* Свой лайк → «убрать лайк» / «поставить дизлайк». */
+            items.push({
+                icon: HEART_OUTLINE_SVG,
+                label: _ct("chat.like.remove"),
+                onClick: () => { setOwnReaction(msgId, "like"); return true; }
+            });
+            items.push({
+                icon: BROKEN_HEART_MENU_SVG,
+                label: _ct("chat.dislike.add"),
+                onClick: () => { setOwnReaction(msgId, "dislike"); return true; }
+            });
+        } else if (mine === "dislike") {
+            /* Свой дизлайк → «поставить лайк» / «убрать дизлайк». */
+            items.push({
+                icon: HEART_MENU_SVG,
+                iconClass: "is-like",
+                label: _ct("chat.like.add"),
+                onClick: () => { setOwnReaction(msgId, "like"); return true; }
+            });
+            items.push({
+                icon: BROKEN_HEART_MENU_SVG,
+                label: _ct("chat.dislike.remove"),
+                onClick: () => { setOwnReaction(msgId, "dislike"); return true; }
+            });
+        } else {
+            /* Реакции нет → «лайкнуть» / «дизлайкнуть». */
+            items.push({
+                icon: HEART_MENU_SVG,
+                iconClass: "is-like",
+                label: _ct("chat.like.add"),
+                onClick: () => { setOwnReaction(msgId, "like"); return true; }
+            });
+            items.push({
+                icon: BROKEN_HEART_MENU_SVG,
+                label: _ct("chat.dislike.add"),
+                onClick: () => { setOwnReaction(msgId, "dislike"); return true; }
+            });
+        }
     }
 
     return items;

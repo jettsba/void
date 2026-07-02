@@ -608,6 +608,12 @@ fn launch_main_window(app: &AppHandle) {
         .resizable(true)
         .decorations(false)
         .background_color(APP_BG)
+        // Отдаём HTML5 drag&drop вебвью. По умолчанию Tauri вешает нативный
+        // OS-обработчик перетаскивания, который ПЕРЕХВАТЫВАЕТ file-drop раньше
+        // WebView2 → DOM-событие `drop` в chat.js (setupGlobalDragAndDrop) не
+        // долетает (на вебе перехватчика нет — там работало). Свой onDragDropEvent
+        // мы не используем, поэтому просто отключаем нативный обработчик.
+        .disable_drag_drop_handler()
         .visible(false)
         .focused(true);
 
