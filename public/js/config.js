@@ -33,6 +33,21 @@ function _t(key, vars) {
         : key;
 }
 
+/* Открыть внешнюю ссылку. На десктопе — через нативный opener-плагин
+   (js/desktop/opener.js), т.к. голый <a target="_blank">/window.open в WebView2
+   не открывает системный браузер. На вебе — обычный новый таб. Общий хелпер:
+   используется и в чате (ссылки), и в футере настроек (ссылка авторства). */
+function openExternalUrl(url) {
+    if (!url) return;
+    if (window.VoidDesktop && typeof window.VoidDesktop.openExternal === "function") {
+        window.VoidDesktop.openExternal(url).catch((e) => {
+            console.warn("[opener] openExternal failed", e);
+        });
+        return;
+    }
+    window.open(url, "_blank", "noopener,noreferrer");
+}
+
 const ENTRY_ERROR_KEYS = new Set([
     "room-not-found", "room-full", "connection-failed", "mic-blocked",
     "create-failed", "code-taken", "join-session-invalid", "connection-lost",

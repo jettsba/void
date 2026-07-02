@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "0.15.1";
+    const APP_VERSION = "0.15.2";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
@@ -127,6 +127,8 @@
             "chat.send.failed": "не удалось отправить файл",
             "chat.file.tooBig": "файл больше {mb} мб",
             "chat.download": "скачать",
+            "chat.download.saved": "файл сохранён",
+            "chat.download.failed": "не удалось сохранить",
             "chat.remove": "убрать",
             "chat.image": "изображение",
             "chat.file": "файл",
@@ -327,6 +329,8 @@
             "chat.send.failed": "failed to send file",
             "chat.file.tooBig": "file larger than {mb} mb",
             "chat.download": "download",
+            "chat.download.saved": "file saved",
+            "chat.download.failed": "save failed",
             "chat.remove": "remove",
             "chat.image": "image",
             "chat.file": "file",

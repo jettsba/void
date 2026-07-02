@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Permissions for the Void windows (main + updater + tray-menu). Phase 1 — window controls. Phase 2 — tray, menu, notifications, autostart, global-shortcut. Updater v2 — frameless updater window reuses the same window/event perms. tray-menu — custom frameless tray context menu (hide/show/set-position/set-size + tray_menu_action command).",
+  "description": "Permissions for the Void windows (main + updater + tray-menu). Phase 1 — window controls. Phase 2 — tray, menu, notifications, autostart, global-shortcut. Updater v2 — frameless updater window reuses the same window/event perms. tray-menu — custom frameless tray context menu (hide/show/set-position/set-size + tray_menu_action command). opener — open external links (chat links, settings footer author link) in the system browser via plugin:opener|open_url.",
   "windows": ["main", "updater", "tray-menu"],
   "permissions": [
     "core:default",
@@ -37,6 +37,7 @@
       ]
     },
     "deep-link:default",
-    "updater:default"
+    "updater:default",
+    "opener:default"
   ]
 }

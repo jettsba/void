@@ -168,6 +168,28 @@ function initChat() {
 
     chatMessagesEl.addEventListener("scroll", refreshChatJumpButton);
 
+    /* Делегированный клик по ссылке / кнопке скачивания файла. После добавления
+       контекстного меню (v0.14.0) голый <a> перестал работать в desktop-webview:
+       ссылки не открывали браузер (навигация из вебвью заблокирована), а
+       <a download blob:> тихо лил файл в «Загрузки» мимо нативного диалога.
+       Перехватываем оба клика здесь. Long-press-жест гасит свой ghost-click
+       capture-листенером на .chat-msg (см. armGhostClickSuppression) — он
+       stopPropagation'ит раньше, чем событие дойдёт сюда, так что меню и
+       обычный клик не конфликтуют. */
+    chatMessagesEl.addEventListener("click", (e) => {
+        const link = e.target.closest?.(".chat-msg-link");
+        if (link) {
+            e.preventDefault();
+            openExternalUrl(link.href);
+            return;
+        }
+        const fileDl = e.target.closest?.(".chat-attach-file-dl");
+        if (fileDl && fileDl.href) {
+            e.preventDefault();
+            saveBlobUrl(fileDl.href, fileDl.download || "file");
+        }
+    });
+
     if (typeof ResizeObserver !== "undefined" && chatMessagesEl) {
         const roJump = new ResizeObserver(refreshChatJumpButton);
         roJump.observe(chatMessagesEl);
@@ -1151,7 +1173,7 @@ function buildContextMenuItems(targetEl, wrap, msgId) {
         });
         items.push({
             icon: ICON_OPEN, label: _ct("chat.open-link"),
-            onClick: () => { window.open(link.href, "_blank", "noopener,noreferrer"); return true; }
+            onClick: () => { openExternalUrl(link.href); return true; }
         });
     } else if (img && img.src) {
         items.push({
@@ -1227,9 +1249,12 @@ async function saveBlobUrl(url, filename) {
        сохранения + запись байт (js/desktop/save-file.js). */
     if (window.VoidDesktop && typeof window.VoidDesktop.saveFile === "function") {
         try {
-            await window.VoidDesktop.saveFile(url, filename);
+            const saved = await window.VoidDesktop.saveFile(url, filename);
+            /* saved === false → юзер отменил диалог сохранения, молчим. */
+            if (saved) showChatToast(_ct("chat.download.saved"));
         } catch (e) {
             log.warn("chat", "native save failed", { err: e?.message || String(e) });
+            showChatToast(_ct("chat.download.failed"));
         }
         return;
     }
@@ -1242,8 +1267,10 @@ async function saveBlobUrl(url, filename) {
         document.body.appendChild(a);
         a.click();
         setTimeout(() => a.remove(), 1000);
+        showChatToast(_ct("chat.download.saved"));
     } catch (e) {
         log.warn("chat", "save failed", { err: e?.message || String(e) });
+        showChatToast(_ct("chat.download.failed"));
     }
 }
 
