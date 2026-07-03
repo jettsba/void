@@ -509,6 +509,16 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    /* Анимированная «замена» ника (updateProfileName в settings.js). transition,
+       НЕ animation — иначе конфликт с premium-shimmer, занимающим animation. */
+    transition: opacity 160ms ease, transform 160ms ease;
+}
+
+/* Фаза выхода старого ника: гаснет и уезжает вверх; после смены текста класс
+   снимается — новый плавно возвращается. */
+.profile-name.is-swapping {
+    opacity: 0;
+    transform: translateY(-0.28rem);
 }
 
 /* Контрибьюторский ник — золотое сияние, как в комнате (stage.css .premium). */
@@ -528,6 +538,7 @@
 
 @media (prefers-reduced-motion: reduce) {
     .profile-name.premium { animation: none; background-position: 50% 50%; }
+    .profile-name { transition-duration: 0.01ms; }
 }
 
 .profile-uid {
@@ -641,7 +652,7 @@
     padding: 1.14rem 0.86rem;
 }
 
-/* Строка с процентами; в динамиках справа по центру — кнопка теста. */
+/* Строка с процентами над фейдером (кнопки проверки вынесены в низ карточки). */
 .fader-valrow {
     position: relative;
     display: flex;
@@ -775,38 +786,67 @@
 }
 
 /* Кнопка теста динамиков — по вертикали центрирована со строкой процентов. */
-.audio-test {
-    position: absolute;
-    right: 0;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 1.71rem;
-    height: 1.71rem;
-    display: inline-flex;
+/* Кнопки проверки устройства — отдельные кнопки под карточками фейдеров (2-й ряд
+   грида .audio-faders), с доп. верхним отступом, чтобы «отлипнуть» от карточки. */
+.audio-testbtn {
+    display: flex;
     align-items: center;
     justify-content: center;
+    gap: 0.43rem;
+    width: 100%;
+    margin-top: 0.36rem;
+    padding: 0.5rem 0.6rem;
     background: transparent;
     border: 1px solid var(--fg-4);
     border-radius: 2px;
     color: var(--fg-2);
+    font-size: 0.71rem;
+    letter-spacing: var(--tracking);
+    text-transform: lowercase;
+    white-space: nowrap;
     cursor: pointer;
-    transition: color var(--t-fast), border-color var(--t-fast);
+    transition: color var(--t-fast), border-color var(--t-fast), background var(--t-fast);
 }
 
-.audio-test:hover,
-.audio-test:focus-visible {
+.audio-testbtn:hover,
+.audio-testbtn:focus-visible {
     outline: none;
     color: var(--fg);
     border-color: var(--fg-2);
 }
 
-.audio-test:disabled { opacity: 0.32; cursor: not-allowed; }
+/* Активна (идёт проверка микрофона — loopback играет). */
+.audio-testbtn.is-active {
+    color: var(--fg);
+    border-color: var(--fg-2);
+    background: var(--bg-2);
+}
 
-.audio-test svg {
-    width: 0.79rem;
-    height: 0.79rem;
+.testbtn-ico {
+    width: 0.72rem;
+    height: 0.72rem;
     fill: currentColor;
-    transform: translateX(0.5px);
+    flex-shrink: 0;
+}
+
+/* Иконка record/stop переключается по .is-active (проверка микрофона). */
+.audio-testbtn .ico-stop { display: none; }
+.audio-testbtn.is-active .ico-rec { display: none; }
+.audio-testbtn.is-active .ico-stop { display: inline-block; }
+
+/* Строка «громкость звуков приложения» — слайдер + значение; гаснет и не
+   кликается когда звуки выключены тогглом (см. applySfxUI). */
+.sfx-volume-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 0.86rem;
+    margin-top: 0.86rem;
+}
+
+.sfx-volume-row.is-disabled {
+    opacity: 0.4;
+    pointer-events: none;
 }
 
 /* Дропдаун устройства — нижняя часть рамки фейдера: на всю ширину, заподлицо,

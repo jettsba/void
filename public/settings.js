@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "0.15.4";
+    const APP_VERSION = "0.15.5";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
@@ -55,7 +55,13 @@
            app-settings.js (модалка «горячие клавиши»), но хранится в этом же
            STORAGE_KEY — поэтому держим поле и здесь, иначе saveState() затёр бы
            его при любом изменении других настроек. */
-        hotkeysEnabled: true
+        hotkeysEnabled: true,
+        /* Громкость звуков приложения (тоглы/сообщения/вход-выход). Множитель
+           поверх базы синтеза; 0..1.5, дефолт 1.0. sfxEnabled — общий
+           выключатель. Консюмер — js/audio.js (VoidSounds.setSfxVolume/Enabled)
+           по событию void:audio-sfx-changed. */
+        sfxVolume: 1.0,
+        sfxEnabled: true
     };
 
     const BG_THEMES = ["silence", "nebula", "grid", "mesh"];
@@ -64,6 +70,8 @@
     const AUDIO_IN_GAIN_MAX = 1.5;
     const AUDIO_OUT_GAIN_MIN = 0;
     const AUDIO_OUT_GAIN_MAX = 1.0;
+    const AUDIO_SFX_VOLUME_MIN = 0;
+    const AUDIO_SFX_VOLUME_MAX = 1.5;
 
     const UI_SCALE_MIN = 0.7;
     const UI_SCALE_MAX = 1.5;
@@ -239,6 +247,12 @@
             "settings.audio.applyOnRejoin": "новый микрофон подключится при следующем входе в комнату",
             "settings.audio.noise": "шумоподавление",
             "settings.audio.noise.hint": "убирает фоновый шум микрофона",
+            "settings.audio.sfx": "громкость звуков",
+            "settings.audio.sfx.hint": "тоглы, сообщения, вход и выход",
+            "settings.audio.testMic": "проверить микрофон",
+            "settings.audio.testMicStop": "остановить",
+            "settings.audio.testSpk": "проверить звук",
+            "settings.audio.testMic.fail": "нет доступа к микрофону",
             "settings.audio.device": "устройство",
             "settings.uiScale.apply": "применить",
             "settings.profile.copy": "скопировать id",
@@ -444,6 +458,12 @@
             "settings.audio.applyOnRejoin": "the new microphone will be picked up the next time you join a room",
             "settings.audio.noise": "noise suppression",
             "settings.audio.noise.hint": "removes microphone background noise",
+            "settings.audio.sfx": "app sounds",
+            "settings.audio.sfx.hint": "toggles, messages, join and leave",
+            "settings.audio.testMic": "test microphone",
+            "settings.audio.testMicStop": "stop",
+            "settings.audio.testSpk": "test sound",
+            "settings.audio.testMic.fail": "no microphone access",
             "settings.audio.device": "device",
             "settings.uiScale.apply": "apply",
             "settings.profile.copy": "copy id",
@@ -654,6 +674,8 @@
     function getAudioOutId() { return state.audioOutId || ""; }
     function getAudioInGain() { return state.audioInGain; }
     function getAudioOutGain() { return state.audioOutGain; }
+    function getSfxVolume() { return state.sfxVolume; }
+    function getSfxEnabled() { return state.sfxEnabled; }
     function getBgTheme() { return state.bgTheme; }
     function getUiScale() { return state.uiScale; }
     function getNoiseSuppression() { return state.noiseSuppression; }
@@ -719,6 +741,22 @@
         document.dispatchEvent(new CustomEvent("void:audio-out-gain-changed", { detail: { gain: next } }));
     }
 
+    function setSfxVolume(v) {
+        const next = clampGain(v, AUDIO_SFX_VOLUME_MIN, AUDIO_SFX_VOLUME_MAX);
+        if (state.sfxVolume === next) return;
+        state.sfxVolume = next;
+        saveState();
+        document.dispatchEvent(new CustomEvent("void:audio-sfx-changed", { detail: { volume: next, enabled: state.sfxEnabled } }));
+    }
+
+    function setSfxEnabled(on) {
+        const next = !!on;
+        if (state.sfxEnabled === next) return;
+        state.sfxEnabled = next;
+        saveState();
+        document.dispatchEvent(new CustomEvent("void:audio-sfx-changed", { detail: { volume: state.sfxVolume, enabled: next } }));
+    }
+
     /**
      * Сеттер кастомного ника. Пустая строка ⇒ «сбросить, пусть генерируется».
      * Возвращает фактически сохранённое значение (после sanitize).
@@ -774,6 +812,8 @@
     let nickFormEl, nickInputEl, nickSavedEl, nickSavedTimer = null;
     let uiScaleEl, uiScaleValueEl, uiScaleApplyEl, scalePreviewInnerEl;
     let noiseToggleEl, spkMeterFillEl;
+    let sfxToggleEl, sfxVolumeEl, sfxVolumeValueEl, sfxVolumeRowEl;
+    let micTestBtnEl;
     let micDropdown, spkDropdown,
         micGainEl, spkGainEl,
         micGainValueEl, spkGainValueEl,
@@ -961,6 +1001,11 @@
         spkGainValueEl = $("settingsSpkGainValue");
         micMeterFillEl = $("settingsMicMeterFill");
         spkTestBtnEl = $("settingsSpkTest");
+        micTestBtnEl = $("settingsMicTest");
+        sfxToggleEl = $("settingsSfxToggle");
+        sfxVolumeEl = $("settingsSfxVolume");
+        sfxVolumeValueEl = $("settingsSfxVolumeValue");
+        sfxVolumeRowEl = $("settingsSfxVolumeRow");
         audioHintEl = $("settingsAudioHint");
         uiScaleEl = $("settingsUiScale");
         uiScaleValueEl = $("settingsUiScaleValue");
@@ -1203,13 +1248,6 @@
                     <div class="fader-top">
                         <div class="fader-valrow">
                             <span class="fader-value" id="settingsSpkGainValue"><b>100</b>%</span>
-                            <button type="button" id="settingsSpkTest" class="audio-test"
-                                aria-label="${t("settings.audio.test")}"
-                                data-i18n-attr="aria-label:settings.audio.test">
-                                <svg viewBox="0 0 24 24" aria-hidden="true">
-                                    <path d="M7 5l12 7-12 7V5z"/>
-                                </svg>
-                            </button>
                         </div>
                         <div class="fader-rail">
                             <div class="vslider-wrap">
@@ -1235,6 +1273,16 @@
                         <ul class="settings-dropdown-menu" role="listbox" aria-hidden="true"></ul>
                     </div>
                 </div>
+
+                <button type="button" class="audio-testbtn" id="settingsMicTest">
+                    <svg class="testbtn-ico ico-rec" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="5"/></svg>
+                    <svg class="testbtn-ico ico-stop" viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1.5"/></svg>
+                    <span class="testbtn-label" data-i18n="settings.audio.testMic">${t("settings.audio.testMic")}</span>
+                </button>
+                <button type="button" class="audio-testbtn" id="settingsSpkTest">
+                    <svg class="testbtn-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+                    <span class="testbtn-label" data-i18n="settings.audio.testSpk">${t("settings.audio.testSpk")}</span>
+                </button>
             </div>
 
             <div class="iface-divider"></div>
@@ -1249,6 +1297,24 @@
                     <span class="vswitch-track"></span>
                 </span>
             </label>
+
+            <div class="iface-divider"></div>
+
+            <label class="toggle-row">
+                <span class="toggle-row-text">
+                    <span class="toggle-row-label" data-i18n="settings.audio.sfx">${t("settings.audio.sfx")}</span>
+                    <span class="toggle-row-hint" data-i18n="settings.audio.sfx.hint">${t("settings.audio.sfx.hint")}</span>
+                </span>
+                <span class="vswitch">
+                    <input type="checkbox" id="settingsSfxToggle"/>
+                    <span class="vswitch-track"></span>
+                </span>
+            </label>
+            <div class="sfx-volume-row" id="settingsSfxVolumeRow">
+                <input type="range" id="settingsSfxVolume" class="hslider"
+                    min="0" max="150" step="5" aria-label="${t("settings.audio.sfx")}"/>
+                <span class="scale-value" id="settingsSfxVolumeValue">100%</span>
+            </div>
 
         `, `<svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>`);
 
@@ -1400,7 +1466,7 @@
         if (!el) return;
         el.classList.remove("is-open");
         el.setAttribute("aria-hidden", "true");
-        if (el === audioModalEl) { stopPreview(); stopSpkMeter(); }
+        if (el === audioModalEl) { stopPreview(); stopSpkMeter(); stopMicTest(); }
         if (el === currentCatModal) currentCatModal = null;
         updateCatValues();
         /* Возвращаем фокус на строку категории, с которой модалка открыта. */
@@ -1477,19 +1543,41 @@
 
     function populateProfileCard() {
         const name = state.nickname || window.currentUsername || "";
-        const avatarEl = document.getElementById("profileAvatar");
-        const nameEl = document.getElementById("profileName");
         const uidEl = document.getElementById("profileUid");
-        if (avatarEl) avatarEl.textContent = profileInitials(name);
-        if (nameEl) {
+        updateProfileName(name, false);
+        if (uidEl) uidEl.textContent = getStableUid();
+    }
+
+    /* Обновить имя (+ инициалы аватара) в карточке профиля. animate=true —
+       анимированная «замена» ника: старый гаснет/уезжает вверх, новый
+       появляется снизу (CSS-transition на .is-swapping, НЕ animation — чтобы не
+       конфликтовать с premium-shimmer, который занимает свойство animation). */
+    function updateProfileName(name, animate) {
+        const nameEl = document.getElementById("profileName");
+        const avatarEl = document.getElementById("profileAvatar");
+        if (!nameEl) return;
+        const apply = () => {
             nameEl.textContent = name || "—";
             /* Золотое сияние ника контрибьютора — та же пасхалка, что в комнате
                (см. config.js isPremiumNickname + stage.css .premium). */
             const premium = typeof isPremiumNickname === "function" && isPremiumNickname(name);
             nameEl.classList.toggle("premium", !!premium);
-        }
-        if (uidEl) uidEl.textContent = getStableUid();
+            if (avatarEl) avatarEl.textContent = profileInitials(name);
+        };
+        if (!animate) { apply(); return; }
+        nameEl.classList.add("is-swapping");
+        setTimeout(() => {
+            apply();
+            nameEl.classList.remove("is-swapping");
+        }, 160);
     }
+
+    /* Ник поменялся (в поле профиля / из комнаты) — обновляем карточку профиля
+       на лету. Раньше карточка обновлялась только при переоткрытии окна. */
+    document.addEventListener("void:nickname-changed", () => {
+        updateProfileName(state.nickname || window.currentUsername || "", true);
+        updateCatValues();
+    });
 
     /* Сводные значения справа в строках категорий — короткий отпечаток
        текущего состояния, как в макете («en · silence · 100%»). */
@@ -2039,7 +2127,9 @@
        лейблы) остаётся одна. preventDefault, чтобы колесо не скроллило модалку. */
     const WHEEL_STEP = 5;
     function attachWheelToSlider(el) {
+        if (!el) return;
         el.addEventListener("wheel", (e) => {
+            if (el.disabled) return;
             e.preventDefault();
             const min = Number(el.min), max = Number(el.max);
             const dir = e.deltaY < 0 ? 1 : -1;
@@ -2058,6 +2148,8 @@
             setAudioInGain(v);
             updateGainLabels();
             updateCatValues();
+            /* Если идёт проверка микрофона — сразу применяем новый уровень. */
+            if (_micTestGain) _micTestGain.gain.value = v;
         });
         spkGainEl.addEventListener("input", () => {
             const v = Number(spkGainEl.value) / 100;
@@ -2091,7 +2183,20 @@
             updateCatValues();
         });
 
-        spkTestBtnEl?.addEventListener("click", playTestTone);
+        spkTestBtnEl?.addEventListener("click", () => playTestTone());
+        micTestBtnEl?.addEventListener("click", toggleMicTest);
+
+        /* Громкость звуков приложения: слайдер + выключатель. */
+        sfxVolumeEl?.addEventListener("input", () => {
+            setSfxVolume(Number(sfxVolumeEl.value) / 100);
+            applySfxUI();
+            updateCatValues();
+        });
+        attachWheelToSlider(sfxVolumeEl);
+        sfxToggleEl?.addEventListener("change", () => {
+            setSfxEnabled(sfxToggleEl.checked);
+            applySfxUI();
+        });
 
         /* devicechange — пользователь воткнул наушники, поменял USB-микрофон.
            Перебираем список без участия пользователя. */
@@ -2252,6 +2357,20 @@
         spkGainEl.value = String(Math.round(state.audioOutGain * 100));
         updateGainLabels();
         if (noiseToggleEl) noiseToggleEl.checked = !!state.noiseSuppression;
+        applySfxUI();
+    }
+
+    /* Синк UI «громкость звуков приложения»: слайдер, значение, тоггл + гашение
+       слайдера когда звуки выключены (disabled + .is-disabled). */
+    function applySfxUI() {
+        const pct = Math.round(state.sfxVolume * 100);
+        if (sfxVolumeEl) {
+            sfxVolumeEl.value = String(pct);
+            sfxVolumeEl.disabled = !state.sfxEnabled;
+        }
+        if (sfxVolumeValueEl) sfxVolumeValueEl.textContent = pct + "%";
+        if (sfxToggleEl) sfxToggleEl.checked = !!state.sfxEnabled;
+        if (sfxVolumeRowEl) sfxVolumeRowEl.classList.toggle("is-disabled", !state.sfxEnabled);
     }
 
     async function populateDeviceSelects() {
@@ -2408,6 +2527,63 @@
         if (micMeterFillEl) {
             micMeterFillEl.style.height = "0%";
             micMeterFillEl.classList.remove("is-hot");
+        }
+    }
+
+    /* ===== mic test (loopback) =====
+       «Проверить микрофон»: играем то, что ловит выбранный вход, в выбранный
+       выход, ПРИМЕНЯЯ усиление микрофона (audioInGain) через GainNode — иначе был
+       бы raw. Фидбэк (mic слышит колонки) ожидаем — это и есть проверка. БЕЗ
+       авто-стопа: играет пока юзер не нажмёт «остановить» (или не закроет
+       модалку). Свой поток/контекст (не previewStream) — чтобы не завязываться на
+       lifecycle метра. */
+    let _micTestCtx = null, _micTestStream = null, _micTestGain = null;
+
+    async function toggleMicTest() {
+        if (_micTestCtx) { stopMicTest(); return; }
+        if (!navigator.mediaDevices?.getUserMedia) return;
+        try {
+            const id = state.audioInId;
+            _micTestStream = await navigator.mediaDevices.getUserMedia({
+                audio: id ? { deviceId: { exact: id } } : true,
+                video: false
+            });
+            const Ctx = window.AudioContext || window.webkitAudioContext;
+            _micTestCtx = new Ctx();
+            /* setSinkId у AudioContext (Chrome 110+/WebView2) — в выбранный выход. */
+            if (_micTestCtx.setSinkId && state.audioOutId) {
+                try { await _micTestCtx.setSinkId(state.audioOutId); } catch (_) {}
+            }
+            const src = _micTestCtx.createMediaStreamSource(_micTestStream);
+            _micTestGain = _micTestCtx.createGain();
+            _micTestGain.gain.value = state.audioInGain;   // применяем усиление микрофона
+            src.connect(_micTestGain).connect(_micTestCtx.destination);
+            setMicTestActive(true);
+        } catch (_) {
+            stopMicTest();
+            showAudioHint(t("settings.audio.testMic.fail"));
+        }
+    }
+
+    function stopMicTest() {
+        if (_micTestCtx) { try { _micTestCtx.close(); } catch (_) {} _micTestCtx = null; }
+        _micTestGain = null;
+        if (_micTestStream) {
+            _micTestStream.getTracks().forEach(t => { try { t.stop(); } catch (_) {} });
+            _micTestStream = null;
+        }
+        setMicTestActive(false);
+    }
+
+    /* Иконка record ↔ stop + подпись «проверить микрофон» ↔ «остановить». */
+    function setMicTestActive(on) {
+        if (!micTestBtnEl) return;
+        micTestBtnEl.classList.toggle("is-active", on);
+        const label = micTestBtnEl.querySelector(".testbtn-label");
+        if (label) {
+            const key = on ? "settings.audio.testMicStop" : "settings.audio.testMic";
+            label.dataset.i18n = key;
+            label.textContent = t(key);
         }
     }
 
@@ -2644,9 +2820,11 @@
     window.VoidSettings = {
         getLang, getStreamer, getNickname,
         getAudioInId, getAudioOutId, getAudioInGain, getAudioOutGain,
+        getSfxVolume, getSfxEnabled,
         getBgTheme, getUiScale,
         setLang, setStreamer, setNickname,
         setAudioInId, setAudioOutId, setAudioInGain, setAudioOutGain,
+        setSfxVolume, setSfxEnabled,
         setBgTheme, setUiScale,
         getNoiseSuppression, setNoiseSuppression,
         openPanel, closePanel,

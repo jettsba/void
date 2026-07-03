@@ -502,11 +502,14 @@ function consumeInviteLinkFromUrl() {
     const normalized = raw.toUpperCase().replace(/[^A-Z0-9]/g, "");
     if (!ROOM_CODE_RX.test(normalized)) return;
 
-    /* В desktop ссылку обрабатываем напрямую (хотя сюда обычно не попадаем —
-       deep-link идёт через Rust-событие). В вебе НЕ авто-входим: показываем
-       баннер-приглашение с выбором (открыть в приложении / продолжить в
-       браузере). Любой вход — только по клику пользователя. */
-    if (window.VoidPlatform === "desktop") {
+    /* Desktop-приложение: обрабатываем напрямую (обычно сюда не попадаем —
+       deep-link идёт через Rust-событие). Мобильные/тач-устройства: баннер НЕ
+       показываем и сразу заходим в комнату — десктоп-приложения под них нет
+       (мобильные приложения — в далёком будущем), а выбор «открыть в приложении»
+       имеет смысл только в десктоп-БРАУЗЕРЕ. В десктоп-вебе НЕ авто-входим:
+       показываем баннер-приглашение с выбором. Любой вход — по клику юзера. */
+    const isTouch = matchMedia("(hover: none) and (pointer: coarse)").matches;
+    if (window.VoidPlatform === "desktop" || isTouch) {
         joinRoomByCode(normalized);
         return;
     }

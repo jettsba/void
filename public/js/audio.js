@@ -4,15 +4,25 @@
    звуки (mic/sound/screencast/message) — синтез (js/void-sfx.js). ambient/welcome
    — интро-звуки на <audio>. */
 
-/* SFX_BASE_VOLUME выровнен по громкости mp3 входа/выхода (замер краткосрочной
-   RMS-громкости: тоглы на базе 0.7 были ~×3.4-4.4 громче «чёрных дыр»; 0.16
-   сажает громчайший тоггл ровно на их уровень). */
-const SFX_BASE_VOLUME = 0.16;           // база синтеза до мастер-громкости
+/* SFX_BASE_VOLUME — база синтеза до мастер-громкости. Был 0.16 (выровнен под mp3
+   входа/выхода), по фидбеку «тоглы тихие» поднят до 0.22. Пользователь может
+   дополнительно регулировать всё через слайдер «громкость звуков приложения»
+   (_sfxUserVol 0..1.5) и выключателем (_sfxEnabled). */
+const SFX_BASE_VOLUME = 0.22;           // база синтеза до мастера
 const ROOM_CLIP_VOLUME = 0.4;           // база mp3 входа/выхода до мастера
 let _master = 1;                        // мастер-громкость приложения (0..1)
+let _sfxUserVol = 1;                     // пользовательский множитель звуков (0..1.5)
+let _sfxEnabled = true;                  // выключатель звуков приложения
 let _sfxVolume = SFX_BASE_VOLUME;
 let _sfxSink = '';
 let _voidSfx = null;
+
+/* Эффективный множитель звуков приложения: 0 когда выключены. */
+function _effSfx() { return _sfxEnabled ? _sfxUserVol : 0; }
+function _recomputeSfxVolume() {
+    _sfxVolume = SFX_BASE_VOLUME * _master * _effSfx();
+    if (_voidSfx) _voidSfx.volume = _sfxVolume;
+}
 
 /* --- синтез (mic/sound/screencast/message). Ленивая инициализация: AudioContext
    создаётся на первом звуке (autoplay policy — после user-gesture). --- */
@@ -33,8 +43,10 @@ function _roomClip(kind) {
 function _mkClip(src) { const a = new Audio(src); a.preload = 'auto'; return a; }
 function _playRoomClip(kind) {
     try {
+        const eff = _effSfx();
+        if (eff <= 0) return;                 // звуки приложения выключены
         const a = _roomClip(kind).cloneNode();
-        a.volume = Math.max(0, Math.min(1, ROOM_CLIP_VOLUME * _master));
+        a.volume = Math.max(0, Math.min(1, ROOM_CLIP_VOLUME * _master * eff));
         if (a.setSinkId && _sfxSink) a.setSinkId(_sfxSink).catch(() => {});
         a.play().catch(() => {});
     } catch (_) {}
@@ -55,24 +67,57 @@ const VoidSounds = {
     /* Мастер-громкость приложения (0..1). Хук в applyOutputVolumeAll (webrtc.js). */
     setMaster(master) {
         _master = Math.max(0, Math.min(1, master));
-        _sfxVolume = SFX_BASE_VOLUME * _master;
-        if (_voidSfx) _voidSfx.volume = _sfxVolume;
+        _recomputeSfxVolume();
+    },
+    /* Пользовательская громкость звуков приложения (0..1.5) — слайдер настроек. */
+    setSfxVolume(vol) {
+        _sfxUserVol = Math.max(0, Math.min(1.5, Number(vol) || 0));
+        _recomputeSfxVolume();
+    },
+    /* Выключатель звуков приложения. */
+    setSfxEnabled(on) {
+        _sfxEnabled = !!on;
+        _recomputeSfxVolume();
     },
     /* Устройство вывода (как setSinkId у <audio>). Хук в applyOutputSinkToAll. */
     setSink(id) {
         _sfxSink = id || '';
         if (_voidSfx) _voidSfx.setSink(_sfxSink);
     },
-    /* Speaker-test: короткий синтез-тон на КОНКРЕТНОМ устройстве (одноразовый
-       контекст с setSinkId именно к нему), затем контекст закрывается. */
+    /* Speaker-test: hero-звук «lock-in» из pad-палитры (js/void-sfx-pad.js) на
+       КОНКРЕТНОМ устройстве (одноразовый контекст с setSinkId, затем закрывается).
+       Всегда слышимый уровень (0.6 × master) — независимо от слайдера/выключателя
+       звуков приложения (это проверка ВЫХОДА, а не событийный звук). */
     testOnDevice(deviceId) {
+        if (typeof VoidSFXPad === 'function') {
+            const t = new VoidSFXPad({ volume: 0.6 * _master, sinkId: deviceId || '' });
+            t.screencastStart();
+            setTimeout(() => t.close(), 3000);
+            return;
+        }
+        /* Фолбэк, если pad-модуль не загрузился — старый короткий тон. */
         if (typeof VoidSFX !== 'function') return;
-        const t = new VoidSFX({ volume: _sfxVolume, sinkId: deviceId || '' });
+        const t = new VoidSFX({ volume: SFX_BASE_VOLUME * _master, sinkId: deviceId || '' });
         t.message();
         setTimeout(() => t.close(), 1500);
     }
 };
 window.VoidSounds = VoidSounds;
+
+/* Настройки «громкость звуков приложения» (слайдер + выключатель) — читаем из
+   VoidSettings на старте и слушаем изменения (void:audio-sfx-changed). */
+function _applySfxSettings() {
+    const S = window.VoidSettings;
+    if (!S) return;
+    if (typeof S.getSfxEnabled === 'function') VoidSounds.setSfxEnabled(S.getSfxEnabled());
+    if (typeof S.getSfxVolume === 'function') VoidSounds.setSfxVolume(S.getSfxVolume());
+}
+document.addEventListener('void:audio-sfx-changed', _applySfxSettings);
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', _applySfxSettings);
+} else {
+    _applySfxSettings();
+}
 
 /* Тонкие алиасы под существующие вызовы (self): room.js → playJoin/LeaveSound,
    chat.js → playMessageSound. */
