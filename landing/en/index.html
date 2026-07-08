@@ -4,9 +4,6 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 
-    <!-- Entrance-scroll capture (see /index.html): strip #hash early into
-         window.__voidEntrance so the browser doesn't jump; landing.js then
-         smooth-scrolls from the top. Skipped for reduced-motion. -->
     <script>
       (function () {
         var h = location.hash;
@@ -28,17 +25,10 @@
     <meta name="color-scheme" content="dark" />
     <meta name="format-detection" content="telephone=no" />
 
-    <!-- Canonical + i18n alternates: this URL is the english variant; russian
-         lives at /. x-default points here. -->
     <link rel="canonical" href="https://void-room.space/en/" />
     <link rel="alternate" hreflang="ru"        href="https://void-room.space/" />
     <link rel="alternate" hreflang="en"        href="https://void-room.space/en/" />
     <link rel="alternate" hreflang="x-default" href="https://void-room.space/en/" />
-
-    <!-- No client-side language redirect. See landing/index.html for the full
-         reasoning: hreflang lets search engines route users to the correct
-         language version directly from the SERP. A JS redirect here would
-         confuse Googlebot's indexing and pollute language-specific snippets. -->
 
     <!-- ====== OPEN GRAPH ====== -->
     <meta property="og:type"             content="website" />
@@ -89,7 +79,7 @@
             "No registration or accounts",
             "No history or recording",
             "End-to-end via WebRTC",
-            "Up to 5 participants per room"
+            "Up to 10 participants per room"
           ],
           "inLanguage": ["en", "ru"],
           "isAccessibleForFree": true,
@@ -143,15 +133,9 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="application-name"                content="void" />
 
-    <!-- Preload критичных ассетов. ?v=N — cache-buster, бампать синхронно
-         при правках landing.css / landing.js (см. memory rule). -->
     <link rel="preload" href="/landing.css?v=5" as="style">
     <link rel="preload" href="/landing.js?v=6" as="script">
-
-    <!-- Lenis + landing assets. Absolute paths from site root: this file lives
-         at /en/, but the shared assets are served from /. -->
     <script src="/lenis.min.js?v=1" defer></script>
-
     <link rel="stylesheet" href="/landing.css?v=5" />
 </head>
 <body>
@@ -225,7 +209,7 @@
             </div>
         </section>
 
-        <!-- WHAT — a short, centred definition between hero and how-it-works -->
+        <!-- WHAT -->
         <section class="what" id="what">
             <div class="shell">
                 <div class="what-stage reveal">
@@ -486,7 +470,7 @@
                 <div class="feat-row reveal">
                     <div class="feat-copy">
                         <span class="feat-eyebrow">— 01 · voice</span>
-                        <h3 class="feat-title">up to five, like around a campfire.</h3>
+                        <h3 class="feat-title">voice goes straight.</h3>
                         <p class="feat-text">everyone hears everyone directly — no server delay, no cloud processing. your voice travels device to device, and sounds the way it should.</p>
                         <div class="feat-tags">
                             <span class="pill">clean audio</span>
@@ -583,7 +567,7 @@
                     </div>
                 </div>
 
-                <!-- 3. screen — mock editor with cursor and selection -->
+                <!-- 3. screen -->
                 <div class="feat-row reveal">
                     <div class="feat-copy">
                         <span class="feat-eyebrow">— 03 · screen</span>
@@ -736,7 +720,7 @@
             </div>
         </section>
 
-        <!-- CONTRIBUTORS — credits crawl + announcer + persistent CTA -->
+        <!-- CONTRIBUTORS -->
         <section class="sect contrib" id="contributors">
             <div class="shell">
                 <div class="sect-head nobottom reveal">
@@ -756,8 +740,6 @@
 
                         <div class="contrib-marquee">
                             <ul class="contrib-track" id="contribList" aria-live="polite" data-placeholder="your_name">
-                                <!-- populated by injectContributors() in landing.js, fed by /api/contributors;
-                                     a "+ your_name" placeholder slot is appended at the end of each pass -->
                             </ul>
                         </div>
 

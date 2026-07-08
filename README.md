@@ -1,145 +1,162 @@
 <div align="center">
 
-<img src="https://void-room.space/og.png" alt="void — leaves no trace." width="680">
+<img src="docs/og.png" alt="void — a voice chat that can't be wiretapped" width="880">
 
-**a phone call for the internet — no accounts, no history, peer-to-peer.**
+**voice chat without the extras — no accounts, no history, just direct connections.**
 
-<sub>[void-room.space](https://void-room.space) · [try the web app](https://app.void-room.space) · [download for windows](https://github.com/jettsba/void/releases/latest/download/void_installer.exe)</sub>
+<a href="README.md"><img alt="English" src="https://img.shields.io/badge/EN-english-e6e6e8?style=flat-square&labelColor=101012"></a>
+<a href="docs/README.ru.md"><img alt="Русский" src="https://img.shields.io/badge/RU-русский-4d4d54?style=flat-square&labelColor=101012"></a>
 
 <br>
+<br>
 
-[![void-room.space](https://img.shields.io/badge/site-void--room.space-101012?labelColor=2a2a2f)](https://void-room.space)
+<a href="https://void-room.space"><img alt="website" src="https://img.shields.io/badge/website-void--room.space-e6e6e8?style=flat-square&labelColor=101012"></a>
+<a href="https://app.void-room.space"><img alt="launch web app" src="https://img.shields.io/badge/web_app-launch_↗-e6e6e8?style=flat-square&labelColor=101012"></a>
+<a href="https://github.com/jettsba/void/releases/latest/download/void_installer.exe"><img alt="download for windows" src="https://img.shields.io/badge/windows-download_↓-e6e6e8?style=flat-square&labelColor=101012"></a>
 
-[![web app](https://img.shields.io/badge/web-launch-101012?labelColor=2a2a2f)](https://app.void-room.space)
-[![desktop](https://img.shields.io/badge/desktop-download-101012?labelColor=2a2a2f)](https://github.com/jettsba/void/releases/latest/download/void_installer.exe)
+<a href="https://github.com/jettsba/void/releases/latest"><img alt="latest release" src="https://img.shields.io/github/v/release/jettsba/void?style=flat-square&labelColor=101012&color=4d4d54&label=release"></a>
+<a href="https://github.com/jettsba/void/stargazers"><img alt="stars" src="https://img.shields.io/github/stars/jettsba/void?style=flat-square&labelColor=101012&color=4d4d54"></a>
+<a href="LICENSE"><img alt="license" src="https://img.shields.io/badge/license-AGPL--3.0-4d4d54?style=flat-square&labelColor=101012"></a>
 
 </div>
 
 ---
 
-## what it is
+> when i started building void, i had just one goal — to make calling fast and effortless.
+> what i ended up with was a voice chat that physically can't be eavesdropped on
+> from the outside — and i only realized that much later. privacy was never the goal.
+> it's simply a side effect of stripping everything unnecessary out of the architecture.
 
-Open a room, share the short code, talk — and the moment the last person leaves, the
-room is gone. Nothing was written down, because there was nowhere to write it.
+<br>
 
-Voice, text chat, file transfer and screen sharing, all **peer-to-peer over WebRTC**.
-The server exists only to introduce two browsers to each other; once they shake hands,
-your audio goes straight from one person to the other. No sign-up. No database. No
-recording. **Nothing to leak, because nothing is stored.**
+create a room, share a short code, and start talking. when the last person leaves, the room **disappears**. nothing is stored because there's nowhere to store it.
 
-> Try it right now, no install → **[app.void-room.space](https://app.void-room.space)**
+voice, chat, file sharing, and screen sharing all happen **directly** between participants. the server only introduces devices to each other. once they're connected, it has nothing left to do.
+
+<div align="center">
+<br>
+<a href="https://app.void-room.space"><b>→ try now, nothing to install</b></a>
+<br>
+<br>
+<img src="docs/interface.png" alt="void room interface" width="880">
+</div>
+
+---
+
+## why it can't be wiretapped
+
+there's **no database**. not "we have one, but we promise not to look" — there's simply no database at all. rooms exist only as a regular `Map` in the server's memory: a room code and a list of who's inside. when the last person leaves, everything is gone.
+
+that's why there's nowhere to intercept a conversation from the server side — **it never exists there in the first place.** participants encrypt the media stream directly between their devices (DTLS-SRTP, with keys negotiated between browsers). even when a poor network forces traffic through a relay, it only forwards encrypted packets and has no way to decrypt them.
+
+<sub>"impossible to eavesdrop on" refers to <i>the connection between participants</i>, not to their devices. if an endpoint is compromised, no p2p architecture can protect it — the audio can be captured before encryption ever happens. cryptography secures the channel, not a compromised endpoint.</sub>
 
 ---
 
 ## how it works
 
-```text
-   you ──── mic ──── webrtc ──── mic ──── friend
-                        │
-                   signalling
-                   (~5–20 kb/s)
-                        │
-                     void.srv
-```
+<div align="center">
 
-The server's entire job is to help two peers find each other — offers, answers, a
-handful of ICE candidates. After that it is out of the loop. **It never sees a single
-byte of your audio, your messages, or your files.** When direct connection is impossible
-(symmetric / CG-NAT), a TURN relay carries the still-encrypted stream — the relay can't
-read it either.
+**the server introduces two peers — then drops out of the call**
 
-This isn't a privacy *policy*. It's the architecture. There is no media server in the
-middle, no message store, no user table. The strongest guarantee a service can make is
-to not have the data in the first place.
+<img src="docs/scheme.png" alt="architecture: server only does signalling" width="820">
 
----
+</div>
 
-## try it
+its entire job is signalling: it takes a connection description (SDP) from one side, hands it
+to the other, and shuttles a handful of ICE candidates. a couple of kilobytes of setup text —
+then it's out of the loop. **it never sees a byte of your audio, messages, or files.**
 
-| | |
-|---|---|
-| **Web** — works in any modern browser, nothing to install | **[app.void-room.space](https://app.void-room.space)** |
-| **Windows desktop** — native app: tray, global hotkeys, auto-update | **[download the installer](https://github.com/jettsba/void/releases/latest/download/void_installer.exe)** — one click, installs and auto-updates |
-
-The web app and the desktop app are the **same codebase** — the desktop is the web client
-running natively in a Tauri shell, with native Windows touches layered on top.
+<table>
+<tr>
+<td width="50%" valign="top" align="center">
+<img src="docs/mesh.png" alt="full-mesh P2P" width="380">
+<br>
+<b>true mesh · everyone to everyone</b>
+<br>
+<sub>the server never mixes audio, so participants connect directly to one another — <code>N·(N−1)/2</code> connections in total. that's also why rooms are limited to <b>10 people</b>. supporting more would require an SFU in the middle, which puts the media stream back on a server.</sub>
+</td>
+<td width="50%" valign="top" align="center">
+<img src="docs/relay.png" alt="TURN relay fallback" width="380">
+<br>
+<b>relay · only when a direct path fails</b>
+<br>
+<sub>in symmetric / CG‑NAT (mobile carriers) ~1 in 4 pairs can't connect directly and fall back to a
+TURN relay (coturn). it ferries the <b>still‑encrypted</b> packets — it can't decrypt them either.</sub>
+</td>
+</tr>
+</table>
+</br>
+the shortest path is also the lowest latency: it sounds like the other person is next door,
+because the audio isn't looping through a datacenter in another country. And a VPN, if you
+need one to reach the site, only carries the page load and signalling — the call itself goes
+direct and never touches the tunnel.
 
 ---
 
 ## what's inside
 
-- **voice** — full-mesh WebRTC, direct peer-to-peer audio between everyone in the room (up to 5 by design), no server in the path
-- **noise suppression** — RNNoise (ML model, WASM/AudioWorklet) strips out fans, keyboards, and background hum
-- **chat & files** — over the data channel: text, files up to 100 MB, images up to 10 MB
-- **screen sharing** — with real system audio, up to 1080p60
-- **resilient by design** — perfect negotiation, automatic ICE-restart, peer rebuild, a watchdog that detects "dead-but-connected" peers
-- **bilingual** — English / Russian, switchable in settings
-- **streamer mode** — hides the room code so it never leaks on stream
-- **native desktop** — frameless titlebar, system tray with live in-room status, global hotkeys, signed in-app auto-updates, `void://` deep links
+|  |  |
+|---|---|
+| **voice** | full‑mesh WebRTC, direct P2P audio between everyone in the room, no server in the path |
+| **noise suppression** | RNNoise (ML model in WASM/AudioWorklet) strips fans, keyboards, background hum — client‑side, before it's even sent |
+| **chat & files** | over the data channel: text, files up to 100 MB, images up to 10 MB |
+| **screen sharing** | with real system audio, up to 1080p60 |
+| **resilient** | perfect negotiation, automatic ICE‑restart, peer rebuild, a watchdog that catches "connected‑but‑dead" peers in ~5 s |
+| **native desktop** | frameless titlebar, system tray with live in‑room status, global hotkeys, signed auto‑updates, `void://` deep links |
+| **bilingual** | English / Russian · **streamer mode** hides the room code so it never leaks on stream |
 
 ---
 
-## what void deliberately doesn't have
+<details>
+<summary><b>the stack</b></summary>
 
-- no accounts, profiles, or avatars
-- no database, no message history, no recording
-- no analytics, no trackers, no third-party scripts
-- no media server sitting between you and the other person
-- no cookies or local storage holding anything personal
+<br>
 
-The only thing the server keeps on disk is a single JSON file of anonymous counters —
-rooms created, peak concurrent users, connection-success ratio. No user data ever
-touches it.
-
----
-
-## built without the usual stack
-
-No React. No bundlers. No `npm run build`. No TypeScript toolchain.
-
-The entire frontend is **vanilla JavaScript**, loaded with `<script defer>` and served
-as-is — the browser figures it out. The backend is ~200 lines of entry-point plus a
-handful of focused modules. The whole thing is meant to be **read**: a complete,
-production-hardened WebRTC system you can actually follow end to end, rather than a black
-box behind an SDK.
+no React, no bundlers, no TypeScript toolchain. the entire frontend is
+**vanilla JavaScript**, loaded with `<script defer>` and served as‑is. The whole thing is meant
+to be **read** — a complete, production‑hardened WebRTC system you can actually follow end to end.
 
 | layer | tech |
 |---|---|
 | signalling | Node.js 20 · Express · ws |
-| media transport | WebRTC mesh (perfect negotiation, DTLS-SRTP) |
+| media transport | WebRTC (perfect negotiation, DTLS‑SRTP) |
 | chat & files | RTCDataChannel (binary chunked transfer) |
-| audio DSP | Web Audio API — RNNoise → high/low-pass → compressor → noise gate |
+| audio DSP | Web Audio — RNNoise → high/low‑pass → compressor → noise gate |
 | frontend | vanilla JS, no frameworks, no build step |
 | desktop | Tauri 2 (Rust + WebView2) |
-| relay | coturn (TURN, HMAC short-lived credentials) |
+| relay | coturn (TURN, HMAC short‑lived credentials) |
 | reverse proxy | Caddy (automatic HTTPS) |
-| deploy | Docker + docker-compose, CI on push |
+| deploy | Docker + docker‑compose, CI on push |
 
-Production hardening is built in, not bolted on: strict CSP, security headers, origin
-allow-listing, per-IP connection caps, token-bucket flood control, anti-bruteforce on
-room joins, timing-safe admin auth, a read-only hardened container, and ed25519-signed
-desktop updates.
+</details>
 
 ---
 
-## status
+## try it
 
-Active development — currently **v0.12.10**. Web and desktop ship independently.
+<table>
+<tr>
+<td valign="top">
 
-**Done:** voice · chat · file & image transfer · screen share with system audio ·
-reconnect / perfect negotiation / ICE-restart / zombie-watchdog · RNNoise · TURN (live
-in production) · i18n · invite links & `void://`
-deep-links · full Windows desktop (tray, hotkeys, autostart, signed auto-updater, custom
-installer/uninstaller).
+**web** — any modern browser, nothing to install
 
-**Possible directions** (not commitments): camera video · push-to-talk · macOS / Linux
-desktop · optional local recording · themes.
+**→ [app.void-room.space](https://app.void-room.space)**
+
+</td>
+<td valign="top">
+
+**windows desktop** — native: tray, global hotkeys, auto‑update
+
+**→ [download the installer](https://github.com/jettsba/void/releases/latest/download/void_installer.exe)**
+
+</td>
+</tr>
+</table>
 
 ---
 
 ## for developers
-
-Run it locally:
 
 ```bash
 git clone https://github.com/jettsba/void.git
@@ -148,28 +165,17 @@ npm ci
 npm start          # → http://localhost:3000
 ```
 
-Self-hosting, environment variables, the TURN setup, the desktop build pipeline and the
-in-browser debugging tools are all documented in **[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)**.
+self‑hosting, environment variables, the TURN setup are all in **[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)**.
+
+bugs and ideas → open an [issue](https://github.com/jettsba/void/issues) or reach out on
+[Telegram](https://t.me/mtbibltww).
 
 ---
 
-## feedback
-
-Bugs, ideas, questions → open an [issue](https://github.com/jettsba/void/issues) or
-reach out on [Telegram](https://t.me/mtbibltww). The web app ships fixes continuously;
-the desktop app updates itself.
-
----
-
-## license
-
-[AGPL-3.0](LICENSE) © 2026 void — open source, copyleft. You're free to use, study, and
-self-host it; network deployments of modified versions must share their changes.
-
----
+<img src="docs/kdpv.png" alt="void — a voice chat that can't be wiretapped" width="880">
 
 <div align="center">
+<sub><a href="../README.ru.md">switch to russian</a> ·<a href="https://t.me/mtbibltww"> crafted by casheaterr</a></sub>
 <br>
-<sub>crafted by <a href="https://t.me/mtbibltww">casheaterr</a></sub>
-<br>
+<sub><a href="../LICENSE"><b>AGPL‑3.0</b></a><b> © 2026 void</b></sub>
 </div>

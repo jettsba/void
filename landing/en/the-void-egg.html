@@ -16,9 +16,6 @@
     <link rel="stylesheet" href="/landing.css" />
 
     <style>
-        /* Self-contained page. All styles inline — so no .crown / .letter
-           classes leak into shared landing.css that would tip off a curious
-           viewer that a hidden page exists. */
         .shell {
             max-width: 720px;
             margin: 0 auto;
@@ -35,10 +32,6 @@
             margin-bottom: 28px;
         }
 
-        /* Gold headline — palette identical to .participant-name.premium
-           (public/css/stage.css) and .contrib-name (landing.css). Warm matte
-           gold, not #FFD700. Glow comes from drop-shadow on filter;
-           text-shadow is ignored under background-clip:text. */
         .crown {
             font-family: var(--font);
             font-weight: 400;
@@ -79,7 +72,6 @@
             }
         }
 
-        /* Letter — narrow column, warm tone, same rhythm as privacy. */
         .letter {
             max-width: 540px;
             font-size: 16px;

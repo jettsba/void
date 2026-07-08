@@ -4,12 +4,6 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 
-    <!-- Entrance-scroll capture: если зашли с #хэшем (#download из веб-баннера
-         «скачать приложение»), СРАЗУ убираем хэш из URL и фиксируем цель в
-         window.__voidEntrance — до того как браузер выполнит фрагмент-скролл.
-         landing.js затем плавно доедет до секции от верха. reduced-motion — не
-         трогаем (нативный мгновенный переход). Инлайн в <head>, чтобы успеть
-         перебить нативный скролл (defer уже поздно). -->
     <script>
       (function () {
         var h = location.hash;
@@ -31,21 +25,10 @@
     <meta name="color-scheme" content="dark" />
     <meta name="format-detection" content="telephone=no" />
 
-    <!-- Canonical + i18n alternates: this URL is the russian master; english
-         lives at /en/. x-default points at /en/ — that's what google serves
-         when the user's language doesn't match either variant. -->
     <link rel="canonical" href="https://void-room.space/" />
     <link rel="alternate" hreflang="ru"        href="https://void-room.space/" />
     <link rel="alternate" hreflang="en"        href="https://void-room.space/en/" />
     <link rel="alternate" hreflang="x-default" href="https://void-room.space/en/" />
-
-    <!-- No client-side language redirect. hreflang annotations above let Google
-         and Yandex serve the right language version directly in SERPs based on
-         the user's system language. A JS redirect here would cause Googlebot
-         (headless Chromium, navigator.language='en-US') to index EN content
-         under the / URL, polluting RU snippets with English descriptions.
-         Direct visitors who type the bare host get RU; if they want EN, the
-         footer switcher takes them to /en/. -->
 
     <!-- ====== OPEN GRAPH (Facebook, LinkedIn, Telegram, Slack, Discord) ====== -->
     <meta property="og:type"             content="website" />
@@ -69,10 +52,7 @@
     <meta name="twitter:image"       content="https://void-room.space/og.png" />
     <meta name="twitter:image:alt"   content="void — leaves no trace." />
 
-    <!-- ====== STRUCTURED DATA (Schema.org) ======
-         Helps Google understand what this site IS (a WebApplication for
-         communication, not an article or product page). Improves the chance
-         of getting a rich snippet, knowledge panel, or sitelinks. -->
+    <!-- ====== STRUCTURED DATA (Schema.org) ====== -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -99,7 +79,7 @@
             "No registration or accounts",
             "No history or recording",
             "End-to-end via WebRTC",
-            "Up to 5 participants per room"
+            "Up to 10 participants per room"
           ],
           "inLanguage": ["ru", "en"],
           "isAccessibleForFree": true,
@@ -152,22 +132,10 @@
     <meta name="mobile-web-app-capable"          content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="application-name"                content="void" />
-
-    <!-- Preload критичных ассетов: CSS блокирует рендер, JS нужен для
-         анимаций сразу после первого экрана. ?v=N — cache-buster, бампать
-         синхронно при правках landing.css / landing.js (см. memory rule). -->
+->
     <link rel="preload" href="landing.css?v=5" as="style">
     <link rel="preload" href="landing.js?v=6" as="script">
-
-    <!-- Lenis: premium smooth scroll with inertia. ~16kb, used by Apple,
-         Cuberto, Studio Freight, etc. Self-hosted (vendored to landing/).
-         RELATIVE path so it works in VSCode Live Server too (where the
-         workspace root is /void, not /landing, and an absolute "/lenis.min.js"
-         would 404). In production express.static('landing') still serves it
-         at /lenis.min.js, and a relative ref from /index.html resolves
-         identically. -->
     <script src="lenis.min.js?v=1" defer></script>
-
     <link rel="stylesheet" href="landing.css?v=5" />
 </head>
 <body>
@@ -241,7 +209,7 @@
             </div>
         </section>
 
-        <!-- WHAT — короткое определение, центр, без рамки -->
+        <!-- WHAT -->
         <section class="what" id="what">
             <div class="shell">
                 <div class="what-stage reveal">
@@ -502,7 +470,7 @@
                 <div class="feat-row reveal">
                     <div class="feat-copy">
                         <span class="feat-eyebrow" data-i18n="feat.1.eyebrow">— 01 · голос</span>
-                        <h3 class="feat-title" data-i18n="feat.1.title">до пяти человек, как у костра.</h3>
+                        <h3 class="feat-title" data-i18n="feat.1.title">голос идёт напрямую.</h3>
                         <p class="feat-text" data-i18n="feat.1.text">каждый слышит каждого без серверных задержек и без сжатия в чужом облаке. голос идёт прямо между вашими устройствами — и звучит, как должен.</p>
                         <div class="feat-tags">
                             <span class="pill" data-i18n="feat.1.tag.1">чистый звук</span>
@@ -599,7 +567,7 @@
                     </div>
                 </div>
 
-                <!-- 3. screen — mock editor with cursor and selection -->
+                <!-- 3. screen -->
                 <div class="feat-row reveal">
                     <div class="feat-copy">
                         <span class="feat-eyebrow" data-i18n="feat.3.eyebrow">— 03 · экран</span>
@@ -752,7 +720,7 @@
             </div>
         </section>
 
-        <!-- CONTRIBUTORS — credits crawl  + announcer + persistent CTA -->
+        <!-- CONTRIBUTORS -->
         <section class="sect contrib" id="contributors">
             <div class="shell">
                 <div class="sect-head nobottom reveal">
@@ -772,8 +740,6 @@
 
                         <div class="contrib-marquee">
                             <ul class="contrib-track" id="contribList" aria-live="polite" data-placeholder="your.name">
-                                <!-- populated by injectContributors() in landing.js, fed by /api/contributors;
-                                     a "+ ваше_имя" placeholder slot is appended at the end of each pass -->
                             </ul>
                         </div>
 
