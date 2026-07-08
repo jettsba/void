@@ -18,25 +18,10 @@
         display: none;
     }
 
-    .users-area {
-        --avatar-size: 88px;
-    }
-
-    .participants {
-        gap: 22px;
-    }
-
-    /* Пять блобов в один ряд: ужать gap и cap'нуть размер аватара —
-       иначе на 375px-экране они вылезают за вьюпорт. */
-    #room[data-peers="5"] .participants {
-        gap: 12px;
-    }
-
-    #room[data-peers="5"].users-area {
-        --dense-gap: 12px;
-        --blob-cap: 80px;
-        --avatar-size: min(var(--blob-cap), calc((100vw - 48px - 4 * var(--dense-gap)) / 5));
-    }
+    /* Размер и позиции участников (включая мобилу) считает движок
+       layoutParticipants (public/js/participants.js) из замеренной области +
+       fit-scale — прежняя flex-денсификация по data-peers больше не нужна.
+       Область/отступы движка заданы в rem → сами ужимаются под мелкий экран. */
 
     .panel-area {
         --panel-offset-y: 110px;

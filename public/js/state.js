@@ -169,7 +169,8 @@ let pingPollTimer = null;
 let pingPanelOutsideHandler = null;
 const nicknameMap = new Map();
 
-/** Синхронизируем data-peers на #room под ужим логики «ровно в один ряд» при пятерых. */
+/** Синхронизируем data-peers на #room под денсификацию «ровно в один ряд»
+    (stage.css/responsive.css ужимают аватар+gap ступенями при 6-10 участниках). */
 let participantsMutationObserver = null;
 let syncPeersAttrQueued = false;
 

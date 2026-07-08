@@ -49,8 +49,8 @@ offer/answer/ICE) и раздачей статики. Две поверхнос�
 
 - Сервер **никогда не видит ни одного аудио-байта** — только сводит пиров.
 - Чат и файлы — тоже P2P, через `RTCDataChannel`. Сервер о них ничего не знает.
-- Полный mesh: для N юзеров → `N*(N-1)/2` соединений. `MAX_ROOM_USERS=5` — намеренный
-  потолок mesh-топологии (дальше нужен SFU).
+- Полный mesh: для N юзеров → `N*(N-1)/2` соединений. `MAX_ROOM_USERS=10` — голосовой
+  потолок mesh-топологии (демка делит битрейт по числу зрителей; дальше нужен SFU).
 - TURN **включён в проде** (релеит примерно 40–45% пар на CG-NAT). Если `TURN_HOST` /
   `TURN_SECRET` не заданы — endpoint отдаёт 503, и клиенты откатываются на STUN-only.
 
@@ -217,7 +217,7 @@ docker compose --profile turn up -d
 | `ADMIN_STATS_PASSWORD` | — (нет → /adminstats отдаёт 503) | lib/admin-stats.js |
 | `LOG_LEVEL` | info — `error \| warn \| info \| debug` | lib/log.js |
 | `ALLOWED_ORIGINS` | void-room.space + www + app | lib/security.js |
-| `MAX_ROOM_USERS` | 5 | lib/security.js |
+| `MAX_ROOM_USERS` | 10 | lib/security.js |
 | `STATS_FILE` | `./data/stats.json` | lib/stats.js |
 | `BUG_SMTP_USER` / `BUG_SMTP_PASS` / `BUG_SMTP_TO` | — / — / =USER | lib/bug-report.js |
 | `TURN_HOST` / `TURN_SECRET` | — (нет → 503, STUN-only) | lib/turn.js + coturn |

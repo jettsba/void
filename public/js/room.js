@@ -469,6 +469,10 @@ function enterRoomUI() {
     startConnQualityMonitor();
 
     playJoinSound();
+
+    /* Комната открыта, controls видимы → чистая раскладка короны по актуальной
+       геометрии (addParticipant уже дёрнул, но здесь — гарантия после смены режима). */
+    if (typeof scheduleParticipantsLayout === "function") scheduleParticipantsLayout(true);
 }
 
 /* ========= LOCALE / STREAMER REACT =========

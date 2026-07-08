@@ -46,16 +46,18 @@
 }
 
 .watch-screen-btn {
+    /* Позиция/размер согласованы с .participant-name — кнопка визуально
+       замещает ник при screensharing (тот же слот под аватаром, тот же масштаб). */
     position: absolute;
-    top: calc(100% + 1rem);
+    top: calc(100% + 0.6rem);
     left: 50%;
     transform: translateX(-50%);
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.14rem;
+    gap: 0.1rem;
     color: var(--screen);
-    font-size: 0.79rem;
+    font-size: clamp(0.62rem, calc(var(--sz, var(--avatar-size)) * 0.16), 0.86rem);
     letter-spacing: var(--tracking-wide);
     text-transform: lowercase;
     text-align: center;

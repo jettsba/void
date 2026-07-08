@@ -750,6 +750,12 @@ function reflowLobbyPanel() {
         _panelSqueeze = next;
         panel.style.setProperty("--panel-squeeze", next.toFixed(1) + "px");
     }
+
+    /* Пере-раскладка короны участников под новую геометрию (resize / ui-scale /
+       смена режима / загрузка шрифтов — всё это дёргает scheduleLobbyPanelFit).
+       instant = без анимации переезда. Свой rAF-дебаунс → замерит уже после
+       записи --panel-squeeze выше. */
+    if (typeof scheduleParticipantsLayout === "function") scheduleParticipantsLayout(true);
 }
 
 /* rAF-дебаунс: reflow читает и пишет layout — на потоке resize-событий

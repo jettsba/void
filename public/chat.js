@@ -250,6 +250,14 @@ function setChatOpen(open) {
     document.body.classList.toggle("chat-open", chatOpen);
     syncChatToggleLabel();
 
+    /* Сцена сужается/расширяется под чат-панель (padding-right, ~t-med) →
+       корона участников переезжает в новую область. Второй вызов после
+       перехода — досадить финальную геометрию. */
+    if (typeof scheduleParticipantsLayout === "function") {
+        scheduleParticipantsLayout(false);
+        setTimeout(() => scheduleParticipantsLayout(false), 360);
+    }
+
     if (chatOpen) {
         clearUnreadBadge();
         setTimeout(() => chatInputEl.focus({ preventScroll: true }), 120);
@@ -970,11 +978,11 @@ function broadcastReaction(msgId, op, feel, from) {
 }
 
 /* Визуально: вместо «♥ N» рендерим N иконок подряд (cap = LIKE_MAX_HEARTS,
-   практически совпадает с MAX_ROOM_USERS=5). Иконки заезжают друг на друга
-   (margin-left отрицательный, см. .chat-msg-likes-heart в CSS), так что бейдж не
+   совпадает с MAX_ROOM_USERS=10). Иконки заезжают друг на друга (margin-left
+   отрицательный, см. .chat-msg-likes-heart в CSS), так что бейдж почти не
    растягивается. Цифру не показываем намеренно. Лайки и дизлайки — два отдельных
    бейджа в обёртке .chat-msg-reactions (лайки слева, дизлайки справа). */
-const LIKE_MAX_HEARTS = 5;
+const LIKE_MAX_HEARTS = 10;
 
 function renderReactionBadge(msgId) {
     const wrap = chatMessagesEl.querySelector(`[data-msg-id="${cssEscape(msgId)}"]`);
@@ -1036,7 +1044,7 @@ function renderReactionGroup(container, msgId, feel, count, isMine) {
     }
     badge.classList.toggle("is-mine", isMine);
 
-    /* Ребилдим стопку на каждом изменении: N ≤ 5, дешевле чем диффить. */
+    /* Ребилдим стопку на каждом изменении: N ≤ 10, дешевле чем диффить. */
     const shown = Math.min(count, LIKE_MAX_HEARTS);
     const prev = badge.childElementCount;
     badge.innerHTML = "";

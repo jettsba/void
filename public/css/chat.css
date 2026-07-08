@@ -402,7 +402,7 @@
 /* ===== Реакции (лайки / дизлайки) =====
    Два бейджа-стопки (♥ и серые разбитые ♥) в обёртке .chat-msg-reactions,
    выезжающей за нижний край бабла. Без цифры — количество читается визуально.
-   Cap = 5 (максимум юзеров в чате — совпадает с MAX_ROOM_USERS). */
+   Cap = 10 (максимум юзеров в чате — совпадает с MAX_ROOM_USERS). */
 .chat-msg-reactions {
     position: absolute;
     bottom: -0.71rem;
@@ -482,10 +482,15 @@
     margin-left: 0;
 }
 
-.chat-msg-likes-heart:nth-child(2) { z-index: 2; }
-.chat-msg-likes-heart:nth-child(3) { z-index: 3; }
-.chat-msg-likes-heart:nth-child(4) { z-index: 4; }
-.chat-msg-likes-heart:nth-child(5) { z-index: 5; }
+.chat-msg-likes-heart:nth-child(2)  { z-index: 2; }
+.chat-msg-likes-heart:nth-child(3)  { z-index: 3; }
+.chat-msg-likes-heart:nth-child(4)  { z-index: 4; }
+.chat-msg-likes-heart:nth-child(5)  { z-index: 5; }
+.chat-msg-likes-heart:nth-child(6)  { z-index: 6; }
+.chat-msg-likes-heart:nth-child(7)  { z-index: 7; }
+.chat-msg-likes-heart:nth-child(8)  { z-index: 8; }
+.chat-msg-likes-heart:nth-child(9)  { z-index: 9; }
+.chat-msg-likes-heart:nth-child(10) { z-index: 10; }
 
 .chat-msg-likes-heart svg {
     width: 100%;

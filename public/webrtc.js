@@ -28,6 +28,16 @@ let screenAudioChannel = null;
    например — re-join во время трансляции). Reset в stopScreenShare. */
 let screenTargetHeight = 1080;
 let screenTargetFps = 30;
+/* Суммарный бюджет аплоада демки (бит/с), делится между зрителями (mesh: один
+   video-track уходит N отдельными потоками, аплоад шарера иначе = N × потолок).
+   28M подобран как СТРОГО без регресса для нынешних размеров комнаты: при ≤4
+   зрителях (комната ≤5) 1080p30-потолок 7M не жмётся (28/4=7M) — байт-в-байт как
+   раньше; дальше плавный спад (6 зр → 4.7M, 9 зр → ~3.1M, крепкое 720p+). 60fps-
+   потолок (11.2M) на многих зрителях подрежется — осознанно, 45M аплоада на 4
+   зрителя всё равно нереалистичен. Основную relay-нагрузку coturn держит отдельный
+   3.0M-cap в applyRelayBitrateLimits; бюджет — прежде всего про direct-аплоад
+   шарера (иначе 9 зр × 7M = 63M). См. screenViewerCount / reapplyScreenVideoBudget. */
+const SCREEN_UPLOAD_BUDGET = 28_000_000;
 const videoMap = new Map();
 const screenSenders = new Map();
 
@@ -1004,11 +1014,9 @@ function createPeer(userId, isChatInitiator) {
         if (at) senders.push(peer.addTrack(at, screenStream));
         if (senders.length) screenSenders.set(userId, senders);
         applyScreenAudioParams(senders);
-        /* Без явного cap'а video-encoder Chrome держит ~2-2.5 Mbps на 1080p
-           даже при свободном канале — отсюда «мыло» на скролле/видео. Для
-           direct-peer'а ставим осмысленный потолок, чтобы encoder использовал
-           доступную полосу. Relay-режим имеет свой жёсткий cap (см. applyRelayBitrateLimits). */
-        if (!peer._isRelay) applyDirectScreenVideoParams(senders, screenTargetHeight, screenTargetFps);
+        /* Video-битрейт этому новому зрителю И пересчёт всем остальным —
+           единым пасом ниже, после peers.set (число зрителей выросло → всем
+           чуть меньше в рамках SCREEN_UPLOAD_BUDGET). */
         /* H.264 первым — аппаратный энкодер, стабильные 60fps без перегрузки CPU
            (VP9 — софт-энкод, отсюда были фризы). Ставится до первого
            setLocalDescription (onnegotiationneeded ниже), чтобы offer уже шёл
@@ -1017,6 +1025,12 @@ function createPeer(userId, isChatInitiator) {
     }
 
     peers.set(userId, peer);
+
+    /* Если идёт наша демка и подключился новый зритель — пересчитать video-бюджет
+       на всех пирах под возросшее число зрителей. peers.set обязан быть до этого:
+       reapply итерирует screenSenders и делает peers.get(userId). На стороне
+       зрителя (screenSenders пуст) — no-op. */
+    reapplyScreenVideoBudget();
 
     return peer;
 }
@@ -1580,6 +1594,11 @@ function cleanupPeerSlot(userId) {
        падает, но мусор). */
     screenSenders.delete(userId);
 
+    /* Зритель ушёл во время нашей демки — у оставшихся стало больше бюджета,
+       пересчитать video-битрейт под уменьшившееся число зрителей. Не шарим →
+       screenSenders пуст → no-op. */
+    reapplyScreenVideoBudget();
+
     if (userId !== clientId) {
         analyserMap.delete(userId);
     }
@@ -1879,13 +1898,12 @@ async function startScreenShare(height = 1080, fps = 30, captureAudio = false) {
         if (audioTrack) senders.push(peer.addTrack(audioTrack, screenStream));
         if (senders.length) screenSenders.set(userId, senders);
         applyScreenAudioParams(senders);
-        /* Если peer уже идёт через TURN-relay, новый video-sender тоже
-           должен быть с capped-битрейтом — иначе 1080p60 положит канал.
-           classifyConnection ставит флаг при переходе в connected. */
-        if (peer._isRelay) applyRelayBitrateLimits(peer);
-        else applyDirectScreenVideoParams(senders, height, fps);
         preferH264Video(peer);
     }
+    /* Video-битрейт — единым пасом ПОСЛЕ цикла, когда screenSenders полностью
+       заполнен: так каждый пир получает лимит под итоговое число зрителей
+       (иначе ранние пиры считались бы под неполный счёт). relay/direct — внутри. */
+    reapplyScreenVideoBudget();
     videoTrack.onended = () => {
         stopScreenShare();
         if (typeof broadcastScreencastState === 'function') broadcastScreencastState(false);
@@ -2034,6 +2052,29 @@ async function applyScreenAudioParams(senders) {
     }
 }
 
+/* Число зрителей активной демки = сколько пиров сейчас получают screen-video.
+   На это число делится SCREEN_UPLOAD_BUDGET в обоих video-сеттерах. max(1,…)
+   защищает от деления на ноль (демка без пиров — теоретически, no-op). */
+function screenViewerCount() {
+    return Math.max(1, screenSenders.size);
+}
+
+/* Пересчитать video-битрейт демки на ВСЕХ пирах под текущее число зрителей.
+   Зовётся при старте демки и при изменении состава во время трансляции:
+   новый зритель вошёл → всем чуть меньше; зритель ушёл → оставшимся больше.
+   Идёт единым пасом (а не по одному пиру в цикле addTrack), чтобы избежать
+   гонки setParameters, когда ранние пиры получили битрейт под неполный счёт.
+   На стороне зрителя (не шарит) screenSenders пуст → безопасный no-op. */
+function reapplyScreenVideoBudget() {
+    if (!screenStream?.active || screenSenders.size === 0) return;
+    for (const [userId, senders] of screenSenders) {
+        const peer = peers.get(userId);
+        if (!peer) continue;
+        if (peer._isRelay) applyRelayBitrateLimits(peer);
+        else applyDirectScreenVideoParams(senders, screenTargetHeight, screenTargetFps);
+    }
+}
+
 /**
  * Поднять потолок битрейта video-encoder'а для direct-screen sender'а и
  * жёстко закрепить maxFramerate. По дефолту libwebrtc держит ~2-2.5 Mbps
@@ -2078,7 +2119,12 @@ async function applyDirectScreenVideoParams(senders, height, fps) {
     const base = height >= 1080 ? 7_000_000
                 : height >= 720  ? 3_500_000
                 : 1_500_000;
-    const maxBitrate = fps >= 60 ? Math.round(base * 1.6) : base;
+    const ceiling = fps >= 60 ? Math.round(base * 1.6) : base;
+    /* Делим бюджет аплоада на число зрителей: при 1-4 потолок качества не
+       достигает лимита (min берёт ceiling → полное 1080p), при многих зрителях
+       — режем, чтобы суммарный аплоад шарера держался около SCREEN_UPLOAD_BUDGET. */
+    const viewers = screenViewerCount();
+    const maxBitrate = Math.min(ceiling, Math.round(SCREEN_UPLOAD_BUDGET / viewers));
 
     const apply = async (withDegradation) => {
         const params = videoSender.getParameters();
@@ -2093,11 +2139,11 @@ async function applyDirectScreenVideoParams(senders, height, fps) {
 
     try {
         await apply(true);
-        log.info("rtc", "direct screen video bitrate set", { height, fps, maxBitrate });
+        log.info("rtc", "direct screen video bitrate set", { height, fps, viewers, maxBitrate });
     } catch (err1) {
         try {
             await apply(false);
-            log.info("rtc", "direct screen video bitrate set (no degradation pref)", { height, fps, maxBitrate });
+            log.info("rtc", "direct screen video bitrate set (no degradation pref)", { height, fps, viewers, maxBitrate });
         } catch (err2) {
             log.warn("rtc", "direct screen video setParameters failed", { err: err2?.message || String(err2) });
         }
@@ -2448,6 +2494,11 @@ async function reportConnectivity(peer) {
  */
 async function applyRelayBitrateLimits(peer) {
     const senders = peer.getSenders ? peer.getSenders() : [];
+    /* Тот же бюджет-на-зрителя, что и для direct: relay-потолок 3.0 Mbps, но при
+       большом числе зрителей делённый бюджет опускает его ещё ниже (напр. 9
+       зрителей → ~1.7 Mbps), удерживая суммарную relay-нагрузку coturn. */
+    const viewers = screenViewerCount();
+    const videoCap = Math.min(3_000_000, Math.round(SCREEN_UPLOAD_BUDGET / viewers));
     for (const sender of senders) {
         if (!sender.track) continue;
         if (sender.track.kind !== "video") continue;
@@ -2455,7 +2506,7 @@ async function applyRelayBitrateLimits(peer) {
             const params = sender.getParameters();
             if (!params.encodings || !params.encodings.length) params.encodings = [{}];
             const enc = params.encodings[0];
-            enc.maxBitrate = 3_000_000;
+            enc.maxBitrate = videoCap;
             enc.scaleResolutionDownBy = 1; // старт с полного; balanced даунскейлит сам
             enc.maxFramerate = 30;
             if (withDegradation) params.degradationPreference = "balanced";
@@ -2463,11 +2514,11 @@ async function applyRelayBitrateLimits(peer) {
         };
         try {
             await apply(true);
-            log.info("rtc", "relay video bitrate capped", { userId: peer._userId });
+            log.info("rtc", "relay video bitrate capped", { userId: peer._userId, viewers, videoCap });
         } catch (err1) {
             try {
                 await apply(false);
-                log.info("rtc", "relay video bitrate capped (no degradation pref)", { userId: peer._userId });
+                log.info("rtc", "relay video bitrate capped (no degradation pref)", { userId: peer._userId, viewers, videoCap });
             } catch (err2) {
                 log.warn("rtc", "relay video bitrate cap failed", { err: err2?.message || String(err2) });
             }
