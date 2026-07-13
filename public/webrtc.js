@@ -812,6 +812,31 @@ function createPeer(userId, isChatInitiator) {
        rebuildPeer. Сбрасывается на возврате в stable. */
     peer._sigStuckAttempts = 0;
 
+    /* ── Диагностика провала (уходит в failure-лог админки при state=failed) ──
+       Собираем ПО ХОДУ, а не постфактум: к моменту failed часть контекста уже не
+       восстановить. `_turnAtCreate` — были ли TURN-креды в конфиге на момент
+       создания peer'а: creds грузятся асинхронно, первый peer сессии может
+       стартовать STUN-only, и это само по себе объяснение провала. */
+    peer._createdAt = Date.now();
+    peer._turnAtCreate = _iceServersCached.length > STATIC_STUN_SERVERS.length;
+    peer._iceErrors = [];
+
+    /* Ошибки STUN/TURN — главный диагностический сигнал. 401/403 от coturn =
+       протухшие/битые creds, 701 = сервер недостижим (порт/фаервол). Событие
+       шумное (на каждый сервер и каждый кандидат), поэтому дедупим по code+url
+       и держим не больше ICE_ERR_CAP уникальных. */
+    peer.onicecandidateerror = (event) => {
+        if (peer._iceErrors.length >= ICE_ERR_CAP) return;
+        const code = event.errorCode || 0;
+        const url = event.url || "";
+        const hit = peer._iceErrors.find(e => e.code === code && e.url === url);
+        if (hit) {
+            hit.count += 1;
+            return;
+        }
+        peer._iceErrors.push({ code, url, text: event.errorText || "", count: 1 });
+    };
+
     /* Хендлеры вешаем ДО addTrack: addTrack синхронно ставит negotiation-needed
        во флаг, который потом превратится в событие в следующем microtask.
        К этому моменту onnegotiationneeded уже должен быть на месте. */
@@ -1196,9 +1221,9 @@ function handlePeerConnectionStateChange(userId) {
 
     if (state === "failed" && !peer._iceReported) {
         // Терминальный провал, до connected так и не дошли — это и есть тот
-        // случай, где помог бы TURN-релей. Считаем отдельно.
+        // случай, где помог бы TURN-релей. Считаем отдельно + шлём диагностику.
         peer._iceReported = true;
-        sendSocket({ type: "ice-report", result: "failed" });
+        reportFailure(peer);
     }
 
     if (state === "disconnected") {
@@ -2451,6 +2476,56 @@ async function classifyConnection(peer) {
     } catch {
         return null;
     }
+}
+
+/** Кап уникальных ICE-ошибок на peer (см. onicecandidateerror в createPeer). */
+const ICE_ERR_CAP = 6;
+
+/**
+ * Peer ушёл в "failed" — шлём отчёт вместе с диагностическим слепком, чтобы в
+ * админке было видно не только «5% не собрались», но и ПОЧЕМУ: TURN не выдал
+ * relay-кандидатов / UDP заблокирован / creds отвергнуты / remote-кандидаты не
+ * доехали вовсе.
+ *
+ * Порядок важен. Синхронную часть снимаем ПЕРВОЙ: сразу после этого вызова
+ * recovery state machine может закрыть peer (rebuildPeer), и getStats отвалится.
+ * Поэтому stats-часть — best-effort в try/catch, а сам отчёт уходит в любом
+ * случае: счётчик iceFailed терять нельзя.
+ *
+ * Приватность: из статистики берём только ТИПЫ кандидатов и их количество.
+ * Никаких адресов/портов — ни своих, ни пира.
+ */
+async function reportFailure(peer) {
+    const diag = {
+        ms: Date.now() - (peer._createdAt || Date.now()),
+        turn: !!peer._turnAtCreate,
+        relayOnly: !!forceRelay,
+        ice: peer.iceConnectionState,
+        gather: peer.iceGatheringState,
+        sig: peer.signalingState,
+        errs: peer._iceErrors || [],
+        platform: (typeof IS_DESKTOP !== "undefined" && IS_DESKTOP) ? "desktop" : "web",
+        ua: navigator.userAgent.slice(0, 160),
+        net: navigator.connection?.effectiveType || "",
+        local: {},
+        remote: {},
+        pairs: {}
+    };
+
+    try {
+        const stats = await peer.getStats();
+        const bump = (obj, key) => { if (key) obj[key] = (obj[key] || 0) + 1; };
+        stats.forEach(r => {
+            if (r.type === "local-candidate") bump(diag.local, r.candidateType);
+            else if (r.type === "remote-candidate") bump(diag.remote, r.candidateType);
+            else if (r.type === "candidate-pair") bump(diag.pairs, r.state);
+        });
+    } catch (err) {
+        // Peer уже закрыт recovery-веткой — отправим то, что успели снять синхронно.
+        log.debug("rtc", "failure diag stats unavailable", { err: err?.message || String(err) });
+    }
+
+    sendSocket({ type: "ice-report", result: "failed", diag });
 }
 
 /**
