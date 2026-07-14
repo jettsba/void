@@ -3084,3 +3084,259 @@ section.contrib[hidden] { display: none; }
     transition-duration: 0.001s !important;
   }
 }
+
+/* ============================================================================
+   antivirus explainer (ВРЕМЕННЫЙ БЛОК)
+   Стоит на месте .plat-foot, пока сборки не подписаны сертификатом: smartscreen
+   и defender судят неподписанный exe по репутации, и модалка это объясняет.
+   После получения подписи — вернуть .plat-foot в разметке и снести эту секцию.
+   ============================================================================ */
+.av-foot {
+  margin-top: 20px;
+  text-align: center;
+}
+.av-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  background: none;
+  border: 0;
+  font-family: var(--font);
+  font-size: 11px;
+  line-height: 1.6;
+  letter-spacing: var(--tracking);
+  text-transform: lowercase;
+  color: var(--fg-3);
+  cursor: pointer;
+  transition: color var(--t-fast);
+}
+.av-trigger:hover,
+.av-trigger:focus-visible {
+  color: var(--fg-2);
+  outline: none;
+}
+.av-trigger-dot {
+  flex: none;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--signal-warn);
+  box-shadow: 0 0 8px rgba(184, 122, 90, 0.45);
+}
+.av-trigger > span:last-child {
+  padding-bottom: 2px;
+  border-bottom: 1px solid var(--fg-4);
+  transition: border-color var(--t-fast);
+}
+.av-trigger:hover > span:last-child,
+.av-trigger:focus-visible > span:last-child {
+  border-color: var(--fg-2);
+}
+
+/* modal ---------------------------------------------------------------------- */
+/* z-index выше виньетки (9999), иначе затемнение легло бы поверх панели */
+.av-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.av-modal[hidden] {
+  display: none;
+}
+body.av-lock {
+  overflow: hidden;
+}
+
+.av-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(6, 6, 8, 0.72);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  opacity: 0;
+  transition: opacity var(--t-med);
+}
+.av-panel {
+  position: relative;
+  width: min(680px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 28px 40px 28px;
+  background: var(--bg-1);
+  border: 1px solid var(--fg-4);
+  border-radius: var(--radius);
+  opacity: 0;
+  transform: translateY(8px);
+  transition:
+    opacity var(--t-med),
+    transform var(--t-med);
+  scrollbar-width: thin;
+  scrollbar-color: var(--fg-4) transparent;
+}
+.av-panel::-webkit-scrollbar {
+  width: 4px;
+  background: transparent;
+}
+.av-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+.av-panel::-webkit-scrollbar-thumb {
+  background: var(--fg-4);
+  border-radius: var(--radius);
+  transition: background var(--t-fast);
+}
+.av-panel:hover::-webkit-scrollbar-thumb {
+  background: var(--fg-3);
+}
+.av-modal.is-open .av-backdrop {
+  opacity: 1;
+}
+.av-modal.is-open .av-panel {
+  opacity: 1;
+  transform: none;
+}
+
+.av-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 0;
+  border-radius: var(--radius);
+  color: var(--fg-3);
+  cursor: pointer;
+  transition: color var(--t-fast);
+}
+.av-close svg {
+  width: 14px;
+  height: 14px;
+}
+.av-close:hover,
+.av-close:focus-visible {
+  color: var(--signal-warn);
+  outline: none;
+}
+
+.av-num {
+  margin-bottom: 14px;
+  color: var(--fg-3);
+  font-size: 10px;
+  letter-spacing: var(--tracking-wide);
+  text-transform: lowercase;
+}
+.av-head h2 {
+  color: var(--fg);
+  font-size: 26px;
+  font-weight: var(--w-reg);
+  line-height: 1.25;
+  text-transform: lowercase;
+}
+
+.av-body {
+  margin-top: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.av-body p {
+  color: var(--fg-2);
+  font-size: 13px;
+  line-height: 1.75;
+}
+.av-body b,
+.av-steps .what b {
+  color: var(--fg);
+  font-weight: var(--w-reg);
+}
+
+.av-trust {
+  margin-top: 22px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.av-trust .btn {
+  height: 42px;
+  padding: 0 18px;
+  font-size: 11px;
+}
+.av-trust-note {
+  margin-top: 12px;
+  color: var(--fg-3);
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.av-steps {
+  margin-top: 22px;
+  padding-top: 22px;
+  border-top: 1px solid var(--fg-4);
+}
+.av-steps-title {
+  margin-bottom: 18px;
+  color: var(--fg-3);
+  font-size: 10px;
+  letter-spacing: var(--tracking-wide);
+  text-transform: lowercase;
+}
+.av-steps ol {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.av-steps li {
+  display: grid;
+  grid-template-columns: 52px 1fr;
+  gap: 12px;
+  align-items: start;
+}
+.av-steps .key {
+  padding-top: 2px;
+  color: var(--fg-3);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+.av-steps .what {
+  color: var(--fg-2);
+  font-size: 13px;
+  line-height: 1.7;
+}
+.av-note {
+  margin-top: 20px;
+  color: var(--fg-3);
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+@media (max-width: 720px) {
+  .av-modal {
+    padding: 14px;
+  }
+  .av-panel {
+    padding: 34px 20px 28px;
+    max-height: calc(100vh - 28px);
+  }
+  .av-head h2 {
+    font-size: 21px;
+  }
+  .av-trust .btn {
+    width: 100%;
+    justify-content: center;
+  }
+  .av-steps li {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+}

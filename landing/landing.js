@@ -805,3 +805,66 @@ if (__voidEntrance) { try { window.scrollTo(0, 0); } catch (_) {} }
         init();
     }
 })();
+
+/* ----------------------------------------------------------------------------
+   Antivirus explainer (ВРЕМЕННЫЙ БЛОК — до подписи сборок сертификатом).
+   Модалка объясняет, почему smartscreen/defender ругаются на неподписанный exe.
+
+   Лендинг под модалкой не скроллится, содержимое панели — скроллится.
+   Страницу держим двумя замками: класс на body И lenis.stop() (Lenis крутит
+   страницу своим rAF-циклом поверх нативного скролла, overflow:hidden его не
+   останавливает). Панель при этом листается нативно благодаря
+   [data-lenis-prevent] на ней: Lenis не трогает wheel над этим элементом и не
+   делает preventDefault — без атрибута колесо над панелью умирало бы вообще.
+   ---------------------------------------------------------------------------- */
+(function initAntivirusModal() {
+    function init() {
+        const modal = document.querySelector('[data-av-modal]');
+        const trigger = document.querySelector('[data-av-open]');
+        if (!modal || !trigger) return;
+
+        const panel = modal.querySelector('.av-panel');
+        const closeBtn = modal.querySelector('.av-close');
+        let hideTimer = null;
+
+        const open = () => {
+            if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
+            modal.hidden = false;
+            document.body.classList.add('av-lock');
+            if (window.__lenis) window.__lenis.stop();
+            // форсим reflow: без него снятие [hidden] и добавление .is-open
+            // схлопнутся в один кадр и переход не проиграется
+            void modal.offsetHeight;
+            modal.classList.add('is-open');
+            if (panel) panel.scrollTop = 0;
+            if (closeBtn) closeBtn.focus();
+        };
+
+        const close = () => {
+            if (modal.hidden) return;
+            modal.classList.remove('is-open');
+            document.body.classList.remove('av-lock');
+            if (window.__lenis) window.__lenis.start();
+            // [hidden] возвращаем только после фейда, иначе панель пропадёт рывком
+            hideTimer = setTimeout(() => {
+                modal.hidden = true;
+                hideTimer = null;
+            }, 400);
+            trigger.focus();
+        };
+
+        trigger.addEventListener('click', open);
+        modal.querySelectorAll('[data-av-close]').forEach((el) => {
+            el.addEventListener('click', close);
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') close();
+        });
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+})();
