@@ -75,6 +75,7 @@ const USERNAME_NOUNS = [
    Сравнение case-insensitive по trim+toLowerCase, поэтому здесь храним
    в нижнем регистре. */
 const PREMIUM_NICKNAMES = new Set([
+    "void",
     "casheaterr",
     "nakharaktere",
     "fergjo",

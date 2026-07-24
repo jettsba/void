@@ -319,6 +319,50 @@ jobs:
             "src-tauri/target/release/void_portable.exe" \
             "latest.json"
 
+      # В репо держим РОВНО ОДИН релиз — текущий. История релизов никому не нужна:
+      # апдейтер ходит на releases/latest/download/latest.json (алиас последнего)
+      # и на зеркало /dl, кнопки лендинга — тоже на /dl. А растущий список из
+      # десятков версий только засоряет страницу репо.
+      #
+      # Теги чистим ТОЛЬКО по маске desktop-v* — чтобы случайный посторонний тег
+      # (например, будущий релиз web-части) этот шаг не снёс.
+      #
+      # Ошибку удаления не считаем фатальной: релиз уже создан и залит на зеркало,
+      # ронять из-за уборки зелёную сборку незачем — просто пишем warning.
+      - name: Prune old releases and desktop tags (keep current)
+        if: steps.check.outputs.exists == 'false'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          KEEP: ${{ steps.ver.outputs.tag }}
+        run: |
+          set -uo pipefail
+
+          echo "keeping: $KEEP"
+
+          # Релизы (включая draft'ы — они остаются, если у релиза удалили тег).
+          gh api "repos/$RELEASES_REPO/releases" --paginate \
+            --jq ".[] | select(.tag_name != \"$KEEP\") | \"\(.id) \(.tag_name)\"" |
+          while read -r id tag; do
+            [ -n "${id:-}" ] || continue
+            echo "deleting release $tag (id=$id)"
+            gh api -X DELETE "repos/$RELEASES_REPO/releases/$id" \
+              || echo "::warning::failed to delete release $tag"
+          done
+
+          # Теги desktop-v* — всё, кроме текущего.
+          gh api "repos/$RELEASES_REPO/git/refs/tags" --paginate --jq '.[].ref' 2>/dev/null |
+            sed 's|refs/tags/||' |
+          while read -r tag; do
+            case "$tag" in desktop-v*) ;; *) continue ;; esac
+            [ "$tag" != "$KEEP" ] || continue
+            echo "deleting tag $tag"
+            gh api -X DELETE "repos/$RELEASES_REPO/git/refs/tags/$tag" \
+              || echo "::warning::failed to delete tag $tag"
+          done
+
+          echo "prune done"
+
       # Зеркало раздачи: дублируем артефакты на свой домен (void-room.space/dl),
       # т.к. GitHub в РФ нестабилен. Перезаписью → на сервере всегда одна,
       # последняя версия. Манифест для зеркала генерим заново с url, указывающим

@@ -618,7 +618,7 @@ if (__voidEntrance) { try { window.scrollTo(0, 0); } catch (_) {} }
                     return [...block[1].matchAll(/["']([^"']+)["']/g)]
                         .map(m => m[1].trim().toLowerCase())
                         .filter(Boolean)
-                        .filter(n => n !== 'casheaterr');
+                        .filter(n => !['casheaterr', 'void'].includes(n));
                 }
             }
         } catch (_) { /* both paths failed */ }

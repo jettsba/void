@@ -798,11 +798,10 @@
         <a class="footer-lang" href="/" hreflang="ru" lang="ru">switch to russian</a>
     </footer>
 
-    <!-- ANTIVIRUS EXPLAINER — opened from .av-trigger in the platforms section -->
+    <!-- ANTIVIRUS EXPLAINER -->
     <div class="av-modal" data-av-modal role="dialog" aria-modal="true" aria-labelledby="av-title" hidden>
         <div class="av-backdrop" data-av-close></div>
 
-        <!-- data-lenis-prevent: wheel goes to the panel's native scroll, otherwise Lenis eats it -->
         <div class="av-panel" data-lenis-prevent>
             <button type="button" class="av-close" data-av-close aria-label="close">
                 <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8"/><path d="M12 4l-8 8"/></svg>
@@ -810,13 +809,13 @@
 
             <div class="av-head">
                 <div class="av-num">— windows smartscreen · defender</div>
-                <h2 id="av-title">the antivirus shouts. there is no virus.</h2>
+                <h2 id="av-title">antivirus blocking the install?</h2>
             </div>
 
             <div class="av-body">
-                <p>void shipped its first release only recently, and the installer isn't signed with a developer certificate yet — obtaining one takes time. without that signature windows judges a file not by what's inside it, but by its <b>reputation</b>: how many people have already downloaded and run it.</p>
-                <p>a fresh build simply has no reputation. that's why almost every new exe gets a «virus detected» — even a perfectly clean one. it's a warning about the unknown, not about a finding: defender didn't discover malicious code, it just sees the file for the first time.</p>
-                <p>don't take our word for it. check it yourself:</p>
+                <p>void was released only recently, so the installer isn't code-signed yet — getting a developer certificate takes time. until then, Windows relies on the file's <b>reputation</b> rather than its contents: how many people have already downloaded and run it.</p>
+                <p>a fresh build simply has no reputation. that's why almost every new exe gets a «virus detected» — even a perfectly clean one.</p>
+                <p>you can verify it yourself:</p>
             </div>
 
             <div class="av-trust">
@@ -825,14 +824,12 @@
                     <svg class="btn-arrow" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h10"/><path d="M9 4l4 4-4 4"/></svg>
                 </a>
                 <a class="btn" href="https://github.com/jettsba/void" target="_blank" rel="noopener noreferrer">
-                    <span>source code</span>
+                    <span>view on GitHub</span>
                     <svg class="btn-arrow" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h10"/><path d="M9 4l4 4-4 4"/></svg>
                 </a>
             </div>
-            <p class="av-trust-note">this is exactly the file the download button hands you — the report is public, see for yourself. void's source is fully open: the build comes from it, and you can read it line by line.</p>
-
             <div class="av-steps">
-                <div class="av-steps-title">how to install anyway</div>
+                <div class="av-steps-title">how to install</div>
                 <ol>
                     <li>
                         <span class="key">— 01</span>
@@ -840,14 +837,13 @@
                     </li>
                     <li>
                         <span class="key">— 02</span>
-                        <span class="what">the «windows protected your pc» window on launch → click the discreet <b>«more info»</b>, then <b>«run anyway»</b>.</span>
+                        <span class="what">the «windows protected your pc» window on launch → click <b>«more info»</b>, then <b>«run anyway»</b>.</span>
                     </li>
                     <li>
                         <span class="key">— 03</span>
                         <span class="what">defender already deleted the file → «windows security» → «virus & threat protection» → «protection history» → find void and hit <b>«allow on device»</b>.</span>
                     </li>
                 </ol>
-                <p class="av-note">no need to switch your antivirus off — allowing this one file is enough. once the build earns reputation and gets signed, these prompts disappear on their own.</p>
             </div>
         </div>
     </div>

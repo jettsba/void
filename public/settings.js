@@ -1085,13 +1085,8 @@
         devCheckEl = panelEl.querySelector(".settings-devmode-check");
         devCatBtnEl = panelEl.querySelector("#settingsCatDev");
         devCatBtnEl?.addEventListener("click", () => openCatModal(devModalEl, onDevModalOpen));
-        /* Негласная активация: 10 кликов по пилюле версии (при нике casheaterr).
-           На пилюле НЕ ставим cursor:pointer — жест намеренно незаметный. */
         panelEl.querySelector(".settings-footer-pill")
             ?.addEventListener("click", () => window.VoidDev?.registerPillClick());
-        /* Ссылка авторства (Telegram): на десктопе голый <a target=_blank> не
-           открывает системный браузер — идём через общий хелпер (js/config.js:
-           desktop→opener-плагин, web→новый таб). */
         panelEl.querySelector(".settings-footer-author")
             ?.addEventListener("click", (e) => {
                 e.preventDefault();
@@ -1100,7 +1095,6 @@
                 else window.open(url, "_blank", "noopener,noreferrer");
             });
         document.addEventListener("void:devmode-changed", revealDevUi);
-        /* Если dev-режим включили до построения панели — показать сразу. */
         if (window.VoidDev?.isEnabled()) revealDevUi();
 
         buildSupportModal();
@@ -1118,12 +1112,7 @@
         });
     }
 
-    /* ===== category modals (profile / audio / interface) =====
-       Главная панель теперь — список категорий; контролы каждой вынесены в
-       отдельное окно, открывающееся поверх панели (как hotkeys/app в
-       app-settings.js). DOM контролов идентичен прежнему — те же id и классы,
-       поэтому createDropdown / bindAudioControls / nick-form / i18n работают
-       без изменений. */
+    /* ===== category modals (profile / audio / interface) ===== */
 
     let profileModalEl = null, audioModalEl = null, interfaceModalEl = null;
     let currentCatModal = null, lastCatTrigger = null;
@@ -1444,8 +1433,6 @@
             uidCopyBtn._copyT = setTimeout(() => uidCopyBtn.classList.remove("is-copied"), 1200);
         });
 
-        /* i18n уже применён глобально на init, но модалки построены здесь —
-           прогоним applyI18n по ним, чтобы плейсхолдеры/aria проставились. */
         applyI18n(profileModalEl);
         applyI18n(audioModalEl);
         applyI18n(interfaceModalEl);
@@ -1488,7 +1475,6 @@
         applyStreamerToggleUI();
         applyBgThemeSegUI();
         applyUiScaleSliderUI();
-        /* Превью масштаба показывает текущего пользователя. */
         const name = state.nickname || window.currentUsername || "void";
         const avatarEl = document.getElementById("scalePreviewAvatar");
         const nameEl = document.getElementById("scalePreviewName");
@@ -1525,8 +1511,7 @@
 
     /* Постоянный UID устройства. clientId генерируется заново каждую сессию,
        поэтому для «личного айди» в профиле храним стабильный seed в localStorage —
-       так ID не меняется между запусками. Это не серверный аккаунт (приложение
-       анонимное, p2p), а локальный идентификатор. */
+       так ID не меняется между запусками */
     const UID_KEY = "void:uid";
     function getStableUid() {
         try {
@@ -1548,18 +1533,12 @@
         if (uidEl) uidEl.textContent = getStableUid();
     }
 
-    /* Обновить имя (+ инициалы аватара) в карточке профиля. animate=true —
-       анимированная «замена» ника: старый гаснет/уезжает вверх, новый
-       появляется снизу (CSS-transition на .is-swapping, НЕ animation — чтобы не
-       конфликтовать с premium-shimmer, который занимает свойство animation). */
     function updateProfileName(name, animate) {
         const nameEl = document.getElementById("profileName");
         const avatarEl = document.getElementById("profileAvatar");
         if (!nameEl) return;
         const apply = () => {
             nameEl.textContent = name || "—";
-            /* Золотое сияние ника контрибьютора — та же пасхалка, что в комнате
-               (см. config.js isPremiumNickname + stage.css .premium). */
             const premium = typeof isPremiumNickname === "function" && isPremiumNickname(name);
             nameEl.classList.toggle("premium", !!premium);
             if (avatarEl) avatarEl.textContent = profileInitials(name);
@@ -1608,7 +1587,6 @@
     }
 
     /* ===== support modal ===== */
-
     function buildSupportModal() {
         if (document.getElementById("supportModal")) return;
 
