@@ -64,13 +64,57 @@ let clientId = null;
 let forceRelay = false;
 
 /**
- * Один раз на загрузку вкладки шлём серверу "hello" — это считается как
- * "регистрация" (лимит-метрика "users" в админ-статистике). Reconnect/повторные
- * входы в комнату не считаются. Сокет в лобби держим открытым, чтобы сервер
- * видел, сколько людей сейчас вообще на сайте — даже если они ещё не зашли
- * ни в одну комнату.
+ * Один раз на загрузку вкладки шлём серверу "hello" — это открытие приложения
+ * (метрика "opens" в админ-статистике). Reconnect/повторные входы в комнату не
+ * считаются. Сокет в лобби держим открытым, чтобы сервер видел, сколько людей
+ * сейчас вообще на сайте — даже если они ещё не зашли ни в одну комнату.
  */
 let _helloSent = false;
+
+/* Учёт визитов. Отдельный ключ, а не поле в `void:settings`: настройки
+   перезаписываются целиком в saveState(), и служебное поле там рано или поздно
+   затёрлось бы. Формат: { first: "YYYY-MM-DD", last: "YYYY-MM-DD" }, даты в UTC —
+   так же, как сервер нарезает дневные бакеты (dayKey в lib/stats.js). */
+const VISIT_STORAGE_KEY = "void:visit";
+const VISIT_DAY_RX = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Отметить визит и вернуть два флага для `hello`.
+ *
+ * ГЛАВНОЕ: на сервер не уходит НИКАКОГО идентификатора — только два булевых
+ * значения. Браузер сам помнит, здоровался ли он сегодня, поэтому дедупликация
+ * происходит здесь, а сервер просто увеличивает счётчики. «Уникальные за день»
+ * считаются точно, но сопоставить два визита одного человека сервер не может
+ * даже теоретически. Считать по IP или слать стабильный id было бы проще, но
+ * это ровно то, чего void не делает.
+ *
+ *   fresh — сегодня ещё не здоровались (без этого F5 накручивал бы счётчик);
+ *   ret   — первый визит был раньше сегодняшнего дня, то есть человек вернулся.
+ */
+function markVisit() {
+    const today = new Date().toISOString().slice(0, 10);
+
+    let rec = null;
+    try {
+        rec = JSON.parse(localStorage.getItem(VISIT_STORAGE_KEY) || "null");
+    } catch (_) {
+        // Битая запись — трактуем как первый визит.
+    }
+
+    const valid = rec && typeof rec === "object";
+    const first = valid && VISIT_DAY_RX.test(rec.first) ? rec.first : today;
+    const last = valid && VISIT_DAY_RX.test(rec.last) ? rec.last : "";
+
+    try {
+        localStorage.setItem(VISIT_STORAGE_KEY, JSON.stringify({ first, last: today }));
+    } catch (_) {
+        /* Приватный режим или запрет хранилища: визит каждый раз будет считаться
+           новым. Метрику это немного завышает, но ронять вход из-за счётчика
+           нельзя. */
+    }
+
+    return { fresh: last !== today, ret: first < today };
+}
 
 async function enterLobby() {
     if (typeof connectSocket !== "function") return;
@@ -87,10 +131,11 @@ async function enterLobby() {
         setConnectionState("ready");
     }
     if (!_helloSent) {
-        /* B17: `hello` — это просто «вкладка открылась» сигнал для метрики
-           usersRegistered. Сервер (handleHello) не читает ни одного поля
-           payload'а, поэтому userId/nickname слать незачем. */
-        sendSocket({ type: "hello" });
+        /* B17: `hello` — это сигнал «вкладка открылась». Из payload'а сервер
+           читает ТОЛЬКО два булевых флага визита (см. markVisit) — ни userId,
+           ни ника, ни какого-либо идентификатора здесь нет и быть не должно. */
+        const visit = markVisit();
+        sendSocket({ type: "hello", fresh: visit.fresh, ret: visit.ret });
         _helloSent = true;
     }
 }

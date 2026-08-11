@@ -11,8 +11,8 @@ import { WebSocketServer } from "ws";
 import http from "http";
 
 import { log } from "./lib/log.js";
-import { rooms, stats, ipConnections } from "./lib/state.js";
-import { flushStats } from "./lib/stats.js";
+import { rooms, ipConnections } from "./lib/state.js";
+import { flushStats, flushOpenCalls, captureSessionDuration } from "./lib/stats.js";
 import {
     MAX_PAYLOAD_BYTES,
     MAX_CONNECTIONS_PER_IP,
@@ -411,7 +411,7 @@ wss.on("connection", (ws, req) => {
             switch (data.type) {
 
                 case "hello":
-                    handleHello(ws);
+                    handleHello(ws, data);
                     break;
 
                 case "create-room":
@@ -482,16 +482,17 @@ wss.on("connection", (ws, req) => {
 
 function shutdownGracefully(signal) {
     log.info("boot", "shutdown signal, flushing stats", { signal });
-    // На активные сессии — добавляем накопленное время, чтобы не потерять.
-    const now = Date.now();
+    /* На активные сессии — добавляем накопленное время, чтобы не потерять.
+       Через captureSessionDuration, а не вручную: раньше здесь инкрементился
+       только lifetime-счётчик, и дневной срез терял время всех, кто был в
+       комнате на момент деплоя. */
     for (const room of rooms.values()) {
         for (const user of room.users.values()) {
-            if (user.ws._joinedAt) {
-                stats.participantSeconds += (now - user.ws._joinedAt) / 1000;
-                user.ws._joinedAt = null;
-            }
+            captureSessionDuration(user.ws);
         }
     }
+    // Незакрытые интервалы разговоров (≥2 человек в комнате) — по той же причине.
+    flushOpenCalls();
     flushStats();
     process.exit(0);
 }

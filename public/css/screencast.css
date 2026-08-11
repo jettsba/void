@@ -2,6 +2,11 @@
 
 .participant.screensharing .participant-avatar {
     box-shadow: 0 0 0 0.7px var(--screen), 0 0 14px rgba(95, 170, 122, 0.14);
+    /* Пульс речи (screen-speak-pulse ниже) — это animation, а анимации не
+       «доигрывают» при снятии класса: в момент, когда человек замолчал, тень
+       скакала с середины кейфрейма на базовую. Transition сглаживает именно
+       этот переход — пока анимация идёт, она всё равно главнее. */
+    transition: box-shadow var(--t-med);
 }
 
 /* Иконка «делится экраном» — зелёный монитор со стрелкой в центре аватара,
@@ -22,6 +27,19 @@
 .participant.screensharing:not(.muted):not(.deaf) .participant-avatar::before {
     opacity: 0;
     transform: translate(-50%, -50%) scale(0);
+}
+
+/* И белое кольцо ::after тоже молчит, пока идёт демонстрация.
+   Иначе оно продолжало реагировать на речь параллельно зелёному пульсу: стоило
+   замолчать — кольцо съезжало scale(1)→scale(0.7) ВНУТРЬ зелёного, и блоб
+   выглядел так, будто схлопнулся и пересобрался. Это ровно тот «второй
+   сигнальный цвет», от которого уходит пульс ниже: во время демки состояние
+   речи показывает только зелёное кольцо.
+   Специфичность (0,4,2) совпадает с правилом .speaking в stage.css — берёт
+   верх порядком подключения (screencast.css грузится позже), как и у ::before. */
+.participant.screensharing:not(.muted):not(.deaf) .participant-avatar::after {
+    border-color: rgba(230, 230, 232, 0);
+    transform: scale(0.7);
 }
 
 /* Скринкастер говорит: точка-индикатор спрятана, поэтому речь показываем
@@ -348,8 +366,9 @@
        В нативном fullscreen титлбар скрыт → top сбрасывается в 0 ниже. */
     top: var(--titlebar-h);
     z-index: 90;
-    /* Размер кнопок оверлея (item: кнопки чуть уменьшены с 2.57rem). */
-    --sc-btn: 2.2rem;
+    /* Размер кнопок оверлея — из общего токена, чтобы крестик демки и крестик
+       лайтбокса не разъезжались (см. .overlay-close в base.css). */
+    --sc-btn: var(--overlay-btn);
     background: rgba(0, 0, 0, 0.92);
     display: flex;
     align-items: center;
@@ -393,7 +412,9 @@ html.desktop.screen-native-fs .void-titlebar {
    ВАЖНО: --t-med/--t-fast — компаунд «время + easing» (base.css), поэтому
    НЕ дописывать после них timing-функцию (иначе вся transition-декларация
    становится невалидной и браузер её отбрасывает — контролы «дёргались»). */
-.screen-overlay-close,
+/* Крестик сюда НЕ входит: его вид целиком описан общим .overlay-close в
+   base.css — тем же, что у лайтбокса. Дублировать здесь фон/рамку/размер нельзя,
+   иначе локальные значения тихо перебьют общие, и кнопки снова разъедутся. */
 .screen-overlay-fullscreen,
 .screen-overlay-volume {
     position: absolute;
@@ -413,7 +434,6 @@ html.desktop.screen-native-fs .void-titlebar {
         height var(--t-med);
 }
 
-.screen-overlay-close,
 .screen-overlay-fullscreen {
     width: var(--sc-btn);
     height: var(--sc-btn);
@@ -423,7 +443,6 @@ html.desktop.screen-native-fs .void-titlebar {
     justify-content: center;
 }
 
-.screen-overlay-close:hover,
 .screen-overlay-fullscreen:hover,
 .screen-overlay-volume:hover {
     color: var(--fg);
@@ -433,9 +452,17 @@ html.desktop.screen-native-fs .void-titlebar {
 
 .screen-overlay-close {
     /* top совпадает с bottom у fullscreen — крестик и fullscreen симметричны.
-       Глиф ✕ визуально мельче SVG-иконок → берём крупнее размер. */
+       Титлбар компенсировать НЕ нужно: сам .screen-overlay уже начинается с
+       top: var(--titlebar-h), и добавка сверху уводила крестик вниз на вторую
+       высоту титлбара (отступ сверху переставал совпадать с отступом справа). */
     top: 1.43rem;
-    font-size: 1.2rem;
+    right: 1.43rem;
+    /* opacity — для авто-скрытия контролов по бездействию (ниже по файлу). */
+    transition:
+        color var(--t-fast),
+        border-color var(--t-fast),
+        background var(--t-fast),
+        opacity var(--t-med);
 }
 
 .screen-overlay-fullscreen {

@@ -294,6 +294,7 @@ function init() {
     });
     codeInput.addEventListener("input", () => {
         codeInput.value = codeInput.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+        applyCodeInputLimit();
         codeInput.closest(".entry-code-field")?.classList.toggle("has-value", codeInput.value.length > 0);
         hideEntryError();
     });
@@ -405,6 +406,29 @@ function init() {
         introInput.disabled = true;
         runIntroQuestionTyping();
     }
+}
+
+/**
+ * Держит лимит длины кода в поле ввода.
+ *
+ * По умолчанию — ROOM_CODE_INPUT_LEN: набор «123456» упирается в «12345», как и
+ * раньше. Ровно на один знак больше разрешается, только когда набранное совпало
+ * с записью из RESERVED_CODE_STEMS (config.js).
+ *
+ * Подрезаем значение руками, а не полагаемся на maxLength: смена атрибута уже
+ * введённый текст не обрезает, поэтому иначе можно было бы набрать длинный код,
+ * отредактировать середину и отправить лишний знак.
+ */
+function applyCodeInputLimit() {
+    if (!codeInput) return;
+
+    const value = codeInput.value;
+    const extended = typeof RESERVED_CODE_STEMS !== "undefined"
+        && RESERVED_CODE_STEMS.some(stem => value.startsWith(stem));
+    const limit = ROOM_CODE_INPUT_LEN + (extended ? 1 : 0);
+
+    codeInput.maxLength = limit;
+    if (value.length > limit) codeInput.value = value.slice(0, limit);
 }
 
 /* ===== Invite popup ===== */

@@ -27,6 +27,11 @@ mod proc_tree;
 mod screen_audio;
 #[cfg(windows)]
 mod screen_indicator;
+/* Хоткеи на кнопки мыши. Отдельно от tauri-plugin-global-shortcut, потому что
+   тот разбирает акселератор в keyboard-types::Code, где мышиных вариантов нет
+   вовсе — зарегистрировать мышь через плагин нельзя в принципе. */
+#[cfg(windows)]
+mod mouse_hook;
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicIsize, Ordering};
@@ -1355,10 +1360,27 @@ fn register_hotkeys(app: &AppHandle, bindings: &HashMap<String, String>) {
     let _ = gs.unregister_all();
 
     let mut map: HashMap<Shortcut, String> = HashMap::new();
+    #[cfg(windows)]
+    let mut mouse_binds: Vec<mouse_hook::Binding> = Vec::new();
+
     for (action, accel) in bindings {
         if accel.is_empty() {
             continue;
         }
+
+        /* Мышиные бинды ведём мимо плагина: он разбирает акселератор в
+           keyboard-types::Code, где мышиных вариантов нет вовсе, и такой бинд
+           молча отвалился бы на parse. Подробности — в mouse_hook.rs. */
+        #[cfg(windows)]
+        {
+            if mouse_hook::is_mouse_accel(accel) {
+                if let Some(bind) = mouse_hook::parse_binding(accel, action) {
+                    mouse_binds.push(bind);
+                }
+                continue;
+            }
+        }
+
         let Ok(shortcut) = accel.parse::<Shortcut>() else {
             continue;
         };
@@ -1370,6 +1392,30 @@ fn register_hotkeys(app: &AppHandle, bindings: &HashMap<String, String>) {
         if let Ok(mut guard) = state.0.lock() {
             *guard = map;
         }
+    }
+
+    /* Пустой список — это тоже валидное состояние (общий выключатель хоткеев):
+       хук останется висеть, но перестанет находить совпадения. */
+    #[cfg(windows)]
+    {
+        let app_for_hook = app.clone();
+        mouse_hook::apply(mouse_binds, move |action| {
+            run_hotkey_action(&app_for_hook, action);
+        });
+    }
+}
+
+/// Единый маршрут для сработавшего хоткея — общий для клавиатуры и мыши.
+///   - toggleWindow обрабатываем в Rust (без round-trip в JS);
+///   - остальное уходит в webview, где висят реальные обработчики действий.
+fn run_hotkey_action(app: &AppHandle, action: &str) {
+    if action == "toggleWindow" {
+        let app_clone = app.clone();
+        let _ = app.run_on_main_thread(move || {
+            toggle_main_window(&app_clone);
+        });
+    } else {
+        let _ = app.emit("void:hotkey-pressed", serde_json::json!({ "action": action }));
     }
 }
 
@@ -1389,12 +1435,5 @@ fn on_global_shortcut(app: &AppHandle, shortcut: &Shortcut, event: tauri_plugin_
         return;
     };
 
-    if action == "toggleWindow" {
-        let app_clone = app.clone();
-        let _ = app.run_on_main_thread(move || {
-            toggle_main_window(&app_clone);
-        });
-    } else {
-        let _ = app.emit("void:hotkey-pressed", serde_json::json!({ "action": action }));
-    }
+    run_hotkey_action(app, &action);
 }

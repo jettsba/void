@@ -202,6 +202,10 @@
                     ${rowsHTML}
                 </div>
             </div>
+            <div class="app-modal-footer-hint" data-desktop-hotkeys-hint>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>
+                <span>${escape(T("hotkeys.mousehint"))}</span>
+            </div>
             <div class="app-modal-footer-hint" data-web-hotkeys-hint>
                 <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>
                 <span>${escape(T("hotkeys.webhint"))}</span>
@@ -269,7 +273,20 @@
     }
 
     /* Ctrl/Shift/Alt/Super + буква → строчные подписи на keycaps. */
+    /* Мышиные подписи — через словарь: «mouse4» на кнопке ни о чём не говорит,
+       а держать их строками прямо здесь нельзя (единый источник строк — DICTIONARY
+       в settings.js, см. rules/lessons.md). Модификаторы остаются как есть:
+       ctrl/shift/alt/super пишутся одинаково на обоих языках. */
+    const MOUSE_CAP_KEYS = {
+        Mouse3: "hotkeys.cap.mouse3",
+        Mouse4: "hotkeys.cap.mouse4",
+        Mouse5: "hotkeys.cap.mouse5",
+        WheelUp: "hotkeys.cap.wheelUp",
+        WheelDown: "hotkeys.cap.wheelDown"
+    };
+
     function capLabel(part) {
+        if (MOUSE_CAP_KEYS[part]) return T(MOUSE_CAP_KEYS[part]);
         const m = { Ctrl: "ctrl", Shift: "shift", Alt: "alt", Super: "super" };
         return m[part] || String(part).toLowerCase();
     }
@@ -312,7 +329,16 @@
         const originalAccel = btn.dataset.accel || "";
         btn.innerHTML = `<span class="binding-prompt">…</span>`;
         highlightKeyboard(card, originalAccel);
-        activeCapture = { btn, originalAccel, card, handler: null };
+        activeCapture = { btn, originalAccel, card, handlers: [] };
+
+        /* Один путь сохранения для клавиатуры и для мыши. */
+        const commit = (accel) => {
+            saveBinding(btn.dataset.action, accel);
+            renderBinding(btn, accel);
+            highlightKeyboard(card, accel);
+            stopCapture(activeCapture, false);
+            activeCapture = null;
+        };
 
         const handler = (e) => {
             // Esc → отмена.
@@ -327,11 +353,7 @@
             if (e.key === "Backspace" || e.key === "Delete") {
                 e.preventDefault();
                 e.stopPropagation();
-                saveBinding(btn.dataset.action, "");
-                renderBinding(btn, "");
-                highlightKeyboard(card, "");
-                stopCapture(activeCapture, false);
-                activeCapture = null;
+                commit("");
                 return;
             }
             // Только modifier — игнорируем, ждём «настоящую» клавишу.
@@ -343,25 +365,90 @@
             if (!accel) return;
             e.preventDefault();
             e.stopPropagation();
-            saveBinding(btn.dataset.action, accel);
-            renderBinding(btn, accel);
-            highlightKeyboard(card, accel);
-            stopCapture(activeCapture, false);
-            activeCapture = null;
+            commit(accel);
         };
 
-        activeCapture.handler = handler;
-        document.addEventListener("keydown", handler, true);
+        /* Кнопки мыши. Ловим mousedown, а не click: click в вебвью приходит
+           только для основной кнопки, боковых по нему не видно вовсе.
+           Слушатель можно вешать сразу — капчур запускается по `click` на поле,
+           то есть mousedown этого самого клика уже отыграл и сюда не попадёт. */
+        const mouseHandler = (e) => {
+            const token = mouseButtonToken(e.button);
+            if (!token) return;   // левая/правая — не биндим (см. mouseButtonToken)
+            e.preventDefault();
+            e.stopPropagation();
+            commit(withModifiers(e, token));
+        };
+
+        /* Колесо. Требуем модификатор: голое WheelUp срабатывало бы на каждой
+           обычной прокрутке и сделало бы действие неуправляемым. Без
+           модификатора просто ждём дальше, не закрывая капчур. */
+        const wheelHandler = (e) => {
+            if (!e.deltaY) return;
+            e.preventDefault();
+            e.stopPropagation();
+            if (!(e.ctrlKey || e.shiftKey || e.altKey || e.metaKey)) return;
+            commit(withModifiers(e, e.deltaY < 0 ? "WheelUp" : "WheelDown"));
+        };
+
+        /* Боковые кнопки в вебвью водят историю назад/вперёд, а правая открывает
+           контекстное меню — на время захвата глушим и то, и другое. */
+        const swallow = (e) => {
+            if (e.type === "contextmenu" || mouseButtonToken(e.button)) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        };
+
+        activeCapture.handlers = [
+            ["keydown", handler, true],
+            ["mousedown", mouseHandler, true],
+            ["wheel", wheelHandler, { capture: true, passive: false }],
+            ["mouseup", swallow, true],
+            ["auxclick", swallow, true],
+            ["contextmenu", swallow, true]
+        ];
+        for (const [type, fn, opts] of activeCapture.handlers) {
+            document.addEventListener(type, fn, opts);
+        }
     }
 
     function stopCapture(state, restore) {
         if (!state) return;
-        document.removeEventListener("keydown", state.handler, true);
+        for (const [type, fn, opts] of state.handlers || []) {
+            document.removeEventListener(type, fn, opts);
+        }
         state.btn.classList.remove("is-capturing");
         if (restore) {
             renderBinding(state.btn, state.originalAccel);
             highlightKeyboard(state.card, "");
         }
+    }
+
+    /**
+     * `MouseEvent.button` → токен акселератора.
+     *
+     * Левая (0) и правая (2) не биндятся НАМЕРЕННО: мьют на левый клик делает
+     * машину неюзабельной, а правая нужна контекстному меню. Нумерация токенов
+     * взята из игр и Discord (mouse4/mouse5 — боковые), чтобы пользователь узнал
+     * свою кнопку без догадок.
+     */
+    function mouseButtonToken(button) {
+        if (button === 1) return "Mouse3";  // средняя (клик колесом)
+        if (button === 3) return "Mouse4";  // боковая «назад»
+        if (button === 4) return "Mouse5";  // боковая «вперёд»
+        return null;
+    }
+
+    /** Дописать модификаторы в том же порядке, что и buildAccelerator. */
+    function withModifiers(e, token) {
+        const parts = [];
+        if (e.ctrlKey) parts.push("Ctrl");
+        if (e.shiftKey) parts.push("Shift");
+        if (e.altKey) parts.push("Alt");
+        if (e.metaKey) parts.push("Super");
+        parts.push(token);
+        return parts.join("+");
     }
 
     function buildAccelerator(e) {
@@ -651,11 +738,11 @@
            Ловим комбинации DOM-обработчиком — работают, пока вкладка в фокусе.
            Используем тот же buildAccelerator/invokeHotkeyAction, что и desktop,
            чтобы поведение совпадало. */
-        document.addEventListener("keydown", (e) => {
-            if (activeCapture) return;                        // идёт назначение бинда
-            if (!readAppState().hotkeysEnabled) return;       // общий тумблер выключен
-            const accel = buildAccelerator(e);                // null на чистом modifier
-            if (!accel) return;
+        /** Общий разбор для клавиатуры и мыши: найти действие по акселератору. */
+        const fireByAccel = (e, accel) => {
+            if (activeCapture) return false;                  // идёт назначение бинда
+            if (!readAppState().hotkeysEnabled) return false;  // общий тумблер выключен
+            if (!accel) return false;
             const hotkeys = readHotkeys();
             for (const action of Object.keys(hotkeys)) {
                 /* toggleWindow обрабатывается ОС-уровнем в desktop; в вебе окна
@@ -664,10 +751,29 @@
                 if (hotkeys[action] && hotkeys[action] === accel) {
                     e.preventDefault();
                     invokeHotkeyAction(action);
-                    return;
+                    return true;
                 }
             }
+            return false;
+        };
+
+        document.addEventListener("keydown", (e) => {
+            fireByAccel(e, buildAccelerator(e));               // null на чистом modifier
         });
+
+        /* Кнопки мыши и колесо — тем же путём. Без этого мышиный бинд в вебе
+           назначался бы, но молча не срабатывал: глобального хука тут нет, а
+           единственный обработчик слушал только клавиатуру. */
+        document.addEventListener("mousedown", (e) => {
+            const token = mouseButtonToken(e.button);
+            if (!token) return;
+            fireByAccel(e, withModifiers(e, token));
+        });
+
+        document.addEventListener("wheel", (e) => {
+            if (!e.deltaY) return;
+            fireByAccel(e, withModifiers(e, e.deltaY < 0 ? "WheelUp" : "WheelDown"));
+        }, { passive: false });
     }
 
     // -------------------- Click delegation for action buttons --------------------

@@ -30,7 +30,7 @@
          чтобы избежать FOUC между web-mode и desktop-mode (custom titlebar). -->
     <script src="desktop-bootstrap.js?v=3"></script>
 
-    <link rel="stylesheet" href="css/base.css?v=24">
+    <link rel="stylesheet" href="css/base.css?v=25">
     <link rel="stylesheet" href="css/intro.css?v=18">
     <link rel="stylesheet" href="css/app.css?v=18">
     <link rel="stylesheet" href="css/header.css?v=24">
@@ -40,12 +40,12 @@
     <link rel="stylesheet" href="css/ping.css?v=18">
     <link rel="stylesheet" href="css/chat.css?v=26">
     <link rel="stylesheet" href="css/chat-attach.css?v=20">
-    <link rel="stylesheet" href="css/chat-overlay.css?v=19">
-    <link rel="stylesheet" href="css/screencast.css?v=31">
+    <link rel="stylesheet" href="css/chat-overlay.css?v=20">
+    <link rel="stylesheet" href="css/screencast.css?v=32">
     <link rel="stylesheet" href="css/responsive.css?v=22">
     <link rel="stylesheet" href="css/settings.css?v=38">
-    <link rel="stylesheet" href="css/app-settings.css?v=6">
-    <link rel="stylesheet" href="css/titlebar.css?v=15">
+    <link rel="stylesheet" href="css/app-settings.css?v=7">
+    <link rel="stylesheet" href="css/titlebar.css?v=16">
     <link rel="stylesheet" href="css/updater-banner.css?v=5">
 
 <link rel="icon" type="image/png" href="/static/favicon/favicon-96x96.png" sizes="96x96" />
@@ -303,7 +303,7 @@
         <div class="chat-lightbox" id="chatLightbox" aria-hidden="true" role="dialog" aria-label="image preview"
             data-i18n-attr="aria-label:chat.lightbox">
             <img class="chat-lightbox-img" id="chatLightboxImg" alt="" />
-            <button type="button" class="chat-lightbox-close" id="chatLightboxClose" aria-label="close"
+            <button type="button" class="overlay-close chat-lightbox-close" id="chatLightboxClose" aria-label="close"
                 data-i18n-attr="aria-label:chat.close">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M6 6l12 12" />
@@ -421,8 +421,13 @@
 
     <div class="screen-overlay" id="screenOverlay" aria-hidden="true" inert role="dialog" aria-label="screen share"
         data-i18n-attr="aria-label:screencast.title">
-        <button class="screen-overlay-close" id="screenOverlayClose" aria-label="close"
-            data-i18n-attr="aria-label:chat.close">&#x2715;</button>
+        <button class="overlay-close screen-overlay-close" id="screenOverlayClose" aria-label="close"
+            data-i18n-attr="aria-label:chat.close">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M6 6l12 12" />
+                <path d="M18 6L6 18" />
+            </svg>
+        </button>
         <video class="screen-overlay-video" id="screenOverlayVideo" autoplay playsinline></video>
         <div class="screen-overlay-volume" id="screenOverlayVolume">
             <div class="screen-overlay-volslider" id="screenOverlayVolSlider" role="slider" aria-label="volume"
@@ -459,12 +464,12 @@
     </div>
 
     <script defer src="log.js?v=1"></script>
-    <script defer src="settings.js?v=100"></script>
-    <script defer src="webrtc.js?v=20"></script>
-    <script defer src="socket.js?v=1"></script>
+    <script defer src="settings.js?v=101"></script>
+    <script defer src="webrtc.js?v=21"></script>
+    <script defer src="socket.js?v=2"></script>
     <script defer src="chat.js?v=8"></script>
-    <script defer src="js/config.js?v=3"></script>
-    <script defer src="js/state.js?v=8"></script>
+    <script defer src="js/config.js?v=4"></script>
+    <script defer src="js/state.js?v=9"></script>
     <script defer src="js/dev-mode.js?v=1"></script>
     <script defer src="js/toasts.js?v=1"></script>
     <script defer src="js/background.js?v=9"></script>
@@ -479,14 +484,14 @@
     <script defer src="js/screen-overlay.js?v=8"></script>
     <script defer src="js/intro.js?v=3"></script>
     <script defer src="js/room.js?v=8"></script>
-    <script defer src="js/app.js?v=22"></script>
+    <script defer src="js/app.js?v=23"></script>
     <script defer src="js/desktop/titlebar.js?v=1"></script>
     <script defer src="js/desktop/tray-state.js?v=3"></script>
     <script defer src="js/desktop/clipboard.js?v=1"></script>
     <script defer src="js/desktop/save-file.js?v=1"></script>
     <script defer src="js/desktop/opener.js?v=2"></script>
     <script defer src="js/desktop/deep-link.js?v=1"></script>
-    <script defer src="js/app-settings.js?v=5"></script>
+    <script defer src="js/app-settings.js?v=6"></script>
     <script defer src="js/desktop/updater.js?v=5"></script>
 </body>
 

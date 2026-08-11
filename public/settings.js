@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "0.16.3";
+    const APP_VERSION = "1.0.0";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
@@ -207,6 +207,12 @@
             "hotkeys.action.toggleWindow": "показать/скрыть окно",
             "hotkeys.action.leaveRoom": "покинуть комнату",
             "hotkeys.webhint": "в web-версии хоткеи работают только при открытой вкладке",
+            "hotkeys.mousehint": "можно назначить кнопки мыши: среднюю и боковые. колесо — только с модификатором",
+            "hotkeys.cap.mouse3": "колесо-клик",
+            "hotkeys.cap.mouse4": "мышь 4",
+            "hotkeys.cap.mouse5": "мышь 5",
+            "hotkeys.cap.wheelUp": "колесо ↑",
+            "hotkeys.cap.wheelDown": "колесо ↓",
 
             "app.title": "настройки приложения",
             "app.close.label": "при закрытии окна",
@@ -418,6 +424,12 @@
             "hotkeys.action.toggleWindow": "show/hide window",
             "hotkeys.action.leaveRoom": "leave room",
             "hotkeys.webhint": "in the web version hotkeys work only while the tab is open",
+            "hotkeys.mousehint": "mouse buttons work too: middle and side ones. wheel needs a modifier",
+            "hotkeys.cap.mouse3": "middle click",
+            "hotkeys.cap.mouse4": "mouse 4",
+            "hotkeys.cap.mouse5": "mouse 5",
+            "hotkeys.cap.wheelUp": "wheel ↑",
+            "hotkeys.cap.wheelDown": "wheel ↓",
 
             "app.title": "application settings",
             "app.close.label": "on window close",

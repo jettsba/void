@@ -318,6 +318,12 @@ html.desktop [data-web-hotkeys-hint] {
     display: none;
 }
 
+/* Подсказка про кнопки мыши: они работают через нативный хук, которого в web
+   нет — там бинд сохранится, но не сработает, так что и обещать его незачем. */
+html:not(.desktop) [data-desktop-hotkeys-hint] {
+    display: none;
+}
+
 /* Desktop-only кнопка «настройки приложения» — невидима в web. */
 html:not(.desktop) #settingsAppBtn {
     display: none;

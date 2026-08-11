@@ -102,6 +102,29 @@ const PEER_ICE_RESTART_TIMEOUT_MS = 8000;
  *  починить первой и не плодить встречные restart'ы. */
 const PEER_PASSIVE_REBUILD_TIMEOUT_MS = 15000;
 
+/**
+ * Состояние ПО userId, переживающее пересборку peer'а (rebuild создаёт новый
+ * RTCPeerConnection, все поля `peer._x` обнуляются). Чистится в
+ * `closeAllConnections` вместе с `peerZombieRebuilds`.
+ *
+ * peerFailReports: userId → { count } — сколько раз этот peer уже провалился за
+ *   сессию. Отчёт в статистику уходит ТОЛЬКО с первого раза: один сломанный
+ *   звонок раньше печатал по записи на каждую пересборку (в проде поймали 19
+ *   записей из одной комнаты за 4 минуты), из-за чего счётчик failed считал
+ *   попытки, а не сломанные соединения.
+ * peerRebuilds: userId → { count, firstAt } — circuit breaker пути
+ *   `failed → attemptPeerRecovery → rebuildPeer`. У zombie-watchdog такой
+ *   тормоз был всегда, а у этого пути не было: peer долбился в пересборку
+ *   каждые ~5 с бесконечно.
+ */
+const peerFailReports = new Map();
+const peerRebuilds = new Map();
+const PEER_MAX_REBUILDS = 4;
+const PEER_REBUILD_WINDOW_MS = 60_000;
+/* Пауза перед пересборкой растёт с попытками: мгновенный retry имеет смысл один
+   раз (transient glitch), дальше он только жжёт CPU и плодит SDP-обмен. */
+const PEER_REBUILD_BACKOFF_MS = [0, 3000, 8000, 20_000];
+
 function buildMicConstraints() {
     /* Если в настройках выбран конкретный микрофон — просим именно его.
        Иначе — системный default. Пустую строку в deviceId передавать
@@ -328,9 +351,20 @@ async function createRnnoiseNode(ctx) {
 }
 
 async function applyAudioProcessing(rawStream) {
-    if (!getOrCreateAudioContext()) return rawStream;
+    /* Контекст берём ОДИН раз в локальную переменную и дальше пользуемся только
+       ею. Раньше весь граф строился по модульной `audioContext`, которую функция
+       перечитывала ПОСЛЕ `await` на загрузку RNNoise, — а за это время
+       closeAllConnections мог обнулить её, и следующая попытка входа создавала
+       новый контекст. Тогда «застрявшая» попытка достраивала свой граф уже на
+       ЧУЖОМ контексте, обе перезаписывали `audioGraph` — и один из noise-gate
+       циклов оставался осиротевшим: teardown его больше не находил и не
+       останавливал. Он крутился до следующего выхода из комнаты и падал с
+       «Cannot read properties of null (reading 'currentTime')» (поймано
+       багрепортом от 2026-08-02: 15 быстрых попыток входа подряд). */
+    const ctx = getOrCreateAudioContext();
+    if (!ctx) return rawStream;
 
-    const source = audioContext.createMediaStreamSource(rawStream);
+    const source = ctx.createMediaStreamSource(rawStream);
 
     /* RNNoise node вставляется ПЕРЕД filtering — сначала ML-денойз убирает
        стационарный шум (вентилятор, клавиатура, фоновый speech), потом
@@ -339,7 +373,7 @@ async function applyAudioProcessing(rawStream) {
        штатный NS в этом случае был включён в buildMicConstraints. Если юзер
        выключил шумоподавление в настройках — RNNoise не вставляем вовсе. */
     const noiseEnabled = window.VoidSettings?.getNoiseSuppression?.() !== false;
-    const rnnoise = noiseEnabled ? await createRnnoiseNode(audioContext) : null;
+    const rnnoise = noiseEnabled ? await createRnnoiseNode(ctx) : null;
 
     /* Highpass: 110Hz на десктопе режет гул вентилятора / холодильника /
        сабвуферный rumble. На мобильном — 80Hz: iPhone в speakerphone-режиме
@@ -348,12 +382,12 @@ async function applyAudioProcessing(rawStream) {
        голоса, при этом всё ещё режет rumble от тряски телефона в руке
        (физическая дрожь обычно <60Hz, системные NS его не лечат). */
     const _isMobile = matchMedia("(hover: none) and (pointer: coarse)").matches;
-    const highpass = audioContext.createBiquadFilter();
+    const highpass = ctx.createBiquadFilter();
     highpass.type = "highpass";
     highpass.frequency.value = _isMobile ? 80 : 110;
     highpass.Q.value = 0.7;
 
-    const lowpass = audioContext.createBiquadFilter();
+    const lowpass = ctx.createBiquadFilter();
     lowpass.type = "lowpass";
     lowpass.frequency.value = 8000;
     lowpass.Q.value = 0.7;
@@ -362,7 +396,7 @@ async function applyAudioProcessing(rawStream) {
        -28) — лучше выравнивает динамику, тихая речь не теряется на фоне
        громких транзиентов. Не доводим до «wall of sound» — knee 12 даёт
        плавный заход. */
-    const compressor = audioContext.createDynamicsCompressor();
+    const compressor = ctx.createDynamicsCompressor();
     compressor.threshold.value = -30;
     compressor.knee.value = 12;
     compressor.ratio.value = 5;
@@ -375,12 +409,12 @@ async function applyAudioProcessing(rawStream) {
        словами. Лечит тихий фоновый шум (вентилятор, ambient) — то что Chrome
        NS пропускает потому что считает «полезным сигналом». Громкий фон
        (машина за окном, чужие голоса) gate не возьмёт — он выше порога. */
-    const analyser = audioContext.createAnalyser();
+    const analyser = ctx.createAnalyser();
     analyser.fftSize = 512;
     analyser.smoothingTimeConstant = 0.2;
     const analyserData = new Float32Array(analyser.fftSize);
 
-    const gateGain = audioContext.createGain();
+    const gateGain = ctx.createGain();
     gateGain.gain.value = 1;
     const GATE_ON_LIN = Math.pow(10, -50 / 20);   // ~0.00316  (≈ -50 dBFS)
     const GATE_OFF_LIN = Math.pow(10, -56 / 20);  // ~0.00158  (≈ -56 dBFS, hysteresis)
@@ -391,6 +425,14 @@ async function applyAudioProcessing(rawStream) {
 
     function gateTick() {
         if (!gateState.running) return;
+        /* Второй пояс к локальному `ctx` выше. teardownAudioGraph гасит только
+           тот gate, который лежит в текущем `audioGraph`; цикл, осиротевший при
+           наложении попыток входа, он не найдёт — и тот тикал бы вечно. Сверяем
+           сами: контекст закрыт или граф уже не наш → выходим. */
+        if (ctx.state === "closed" || (audioGraph && audioGraph.gateState !== gateState)) {
+            gateState.running = false;
+            return;
+        }
         /* T2-bg-fix: rAF в свёрнутой вкладке Chromium троттлится до 1 Гц или
            вовсе паузится. Если gate в этот момент был закрыт (юзер молчал) —
            он залипает до возврата вкладки, и собеседник не слышит ничего,
@@ -401,7 +443,7 @@ async function applyAudioProcessing(rawStream) {
         if (typeof document !== "undefined" && document.hidden) {
             if (!gateState.open) {
                 gateState.open = true;
-                const t = audioContext.currentTime;
+                const t = ctx.currentTime;
                 gateGain.gain.cancelScheduledValues(t);
                 gateGain.gain.setValueAtTime(1, t);
             }
@@ -420,7 +462,7 @@ async function applyAudioProcessing(rawStream) {
             gateState.lastSoundAt = now;
             if (!gateState.open) {
                 gateState.open = true;
-                const t = audioContext.currentTime;
+                const t = ctx.currentTime;
                 gateGain.gain.cancelScheduledValues(t);
                 gateGain.gain.setValueAtTime(gateGain.gain.value, t);
                 gateGain.gain.linearRampToValueAtTime(1, t + GATE_ATTACK_S);
@@ -428,7 +470,7 @@ async function applyAudioProcessing(rawStream) {
         } else if (rms < GATE_OFF_LIN && now - gateState.lastSoundAt > GATE_HOLD_MS) {
             if (gateState.open) {
                 gateState.open = false;
-                const t = audioContext.currentTime;
+                const t = ctx.currentTime;
                 gateGain.gain.cancelScheduledValues(t);
                 gateGain.gain.setValueAtTime(gateGain.gain.value, t);
                 gateGain.gain.linearRampToValueAtTime(0, t + GATE_RELEASE_S);
@@ -442,11 +484,11 @@ async function applyAudioProcessing(rawStream) {
        1.0 = unity (нет изменений), <1 = тише, >1 = бустим. Меняется в
        реалтайме без renegotiation — peer.addTrack привязан к выходному
        destination.stream, дальше всё внутри Web Audio. */
-    const gain = audioContext.createGain();
+    const gain = ctx.createGain();
     const savedGain = window.VoidSettings?.getAudioInGain?.();
     gain.gain.value = typeof savedGain === "number" ? savedGain : 1.0;
 
-    const destination = audioContext.createMediaStreamDestination();
+    const destination = ctx.createMediaStreamDestination();
 
     if (rnnoise) {
         source.connect(rnnoise);
@@ -679,12 +721,17 @@ function forceOpenMicGate() {
  * Эти всегда присутствуют в iceServers. TURN-сервер (если сконфигурирован
  * на бэке) добавляется отдельно — см. `ensureTurnCredentials` ниже.
  */
+/* Три сервера, не пять. По разбору failure-лога `stun.nextcloud.com:443` дал 9
+   таймаутов на 54 записи (худший результат), а третий google-адрес не добавлял
+   ничего сверх первых двух. Каждый мёртвый STUN — это лишнее ожидание в
+   gathering и мусорные 701-ошибки в диагностике, из-за которых не видно
+   настоящую причину провала. Cloudflare оставлен как независимый от Google
+   резерв: его ошибки в логе — это отказы резолва у клиента (падали разом все
+   пять серверов), а не проблема самого сервиса. */
 const STATIC_STUN_SERVERS = [
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:stun1.l.google.com:19302" },
-    { urls: "stun:stun2.l.google.com:19302" },
-    { urls: "stun:stun.cloudflare.com:3478" },
-    { urls: "stun:stun.nextcloud.com:443" }
+    { urls: "stun:stun.cloudflare.com:3478" }
 ];
 
 /**
@@ -808,6 +855,13 @@ function createPeer(userId, isChatInitiator) {
        чтобы по реальным данным понять — нужен ли TURN. rebuild создаёт новый
        peer-объект с чистым флагом → считается новой попыткой, так и задумано. */
     peer._iceReported = false;
+    /* Соединение хоть раз доходило до `connected`. Ставится СИНХРОННО в
+       обработчике connectionstatechange — раньше, чем успеет отработать async
+       `reportConnectivity`. Без этого флага звонок, который отработал час и
+       развалился от потери сети, попадал в статистику как «соединение не
+       установилось»: `reportConnectivity` мог не проставить `_iceReported`
+       (см. classifyConnection), и условие провала срабатывало на живом звонке. */
+    peer._everConnected = false;
     /* Счётчик срабатываний sig-stuck watchdog. Tier 1 = restartIce, tier 2 =
        rebuildPeer. Сбрасывается на возврате в stable. */
     peer._sigStuckAttempts = 0;
@@ -1210,6 +1264,15 @@ function handlePeerConnectionStateChange(userId) {
     if (state === "connected") {
         clearPeerHealthTimer(userId);
         peer._recoveryPhase = "idle";
+        /* Ставим ДО async reportConnectivity: дальше этот флаг — единственная
+           гарантия, что обрыв уже работавшего звонка не уедет в статистику как
+           провал установки соединения. */
+        peer._everConnected = true;
+        /* Circuit breaker считает ПОДРЯД идущие неудачи восстановления. Без
+           сброса на успехе флапающая сеть (4 успешных ICE restart за минуту)
+           исчерпала бы лимит и осталась без починки на пятом обрыве — то есть
+           защита от зацикливания сама сломала бы recovery. */
+        peerRebuilds.delete(userId);
         reportConnectivity(peer);
         reevaluatePeerHealth();
         /* T1.2: peer ожил — стартуем zombie watchdog. Если он был запущен
@@ -1220,10 +1283,19 @@ function handlePeerConnectionStateChange(userId) {
     }
 
     if (state === "failed" && !peer._iceReported) {
-        // Терминальный провал, до connected так и не дошли — это и есть тот
-        // случай, где помог бы TURN-релей. Считаем отдельно + шлём диагностику.
         peer._iceReported = true;
-        reportFailure(peer);
+        if (peer._everConnected) {
+            /* Звонок работал и развалился (сеть отвалилась, ноут уснул). Это НЕ
+               провал установки соединения и не тот случай, где помог бы TURN —
+               считаем отдельной метрикой качества. Штатное завершение звонка
+               сюда не попадает: там peer закрывается через cleanupPeerSlot, а
+               close() событие `failed` не порождает. */
+            reportDropped(peer);
+        } else {
+            // Терминальный провал, до connected так и не дошли — это и есть тот
+            // случай, где помог бы TURN-релей. Считаем отдельно + шлём диагностику.
+            reportFailure(peer);
+        }
     }
 
     if (state === "disconnected") {
@@ -1298,6 +1370,33 @@ function attemptPeerRecovery(userId) {
     const peer = peers.get(userId);
     if (!peer) return;
 
+    /* Circuit breaker + backoff. У zombie-watchdog такой тормоз был всегда, а
+       этот путь (failed → recovery → rebuild → снова failed) крутился без
+       ограничений: в проде поймали 19 попыток по одному peer'у за 4 минуты.
+       Если за минуту не помогли PEER_MAX_REBUILDS попыток — соединение сломано
+       структурно, и очередная пересборка только жжёт CPU и плодит SDP-обмен.
+       Сдаёмся молча для сети, но громко в лог; peer остаётся в failed, поэтому
+       reevaluatePeerHealth честно держит индикатор проблемы зажжённым. */
+    const now = Date.now();
+    let rec = peerRebuilds.get(userId);
+    if (!rec || now - rec.firstAt > PEER_REBUILD_WINDOW_MS) {
+        rec = { count: 0, firstAt: now };
+        peerRebuilds.set(userId, rec);
+    }
+    if (rec.count >= PEER_MAX_REBUILDS) {
+        log.error("rtc", "peer recovery exhausted, giving up", {
+            userId, attempts: rec.count
+        });
+        clearPeerHealthTimer(userId);
+        peer._recoveryPhase = "idle";
+        reevaluatePeerHealth();
+        return;
+    }
+    rec.count += 1;
+    const backoff = PEER_REBUILD_BACKOFF_MS[
+        Math.min(rec.count - 1, PEER_REBUILD_BACKOFF_MS.length - 1)
+    ];
+
     if (!peer._polite) {
         // Impolite — активная сторона.
         log.info("rtc", "ice restart", { userId });
@@ -1315,22 +1414,22 @@ function attemptPeerRecovery(userId) {
             const p = peers.get(userId);
             if (!p) return;
             if (p.connectionState === "connected") return;
-            log.warn("rtc", "ice restart didn't help, rebuilding", { userId });
+            log.warn("rtc", "ice restart didn't help, rebuilding", { userId, attempt: rec.count });
             rebuildPeer(userId);
-        }, PEER_ICE_RESTART_TIMEOUT_MS);
+        }, PEER_ICE_RESTART_TIMEOUT_MS + backoff);
         peerHealthTimers.set(userId, t);
     } else {
         // Polite — пассивная сторона. Даём impolite шанс починить.
-        log.debug("rtc", "peer broken, waiting for impolite", { userId, ms: PEER_PASSIVE_REBUILD_TIMEOUT_MS });
+        log.debug("rtc", "peer broken, waiting for impolite", { userId, ms: PEER_PASSIVE_REBUILD_TIMEOUT_MS + backoff });
         peer._recoveryPhase = "passive-wait";
         reevaluatePeerHealth();
         const t = setTimeout(() => {
             const p = peers.get(userId);
             if (!p) return;
             if (p.connectionState === "connected") return;
-            log.warn("rtc", "impolite didn't fix peer, taking over rebuild", { userId });
+            log.warn("rtc", "impolite didn't fix peer, taking over rebuild", { userId, attempt: rec.count });
             rebuildPeer(userId);
-        }, PEER_PASSIVE_REBUILD_TIMEOUT_MS);
+        }, PEER_PASSIVE_REBUILD_TIMEOUT_MS + backoff);
         peerHealthTimers.set(userId, t);
     }
 }
@@ -1656,6 +1755,12 @@ function closeAllConnections() {
        сессии счётчик жив (60s TTL), и это правильно — там он работает как
        защита от бесконечного rebuild-loop'а. */
     peerZombieRebuilds.clear();
+    /* По той же причине сбрасываем счётчики recovery и отправленных отчётов о
+       провале: новая сессия в комнате должна начинаться с чистого листа, иначе
+       после leave→join circuit breaker сработает сразу, а первый реальный
+       провал новой сессии не попадёт в статистику как уже отчитанный. */
+    peerRebuilds.clear();
+    peerFailReports.clear();
 
     if (localStream) {
         localStream.getTracks().forEach(track => {
@@ -2459,12 +2564,24 @@ async function bugReport() {
 async function classifyConnection(peer) {
     try {
         const stats = await peer.getStats();
-        let pair = null;
+        /* Раньше брали ТОЛЬКО пару с `nominated`. Флаг проставляется не в тот же
+           момент, что событие `connected`, и заполняется браузерами по-разному —
+           если номинированной пары в снимке ещё нет, функция возвращала null,
+           отчёт direct/relay не уходил ВООБЩЕ, а `_iceReported` оставался false,
+           из-за чего дальнейший обрыв этого живого звонка засчитывался в failed.
+           Firefox давал 43% всех записей failure-лога — ровно тот перекос,
+           которого ждёшь от такой хрупкой проверки.
+           Теперь: номинированная пара приоритетна, но при её отсутствии годится
+           любая succeeded — для нашего вопроса (direct или relay) этого хватает. */
+        let nominated = null;
+        let succeeded = null;
         stats.forEach(report => {
             if (report.type !== "candidate-pair") return;
             if (report.state !== "succeeded") return;
-            if (report.nominated && !pair) pair = report;
+            if (report.nominated && !nominated) nominated = report;
+            if (!succeeded) succeeded = report;
         });
+        const pair = nominated || succeeded;
         if (!pair) return null;
 
         const local = stats.get(pair.localCandidateId);
@@ -2496,6 +2613,25 @@ const ICE_ERR_CAP = 6;
  * Никаких адресов/портов — ни своих, ни пира.
  */
 async function reportFailure(peer) {
+    const userId = peer._userId;
+
+    /* Дедуп на сессию: один сломанный peer пересобирается несколько раз, и без
+       этого счётчика каждая пересборка слала отдельный «провал» — счётчик
+       failed мерил попытки, а не сломанные соединения. Отчёт уходит с первой
+       попытки, номер попытки едет в diag.attempt. */
+    let fails = peerFailReports.get(userId);
+    if (!fails) {
+        fails = { count: 0 };
+        peerFailReports.set(userId, fails);
+    }
+    fails.count += 1;
+    if (fails.count > 1) {
+        log.debug("rtc", "failure already reported for peer, skipping", {
+            userId, attempt: fails.count
+        });
+        return;
+    }
+
     const diag = {
         ms: Date.now() - (peer._createdAt || Date.now()),
         turn: !!peer._turnAtCreate,
@@ -2506,7 +2642,12 @@ async function reportFailure(peer) {
         errs: peer._iceErrors || [],
         platform: (typeof IS_DESKTOP !== "undefined" && IS_DESKTOP) ? "desktop" : "web",
         ua: navigator.userAgent.slice(0, 160),
-        net: navigator.connection?.effectiveType || "",
+        /* effectiveType — это КЛАСС СКОРОСТИ канала, а не тип сети: Chromium
+           отдаёт "4g" и на проводном ethernet, Firefox/Safari не отдают ничего.
+           Имя `net` читалось как «мобильный интернет» и вводило в заблуждение
+           при разборе логов — поле называется effType именно поэтому. */
+        effType: navigator.connection?.effectiveType || "",
+        attempt: fails.count,
         local: {},
         remote: {},
         pairs: {}
@@ -2529,6 +2670,21 @@ async function reportFailure(peer) {
 }
 
 /**
+ * Соединение РАБОТАЛО и оборвалось (потеря сети, спящий ноут, обрыв у пира).
+ * Считается отдельно от failed: это метрика стабильности живых звонков, а не
+ * проходимости NAT — TURN тут ничего бы не изменил. Диагностический слепок не
+ * шлём: getStats снимается уже после разрушения транспорта и показывает пустые
+ * списки кандидатов, что раньше и давало ложный вердикт «сигналинг потерян».
+ */
+function reportDropped(peer) {
+    log.info("rtc", "established connection dropped", {
+        userId: peer._userId,
+        aliveMs: Date.now() - (peer._createdAt || Date.now())
+    });
+    sendSocket({ type: "ice-report", result: "dropped" });
+}
+
+/**
  * Один раз на peer-объект отправить отчёт об успешной связности.
  * Зовётся при переходе peer в "connected". Дополнительно — при relay
  * понижает битрейт video-sender'ов (screencast) для экономии трафика
@@ -2536,8 +2692,24 @@ async function reportFailure(peer) {
  */
 async function reportConnectivity(peer) {
     if (peer._iceReported) return;
-    const result = await classifyConnection(peer);
-    if (!result) return;          // статистика недоступна — лучше промолчать
+
+    /* Событие `connected` может опережать появление succeeded-пары в getStats.
+       Раньше на этом молча теряли отчёт — соединение не попадало ни в direct,
+       ни в relay, а его последующий обрыв засчитывался как провал установки.
+       Даём второй шанс через секунду, прежде чем сдаться. */
+    let result = await classifyConnection(peer);
+    if (!result) {
+        await new Promise(r => setTimeout(r, 1000));
+        if (peer._iceReported) return;
+        if (peer.connectionState !== "connected") return;
+        result = await classifyConnection(peer);
+    }
+    if (!result) {
+        log.warn("rtc", "connected but candidate pair unavailable, not classified", {
+            userId: peer._userId
+        });
+        return;
+    }
     if (peer._iceReported) return; // мог измениться, пока ждали getStats
     peer._iceReported = true;
     sendSocket({ type: "ice-report", result });

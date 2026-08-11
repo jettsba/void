@@ -86,21 +86,13 @@
     visibility: hidden;
 }
 
+/* Вид кнопки — в общем .overlay-close (base.css), тот же, что у демки. Здесь
+   только позиция и собственная анимация появления: лайтбокс выезжает вместе с
+   картинкой, а не гасится по бездействию, как контролы демки.
+   Отступы совпадают с демкой (1.43rem), чтобы обе кнопки стояли одинаково. */
 .chat-lightbox-close {
-    position: absolute;
-    top: 1rem;
-    right: 1rem;
-    z-index: 2;
-    width: 3.14rem;
-    height: 3.14rem;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    background: transparent;
-    color: rgba(230, 230, 232, 0.92);
-    border: 1px solid var(--fg-4);
-    border-radius: 2px;
-    cursor: pointer;
+    top: 1.43rem;
+    right: 1.43rem;
     opacity: 0;
     transform: scale(0.85);
     transition:
@@ -116,21 +108,9 @@
     transform: scale(1);
 }
 
-.chat-lightbox-close:hover {
-    border-color: var(--fg-2);
-    color: var(--fg);
-    background: var(--bg-1);
-}
-
-.chat-lightbox-close svg {
-    width: 1.29rem;
-    height: 1.29rem;
-    stroke: currentColor;
-    stroke-width: 1.4;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    fill: none;
-}
+/* :hover и размер иконки НЕ переопределяем — они приходят из .overlay-close
+   (base.css). Свои значения здесь были крупнее и с другой подложкой, из-за чего
+   кнопка выглядела инородной рядом с такой же кнопкой в демке. */
 
 @media (prefers-reduced-motion: reduce) {
 

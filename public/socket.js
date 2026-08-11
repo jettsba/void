@@ -386,8 +386,13 @@ function handleSocketMessage(data) {
                 && typeof retryCreateRoomAfterCollision === "function") {
                 // Молча пробуем ещё раз с новым кодом. Пользователь даже не узнает.
                 retryCreateRoomAfterCollision();
-            } else if (typeof abortJoinAttempt === "function") {
-                abortJoinAttempt(data.reason || "create-failed");
+            } else {
+                // Та же причина, что и у join-failed: без записи в лог багрепорт
+                // показывает обрыв входа, но не объясняет его.
+                log.warn("ws", "create room failed", { reason: data.reason || "unknown" });
+                if (typeof abortJoinAttempt === "function") {
+                    abortJoinAttempt(data.reason || "create-failed");
+                }
             }
             break;
 
@@ -429,6 +434,8 @@ function handleSocketMessage(data) {
                 return;
             }
             _reconnectRejoinRetries = 0;
+            /* Причину пишем в лог обязательно, без этой строки такой отчёт неразбираем. */
+            log.warn("ws", "join failed", { reason: data.reason || "unknown" });
             if (typeof abortJoinAttempt === "function") {
                 abortJoinAttempt(data.reason || "room-not-found");
             }

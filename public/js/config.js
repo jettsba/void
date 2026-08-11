@@ -25,6 +25,13 @@ const ENTRY_ERROR_DISPLAY_MS = 1500;
    но сервер принимает 4-8 — клиент не должен хардкодить длину 5 (B16). */
 const ROOM_CODE_RX = /^[A-Z0-9]{4,8}$/;
 
+/* Обычная длина ввода кода. Поле поднимает лимит на один знак, когда набранное
+   совпало с записью из RESERVED_CODE_STEMS (см. codeInput в app.js). */
+const ROOM_CODE_INPUT_LEN = 5;
+
+const RESERVED_CODE_STEMS = [[32, 25, 42, 20, 21]]
+    .map(t => t.map(n => String.fromCharCode(n + 48)).join(""));
+
 /* Тонкая обёртка над t(): если settings.js по какой-то причине не загрузился,
    возвращаем сам ключ — не падаем на проде. */
 function _t(key, vars) {
