@@ -57,6 +57,40 @@ function _onAnimationEndOrFallback(el, onDone) {
     const timer = setTimeout(fire, 500);
 }
 
+/**
+ * Вход блоба отыграл → снимаем одноразовый `.pop-in` и фиксируем видимость
+ * классом `.is-in` (сам `.participant` по умолчанию opacity:0).
+ *
+ * ЗАЧЕМ: `.pop-in` держит `animation: avatar-pop-in` на аватаре. Пока класс
+ * висел на блобе всю его жизнь, снятие ЛЮБОЙ другой анимации с того же аватара
+ * (пульс речи скринкастера) возвращало свойство обратно к avatar-pop-in, и
+ * браузер запускал mount-анимацию ЗАНОВО — блоб схлопывался и всплывал на
+ * каждое «замолчал». Одноразовой анимации не место в каскаде после того, как
+ * она отыграла.
+ */
+function _markMounted(el) {
+    let done = false;
+    const finish = () => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        el.removeEventListener("animationend", onEnd);
+        /* Ушёл раньше, чем доиграл вход — pop-out доигрывает сам. */
+        if (!el.isConnected || el.classList.contains("pop-out")) return;
+        el.classList.remove("pop-in");
+        el.classList.add("is-in");
+    };
+    /* Именно фейд самого участника: animationend аватара всплывает сюда же,
+       обе анимации одной длины — берём одну, чтобы не ловить гонку. */
+    const onEnd = (e) => {
+        if (e.target === el && e.animationName === "participant-fade-in") finish();
+    };
+    el.addEventListener("animationend", onEnd);
+    /* Страховка как у _onAnimationEndOrFallback: при prefers-reduced-motion
+       анимации нет вовсе → события не будет. 700ms > 520ms длительности. */
+    const timer = setTimeout(finish, 700);
+}
+
 /* ===== Invite hint =====
    С v0.9.16 — поверх unified toast-host (см. public/js/toasts.js). Сам
    hint остался прежним: показывается, когда юзер один в комнате и не
@@ -99,6 +133,9 @@ function removeAllParticipants() {
         const arc = el.querySelector(".volume-arc");
         if (arc) arc._cleanup?.();
 
+        /* `.is-in` НЕ снимаем: он держит opacity:1, из которой гаснет pop-out.
+           Снимешь — базовой станет opacity:0 у .participant, и фейд ухода
+           поедет из нуля в ноль, то есть блоб исчезнет мгновенно. */
         el.classList.remove("pop-in");
         el.classList.add("pop-out");
 
@@ -199,6 +236,7 @@ function removeParticipant(userId) {
     const arc = el.querySelector(".volume-arc");
     if (arc) arc._cleanup?.();
 
+    /* `.is-in` остаётся — из его opacity:1 гаснет pop-out (см. removeAllParticipants). */
     el.classList.remove("pop-in");
     el.classList.add("pop-out");
     participantElements.delete(userId);
@@ -487,6 +525,7 @@ function scheduleParticipantsLayout(instant) {
                     if (!el.isConnected) continue;
                     el.classList.remove("no-anim");
                     el.classList.add("pop-in");
+                    _markMounted(el);
                 }
             });
         }

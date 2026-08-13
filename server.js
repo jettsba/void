@@ -67,23 +67,51 @@ const HOST = process.env.BIND_HOST || "127.0.0.1";
 app.use('/static/fonts',   express.static(path.join(__dirname, 'public/static/fonts')));
 app.use('/static/favicon', express.static(path.join(__dirname, 'public/static/favicon')));
 
+/* ========= HOT-RELOAD СТАТИКИ =========
+ * `public/`, `landing/` и `package.json` примонтированы в контейнер bind-mount'ом
+ * (docker-compose.yml), поэтому фронтовая правка доезжает на прод БЕЗ пересборки
+ * образа и без рестарта процесса — а значит без разрыва сигналинга и без выброса
+ * людей из комнат (см. tasks/todo.md, правка 0).
+ *
+ * Но четыре значения ниже раньше читались РОВНО ОДИН раз на старте, и без этой
+ * обёртки выкатка без рестарта показывала бы старую версию в шапке лендинга и
+ * старый список контрибьюторов до следующего серверного релиза. Читаем лениво,
+ * с TTL: один read раз в минуту на значение, зато рестарт не нужен.
+ *
+ * Ошибка загрузки НЕ затирает прошлое значение (git reset --hard на VPS может
+ * поймать нас на полузаписанном файле) — отдаём последнее удачное. */
+const HOT_TTL_MS = 60 * 1000;
+
+function hot(loader, fallback) {
+    let value;
+    let loadedAt = 0;
+    return () => {
+        const now = Date.now();
+        if (value === undefined || now - loadedAt > HOT_TTL_MS) {
+            try {
+                value = loader();
+                loadedAt = now;
+            } catch (e) {
+                log.warn('boot', 'hot reload failed, keeping previous value', { error: e.message });
+                /* loadedAt не двигаем: следующий запрос попробует ещё раз. */
+            }
+        }
+        return value === undefined ? fallback : value;
+    };
+}
+
 /* /api/version — единственный источник правды для версии в UI.
    Лендинг (eyebrow в hero) и приложение могут фетчить это вместо того, чтобы
-   хардкодить вручную и забывать бампить. Версия читается из package.json при
-   старте процесса (редеплой контейнера = новая версия). Короткий клиентский
-   кэш (60s), чтобы после редеплоя версия на сайте обновлялась почти сразу,
-   но повторные хиты в рамках одной сессии не били сервер. */
-const PKG_VERSION = (() => {
-    try {
-        const pkg = JSON.parse(readFileSync(path.join(__dirname, "package.json"), "utf8"));
-        return pkg.version || "0.0.0";
-    } catch (_) {
-        return "0.0.0";
-    }
-})();
+   хардкодить вручную и забывать бампить. Короткий клиентский кэш (60s), чтобы
+   после выкатки версия на сайте обновлялась почти сразу, но повторные хиты в
+   рамках одной сессии не били сервер. */
+const getVersion = hot(() => {
+    const pkg = JSON.parse(readFileSync(path.join(__dirname, "package.json"), "utf8"));
+    return pkg.version || "0.0.0";
+}, "0.0.0");
 app.get('/api/version', (req, res) => {
     res.set('Cache-Control', 'public, max-age=60');
-    res.json({ version: PKG_VERSION });
+    res.json({ version: getVersion() });
 });
 
 /* /api/contributors — единственный источник правды для списка контрибьюторов
@@ -93,63 +121,45 @@ app.get('/api/version', (req, res) => {
    Парсим текстуально, без eval/import (config.js — не ESM-модуль, грузится в
    браузер тегом <script>, а попытка `await import()` здесь дала бы ESM-фейл
    на "const X" в module scope). Исключаем casheaterr — это автор, не контр.
-   Кэш 5 минут (список меняется только при редеплое — частить смысла нет). */
-const CONTRIBUTORS = (() => {
-    try {
-        const src = readFileSync(path.join(__dirname, 'public/js/config.js'), 'utf8');
-        const block = src.match(/PREMIUM_NICKNAMES\s*=\s*new\s+Set\s*\(\s*\[([\s\S]*?)\]\s*\)/);
-        if (!block) return [];
-        return [...block[1].matchAll(/["']([^"']+)["']/g)]
-            .map(m => m[1].trim().toLowerCase())
-            .filter(Boolean)
-            .filter(n => n !== 'casheaterr');
-    } catch (e) {
-        log.warn('boot', 'failed to parse PREMIUM_NICKNAMES from config.js', { error: e.message });
-        return [];
-    }
-})();
+   Кэш 5 минут (список меняется только при выкатке — частить смысла нет). */
+const getContributors = hot(() => {
+    const src = readFileSync(path.join(__dirname, 'public/js/config.js'), 'utf8');
+    const block = src.match(/PREMIUM_NICKNAMES\s*=\s*new\s+Set\s*\(\s*\[([\s\S]*?)\]\s*\)/);
+    if (!block) return [];
+    return [...block[1].matchAll(/["']([^"']+)["']/g)]
+        .map(m => m[1].trim().toLowerCase())
+        .filter(Boolean)
+        .filter(n => n !== 'casheaterr');
+}, []);
 app.get('/api/contributors', (req, res) => {
     res.set('Cache-Control', 'public, max-age=300');
-    res.json({ names: CONTRIBUTORS });
+    res.json({ names: getContributors() });
 });
 
 /* Рантайм-инъекция версии в лендинг.
    Лендинг ссылается на актуальную версию в двух местах: softwareVersion в
    JSON-LD и data-version-fallback на hero-eyebrow. Чтобы не держать четыре
    синхронных хардкода (package.json + public/settings.js + RU html + EN html),
-   один источник истины — package.json. При старте читаем лендинг-HTML,
-   подставляем {{VERSION}} → PKG_VERSION, кэшируем результат в памяти.
-   Редеплой контейнера = новая версия везде. */
-const LANDING_HTML = (() => {
-    try {
-        const ru = readFileSync(path.join(__dirname, 'landing/index.html'), 'utf8').replaceAll('{{VERSION}}', PKG_VERSION);
-        const en = readFileSync(path.join(__dirname, 'landing/en/index.html'), 'utf8').replaceAll('{{VERSION}}', PKG_VERSION);
-        return { ru, en };
-    } catch (e) {
-        log.error('boot', 'failed to load landing HTML', { error: e.message });
-        return { ru: '', en: '' };
-    }
-})();
+   один источник истины — package.json. Читаем лендинг-HTML, подставляем
+   {{VERSION}} → актуальную версию, кэшируем результат (TTL см. hot()). */
+const getLandingHtml = hot(() => ({
+    ru: readFileSync(path.join(__dirname, 'landing/index.html'), 'utf8').replaceAll('{{VERSION}}', getVersion()),
+    en: readFileSync(path.join(__dirname, 'landing/en/index.html'), 'utf8').replaceAll('{{VERSION}}', getVersion()),
+}), { ru: '', en: '' });
 
 /* Рантайм-инъекция lastmod в sitemap.xml.
    Sitemap содержит {{LASTMOD}} плейсхолдер для всех <lastmod> полей; при
-   старте контейнера подставляется текущая дата в формате YYYY-MM-DD. Это
-   автоматически делает sitemap «свежим» при каждом деплое — поисковики
-   видят актуальные даты модификации без ручного редактирования файла.
-   Кэшируем результат, отдаём через /sitemap.xml. */
-const SITEMAP_XML = (() => {
-    try {
-        const today = new Date().toISOString().slice(0, 10);
-        return readFileSync(path.join(__dirname, 'landing/sitemap.xml'), 'utf8').replaceAll('{{LASTMOD}}', today);
-    } catch (e) {
-        log.error('boot', 'failed to load sitemap', { error: e.message });
-        return '';
-    }
-})();
+   чтении подставляется текущая дата в формате YYYY-MM-DD. Это автоматически
+   делает sitemap «свежим» при каждом деплое — поисковики видят актуальные
+   даты модификации без ручного редактирования файла. */
+const getSitemapXml = hot(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    return readFileSync(path.join(__dirname, 'landing/sitemap.xml'), 'utf8').replaceAll('{{LASTMOD}}', today);
+}, '');
 app.get('/sitemap.xml', (req, res, next) => {
     if (!isLandingHost(req)) return next();
     res.set('Content-Type', 'application/xml; charset=utf-8');
-    res.send(SITEMAP_XML);
+    res.send(getSitemapXml());
 });
 
 /* Bot UA pattern — поисковики, AI-краулеры, и unfurl-боты соцсетей
@@ -196,12 +206,12 @@ function isLandingHost(req) {
 app.get('/', (req, res, next) => {
     if (!isLandingHost(req)) return next();
     res.set('Content-Type', 'text/html; charset=utf-8');
-    res.send(LANDING_HTML.ru);
+    res.send(getLandingHtml().ru);
 });
 app.get('/en/', (req, res, next) => {
     if (!isLandingHost(req)) return next();
     res.set('Content-Type', 'text/html; charset=utf-8');
-    res.send(LANDING_HTML.en);
+    res.send(getLandingHtml().en);
 });
 
 /* Маршрутизация по поддомену: app.* → приложение, всё остальное → лендинг.
@@ -480,8 +490,33 @@ wss.on("connection", (ws, req) => {
 
 /* ========= SHUTDOWN ========= */
 
+/**
+ * Пауза между анонсом рестарта и реальным выходом. Docker даёт 10s до SIGKILL,
+ * нам нужны сотни миллисекунд — только чтобы фрейм успел уйти из TCP-буфера.
+ */
+const DRAIN_DELAY_MS = 300;
+let shuttingDown = false;
+
 function shutdownGracefully(signal) {
+    /* Повторный сигнал (docker stop поверх уже идущего shutdown) не должен
+       второй раз считать сессии и не должен ронять нас до отправки анонса. */
+    if (shuttingDown) return;
+    shuttingDown = true;
+
     log.info("boot", "shutdown signal, flushing stats", { signal });
+
+    /* Дрейн: предупреждаем клиентов, что это ПЛАНОВЫЙ рестарт (выкатка), а не
+       обрыв связи. Клиент по этому сигналу переподключается агрессивнее
+       (сотни мс вместо секунд) и не паникует. Свой P2P-mesh он при этом
+       держит — сервер в медиапути не участвует, разговор продолжается.
+       Аналог discord'овского opcode 7 RECONNECT. */
+    const notice = JSON.stringify({ type: "server-restarting" });
+    for (const ws of wss.clients) {
+        if (ws.readyState === 1) {
+            try { ws.send(notice); } catch (_) {}
+        }
+    }
+
     /* На активные сессии — добавляем накопленное время, чтобы не потерять.
        Через captureSessionDuration, а не вручную: раньше здесь инкрементился
        только lifetime-счётчик, и дневной срез терял время всех, кто был в
@@ -494,7 +529,8 @@ function shutdownGracefully(signal) {
     // Незакрытые интервалы разговоров (≥2 человек в комнате) — по той же причине.
     flushOpenCalls();
     flushStats();
-    process.exit(0);
+
+    setTimeout(() => process.exit(0), DRAIN_DELAY_MS);
 }
 process.on("SIGTERM", () => shutdownGracefully("SIGTERM"));
 process.on("SIGINT",  () => shutdownGracefully("SIGINT"));

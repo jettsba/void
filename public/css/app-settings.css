@@ -221,15 +221,18 @@
 .app-modal-placeholder p { margin-bottom: 0.71rem; }
 .app-modal-placeholder p:last-child { margin-bottom: 0; }
 
+/* Список пунктов в теле модалки (changelog «что нового»). Нижний отступ даёт
+   padding самого .app-modal-body — свой не нужен. */
 .app-modal-bullets {
     list-style: none;
     padding: 0;
-    margin: 0 0 0.86rem;
+    margin: 0;
 }
 
 .app-modal-bullets li {
     padding: 0.21rem 0 0.21rem 0.86rem;
     color: var(--fg);
+    line-height: 1.5;
     position: relative;
 }
 

@@ -19,6 +19,20 @@ let socket = null;
  */
 const RECONNECT_DELAYS_MS = [1000, 2000, 4000, 8000, 10000, 10000, 10000, 10000];
 
+/**
+ * То же расписание, но для ПЛАНОВОГО рестарта: сервер перед выкаткой шлёт
+ * `server-restarting` (см. shutdownGracefully). Мы знаем, что он вернётся через
+ * секунду-две, поэтому первые попытки жмём чаще — окно, в котором сигналинг
+ * недоступен, сжимается до почти незаметного. Хвост оставляем прежним: если
+ * выкатка не удалась и сервер не поднялся, дальше ведём себя как при обычном
+ * обрыве. Длина массива совпадает с обычным — общее число попыток то же.
+ */
+const PLANNED_RESTART_DELAYS_MS = [400, 700, 1200, 2000, 4000, 8000, 10000, 10000];
+
+/** Сколько считаем рестарт «плановым» после анонса. */
+const PLANNED_RESTART_WINDOW_MS = 30_000;
+let _plannedRestartUntil = 0;
+
 let reconnectAttempt = 0;
 let reconnectTimer = null;
 let reconnecting = false;
@@ -283,10 +297,13 @@ function scheduleReconnect(closedWs) {
     /* F15: jitter ±30% сверху, чтобы при массовом дисконнекте (рестарт сервера,
        проблема у провайдера на участке) клиенты не лупили синхронно одной
        волной — это thundering herd, сервер захлёбывается на open. */
-    const baseDelay = RECONNECT_DELAYS_MS[reconnectAttempt];
+    const schedule = Date.now() < _plannedRestartUntil
+        ? PLANNED_RESTART_DELAYS_MS
+        : RECONNECT_DELAYS_MS;
+    const baseDelay = schedule[reconnectAttempt];
     const delay = Math.round(baseDelay + Math.random() * baseDelay * 0.3);
     reconnectAttempt += 1;
-    const total = RECONNECT_DELAYS_MS.length;
+    const total = schedule.length;
 
     if (typeof setConnectionState === "function") {
         setConnectionState("reconnecting", { attempt: reconnectAttempt, total });
@@ -372,6 +389,15 @@ function handleSocketMessage(data) {
             /* F3: серверный пульс. Сам факт получения сообщения уже сбросил
                liveness timer выше в onmessage; здесь просто признаём тип, чтобы
                не оставлять «висящих» сообщений в switch'е. */
+            return;
+
+        case "server-restarting":
+            /* Выкатка. Сервер сейчас уйдёт и через секунду-две вернётся. Ничего
+               не рвём: сигналинг нам в разговоре не нужен, звук идёт P2P. Только
+               взводим окно быстрого реконнекта — обычные 1s/2s/4s тут излишне
+               осторожны и растягивают дыру, в которую не пройдёт join. */
+            _plannedRestartUntil = Date.now() + PLANNED_RESTART_WINDOW_MS;
+            log.info("ws", "server announced restart, fast reconnect armed");
             return;
 
         case "room-created":
@@ -495,8 +521,20 @@ function handleSocketMessage(data) {
             if (window.VoidSounds) VoidSounds.peerLeave();
             break;
 
-        case "new-participant":
+        case "new-participant": {
             addParticipant(data.userId, data.nickname);
+            const existingPeer = peers.get(data.userId);
+            /* Пир под этим userId ЖИВ — значит это не новый человек и не призрак,
+               а сосед, который перезашёл на сигналинге (наша выкатка, его блип).
+               P2P-канал между нами всё это время работал: сервер в медиапути не
+               участвует. Пересобирать такой пир — рвать звук на ровном месте,
+               поэтому не трогаем его вовсе и звук входа не играем (никто не
+               входил). Если связь на самом деле односторонне мертва, её поймает
+               zombie-watchdog по inbound-пакетам (порог 5s) и пересоберёт сам. */
+            if (existingPeer && existingPeer.connectionState === "connected") {
+                log.debug("ws", "peer still connected on new-participant, keeping", { userId: data.userId });
+                break;
+            }
             /* F1: если в нашей карте peer'ов уже есть запись под тем же userId —
                это призрак прошлой сессии (тот человек реконнектился). Сервер
                только что подтвердил, что под этим userId сидит свежий сокет,
@@ -504,7 +542,7 @@ function handleSocketMessage(data) {
                state machine будет ждать grace (5s) + restart (8s) + polite
                passive (15s) — до 28 секунд тишины. Сносим сразу, callUser
                создаст новый peer и handshake пройдёт заново. */
-            if (peers.has(data.userId)) {
+            if (existingPeer) {
                 log.debug("ws", "stale peer on new-participant, rebuilding", { userId: data.userId });
                 cleanupPeerSlot(data.userId);
             }
@@ -512,12 +550,14 @@ function handleSocketMessage(data) {
             // Звук входа другого участника (вариант 0) — слышат все в комнате.
             if (window.VoidSounds) VoidSounds.peerJoin();
             break;
+        }
 
-        case "user-list":
+        case "user-list": {
             // Любой user-list — это успешное вхождение. Сбрасываем счётчик
             // повторных попыток после reconnect-collision.
             _reconnectRejoinRetries = 0;
-            if (!isJoined) {
+            const wasJoined = isJoined;
+            if (!wasJoined) {
                 enterRoomUI();
             } else {
                 if (typeof setConnectionState === "function") {
@@ -552,7 +592,33 @@ function handleSocketMessage(data) {
                     handleScreencastStateMsg({ userId: user.id, screen: true });
                 }
             });
+
+            /* Реконнект: сверяем состав вместо оптового сноса. Раньше
+               handleSocketReconnected выкидывал из DOM всех и ждал, что
+               user-list вернёт их обратно — аватарки мигали на каждом блипе,
+               а с живым mesh'ем (см. там же) сносить некого и подавно. Здесь
+               убираем ровно тех, кто в наше отсутствие реально ушёл: их
+               participant-left мы пропустили, пока WS был мёртв.
+               Себя в списке нет (сервер исключает получателя) — добавляем. */
+            if (wasJoined) {
+                const alive = new Set(data.users.map(u => u.id));
+                alive.add(clientId);
+
+                [...peers.keys()].forEach(userId => {
+                    if (!alive.has(userId)) cleanupPeerSlot(userId);
+                });
+                document.querySelectorAll(".participant").forEach(el => {
+                    const userId = el.dataset.userId;
+                    if (!userId || alive.has(userId)) return;
+                    if (el.classList.contains("pop-out")) return;
+                    removeParticipant(userId);
+                });
+                nicknameMap.forEach((_, userId) => {
+                    if (!alive.has(userId)) nicknameMap.delete(userId);
+                });
+            }
             break;
+        }
 
         case "offer":
             handleOffer(data);

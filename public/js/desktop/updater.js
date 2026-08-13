@@ -191,6 +191,9 @@
 
     function showBanner() {
         const b = ensureBanner();
+        /* Тот же угол занимает баннер «void обновлён» (js/desktop/whats-new.js).
+           Он слушает это событие и уходит: здесь действие, там новость. */
+        document.dispatchEvent(new CustomEvent("void:updater-banner"));
         requestAnimationFrame(() => b.classList.add("is-visible"));
     }
 

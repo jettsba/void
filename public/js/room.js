@@ -247,37 +247,57 @@ function tearDownRoomState() {
 
 /**
  * Вызывается из socket.js после успешного восстановления WebSocket-соединения.
- * Сервер нас в комнате уже не помнит — старые WebRTC-пиры мертвы по ICE-таймауту.
- * Сносим mesh (но НЕ микрофон), чистим UI участников и заново входим в комнату
- * под тем же clientId. Сервер пришлёт user-list → mesh пересоберётся автоматически.
+ *
+ * КЛЮЧЕВОЕ: наш сервер — только сигналинг. Звук, демка и чат идут P2P (или через
+ * coturn, он живёт отдельным контейнером и выкаткой не трогается) и разрыв WS
+ * не переживают, а просто его не замечают. Поэтому если пиры ещё живы — рвать
+ * их НЕЛЬЗЯ: именно это и превращало 2-секундную выкатку в оборванный разговор.
+ *
+ * Два режима:
+ *  - mesh жив (типовой случай: рестарт контейнера, короткий сетевой блип) —
+ *    оставляем всё как есть, UI не трогаем, просто перезаходим на сигналинге;
+ *  - mesh мёртв (долгий обрыв, ICE отвалился) — старое поведение: сносим пиров
+ *    и чистим UI, чтобы пересобраться с нуля.
+ *
+ * `resume: true` разрешает серверу поднять комнату обратно, если он сам только
+ * что перезапустился и её не помнит (см. handleJoinRoom). Решение принимает
+ * сервер по своему аптайму — клиент лишь сообщает, что был здесь.
  */
 function handleSocketReconnected() {
     if (!isJoined || !currentRoomCode) return;
 
-    log.info("ws", "rejoining after reconnect", { code: currentRoomCode });
+    /* Достаточно одного живого пира: остальные подтянутся своими механизмами
+       (recovery state machine + zombie-watchdog). */
+    const meshAlive = typeof peers !== "undefined"
+        && [...peers.values()].some(pc => pc && pc.connectionState === "connected");
 
-    if (typeof closeRemotePeerConnections === "function") {
-        closeRemotePeerConnections();
-    }
+    log.info("ws", "rejoining after reconnect", { code: currentRoomCode, meshAlive });
 
-    // Убираем всех участников из UI кроме себя — они переедут заново через user-list.
-    document.querySelectorAll(".participant").forEach(el => {
-        if (el.dataset.userId === clientId) return;
-        if (el.classList.contains("pop-out")) return;
+    if (!meshAlive) {
+        if (typeof closeRemotePeerConnections === "function") {
+            closeRemotePeerConnections();
+        }
 
-        const arc = el.querySelector(".volume-arc");
-        if (arc) arc._cleanup?.();
+        // Убираем всех участников из UI кроме себя — они переедут заново через user-list.
+        document.querySelectorAll(".participant").forEach(el => {
+            if (el.dataset.userId === clientId) return;
+            if (el.classList.contains("pop-out")) return;
 
-        el.classList.remove("pop-in");
-        el.classList.add("pop-out");
-        /* F18: fallback таймер — `animationend` не всегда стреляет. */
-        _onAnimationEndOrFallback(el);
-    });
+            const arc = el.querySelector(".volume-arc");
+            if (arc) arc._cleanup?.();
 
-    // nicknameMap чистим, но себя оставляем — нужен для ping-панели и т.п.
-    nicknameMap.clear();
-    if (currentUsername) {
-        nicknameMap.set(clientId, currentUsername);
+            /* `.is-in` остаётся — из его opacity:1 гаснет pop-out (participants.js). */
+            el.classList.remove("pop-in");
+            el.classList.add("pop-out");
+            /* F18: fallback таймер — `animationend` не всегда стреляет. */
+            _onAnimationEndOrFallback(el);
+        });
+
+        // nicknameMap чистим, но себя оставляем — нужен для ping-панели и т.п.
+        nicknameMap.clear();
+        if (currentUsername) {
+            nicknameMap.set(clientId, currentUsername);
+        }
     }
 
     setConnectionState("connecting");
@@ -286,7 +306,8 @@ function handleSocketReconnected() {
         type: "join-room",
         code: currentRoomCode,
         userId: clientId,
-        nickname: currentUsername
+        nickname: currentUsername,
+        resume: true
     });
 }
 

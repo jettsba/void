@@ -166,3 +166,44 @@
 .updater-banner[data-state="error"] .updater-banner-progress {
     visibility: hidden;
 }
+
+/* ============ «void обновлён до vX.Y.Z» — баннер ПОСЛЕ апдейта ============
+   Близнец баннера выше и намеренно делит с ним шелл (.updater-banner*): один
+   угол, одна геометрия, любая правка внешнего вида — сразу на оба. Отличие
+   только в содержимом: вместо второй строки и иконочной кнопки — текст-кнопка
+   «что нового», открывающая модалку. Логика — js/desktop/whats-new.js. */
+
+.whats-new-cta {
+    /* без align-self растянулась бы на всю ширину колонки .updater-banner-text */
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.36rem;
+    margin-top: 0.07rem;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    font: inherit;
+    font-size: 0.71rem;
+    letter-spacing: var(--tracking);
+    text-transform: lowercase;
+    line-height: 1.3;
+    color: var(--fg-2);
+    cursor: pointer;
+    transition: color var(--t-fast);
+}
+
+.whats-new-cta:hover,
+.whats-new-cta:focus-visible {
+    outline: none;
+    color: var(--fg);
+}
+
+.whats-new-cta-arrow {
+    transition: transform var(--t-fast);
+}
+
+.whats-new-cta:hover .whats-new-cta-arrow,
+.whats-new-cta:focus-visible .whats-new-cta-arrow {
+    transform: translateX(2px);
+}

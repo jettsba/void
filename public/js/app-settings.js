@@ -168,6 +168,11 @@
         if (e.key === "Escape") closeModalIfAny();
     }
 
+    /* Генерик-шелл модалки наружу: им же пользуется «что нового»
+       (js/desktop/whats-new.js). Один шелл на всех потребителей — один
+       визуальный стандарт и одна реализация Esc/клика по scrim'у. */
+    window.VoidAppModal = { open: openModal, close: closeModalIfAny };
+
     // -------------------- Hotkeys modal --------------------
 
     function openHotkeysModal() {

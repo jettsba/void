@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "1.0.0";
+    const APP_VERSION = "1.1.0";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
@@ -232,6 +232,11 @@
             "app.updates.latest": "версия актуальна",
             "app.updates.failed": "не удалось проверить",
 
+            "whatsnew.banner": "void обновлён до {v}",
+            "whatsnew.cta": "что нового",
+            "whatsnew.heading": "что нового:",
+            "whatsnew.close": "закрыть",
+
             "settings.lang": "язык интерфейса",
             "settings.streamer": "режим стримера",
             "settings.streamer.hint": "скрывает код комнаты в футере",
@@ -448,6 +453,11 @@
             "app.updates.downloading": "downloading {p}%",
             "app.updates.latest": "up to date",
             "app.updates.failed": "check failed",
+
+            "whatsnew.banner": "void updated to {v}",
+            "whatsnew.cta": "what's new",
+            "whatsnew.heading": "what's new:",
+            "whatsnew.close": "close",
 
             "settings.lang": "interface language",
             "settings.streamer": "streamer mode",

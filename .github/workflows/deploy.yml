@@ -40,7 +40,7 @@ jobs:
           mkdir -p ~/.ssh
           ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
 
-      - name: Pull and rebuild on VPS
+      - name: Pull and (conditionally) rebuild on VPS
         # `--profile turn` поднимает coturn (опциональный сервис) вместе с void.
         # Без флага coturn остаётся жить со старым конфигом — правки в
         # coturn/turnserver.conf или в docker-compose.yml-секции coturn не
@@ -57,7 +57,18 @@ jobs:
         # обычно 644); если различаются — копируем и reload'им. Идемпотентно:
         # при неизменном Caddyfile никаких side-effects. Для root-юзера sudo
         # это no-op; для отдельного deploy-юзера нужен sudoers entry
-        # (см. README или попроси Claude сгенерировать).
+        # (см. README или попроси Claude сгенерировать). reload у Caddy
+        # graceful — живые соединения его переживают.
+        #
+        # УМНЫЙ ГЕЙТ ПЕРЕСБОРКИ. Рестарт контейнера = смерть сигналинга = всех
+        # выкидывает из активных комнат. Но фронт (public/, landing/) с этого
+        # коммита примонтирован bind-mount'ом и читается с диска на каждый
+        # запрос — чтобы такая правка доехала, процесс трогать НЕ НАДО.
+        # Поэтому пересобираем, только если задет server-side код.
+        # package.json в списке НЕТ намеренно: бамп версии подхватывается
+        # лениво (hot() в server.js), а реальная смена зависимостей всегда
+        # меняет package-lock.json. Ручной workflow_dispatch (или любой прогон
+        # без новых коммитов) пересобирает всегда — escape hatch.
         run: |
           ssh "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
             'set -euo pipefail
@@ -71,8 +82,10 @@ jobs:
              # untracked/gitignored, reset --hard их не трогает; tracked-файлы и
              # так обязаны совпадать с origin. git clean НЕ зовём — он снёс бы
              # data/ и .env.
+             BEFORE=$(git rev-parse HEAD 2>/dev/null || echo "")
              git fetch origin main
              git reset --hard origin/main
+             AFTER=$(git rev-parse HEAD)
 
              if ! cmp -s ~/void/Caddyfile /etc/caddy/Caddyfile 2>/dev/null; then
                echo "Caddyfile changed, syncing..."
@@ -83,8 +96,33 @@ jobs:
                echo "Caddyfile unchanged"
              fi
 
-             docker compose --profile turn up -d --build
-             docker image prune -f'
+             REBUILD=yes
+             if [ -n "$BEFORE" ] && [ "$BEFORE" != "$AFTER" ]; then
+               CHANGED=$(git diff --name-only "$BEFORE" "$AFTER")
+               echo "--- changed files ---"
+               echo "$CHANGED"
+               echo "---------------------"
+               if echo "$CHANGED" | grep -qE "^(server\.js|lib/|Dockerfile|docker-compose\.yml|docker-entrypoint\.sh|package-lock\.json)"; then
+                 REBUILD=yes
+               else
+                 REBUILD=no
+               fi
+             fi
+
+             # Страховка: контейнера нет (первый деплой, упал, был снесён руками)
+             # — поднимаем независимо от диффа.
+             if [ -z "$(docker compose ps -q void 2>/dev/null || true)" ]; then
+               echo "void container is not running -> forcing rebuild"
+               REBUILD=yes
+             fi
+
+             if [ "$REBUILD" = yes ]; then
+               echo "server-side changed -> rebuilding container"
+               docker compose --profile turn up -d --build
+               docker image prune -f
+             else
+               echo "front-only change -> container left running (zero signalling downtime)"
+             fi'
 
       - name: Read version
         id: ver
