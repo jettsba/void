@@ -5,309 +5,345 @@
      в desktop — в Фазе 9 (детект) добавим селективное скрытие в web. */
 
 .settings-action-btn {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.71rem;
-    width: 100%;
-    padding: 0.71rem 0.86rem;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 0.57rem;
-    color: var(--fg-2);
-    font: inherit;
-    font-size: 0.86rem;
-    text-transform: lowercase;
-    letter-spacing: var(--tracking);
-    cursor: pointer;
-    text-align: left;
-    transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
+  display: flex;
+  align-items: flex-start;
+  gap: 0.71rem;
+  width: 100%;
+  padding: 0.71rem 0.86rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.57rem;
+  color: var(--fg-2);
+  font: inherit;
+  font-size: 0.86rem;
+  text-transform: lowercase;
+  letter-spacing: var(--tracking);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    background var(--t-fast),
+    border-color var(--t-fast),
+    color var(--t-fast);
 }
 
 .settings-action-btn:hover,
 .settings-action-btn:focus-visible {
-    outline: none;
-    color: var(--fg);
-    background: rgba(255, 255, 255, 0.06);
-    border-color: rgba(255, 255, 255, 0.16);
+  outline: none;
+  color: var(--fg);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.16);
 }
 
 .settings-action-btn-icon {
-    width: 1.14rem;
-    height: 1.14rem;
-    flex-shrink: 0;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.5;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    margin-top: 0.07rem;
+  width: 1.14rem;
+  height: 1.14rem;
+  flex-shrink: 0;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  margin-top: 0.07rem;
 }
 
 .settings-action-btn-body {
-    display: flex;
-    flex-direction: column;
-    gap: 0.14rem;
-    flex: 1 1 auto;
-    min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.14rem;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .settings-action-btn-label {
-    color: inherit;
-    line-height: 1.3;
+  color: inherit;
+  line-height: 1.3;
 }
 
 .settings-action-btn-hint {
-    font-size: 0.71rem;
-    color: var(--fg-3);
-    line-height: 1.3;
+  font-size: 0.71rem;
+  color: var(--fg-3);
+  line-height: 1.3;
 }
 
 /* ===== Generic app modal (используется для hotkeys + app settings) ===== */
 .app-modal-scrim {
-    position: fixed;
-    inset: 0;
-    z-index: 250;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 1rem;
-    background: rgba(0, 0, 0, 0.6);
-    -webkit-backdrop-filter: blur(8px);
-    backdrop-filter: blur(8px);
-    opacity: 0;
-    transition: opacity 180ms cubic-bezier(.2, .6, .2, 1);
+  position: fixed;
+  inset: 0;
+  z-index: 250;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.6);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  opacity: 0;
+  transition: opacity 180ms cubic-bezier(0.2, 0.6, 0.2, 1);
 }
 
-.app-modal-scrim.is-open { opacity: 1; }
+.app-modal-scrim.is-open {
+  opacity: 1;
+}
 
 .app-modal-card {
-    width: min(28rem, 100%);
-    max-height: calc(100vh - 4rem);
-    overflow-y: auto;
-    background: var(--bg-1);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 0.71rem;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-    color: var(--fg);
-    font-size: 0.86rem;
-    transform: translateY(8px) scale(0.98);
-    transition: transform 180ms cubic-bezier(.2, .6, .2, 1);
+  width: min(28rem, 100%);
+  max-height: calc(100vh - 4rem);
+  overflow-y: auto;
+  background: var(--bg-1);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.71rem;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  color: var(--fg);
+  font-size: 0.86rem;
+  transform: translateY(8px) scale(0.98);
+  transition: transform 180ms cubic-bezier(0.2, 0.6, 0.2, 1);
 }
 
-.app-modal-scrim.is-open .app-modal-card { transform: none; }
+.app-modal-scrim.is-open .app-modal-card {
+  transform: none;
+}
 
 .app-modal-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 1rem 1.14rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.14rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .app-modal-title {
-    font-size: 0.93rem;
-    color: var(--fg);
-    text-transform: lowercase;
-    letter-spacing: var(--tracking-wide);
+  font-size: 0.93rem;
+  color: var(--fg);
+  text-transform: lowercase;
+  letter-spacing: var(--tracking-wide);
 }
 
 .app-modal-close {
-    background: transparent;
-    border: 0;
-    padding: 0;
-    width: 1.71rem;
-    height: 1.71rem;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    color: var(--fg-3);
-    cursor: pointer;
-    transition: background var(--t-fast), color var(--t-fast);
+  background: transparent;
+  border: 0;
+  padding: 0;
+  width: 1.71rem;
+  height: 1.71rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: var(--fg-3);
+  cursor: pointer;
+  transition:
+    background var(--t-fast),
+    color var(--t-fast);
 }
 
 .app-modal-close:hover,
-.app-modal-close:focus-visible { background: rgba(255, 255, 255, 0.06); color: var(--fg); outline: none; }
+.app-modal-close:focus-visible {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--fg);
+  outline: none;
+}
 
 .app-modal-close svg {
-    width: 0.86rem;
-    height: 0.86rem;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.6;
-    stroke-linecap: round;
+  width: 0.86rem;
+  height: 0.86rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
 }
 
 .app-modal-body {
-    padding: 1rem 1.14rem 1.14rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.43rem;
+  padding: 1rem 1.14rem 1.14rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.43rem;
 }
 
 .app-modal-row {
-    display: flex;
-    align-items: flex-start;
-    gap: 1rem;
-    padding: 0.71rem 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 0.71rem 0;
 }
 
 .app-modal-row + .app-modal-row {
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .app-modal-row-text {
-    flex: 1 1 auto;
-    display: flex;
-    flex-direction: column;
-    gap: 0.21rem;
-    min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.21rem;
+  min-width: 0;
 }
 
 .app-modal-row-label {
-    color: var(--fg);
-    text-transform: lowercase;
-    letter-spacing: var(--tracking);
+  color: var(--fg);
+  text-transform: lowercase;
+  letter-spacing: var(--tracking);
 }
 
 .app-modal-row-hint {
-    font-size: 0.71rem;
-    color: var(--fg-3);
-    line-height: 1.4;
+  font-size: 0.71rem;
+  color: var(--fg-3);
+  line-height: 1.4;
 }
 
 /* Segmented control (close-behavior: свернуть / закрыть). */
 .app-modal-segmented {
-    display: inline-flex;
-    align-items: center;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: 0.43rem;
-    padding: 2px;
-    flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 0.43rem;
+  padding: 2px;
+  flex-shrink: 0;
 }
 
 .app-modal-seg {
-    background: transparent;
-    border: 0;
-    padding: 0.36rem 0.71rem;
-    font: inherit;
-    font-size: 0.78rem;
-    text-transform: lowercase;
-    color: var(--fg-3);
-    cursor: pointer;
-    border-radius: 0.29rem;
-    transition: background var(--t-fast), color var(--t-fast);
+  background: transparent;
+  border: 0;
+  padding: 0.36rem 0.71rem;
+  font: inherit;
+  font-size: 0.78rem;
+  text-transform: lowercase;
+  color: var(--fg-3);
+  cursor: pointer;
+  border-radius: 0.29rem;
+  transition:
+    background var(--t-fast),
+    color var(--t-fast);
 }
 
 .app-modal-seg:hover,
-.app-modal-seg:focus-visible { color: var(--fg); outline: none; }
+.app-modal-seg:focus-visible {
+  color: var(--fg);
+  outline: none;
+}
 
 .app-modal-seg.is-active {
-    background: rgba(255, 255, 255, 0.1);
-    color: var(--fg);
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--fg);
 }
 
 .app-modal-note {
-    font-size: 0.71rem;
-    color: var(--fg-3);
-    line-height: 1.5;
-    padding-top: 0.43rem;
+  font-size: 0.71rem;
+  color: var(--fg-3);
+  line-height: 1.5;
+  padding-top: 0.43rem;
 }
 
-.app-modal-note:empty { display: none; }
+.app-modal-note:empty {
+  display: none;
+}
 
-.app-modal-placeholder { line-height: 1.5; color: var(--fg-2); }
-.app-modal-placeholder p { margin-bottom: 0.71rem; }
-.app-modal-placeholder p:last-child { margin-bottom: 0; }
+.app-modal-placeholder {
+  line-height: 1.5;
+  color: var(--fg-2);
+}
+.app-modal-placeholder p {
+  margin-bottom: 0.71rem;
+}
+.app-modal-placeholder p:last-child {
+  margin-bottom: 0;
+}
 
 /* Список пунктов в теле модалки (changelog «что нового»). Нижний отступ даёт
    padding самого .app-modal-body — свой не нужен. */
 .app-modal-bullets {
-    list-style: none;
-    padding: 0;
-    margin: 0;
+  list-style: none;
+  padding: 0;
+  margin: 0;
 }
 
 .app-modal-bullets li {
-    padding: 0.21rem 0 0.21rem 0.86rem;
-    color: var(--fg);
-    line-height: 1.5;
-    position: relative;
+  padding: 0.21rem 0 0.21rem 0.86rem;
+  color: var(--fg);
+  line-height: 1.5;
+  position: relative;
 }
 
 .app-modal-bullets li::before {
-    content: "·";
-    position: absolute;
-    left: 0;
-    color: var(--fg-3);
+  content: "·";
+  position: absolute;
+  left: 0;
+  color: var(--fg-3);
 }
 
 /* Обёртка над списком биндингов — общий тумблер хоткеев гасит её целиком. */
 .app-modal-bindings {
-    transition: opacity var(--t-fast);
+  transition: opacity var(--t-fast);
 }
 
 .app-modal-bindings.is-disabled {
-    opacity: 0.4;
-    pointer-events: none;
+  opacity: 0.4;
+  pointer-events: none;
 }
 
 /* ===== Hotkey-binding кнопки + footer hint ===== */
 .app-modal-binding {
-    flex-shrink: 0;
-    min-width: 7.14rem;
-    padding: 0.43rem 0.71rem;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 0.36rem;
-    color: var(--fg);
-    font: inherit;
-    font-size: 0.78rem;
-    text-transform: lowercase;
-    letter-spacing: var(--tracking);
-    cursor: pointer;
-    text-align: center;
-    transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
+  flex-shrink: 0;
+  min-width: 7.14rem;
+  padding: 0.43rem 0.71rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.36rem;
+  color: var(--fg);
+  font: inherit;
+  font-size: 0.78rem;
+  text-transform: lowercase;
+  letter-spacing: var(--tracking);
+  cursor: pointer;
+  text-align: center;
+  transition:
+    background var(--t-fast),
+    border-color var(--t-fast),
+    color var(--t-fast);
 }
 
 .app-modal-binding:hover,
 .app-modal-binding:focus-visible {
-    outline: none;
-    background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(255, 255, 255, 0.18);
+  outline: none;
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.18);
 }
 
 .app-modal-binding.is-capturing {
-    background: rgba(95, 170, 122, 0.16);
-    border-color: var(--screen);
-    color: var(--screen);
+  background: rgba(95, 170, 122, 0.16);
+  border-color: var(--screen);
+  color: var(--screen);
 }
 
+/* Плашка-подсказка внизу модалки. Ширина по тексту, а не на всю строку:
+   растянутая на всю ширину она читалась как ошибка, хотя это ремарка.
+   align-self работает, потому что .app-modal-body — колоночный флекс: он же
+   ужимает блок до контента и центрирует его по горизонтали. */
 .app-modal-footer-hint {
-    margin-top: 0.86rem;
-    padding: 0.71rem 0.86rem;
-    background: rgba(184, 122, 90, 0.08);
-    border: 1px solid rgba(184, 122, 90, 0.2);
-    border-radius: 0.43rem;
-    display: flex;
-    align-items: flex-start;
-    gap: 0.57rem;
-    font-size: 0.71rem;
-    line-height: 1.4;
-    color: var(--fg-2);
+  align-self: center;
+  max-width: 100%;
+  margin-top: 0.86rem;
+  padding: 0.71rem 0.86rem;
+  background: rgba(184, 122, 90, 0.08);
+  border: 1px solid rgba(184, 122, 90, 0.2);
+  border-radius: 0.43rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.57rem;
+  font-size: 0.71rem;
+  line-height: 1.4;
+  color: var(--fg-2);
 }
 
 .app-modal-footer-hint svg {
-    width: 0.93rem;
-    height: 0.93rem;
-    flex-shrink: 0;
-    fill: none;
-    stroke: var(--signal-warn);
-    stroke-width: 1.6;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    margin-top: 0.07rem;
+  width: 0.93rem;
+  height: 0.93rem;
+  flex-shrink: 0;
+  fill: none;
+  stroke: var(--signal-warn);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  margin-top: 0.07rem;
 }
 
 /* ===== Web ↔ Desktop selective visibility (Фаза 3) =====
@@ -318,20 +354,13 @@
 /* Web-only хинты — невидимы в desktop. */
 html.desktop [data-web-hint],
 html.desktop [data-web-hotkeys-hint] {
-    display: none;
-}
-
-/* Подсказка про кнопки мыши: они работают через нативный хук, которого в web
-   нет — там бинд сохранится, но не сработает, так что и обещать его незачем. */
-html:not(.desktop) [data-desktop-hotkeys-hint] {
-    display: none;
+  display: none;
 }
 
 /* Desktop-only кнопка «настройки приложения» — невидима в web. */
 html:not(.desktop) #settingsAppBtn {
-    display: none;
+  display: none;
 }
-
 
 /* =========================================================================
    v2 RESTYLE — единая дизайн-система (VOID_STYLE_GUIDE): радиус 2px, без
@@ -341,311 +370,565 @@ html:not(.desktop) #settingsAppBtn {
 
 /* ----- shell ----- */
 .app-modal-card {
-    width: min(35rem, 100%);
-    border-radius: 2px;
-    box-shadow: none;
-    background: var(--bg-0);
-    transform: translateY(8px);
+  width: min(35rem, 100%);
+  border-radius: 2px;
+  box-shadow: none;
+  background: var(--bg-0);
+  transform: translateY(8px);
 }
-.app-modal-scrim.is-open .app-modal-card { transform: none; }
+.app-modal-scrim.is-open .app-modal-card {
+  transform: none;
+}
 
-.app-modal-header { padding: 1.14rem 1.43rem; }
+/* Модалка хоткеев шире базовой: в неё кладётся полная карта 65%-клавиатуры
+   (16 юнитов в ряду) плюс мышь. На базовых 35rem клавиша выходила ~19px и
+   подписи вроде «shift» не читались. Остальные модалки остаются узкими —
+   на такой ширине они бы разъехались. */
+.app-modal-card--wide {
+  width: min(50rem, 100%);
+}
+
+.app-modal-header {
+  padding: 1.14rem 1.43rem;
+}
 
 .app-modal-heading {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.71rem;
-    min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.71rem;
+  min-width: 0;
 }
-.app-modal-ic { display: inline-flex; flex-shrink: 0; }
+.app-modal-ic {
+  display: inline-flex;
+  flex-shrink: 0;
+}
 .app-modal-ic svg {
-    width: 1.14rem;
-    height: 1.14rem;
-    fill: none;
-    stroke: var(--fg-2);
-    stroke-width: 1.4;
-    stroke-linecap: round;
-    stroke-linejoin: round;
+  width: 1.14rem;
+  height: 1.14rem;
+  fill: none;
+  stroke: var(--fg-2);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
-.app-modal-title { font-weight: 400; letter-spacing: var(--tracking-wide); }
+.app-modal-title {
+  font-weight: 400;
+  letter-spacing: var(--tracking-wide);
+}
 
-.app-modal-close { border-radius: 2px; }
+.app-modal-close {
+  border-radius: 2px;
+}
 .app-modal-close:hover,
-.app-modal-close:focus-visible { background: var(--bg-2); }
+.app-modal-close:focus-visible {
+  background: var(--bg-2);
+}
 
 /* Воздух по краям. */
-.app-modal-body { padding: 1.71rem; gap: 1.14rem; }
+.app-modal-body {
+  padding: 1.71rem;
+  gap: 1.14rem;
+}
 
-.app-modal-divider { height: 1px; background: var(--fg-4); margin: 0.43rem 0; }
+.app-modal-divider {
+  height: 1px;
+  background: var(--fg-4);
+  margin: 0.43rem 0;
+}
 
-.app-modal-row--flush { padding-top: 0; }
-.app-modal-row--flush + .app-modal-row { border-top: 0; }
+.app-modal-row--flush {
+  padding-top: 0;
+}
+.app-modal-row--flush + .app-modal-row {
+  border-top: 0;
+}
 
 .app-modal-row--lead {
-    display: flex;
-    align-items: center;
-    gap: 0.86rem;
+  display: flex;
+  align-items: center;
+  gap: 0.86rem;
 }
 
 /* Обёртка кнопки апдейта — контекст позиционирования для инлайн-тоста. */
 .app-update-ctl {
-    position: relative;
-    flex-shrink: 0;
-    display: inline-flex;
+  position: relative;
+  flex-shrink: 0;
+  display: inline-flex;
 }
 
 /* Инлайн-тост под кнопкой (как «сохранено» у ника): выезжает сверху вниз,
    фейдится. Только текст — без фона/обводки, центрирован по кнопке. Для
    «актуально»/«ошибка» — авто-скрытие; для «доступна» висит (зелёный). */
 .app-update-toast {
-    position: absolute;
-    left: 50%;
-    top: calc(100% + 0.43rem);
-    white-space: nowrap;
-    font-size: 0.71rem;
-    letter-spacing: var(--tracking);
-    text-transform: lowercase;
-    color: var(--fg-2);
-    opacity: 0;
-    transform: translate(-50%, -0.29rem);
-    transition: opacity var(--t-fast), transform var(--t-fast);
-    pointer-events: none;
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 0.43rem);
+  white-space: nowrap;
+  font-size: 0.71rem;
+  letter-spacing: var(--tracking);
+  text-transform: lowercase;
+  color: var(--fg-2);
+  opacity: 0;
+  transform: translate(-50%, -0.29rem);
+  transition:
+    opacity var(--t-fast),
+    transform var(--t-fast);
+  pointer-events: none;
 }
-.app-update-toast.is-visible { opacity: 1; transform: translate(-50%, 0); }
-.app-update-toast.is-available { color: var(--screen); }
+.app-update-toast.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+.app-update-toast.is-available {
+  color: var(--screen);
+}
 
 /* «Проверить обновления» — компактная кнопка в правой части строки (на месте
    тумблера). В покое прозрачная с акцентной обводкой, на hover заливается. */
 .app-update-btn {
-    flex-shrink: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    width: 13rem;
-    background: transparent;
-    border: 1px solid var(--screen);
-    color: var(--screen);
-    border-radius: 2px;
-    padding: 0.43rem 0.79rem;
-    font: inherit;
-    font-size: 0.79rem;
-    text-transform: lowercase;
-    letter-spacing: var(--tracking);
-    cursor: pointer;
-    transition: background var(--t-fast), color var(--t-fast), opacity var(--t-fast);
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 13rem;
+  background: transparent;
+  border: 1px solid var(--screen);
+  color: var(--screen);
+  border-radius: 2px;
+  padding: 0.43rem 0.79rem;
+  font: inherit;
+  font-size: 0.79rem;
+  text-transform: lowercase;
+  letter-spacing: var(--tracking);
+  cursor: pointer;
+  transition:
+    background var(--t-fast),
+    color var(--t-fast),
+    opacity var(--t-fast);
 }
 
 .app-update-btn:hover,
 .app-update-btn:focus-visible {
-    outline: none;
-    background: var(--screen);
-    color: var(--bg-0);
+  outline: none;
+  background: var(--screen);
+  color: var(--bg-0);
 }
 
 .app-update-btn .app-update-ic {
-    width: 0.93rem;
-    height: 0.93rem;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.7;
-    stroke-linecap: round;
-    stroke-linejoin: round;
+  width: 0.93rem;
+  height: 0.93rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 /* Во время проверки — иконка крутится, кнопка приглушена. */
-.app-update-btn.is-checking { opacity: 0.6; cursor: default; }
-.app-update-btn.is-checking .app-update-ic { animation: app-update-spin 0.8s linear infinite; }
-@keyframes app-update-spin { to { transform: rotate(360deg); } }
+.app-update-btn.is-checking {
+  opacity: 0.6;
+  cursor: default;
+}
+.app-update-btn.is-checking .app-update-ic {
+  animation: app-update-spin 0.8s linear infinite;
+}
+@keyframes app-update-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 
 /* Режим «обновить» (апдейт найден) — залитая акцентом, как primary-действие. */
 .app-update-btn.is-update {
-    background: var(--screen);
-    color: var(--bg-0);
+  background: var(--screen);
+  color: var(--bg-0);
 }
 .app-update-btn.is-update:hover,
 .app-update-btn.is-update:focus-visible {
-    filter: brightness(1.08);
+  filter: brightness(1.08);
 }
 
 /* Во время загрузки — приглушена, не кликается (label показывает %). */
 .app-update-btn.is-installing {
-    opacity: 0.85;
-    cursor: default;
-    background: var(--screen);
-    color: var(--bg-0);
+  opacity: 0.85;
+  cursor: default;
+  background: var(--screen);
+  color: var(--bg-0);
 }
-.app-modal-ic-lead { flex-shrink: 0; display: inline-flex; color: var(--fg-2); }
+.app-modal-ic-lead {
+  flex-shrink: 0;
+  display: inline-flex;
+  color: var(--fg-2);
+}
 .app-modal-ic-lead svg {
-    width: 1.29rem;
-    height: 1.29rem;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.4;
-    stroke-linecap: round;
-    stroke-linejoin: round;
+  width: 1.29rem;
+  height: 1.29rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 /* ----- app modal: big close-action buttons ----- */
-.app-section { display: flex; flex-direction: column; gap: 0.36rem; }
+.app-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.36rem;
+}
 .app-section-label {
-    font-size: 0.86rem;
-    color: var(--fg);
-    letter-spacing: var(--tracking);
-    text-transform: lowercase;
+  font-size: 0.86rem;
+  color: var(--fg);
+  letter-spacing: var(--tracking);
+  text-transform: lowercase;
 }
 .app-section-hint {
-    font-size: 0.79rem;
-    color: var(--fg-3);
-    letter-spacing: var(--tracking);
-    text-transform: lowercase;
-    margin-bottom: 0.5rem;
+  font-size: 0.79rem;
+  color: var(--fg-3);
+  letter-spacing: var(--tracking);
+  text-transform: lowercase;
+  margin-bottom: 0.5rem;
 }
 
 .close-actions {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.71rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.71rem;
 }
 .close-action {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.43rem;
-    padding: 1.43rem 1rem;
-    background: var(--bg-1);
-    border: 1px solid var(--fg-4);
-    border-radius: 2px;
-    color: var(--fg-3);
-    font: inherit;
-    text-align: center;
-    cursor: pointer;
-    transition: border-color var(--t-fast), color var(--t-fast), background var(--t-fast);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.43rem;
+  padding: 1.43rem 1rem;
+  background: var(--bg-1);
+  border: 1px solid var(--fg-4);
+  border-radius: 2px;
+  color: var(--fg-3);
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+  transition:
+    border-color var(--t-fast),
+    color var(--t-fast),
+    background var(--t-fast);
 }
 .close-action:hover,
-.close-action:focus-visible { border-color: var(--fg-3); color: var(--fg-2); outline: none; }
-.close-action.is-active { border-color: var(--fg-2); background: var(--bg-2); color: var(--fg); }
-.close-action:active { background: var(--bg-2); }
+.close-action:focus-visible {
+  border-color: var(--fg-3);
+  color: var(--fg-2);
+  outline: none;
+}
+.close-action.is-active {
+  border-color: var(--fg-2);
+  background: var(--bg-2);
+  color: var(--fg);
+}
+.close-action:active {
+  background: var(--bg-2);
+}
 .close-action-ic {
-    width: 1.86rem;
-    height: 1.86rem;
-    margin-bottom: 0.14rem;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.4;
-    stroke-linecap: round;
-    stroke-linejoin: round;
+  width: 1.86rem;
+  height: 1.86rem;
+  margin-bottom: 0.14rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 .close-action-title {
-    font-size: 0.86rem;
-    color: var(--fg-2);
-    letter-spacing: var(--tracking);
-    text-transform: lowercase;
+  font-size: 0.86rem;
+  color: var(--fg-2);
+  letter-spacing: var(--tracking);
+  text-transform: lowercase;
 }
-.close-action.is-active .close-action-title { color: var(--fg); }
+.close-action.is-active .close-action-title {
+  color: var(--fg);
+}
 .close-action-sub {
-    font-size: 0.71rem;
-    color: var(--fg-3);
-    letter-spacing: var(--tracking);
-    text-transform: lowercase;
-    line-height: 1.4;
+  font-size: 0.71rem;
+  color: var(--fg-3);
+  letter-spacing: var(--tracking);
+  text-transform: lowercase;
+  line-height: 1.4;
 }
 
-/* ----- hotkeys: keyboard visual (non-interactive) ----- */
+/* ----- hotkeys: keyboard + mouse visual (non-interactive) ----- */
+/* Ширина клавиш задаётся инлайном (flex: <units> 1 0) из KB_LAYOUT — здесь
+   только вид. Сумма юнитов в рядах одинаковая, поэтому столбцы совпадают. */
 .kbd-visual {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.36rem;
-    padding: 0.93rem;
-    margin-bottom: 1.14rem;
-    background: var(--bg-1);
-    border: 1px solid var(--fg-4);
-    border-radius: 2px;
-    user-select: none;
+  padding: 0.93rem;
+  margin-bottom: 1.14rem;
+  background: var(--bg-1);
+  border: 1px solid var(--fg-4);
+  border-radius: 2px;
+  user-select: none;
+  /* Узкое окно (web на телефоне) — карта уезжает в горизонтальный скролл,
+       а не сжимается в нечитаемую кашу. */
+  overflow-x: auto;
 }
-.kbd-row { display: flex; gap: 0.36rem; }
+.kbd-stage {
+  display: flex;
+  align-items: center;
+  gap: 1.14rem;
+  min-width: 30rem;
+}
+.kbd-board {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.29rem;
+}
+.kbd-row {
+  display: flex;
+  gap: 0.29rem;
+}
+.kbd-gap {
+  flex-shrink: 1;
+}
 .kbd-key {
-    flex: 1 1 0;
-    min-width: 0;
-    height: 2rem;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--bg-0);
-    border: 1px solid var(--fg-4);
-    border-radius: 2px;
-    font-size: 0.75rem;
-    color: var(--fg-3);
-    letter-spacing: var(--tracking);
-    transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
+  min-width: 0;
+  height: 1.71rem;
+  padding: 0 0.14rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: var(--bg-0);
+  border: 1px solid var(--fg-4);
+  border-radius: 2px;
+  font-size: 0.64rem;
+  line-height: 1;
+  color: var(--fg-3);
+  letter-spacing: var(--tracking);
+  transition:
+    background var(--t-fast),
+    border-color var(--t-fast),
+    color var(--t-fast);
 }
-/* Пропорции как на настоящей клавиатуре: shift ≈ 2.2 юнита, ctrl ≈ 1.5, space —
-   широкий. Без max-width на буквах, чтобы ряды равномерно заполняли ширину окна
-   и модификаторы не раздувались (flex letters = 1). */
-.kbd-key--wide { padding: 0 0.5rem; }
-.kbd-key[data-key="shift"] { flex: 2.2 1 0; }
-.kbd-key[data-key="ctrl"] { flex: 1.5 1 0; }
-.kbd-key--space { flex: 6 1 0; }
-/* буква назначенного бинда — залита; модификаторы — подсвеченный контур. */
-.kbd-key.is-on { background: #ffffff; border-color: #ffffff; color: var(--bg-0); }
-.kbd-key--wide.is-on { background: transparent; border-color: var(--fg); color: var(--fg); }
+.kbd-key--wide {
+  padding: 0 0.29rem;
+}
+/* Клавиша нарисована, но забиндить её нельзя — гасим, чтобы не звала кликать. */
+.kbd-key--dead {
+  opacity: 0.4;
+}
+.kbd-key--ic svg {
+  width: 0.71rem;
+  height: 0.71rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* Целевая клавиша бинда — залита; модификаторы — только подсвеченный контур:
+   в комбинации важна цель, ctrl/shift лишь контекст. */
+.kbd-key.is-on {
+  background: #ffffff;
+  border-color: #ffffff;
+  color: var(--bg-0);
+}
+.kbd-key--mod.is-on {
+  background: transparent;
+  border-color: var(--fg);
+  color: var(--fg);
+}
+
+/* Мышь — рядом с платой, по центру по вертикали. Рисуется теми же средствами,
+   что и клавиша: заливка --bg-0, контур --fg-4 толщиной ровно в 1px.
+
+   vector-effect: non-scaling-stroke здесь обязателен. Без него stroke живёт в
+   координатах viewBox (60×104) и масштабируется вместе с картинкой: при ширине
+   ~4rem обводка выходила больше 2 CSS-пикселей против 1px рамки у клавиш —
+   из-за этого мышь и клавиатура читались как из разных наборов. С ним единица =
+   1 CSS-пиксель при любом размере, и толщины совпадают.
+
+   data-key на частях = токены акселератора (mouse3/4/5, wheelup/wheeldown),
+   поэтому подсветку делает тот же код, что и для клавиш. */
+.kbd-mouse {
+  flex: 0 0 auto;
+  width: 4rem;
+  height: auto;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.kbd-mouse * {
+  vector-effect: non-scaling-stroke;
+}
+.kbd-mouse-shell {
+  fill: var(--bg-0);
+  stroke: var(--fg-4);
+  stroke-width: 1;
+}
+.kbd-mouse-seam {
+  fill: none;
+  stroke: var(--fg-4);
+  stroke-width: 1;
+}
+/* Части, которые можно забиндить: контур ярче — как подпись на кэпе ярче рамки. */
+.kbd-mouse-part {
+  fill: none;
+  stroke: var(--fg-3);
+  stroke-width: 1;
+  transition:
+    stroke var(--t-fast),
+    fill var(--t-fast);
+}
+/* Назначенная часть заливается белым — ровно как .kbd-key.is-on. */
+.kbd-mouse rect.kbd-mouse-part.is-on {
+  fill: #ffffff;
+  stroke: #ffffff;
+}
+.kbd-mouse path.kbd-mouse-part.is-on {
+  stroke: #ffffff;
+}
+/* Колесо залито белым — стрелки на нём иначе тонут, гасим их в цвет фона. */
+.kbd-mouse rect[data-key="mouse3"].is-on ~ path[data-key^="wheel"] {
+  stroke: var(--bg-0);
+}
 
 /* ----- hotkeys: rows + keycaps ----- */
-.hotkey-rows { display: flex; flex-direction: column; margin-top: 0.21rem; }
-.hotkey-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 0.57rem 0.43rem;
-    border-radius: 2px;
-    transition: background var(--t-fast);
+.hotkey-rows {
+  display: flex;
+  flex-direction: column;
+  margin-top: 0.21rem;
 }
-.hotkey-row:hover { background: var(--bg-1); }
+.hotkey-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.57rem 0.43rem;
+  border-radius: 2px;
+  transition: background var(--t-fast);
+}
+.hotkey-row:hover {
+  background: var(--bg-1);
+}
 .hotkey-label {
-    font-size: 0.86rem;
-    color: var(--fg);
-    letter-spacing: var(--tracking);
-    text-transform: lowercase;
+  font-size: 0.86rem;
+  color: var(--fg);
+  letter-spacing: var(--tracking);
+  text-transform: lowercase;
 }
 .hotkey-binding {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.36rem;
-    background: transparent;
-    border: 0;
-    padding: 0;
-    cursor: pointer;
-    font: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.36rem;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
 }
-.hotkey-binding:disabled { cursor: default; }
+.hotkey-binding:disabled {
+  cursor: default;
+}
 .binding-cap {
-    min-width: 1.86rem;
-    height: 1.86rem;
-    padding: 0 0.57rem;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--bg-1);
-    border: 1px solid var(--fg-4);
-    border-radius: 2px;
-    font-size: 0.75rem;
-    color: var(--fg-2);
-    text-transform: lowercase;
-    letter-spacing: var(--tracking);
-    transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
+  min-width: 1.86rem;
+  height: 1.86rem;
+  padding: 0 0.57rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-1);
+  border: 1px solid var(--fg-4);
+  border-radius: 2px;
+  font-size: 0.75rem;
+  color: var(--fg-2);
+  text-transform: lowercase;
+  letter-spacing: var(--tracking);
+  transition:
+    background var(--t-fast),
+    border-color var(--t-fast),
+    color var(--t-fast);
 }
-.hotkey-row:hover .binding-cap { border-color: var(--fg-2); color: var(--fg); }
+.hotkey-row:hover .binding-cap {
+  border-color: var(--fg-2);
+  color: var(--fg);
+}
 /* Таб-фокус на кнопку ребинда = тот же hover: подсветка кэпа + фон строки. */
-.hotkey-binding:focus-visible { outline: none; }
-.hotkey-binding:focus-visible .binding-cap { border-color: var(--fg-2); color: var(--fg); }
-.hotkey-row:has(.hotkey-binding:focus-visible) { background: var(--bg-1); }
-.binding-plus { color: var(--fg-3); font-size: 0.71rem; }
-.binding-empty { color: var(--fg-3); font-size: 0.86rem; padding: 0 0.57rem; }
-.binding-prompt { color: var(--screen); font-size: 0.86rem; padding: 0 0.57rem; letter-spacing: 0.18em; }
-.hotkey-binding.is-capturing .binding-cap { border-color: var(--screen); color: var(--screen); }
+.hotkey-binding:focus-visible {
+  outline: none;
+}
+.hotkey-binding:focus-visible .binding-cap {
+  border-color: var(--fg-2);
+  color: var(--fg);
+}
+.hotkey-row:has(.hotkey-binding:focus-visible) {
+  background: var(--bg-1);
+}
+/* «Восстановить» — правый нижний угол блока биндов. Текстовая, без рамки:
+   действие вспомогательное и не должно конкурировать с самими назначениями.
+   Гаснет вместе со списком, когда общий тумблер выключен. */
+.hotkey-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.29rem;
+}
+.hotkey-restore {
+  display: inline-flex;
+  margin: 10px 10px 0;
+  align-items: center;
+  gap: 0.36rem;
+  padding: 0.29rem 0.43rem;
+  background: transparent;
+  border: 0;
+  border-radius: 2px;
+  color: var(--fg-3);
+  font: inherit;
+  font-size: 0.71rem;
+  letter-spacing: var(--tracking);
+  text-transform: lowercase;
+  cursor: pointer;
+  transition:
+    color var(--t-fast),
+    background var(--t-fast);
+}
+.hotkey-restore:hover,
+.hotkey-restore:focus-visible {
+  outline: none;
+  color: var(--fg);
+}
+.hotkey-restore:disabled {
+  cursor: default;
+}
+.hotkey-restore svg {
+  width: 0.93rem;
+  height: 0.93rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.binding-plus {
+  color: var(--fg-3);
+  font-size: 0.71rem;
+}
+.binding-empty {
+  color: var(--fg-3);
+  font-size: 0.86rem;
+  padding: 0 0.57rem;
+}
+.binding-prompt {
+  color: var(--screen);
+  font-size: 0.86rem;
+  padding: 0 0.57rem;
+  letter-spacing: 0.18em;
+}
+.hotkey-binding.is-capturing .binding-cap {
+  border-color: var(--screen);
+  color: var(--screen);
+}
 
 @media (prefers-reduced-motion: reduce) {
-    .app-modal-card { transition: none; }
+  .app-modal-card {
+    transition: none;
+  }
 }

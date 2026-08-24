@@ -96,15 +96,15 @@ direct and never touches the tunnel.
 
 ## what's inside
 
-|  |  |
-|---|---|
-| **voice** | full‑mesh WebRTC, direct P2P audio between everyone in the room, no server in the path |
-| **noise suppression** | RNNoise (ML model in WASM/AudioWorklet) strips fans, keyboards, background hum — client‑side, before it's even sent |
-| **chat & files** | over the data channel: text, files up to 100 MB, images up to 10 MB |
-| **screen sharing** | with real system audio, up to 1080p60 |
-| **resilient** | perfect negotiation, automatic ICE‑restart, peer rebuild, a watchdog that catches "connected‑but‑dead" peers in ~5 s |
-| **native desktop** | frameless titlebar, system tray with live in‑room status, global hotkeys, signed auto‑updates, `void://` deep links |
-| **bilingual** | English / Russian · **streamer mode** hides the room code so it never leaks on stream |
+|                       |                                                                                                                      |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| **voice**             | full‑mesh WebRTC, direct P2P audio between everyone in the room, no server in the path                               |
+| **noise suppression** | RNNoise (ML model in WASM/AudioWorklet) strips fans, keyboards, background hum — client‑side, before it's even sent  |
+| **chat & files**      | over the data channel: text, files up to 100 MB, images up to 10 MB                                                  |
+| **screen sharing**    | with real system audio, up to 1080p60                                                                                |
+| **resilient**         | perfect negotiation, automatic ICE‑restart, peer rebuild, a watchdog that catches "connected‑but‑dead" peers in ~5 s |
+| **native desktop**    | frameless titlebar, system tray with live in‑room status, global hotkeys, signed auto‑updates, `void://` deep links  |
+| **bilingual**         | English / Russian · **streamer mode** hides the room code so it never leaks on stream                                |
 
 ---
 
@@ -117,17 +117,17 @@ no React, no bundlers, no TypeScript toolchain. the entire frontend is
 **vanilla JavaScript**, loaded with `<script defer>` and served as‑is. The whole thing is meant
 to be **read** — a complete, production‑hardened WebRTC system you can actually follow end to end.
 
-| layer | tech |
-|---|---|
-| signalling | Node.js 20 · Express · ws |
-| media transport | WebRTC (perfect negotiation, DTLS‑SRTP) |
-| chat & files | RTCDataChannel (binary chunked transfer) |
-| audio DSP | Web Audio — RNNoise → high/low‑pass → compressor → noise gate |
-| frontend | vanilla JS, no frameworks, no build step |
-| desktop | Tauri 2 (Rust + WebView2) |
-| relay | coturn (TURN, HMAC short‑lived credentials) |
-| reverse proxy | Caddy (automatic HTTPS) |
-| deploy | Docker + docker‑compose, CI on push |
+| layer           | tech                                                          |
+| --------------- | ------------------------------------------------------------- |
+| signalling      | Node.js 20 · Express · ws                                     |
+| media transport | WebRTC (perfect negotiation, DTLS‑SRTP)                       |
+| chat & files    | RTCDataChannel (binary chunked transfer)                      |
+| audio DSP       | Web Audio — RNNoise → high/low‑pass → compressor → noise gate |
+| frontend        | vanilla JS, no frameworks, no build step                      |
+| desktop         | Tauri 2 (Rust + WebView2)                                     |
+| relay           | coturn (TURN, HMAC short‑lived credentials)                   |
+| reverse proxy   | Caddy (automatic HTTPS)                                       |
+| deploy          | Docker + docker‑compose, CI on push                           |
 
 </details>
 
@@ -168,14 +168,14 @@ npm start          # → http://localhost:3000
 self‑hosting, environment variables, the TURN setup are all in **[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)**.
 
 bugs and ideas → open an [issue](https://github.com/jettsba/void/issues) or reach out on
-[Telegram](https://t.me/mtbibltww).
+[Telegram](https://t.me/casheaterr).
 
 ---
 
 <img src="docs/kdpv.png" alt="void — a voice chat that can't be wiretapped" width="880">
 
 <div align="center">
-<sub><a href="../README.ru.md">switch to russian</a> ·<a href="https://t.me/mtbibltww"> crafted by casheaterr</a></sub>
+<sub><a href="../README.ru.md">switch to russian</a> ·<a href="https://t.me/casheaterr"> crafted by casheaterr</a></sub>
 <br>
 <sub><a href="../LICENSE"><b>AGPL‑3.0</b></a><b> © 2026 void</b></sub>
 </div>

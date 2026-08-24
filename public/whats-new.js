@@ -35,17 +35,17 @@
    Посмотреть, как это выглядит, ДО выкатки: `VoidWhatsNewPreview()` в консоли. */
 
 window.VoidWhatsNew = {
-    version: "1.1.0",
+    version: "1.1.1",
     ru: [
-        "— обновления сервиса больше не прерывают разговор",
-        "— после обновления показывается баннер со списком изменений",
-        "— аватар больше не схлопывается при демонстрации экрана",
-        "— участник плавно гаснет при выходе из комнаты"
+        "— горячие клавиши теперь выключены по умолчанию: включить можно в настройках",
+        "— на тильду (~) теперь можно назначить бинд без ctrl и shift",
+        "— карта клавиатуры в настройках стала полной — с цифрами, F-рядом, стрелками и мышью",
+        "— появилась кнопка «восстановить» — для возврата комбинаций по умолчанию"
     ],
     en: [
-        "— service updates no longer interrupt your call",
-        "— now shows a banner with a list of changes after an update",
-        "— the avatar no longer collapses when you go quiet during a screen share",
-        "— participants fade out smoothly when they leave the room"
+        "— hotkeys are now off by default: turn them on in settings",
+        "— the tilde key (~) can be bound on its own, without ctrl or shift",
+        "— the keyboard map in settings is now complete — numbers, F-row, arrows and a mouse",
+        "— added a «restore» button to bring back the default bindings"
     ]
 };

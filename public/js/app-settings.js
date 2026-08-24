@@ -29,6 +29,16 @@
         leaveRoom:    "Ctrl+Shift+Q"
     };
 
+    /* Клавиши, которые разрешено назначить БЕЗ модификатора.
+       F-ряд — служебный, набору текста не мешает. Backquote (`/~) добавлен по
+       просьбам: в играх это исторически «клавиша консоли», и люди ждут, что её
+       можно повесить голой. Всё остальное модификатор требует — иначе бинд
+       срабатывал бы на обычном наборе текста.
+       Список именно белый, а не «всё, кроме букв»: на desktop голый бинд
+       регистрируется глобально и забирает клавишу у всей системы, пока void
+       запущен. Расширять — осознанно, по одной клавише. */
+    const STANDALONE_KEYS = new Set(["Backquote"]);
+
     const HOTKEY_ROWS = [
         { action: "toggleMic",    labelKey: "hotkeys.action.toggleMic" },
         { action: "toggleSound",  labelKey: "hotkeys.action.toggleSound" },
@@ -57,6 +67,7 @@
 
     /* Монолайн-иконки заголовков модалок (по гайду: stroke, round caps). */
     const ICON_KEYBOARD = `<svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></svg>`;
+    const ICON_RESTORE = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 12a8.5 8.5 0 1 1-2.49-6.01"/><path d="M20.5 4.4v4.6h-4.6"/></svg>`;
     const ICON_APP = `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg>`;
 
     // -------------------- localStorage helpers --------------------
@@ -70,11 +81,15 @@
                         ? parsed.closeAction
                         : "minimize",
                 autoStart: typeof parsed.autoStart === "boolean" ? parsed.autoStart : false,
-                /* Общий выключатель глобальных хоткеев. Default — включены. */
-                hotkeysEnabled: typeof parsed.hotkeysEnabled === "boolean" ? parsed.hotkeysEnabled : true
+                /* Общий выключатель глобальных хоткеев. Default — ВЫКЛЮЧЕНЫ,
+                   и для новых установок, и после обновления: дефолтные
+                   комбинации пересекались с внутриигровыми биндами, и «покинуть
+                   комнату» / «полный мут» срабатывали посреди игры. О смене
+                   дефолта сообщает баннер «что нового». */
+                hotkeysEnabled: typeof parsed.hotkeysEnabled === "boolean" ? parsed.hotkeysEnabled : false
             };
         } catch {
-            return { closeAction: "minimize", autoStart: false, hotkeysEnabled: true };
+            return { closeAction: "minimize", autoStart: false, hotkeysEnabled: false };
         }
     }
 
@@ -119,13 +134,16 @@
 
     // -------------------- Modal infra --------------------
 
-    function openModal(title, contentHTML, iconSvg) {
+    /* cardClass — необязательный модификатор карточки. Нужен, потому что шелл
+       общий: клавиатурная карта требует широкой модалки, а «настройки
+       приложения» и «что нового» на такой ширине разъезжаются. */
+    function openModal(title, contentHTML, iconSvg, cardClass) {
         closeModalIfAny();
         const scrim = document.createElement("div");
         scrim.className = "app-modal-scrim";
         scrim.id = "appModalScrim";
         const card = document.createElement("div");
-        card.className = "app-modal-card";
+        card.className = "app-modal-card" + (cardClass ? " " + cardClass : "");
         card.setAttribute("role", "dialog");
         card.setAttribute("aria-modal", "true");
         card.innerHTML = `
@@ -206,23 +224,25 @@
                 <div class="hotkey-rows">
                     ${rowsHTML}
                 </div>
-            </div>
-            <div class="app-modal-footer-hint" data-desktop-hotkeys-hint>
-                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>
-                <span>${escape(T("hotkeys.mousehint"))}</span>
+                <div class="hotkey-actions">
+                    <button type="button" class="hotkey-restore" id="hotkeyRestore">
+                        ${ICON_RESTORE}<span>${escape(T("hotkeys.restore"))}</span>
+                    </button>
+                </div>
             </div>
             <div class="app-modal-footer-hint" data-web-hotkeys-hint>
                 <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>
                 <span>${escape(T("hotkeys.webhint"))}</span>
             </div>
             `,
-            ICON_KEYBOARD
+            ICON_KEYBOARD,
+            "app-modal-card--wide"
         );
 
         const listEl = card.querySelector("[data-hotkeys-list]");
         const applyEnabledUI = (on) => {
             listEl.classList.toggle("is-disabled", !on);
-            card.querySelectorAll(".hotkey-binding").forEach((b) => { b.disabled = !on; });
+            card.querySelectorAll(".hotkey-binding, .hotkey-restore").forEach((b) => { b.disabled = !on; });
         };
 
         const toggle = card.querySelector("#appHotkeysEnabled");
@@ -249,29 +269,132 @@
                 startCapture(btn);
             });
         });
+
+        /* «Восстановить» — вернуть все четыре бинда к DEFAULT_HOTKEYS. Общий
+           тумблер не трогаем: это сброс назначений, а не включение хоткеев. */
+        const restoreBtn = card.querySelector("#hotkeyRestore");
+        restoreBtn?.addEventListener("click", () => {
+            if (restoreBtn.disabled) return;
+            if (activeCapture) {
+                stopCapture(activeCapture, true);
+                activeCapture = null;
+            }
+            saveHotkeys({ ...DEFAULT_HOTKEYS });
+            card.querySelectorAll(".hotkey-binding").forEach((b) => {
+                renderBinding(b, DEFAULT_HOTKEYS[b.dataset.action] || "");
+            });
+            highlightKeyboard(card, "");
+            if (tauriEvent && readAppState().hotkeysEnabled) {
+                tauriEvent.emit("void:register-hotkeys", { bindings: readHotkeys() }).catch(() => {});
+            }
+        });
     }
 
-    /* ===== keyboard visual (non-interactive) ===== */
+    /* ===== keyboard + mouse visual (non-interactive) ===== */
 
-    const KB_ROWS = [
-        ["Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"],
-        ["A", "S", "D", "F", "G", "H", "J", "K", "L"],
-        ["Z", "X", "C", "V", "B", "N", "M"]
+    /* Раскладка 65%: шесть рядов по 16 юнитов. Выбрана не за красоту, а потому
+       что на неё ложится ВСЁ, что умеет вернуть mapKeyToTauri — F-ряд, цифры,
+       знаки, стрелки, home/end/pgup/pgdn. Карта перестаёт врать: любой
+       назначенный бинд на ней действительно подсветится. Прежняя миниатюра
+       рисовала только буквы + shift/ctrl и читалась как обрезанная.
+
+       Формат: K(label, key, units).
+       - key === null — клавиша нарисована для узнаваемости, но забиндить её
+         нельзя: esc отменяет захват, bksp/del очищают бинд, caps и fn до нас
+         не доходят.
+       - GAP(units) — пустой распор между группами, как физический зазор платы.
+       - units по умолчанию 1; ряды обязаны давать одинаковую сумму, иначе
+         столбцы разъедутся (flex распределяет остаток по ряду). */
+    const K = (label, key, units) => ({ label, key: key || null, units: units || 1 });
+    const GAP = (units) => ({ label: null, key: null, units });
+
+    /* Стрелки — inline SVG, а не юникод: гайд запрещает юникод-иконки
+       (rules/VOID_STYLE_GUIDE.md §6, исключения только «—» и «·»). */
+    const ARROW = {
+        up:    `<svg viewBox="0 0 24 24"><path d="M12 19V6M6 12l6-6 6 6"/></svg>`,
+        down:  `<svg viewBox="0 0 24 24"><path d="M12 5v13M6 12l6 6 6-6"/></svg>`,
+        left:  `<svg viewBox="0 0 24 24"><path d="M19 12H6M12 6l-6 6 6 6"/></svg>`,
+        right: `<svg viewBox="0 0 24 24"><path d="M5 12h13M12 6l6 6-6 6"/></svg>`
+    };
+
+    const KB_LAYOUT = [
+        [K("esc", null), GAP(0.5),
+         K("f1", "f1"), K("f2", "f2"), K("f3", "f3"), K("f4", "f4"), GAP(0.5),
+         K("f5", "f5"), K("f6", "f6"), K("f7", "f7"), K("f8", "f8"), GAP(0.5),
+         K("f9", "f9"), K("f10", "f10"), K("f11", "f11"), K("f12", "f12"), GAP(0.5),
+         /* На месте del у 65%-плат — ins: Delete во время захвата очищает бинд
+            и назначить его нельзя, а Insert mapKeyToTauri отдаёт. */
+         K("ins", "insert")],
+
+        [K("`", "backquote"),
+         K("1", "1"), K("2", "2"), K("3", "3"), K("4", "4"), K("5", "5"),
+         K("6", "6"), K("7", "7"), K("8", "8"), K("9", "9"), K("0", "0"),
+         K("-", "minus"), K("=", "equal"), K("bksp", null, 2), K("home", "home")],
+
+        [K("tab", "tab", 1.5),
+         K("q", "q"), K("w", "w"), K("e", "e"), K("r", "r"), K("t", "t"),
+         K("y", "y"), K("u", "u"), K("i", "i"), K("o", "o"), K("p", "p"),
+         K("[", "bracketleft"), K("]", "bracketright"), K("\\", "backslash", 1.5),
+         K("end", "end")],
+
+        [K("caps", null, 1.75),
+         K("a", "a"), K("s", "s"), K("d", "d"), K("f", "f"), K("g", "g"),
+         K("h", "h"), K("j", "j"), K("k", "k"), K("l", "l"),
+         K(";", "semicolon"), K("'", "quote"), K("enter", "enter", 2.25),
+         K("pgup", "pageup")],
+
+        [K("shift", "shift", 2.25),
+         K("z", "z"), K("x", "x"), K("c", "c"), K("v", "v"), K("b", "b"),
+         K("n", "n"), K("m", "m"),
+         K(",", "comma"), K(".", "period"), K("/", "slash"),
+         K("shift", "shift", 1.75), K(ARROW.up, "up"), K("pgdn", "pagedown")],
+
+        [K("ctrl", "ctrl", 1.25), K("win", "super", 1.25), K("alt", "alt", 1.25),
+         K("", "space", 6.25),
+         K("alt", "alt"), K("fn", null), K("ctrl", "ctrl"),
+         K(ARROW.left, "left"), K(ARROW.down, "down"), K(ARROW.right, "right")]
     ];
 
+    /* Модификаторы подсвечиваются контуром, а не заливкой: в комбинации важна
+       целевая клавиша, ctrl/shift — только контекст. */
+    const KB_MODS = new Set(["ctrl", "shift", "alt", "super"]);
+
+    /* Мышь. data-key — те же токены, что и в акселераторе (Mouse3/4/5,
+       WheelUp/WheelDown), поэтому подсветка работает тем же кодом, что и для
+       клавиш. Левая и правая нарисованы, но мертвы — их намеренно нельзя
+       забиндить (см. mouseButtonToken). */
+    const KB_MOUSE = `
+        <svg class="kbd-mouse" viewBox="0 0 60 104" aria-hidden="true">
+            <path class="kbd-mouse-shell" d="M30 3C16.2 3 7 13.6 7 28v48c0 13.9 10.3 25 23 25s23-11.1 23-25V28C53 13.6 43.8 3 30 3Z"/>
+            <path class="kbd-mouse-seam" d="M30 3v11M7 44h46"/>
+            <rect class="kbd-mouse-part" data-key="mouse3" x="25" y="16" width="10" height="20" rx="5"/>
+            <path class="kbd-mouse-part" data-key="wheelup" d="M27.5 22 30 19l2.5 3"/>
+            <path class="kbd-mouse-part" data-key="wheeldown" d="M27.5 30 30 33l2.5-3"/>
+            <rect class="kbd-mouse-part" data-key="mouse4" x="2" y="48" width="6" height="12" rx="2.4"/>
+            <rect class="kbd-mouse-part" data-key="mouse5" x="2" y="62" width="6" height="12" rx="2.4"/>
+        </svg>`;
+
     function buildKeyboardHtml() {
-        const letterRows = KB_ROWS.map((row, i) => {
-            const keys = row.map(k => `<span class="kbd-key" data-key="${k.toLowerCase()}">${k}</span>`).join("");
-            /* shift живёт слева от нижнего буквенного ряда (Z…M) — как на реальной клавиатуре. */
-            const shift = i === 2 ? `<span class="kbd-key kbd-key--wide" data-key="shift">shift</span>` : "";
-            return `<div class="kbd-row">${shift}${keys}</div>`;
+        const rows = KB_LAYOUT.map((row) => {
+            const keys = row.map((k) => {
+                const flex = ` style="flex:${k.units} 1 0"`;
+                if (k.label === null) return `<span class="kbd-gap"${flex}></span>`;
+                const isIcon = k.label.charAt(0) === "<";
+                const cls = ["kbd-key"];
+                if (!k.key) cls.push("kbd-key--dead");
+                if (k.units >= 1.5) cls.push("kbd-key--wide");
+                if (isIcon) cls.push("kbd-key--ic");
+                if (k.key && KB_MODS.has(k.key)) cls.push("kbd-key--mod");
+                const attr = k.key ? ` data-key="${k.key}"` : "";
+                return `<span class="${cls.join(" ")}"${attr}${flex}>${isIcon ? k.label : escape(k.label)}</span>`;
+            }).join("");
+            return `<div class="kbd-row">${keys}</div>`;
         }).join("");
         return `
             <div class="kbd-visual" data-kbd aria-hidden="true">
-                ${letterRows}
-                <div class="kbd-row">
-                    <span class="kbd-key kbd-key--wide" data-key="ctrl">ctrl</span>
-                    <span class="kbd-key kbd-key--space"></span>
+                <div class="kbd-stage">
+                    <div class="kbd-board">${rows}</div>
+                    ${KB_MOUSE}
                 </div>
             </div>
         `;
@@ -290,8 +413,17 @@
         WheelDown: "hotkeys.cap.wheelDown"
     };
 
+    /* Знаки препинания на кэпе: «backquote»/«bracketleft» читаются как
+       отладочный вывод. Показываем символ — ровно так, как он выбит на клавише
+       (и так же, как подписан на карте). */
+    const PUNCT_CAPS = {
+        Backquote: "`", Minus: "-", Equal: "=", BracketLeft: "[", BracketRight: "]",
+        Semicolon: ";", Quote: "'", Backslash: "\\", Comma: ",", Period: ".", Slash: "/"
+    };
+
     function capLabel(part) {
         if (MOUSE_CAP_KEYS[part]) return T(MOUSE_CAP_KEYS[part]);
+        if (PUNCT_CAPS[part]) return PUNCT_CAPS[part];
         const m = { Ctrl: "ctrl", Shift: "shift", Alt: "alt", Super: "super" };
         return m[part] || String(part).toLowerCase();
     }
@@ -308,12 +440,16 @@
         btn.innerHTML = accelToKeycaps(accel);
     }
 
+    /* Сравниваем СЫРЫЕ токены акселератора, а не подписи с keycap'ов: подписи
+       переводимые (Mouse3 → «колесо-клик»/«middle click»), и по ним карта
+       совпадала бы только на одном языке. data-key хранит токен в нижнем
+       регистре — "m", "backquote", "f5", "ctrl", "mouse4". */
     function highlightKeyboard(card, accel) {
         const kb = card.querySelector("[data-kbd]");
         if (!kb) return;
-        const tokens = (accel || "").split("+").map(capLabel);
-        kb.querySelectorAll(".kbd-key").forEach(k => {
-            k.classList.toggle("is-on", !!k.dataset.key && tokens.includes(k.dataset.key));
+        const tokens = (accel || "").split("+").filter(Boolean).map(p => p.toLowerCase());
+        kb.querySelectorAll("[data-key]").forEach(k => {
+            k.classList.toggle("is-on", tokens.includes(k.dataset.key));
         });
     }
 
@@ -465,8 +601,9 @@
         const key = mapKeyToTauri(e);
         if (!key) return null;
         // Требуем хотя бы один modifier для глобальных хоткеев — иначе слишком
-        // легко конфликтует с обычным набором текста. Исключение — F-клавиши.
-        if (parts.length === 0 && !/^F\d+$/.test(key)) return null;
+        // легко конфликтует с обычным набором текста. Исключения — F-клавиши и
+        // STANDALONE_KEYS (см. объявление).
+        if (parts.length === 0 && !/^F\d+$/.test(key) && !STANDALONE_KEYS.has(key)) return null;
         parts.push(key);
         return parts.join("+");
     }
@@ -762,8 +899,18 @@
             return false;
         };
 
+        /* Голый бинд (без модификаторов) не должен стрелять, пока пользователь
+           печатает: в вебе хоткеи ловит тот же document, что и чат/поля ввода.
+           Комбинации с модификатором оставляем как были — Ctrl+Shift+… в текст
+           всё равно не попадает. */
+        const isTypingTarget = (el) =>
+            el instanceof Element &&
+            (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
+
         document.addEventListener("keydown", (e) => {
-            fireByAccel(e, buildAccelerator(e));               // null на чистом modifier
+            const accel = buildAccelerator(e);                 // null на чистом modifier
+            if (accel && !accel.includes("+") && isTypingTarget(e.target)) return;
+            fireByAccel(e, accel);
         });
 
         /* Кнопки мыши и колесо — тем же путём. Без этого мышиный бинд в вебе

@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "1.1.0";
+    const APP_VERSION = "1.1.1";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
@@ -54,8 +54,13 @@
         /* Общий выключатель глобальных хоткеев (desktop). Управляется в
            app-settings.js (модалка «горячие клавиши»), но хранится в этом же
            STORAGE_KEY — поэтому держим поле и здесь, иначе saveState() затёр бы
-           его при любом изменении других настроек. */
-        hotkeysEnabled: true,
+           его при любом изменении других настроек.
+           С v1.1.1 дефолт — ВЫКЛ, и для новых, и для тех, кто обновился:
+           дефолтные комбинации пересекались с внутриигровыми биндами. Никакой
+           миграции «старым оставим включёнными» тут нет намеренно — жаловались
+           как раз действующие пользователи, а про смену дефолта им рассказывает
+           баннер «что нового» (public/whats-new.js). */
+        hotkeysEnabled: false,
         /* Громкость звуков приложения (тоглы/сообщения/вход-выход). Множитель
            поверх базы синтеза; 0..1.5, дефолт 1.0. sfxEnabled — общий
            выключатель. Консюмер — js/audio.js (VoidSounds.setSfxVolume/Enabled)
@@ -207,7 +212,7 @@
             "hotkeys.action.toggleWindow": "показать/скрыть окно",
             "hotkeys.action.leaveRoom": "покинуть комнату",
             "hotkeys.webhint": "в web-версии хоткеи работают только при открытой вкладке",
-            "hotkeys.mousehint": "можно назначить кнопки мыши: среднюю и боковые. колесо — только с модификатором",
+            "hotkeys.restore": "восстановить",
             "hotkeys.cap.mouse3": "колесо-клик",
             "hotkeys.cap.mouse4": "мышь 4",
             "hotkeys.cap.mouse5": "мышь 5",
@@ -429,7 +434,7 @@
             "hotkeys.action.toggleWindow": "show/hide window",
             "hotkeys.action.leaveRoom": "leave room",
             "hotkeys.webhint": "in the web version hotkeys work only while the tab is open",
-            "hotkeys.mousehint": "mouse buttons work too: middle and side ones. wheel needs a modifier",
+            "hotkeys.restore": "restore",
             "hotkeys.cap.mouse3": "middle click",
             "hotkeys.cap.mouse4": "mouse 4",
             "hotkeys.cap.mouse5": "mouse 5",
@@ -986,7 +991,7 @@
                             </span>
                         </span>
                         <a class="settings-footer-author"
-                           href="https://t.me/mtbibltww"
+                           href="https://t.me/casheaterr"
                            target="_blank"
                            rel="noopener noreferrer">by @casheaterr</a>
                     </div>

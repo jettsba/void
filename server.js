@@ -120,8 +120,12 @@ app.get('/api/version', (req, res) => {
    добавил ник в Set — он и подсветится в комнате, и появится на лендинге.
    Парсим текстуально, без eval/import (config.js — не ESM-модуль, грузится в
    браузер тегом <script>, а попытка `await import()` здесь дала бы ESM-фейл
-   на "const X" в module scope). Исключаем casheaterr — это автор, не контр.
+   на "const X" в module scope). Исключаем NON_CONTRIBUTOR_NICKNAMES: casheaterr —
+   это автор, а void — пасхалка (ник даёт золотой shimmer в комнате, но человека
+   за ним нет). Тот же список продублирован в landing/landing.js — фолбэк-парсер
+   должен фильтровать ровно так же, иначе dev и prod разойдутся.
    Кэш 5 минут (список меняется только при выкатке — частить смысла нет). */
+const NON_CONTRIBUTOR_NICKNAMES = new Set(['casheaterr', 'void']);
 const getContributors = hot(() => {
     const src = readFileSync(path.join(__dirname, 'public/js/config.js'), 'utf8');
     const block = src.match(/PREMIUM_NICKNAMES\s*=\s*new\s+Set\s*\(\s*\[([\s\S]*?)\]\s*\)/);
@@ -129,7 +133,7 @@ const getContributors = hot(() => {
     return [...block[1].matchAll(/["']([^"']+)["']/g)]
         .map(m => m[1].trim().toLowerCase())
         .filter(Boolean)
-        .filter(n => n !== 'casheaterr');
+        .filter(n => !NON_CONTRIBUTOR_NICKNAMES.has(n));
 }, []);
 app.get('/api/contributors', (req, res) => {
     res.set('Cache-Control', 'public, max-age=300');

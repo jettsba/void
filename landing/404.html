@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="ru">
-<head>
+  <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>void :: 404</title>
@@ -11,47 +11,104 @@
     <link rel="icon" type="image/svg+xml" href="/static/favicon/favicon.svg" />
     <link rel="stylesheet" href="/landing.css?v=7" />
     <style>
-        body { min-height: 100vh; display: flex; flex-direction: column; }
-        .notfound-wrap { flex: 1; display: flex; align-items: center; justify-content: center; padding: 40px 24px; }
-        .notfound { text-align: center; max-width: 480px; }
-        .notfound-num { font-size: clamp(5rem, 18vw, 10rem); font-weight: 200; letter-spacing: -0.04em; color: var(--ink, #e6e6e8); opacity: 0.85; line-height: 1; margin: 0 0 24px; font-variant-numeric: tabular-nums; }
-        .notfound-msg { font-size: 1rem; color: var(--ink-dim, #9a9aa0); margin: 0 0 8px; }
-        .notfound-coda { font-size: 0.875rem; color: var(--ink-muted, #6a6a70); font-style: italic; margin: 0 0 36px; }
-        .notfound-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+      body {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+      .notfound-wrap {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 40px 24px;
+      }
+      .notfound {
+        text-align: center;
+        max-width: 480px;
+      }
+      .notfound-num {
+        font-size: clamp(5rem, 18vw, 10rem);
+        font-weight: 200;
+        letter-spacing: -0.04em;
+        color: var(--ink, #e6e6e8);
+        opacity: 0.85;
+        line-height: 1;
+        margin: 0 0 24px;
+        font-variant-numeric: tabular-nums;
+      }
+      .notfound-msg {
+        font-size: 1rem;
+        color: var(--ink-dim, #9a9aa0);
+        margin: 0 0 8px;
+      }
+      .notfound-coda {
+        font-size: 0.875rem;
+        color: var(--ink-muted, #6a6a70);
+        font-style: italic;
+        margin: 0 0 36px;
+      }
+      .notfound-actions {
+        display: flex;
+        gap: 12px;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <div class="header-wrap">
-        <header class="header">
-            <a class="brand-lockup" href="/">
-                <span class="brand-logo-slot" aria-hidden="true">
-                    <span class="logo-eclipse"></span>
-                </span>
-                <span class="brand-mark">void</span>
-            </a>
-        </header>
+      <header class="header">
+        <a class="brand-lockup" href="/">
+          <span class="brand-logo-slot" aria-hidden="true">
+            <span class="logo-eclipse"></span>
+          </span>
+          <span class="brand-mark">void</span>
+        </a>
+      </header>
     </div>
 
     <main class="notfound-wrap">
-        <div class="notfound">
-            <div class="notfound-num">404</div>
-            <p class="notfound-msg">здесь пусто.</p>
-            <p class="notfound-coda">— как и должно быть в void.</p>
-            <div class="notfound-actions">
-                <a class="btn primary" href="/">
-                    <span>на главную</span>
-                    <svg class="btn-arrow" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h10"/><path d="M9 4l4 4-4 4"/></svg>
-                </a>
-                <a class="btn" href="https://app.void-room.space">открыть void</a>
-            </div>
+      <div class="notfound">
+        <div class="notfound-num">404</div>
+        <p class="notfound-msg">здесь пусто.</p>
+        <p class="notfound-coda">— как и должно быть в void.</p>
+        <div class="notfound-actions">
+          <a class="btn primary" href="/">
+            <span>на главную</span>
+            <svg
+              class="btn-arrow"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.4"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M3 8h10" />
+              <path d="M9 4l4 4-4 4" />
+            </svg>
+          </a>
+          <a class="btn" href="https://app.void-room.space">открыть void</a>
         </div>
+      </div>
     </main>
 
     <footer class="footer">
-        <p class="footer-copy">
-            <a class="footer-credit-link" href="https://t.me/mtbibltww" target="_blank" rel="noopener noreferrer">void by casheaterr</a> · 2026 · <a class="footer-credit-link" href="/privacy">privacy</a>
-        </p>
-        <a class="footer-lang" href="/en/" hreflang="en" lang="en">switch to english</a>
+      <p class="footer-copy">
+        <a
+          class="footer-credit-link"
+          href="https://t.me/casheaterr"
+          target="_blank"
+          rel="noopener noreferrer"
+          >void by casheaterr</a
+        >
+        · 2026 · <a class="footer-credit-link" href="/privacy">privacy</a>
+      </p>
+      <a class="footer-lang" href="/en/" hreflang="en" lang="en"
+        >switch to english</a
+      >
     </footer>
-</body>
+  </body>
 </html>

@@ -580,7 +580,8 @@ if (__voidEntrance) { try { window.scrollTo(0, 0); } catch (_) {} }
        Three responsibilities:
 
        1. fetchContributors()  primary `/api/contributors` (server parses
-                               PREMIUM_NICKNAMES at boot, filters casheaterr).
+                               PREMIUM_NICKNAMES at boot, filters the same
+                               non-contributor nicks: casheaterr / void).
                                Fallback: live-server / file:// has no node, so
                                we re-parse public/js/config.js client-side with
                                the identical regex. In production the API

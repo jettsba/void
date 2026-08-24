@@ -1,854 +1,1281 @@
 <!doctype html>
 <html lang="en">
-<head>
+  <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
 
     <script>
       (function () {
         var h = location.hash;
         if (h.length <= 1) return;
-        if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        if (
+          window.matchMedia &&
+          window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        )
+          return;
         window.__voidEntrance = h.slice(1);
-        try { history.scrollRestoration = 'manual'; } catch (e) {}
-        try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+        try {
+          history.scrollRestoration = "manual";
+        } catch (e) {}
+        try {
+          history.replaceState(null, "", location.pathname + location.search);
+        } catch (e) {}
       })();
     </script>
 
     <!-- ====== PRIMARY ====== -->
     <title>void :: peer-to-peer voice rooms</title>
-    <meta name="description" content="Ephemeral voice rooms. No sign-up, no history. Open a room, share the code — and talk. Voice, chat, screen, files. Free, nothing is saved." />
+    <meta
+      name="description"
+      content="Ephemeral voice rooms. No sign-up, no history. Open a room, share the code — and talk. Voice, chat, screen, files. Free, nothing is saved."
+    />
     <meta name="author" content="void" />
-    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <meta
+      name="robots"
+      content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"
+    />
     <meta name="googlebot" content="index, follow" />
     <meta name="theme-color" content="#0a0a0b" />
     <meta name="color-scheme" content="dark" />
     <meta name="format-detection" content="telephone=no" />
 
     <link rel="canonical" href="https://void-room.space/en/" />
-    <link rel="alternate" hreflang="ru"        href="https://void-room.space/" />
-    <link rel="alternate" hreflang="en"        href="https://void-room.space/en/" />
-    <link rel="alternate" hreflang="x-default" href="https://void-room.space/en/" />
+    <link rel="alternate" hreflang="ru" href="https://void-room.space/" />
+    <link rel="alternate" hreflang="en" href="https://void-room.space/en/" />
+    <link
+      rel="alternate"
+      hreflang="x-default"
+      href="https://void-room.space/en/"
+    />
 
     <!-- ====== OPEN GRAPH ====== -->
-    <meta property="og:type"             content="website" />
-    <meta property="og:site_name"        content="void" />
-    <meta property="og:title"            content="void — leaves no trace." />
-    <meta property="og:description"      content="Peer-to-peer voice rooms. No sign-up, no middlemen. Open it, share the code — and talk." />
-    <meta property="og:url"              content="https://void-room.space/en/" />
-    <meta property="og:image"            content="https://void-room.space/og.png" />
-    <meta property="og:image:secure_url" content="https://void-room.space/og.png" />
-    <meta property="og:image:type"       content="image/png" />
-    <meta property="og:image:width"      content="1200" />
-    <meta property="og:image:height"     content="630" />
-    <meta property="og:image:alt"        content="void — leaves no trace." />
-    <meta property="og:locale"           content="en_US" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="void" />
+    <meta property="og:title" content="void — leaves no trace." />
+    <meta
+      property="og:description"
+      content="Peer-to-peer voice rooms. No sign-up, no middlemen. Open it, share the code — and talk."
+    />
+    <meta property="og:url" content="https://void-room.space/en/" />
+    <meta property="og:image" content="https://void-room.space/og.png" />
+    <meta
+      property="og:image:secure_url"
+      content="https://void-room.space/og.png"
+    />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="void — leaves no trace." />
+    <meta property="og:locale" content="en_US" />
     <meta property="og:locale:alternate" content="ru_RU" />
 
     <!-- ====== TWITTER / X CARD ====== -->
-    <meta name="twitter:card"        content="summary_large_image" />
-    <meta name="twitter:title"       content="void — leaves no trace." />
-    <meta name="twitter:description" content="Peer-to-peer voice rooms. No sign-up, no history. Open it, call a friend — and the room is gone." />
-    <meta name="twitter:image"       content="https://void-room.space/og.png" />
-    <meta name="twitter:image:alt"   content="void — leaves no trace." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="void — leaves no trace." />
+    <meta
+      name="twitter:description"
+      content="Peer-to-peer voice rooms. No sign-up, no history. Open it, call a friend — and the room is gone."
+    />
+    <meta name="twitter:image" content="https://void-room.space/og.png" />
+    <meta name="twitter:image:alt" content="void — leaves no trace." />
 
     <!-- ====== STRUCTURED DATA (Schema.org) ====== -->
     <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@graph": [
-        {
-          "@type": "WebApplication",
-          "@id": "https://void-room.space/#app",
-          "name": "void",
-          "alternateName": "void-room",
-          "url": "https://void-room.space/en/",
-          "applicationCategory": "CommunicationApplication",
-          "operatingSystem": "Web Browser",
-          "browserRequirements": "Requires a modern browser with WebRTC support (Chrome, Firefox, Safari, Edge).",
-          "offers": {
-            "@type": "Offer",
-            "price": "0",
-            "priceCurrency": "USD"
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebApplication",
+            "@id": "https://void-room.space/#app",
+            "name": "void",
+            "alternateName": "void-room",
+            "url": "https://void-room.space/en/",
+            "applicationCategory": "CommunicationApplication",
+            "operatingSystem": "Web Browser",
+            "browserRequirements": "Requires a modern browser with WebRTC support (Chrome, Firefox, Safari, Edge).",
+            "offers": {
+              "@type": "Offer",
+              "price": "0",
+              "priceCurrency": "USD"
+            },
+            "description": "Ephemeral peer-to-peer voice rooms. No accounts, no history, no tracking. Open a room, share the code, talk — and the room is gone.",
+            "featureList": [
+              "Peer-to-peer voice calls",
+              "Screen sharing",
+              "Text chat with file sharing",
+              "No registration or accounts",
+              "No history or recording",
+              "End-to-end via WebRTC",
+              "Up to 10 participants per room"
+            ],
+            "inLanguage": ["en", "ru"],
+            "isAccessibleForFree": true,
+            "softwareVersion": "{{VERSION}}",
+            "screenshot": "https://void-room.space/og.png",
+            "downloadUrl": "https://void-room.space/en/#download",
+            "installUrl": "https://app.void-room.space/",
+            "datePublished": "2026-02-13",
+            "dateModified": "{{LASTMOD}}",
+            "creator": {
+              "@type": "Person",
+              "@id": "https://void-room.space/#casheaterr",
+              "name": "casheaterr",
+              "sameAs": "https://t.me/casheaterr"
+            }
           },
-          "description": "Ephemeral peer-to-peer voice rooms. No accounts, no history, no tracking. Open a room, share the code, talk — and the room is gone.",
-          "featureList": [
-            "Peer-to-peer voice calls",
-            "Screen sharing",
-            "Text chat with file sharing",
-            "No registration or accounts",
-            "No history or recording",
-            "End-to-end via WebRTC",
-            "Up to 10 participants per room"
-          ],
-          "inLanguage": ["en", "ru"],
-          "isAccessibleForFree": true,
-          "softwareVersion": "{{VERSION}}",
-          "screenshot": "https://void-room.space/og.png",
-          "downloadUrl": "https://void-room.space/en/#download",
-          "installUrl": "https://app.void-room.space/",
-          "datePublished": "2026-02-13",
-          "dateModified": "{{LASTMOD}}",
-          "creator": {
-            "@type": "Person",
-            "@id": "https://void-room.space/#casheaterr",
-            "name": "casheaterr",
-            "sameAs": "https://t.me/mtbibltww"
+          {
+            "@type": "Organization",
+            "@id": "https://void-room.space/#org",
+            "name": "void",
+            "url": "https://void-room.space/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://void-room.space/static/favicon/favicon.svg",
+              "width": 512,
+              "height": 512
+            },
+            "sameAs": ["https://t.me/casheaterr"],
+            "founder": { "@id": "https://void-room.space/#casheaterr" }
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://void-room.space/#website",
+            "name": "void",
+            "url": "https://void-room.space/en/",
+            "inLanguage": "en-US"
           }
-        },
-        {
-          "@type": "Organization",
-          "@id": "https://void-room.space/#org",
-          "name": "void",
-          "url": "https://void-room.space/",
-          "logo": {
-            "@type": "ImageObject",
-            "url": "https://void-room.space/static/favicon/favicon.svg",
-            "width": 512,
-            "height": 512
-          },
-          "sameAs": ["https://t.me/mtbibltww"],
-          "founder": { "@id": "https://void-room.space/#casheaterr" }
-        },
-        {
-          "@type": "WebSite",
-          "@id": "https://void-room.space/#website",
-          "name": "void",
-          "url": "https://void-room.space/en/",
-          "inLanguage": "en-US"
-        }
-      ]
-    }
+        ]
+      }
     </script>
 
     <!-- ====== FAVICON + APP ICONS ====== -->
-    <link rel="icon"             type="image/svg+xml" href="/static/favicon/favicon.svg" />
-    <link rel="icon"             type="image/png"     sizes="96x96"   href="/static/favicon/favicon-96x96.png" />
-    <link rel="shortcut icon"                          href="/static/favicon/favicon.ico" />
-    <link rel="apple-touch-icon" sizes="180x180"      href="/static/favicon/apple-touch-icon.png" />
-    <link rel="manifest"                              href="/static/favicon/site.webmanifest" />
-    <meta name="apple-mobile-web-app-title"      content="void" />
-    <meta name="apple-mobile-web-app-capable"    content="yes" />
-    <meta name="mobile-web-app-capable"          content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="application-name"                content="void" />
+    <link rel="icon" type="image/svg+xml" href="/static/favicon/favicon.svg" />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="96x96"
+      href="/static/favicon/favicon-96x96.png"
+    />
+    <link rel="shortcut icon" href="/static/favicon/favicon.ico" />
+    <link
+      rel="apple-touch-icon"
+      sizes="180x180"
+      href="/static/favicon/apple-touch-icon.png"
+    />
+    <link rel="manifest" href="/static/favicon/site.webmanifest" />
+    <meta name="apple-mobile-web-app-title" content="void" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
+    <meta name="application-name" content="void" />
 
-    <link rel="preload" href="/landing.css?v=7" as="style">
-    <link rel="preload" href="/landing.js?v=7" as="script">
+    <link rel="preload" href="/landing.css?v=7" as="style" />
+    <link rel="preload" href="/landing.js?v=7" as="script" />
     <script src="/lenis.min.js?v=1" defer></script>
     <link rel="stylesheet" href="/landing.css?v=7" />
-</head>
-<body>
-    <canvas id="bgBlobs"  class="bg-canvas" aria-hidden="true"></canvas>
+  </head>
+  <body>
+    <canvas id="bgBlobs" class="bg-canvas" aria-hidden="true"></canvas>
     <canvas id="bgCanvas" class="bg-canvas" aria-hidden="true"></canvas>
 
     <!-- INTRO -->
     <div id="intro" class="intro" aria-hidden="true">
-        <canvas id="introCanvas" class="intro-canvas"></canvas>
-        <div class="intro-stage">
-            <div id="introLogo" class="intro-logo">
-                <div class="orb-halo"></div>
-                <div class="orb-frame">
-                    <div class="orb-ring r-1"></div>
-                    <div class="orb-ring r-2"></div>
-                    <div class="orb-ring r-3"></div>
-                </div>
-                <div class="orb-spinner"></div>
-                <div class="orb-core"></div>
-            </div>
+      <canvas id="introCanvas" class="intro-canvas"></canvas>
+      <div class="intro-stage">
+        <div id="introLogo" class="intro-logo">
+          <div class="orb-halo"></div>
+          <div class="orb-frame">
+            <div class="orb-ring r-1"></div>
+            <div class="orb-ring r-2"></div>
+            <div class="orb-ring r-3"></div>
+          </div>
+          <div class="orb-spinner"></div>
+          <div class="orb-core"></div>
         </div>
+      </div>
     </div>
 
     <div id="page" class="page">
+      <!-- HEADER -->
+      <div class="header-wrap">
+        <header id="header" class="header">
+          <a class="brand-lockup" id="brandLockup" href="#top">
+            <span class="brand-logo-slot" id="brandLogoSlot" aria-hidden="true">
+              <span class="logo-eclipse"></span>
+            </span>
+            <span class="brand-mark">void</span>
+          </a>
+        </header>
+      </div>
 
-        <!-- HEADER -->
-        <div class="header-wrap">
-            <header id="header" class="header">
-                <a class="brand-lockup" id="brandLockup" href="#top">
-                    <span class="brand-logo-slot" id="brandLogoSlot" aria-hidden="true">
-                        <span class="logo-eclipse"></span>
-                    </span>
-                    <span class="brand-mark">void</span>
+      <!-- HERO -->
+      <section class="hero" id="top">
+        <div class="shell">
+          <div class="hero-grid">
+            <div class="hero-copy">
+              <div class="hero-eyebrow reveal">
+                <span class="line"></span>
+                <span class="app-version" data-version-fallback="v{{VERSION}}"
+                  >v{{VERSION}}</span
+                >
+              </div>
+              <h1 class="hero-display reveal" data-delay="1">
+                <span class="h1-line">leaves</span
+                ><span class="h1-line">no trace.</span>
+              </h1>
+              <p class="hero-tagline reveal" data-delay="2">
+                open void, share the code — and talk. no sign-up, no analytics,
+                no middlemen.
+              </p>
+              <p class="hero-promise reveal" data-delay="3">
+                — voice, for as long as you need it.
+              </p>
+              <div class="hero-actions reveal" data-delay="4">
+                <a class="btn primary" href="https://app.void-room.space">
+                  <span>launch in web</span>
+                  <svg
+                    class="btn-arrow"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.4"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M3 8h10" />
+                    <path d="M9 4l4 4-4 4" />
+                  </svg>
                 </a>
-            </header>
+                <a class="btn" href="#download">download</a>
+              </div>
+            </div>
+
+            <div class="hero-vis reveal" data-delay="3" aria-hidden="true">
+              <div class="hero-vis-halo"></div>
+              <div class="hero-vis-frame">
+                <div class="r r-1"></div>
+                <div class="r r-2"></div>
+                <div class="r r-3"></div>
+                <div class="r r-4"></div>
+              </div>
+              <div class="hero-vis-orbit a"></div>
+              <div class="hero-vis-orbit b"></div>
+              <div class="hero-vis-core"></div>
+            </div>
+          </div>
         </div>
+      </section>
 
-        <!-- HERO -->
-        <section class="hero" id="top">
-            <div class="shell">
-                <div class="hero-grid">
-                    <div class="hero-copy">
-                        <div class="hero-eyebrow reveal">
-                            <span class="line"></span>
-                            <span class="app-version" data-version-fallback="v{{VERSION}}">v{{VERSION}}</span>
-                        </div>
-                        <h1 class="hero-display reveal" data-delay="1">
-                            <span class="h1-line">leaves</span><span class="h1-line">no trace.</span>
-                        </h1>
-                        <p class="hero-tagline reveal" data-delay="2">open void, share the code — and talk. no sign-up, no analytics, no middlemen.</p>
-                        <p class="hero-promise reveal" data-delay="3">— voice, for as long as you need it.</p>
-                        <div class="hero-actions reveal" data-delay="4">
-                            <a class="btn primary" href="https://app.void-room.space">
-                                <span>launch in web</span>
-                                <svg class="btn-arrow" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h10"/><path d="M9 4l4 4-4 4"/></svg>
-                            </a>
-                            <a class="btn" href="#download">download</a>
-                        </div>
-                    </div>
+      <!-- WHAT -->
+      <section class="what" id="what">
+        <div class="shell">
+          <div class="what-stage reveal">
+            <div class="what-eyebrow">— 01 / what is void</div>
 
-                    <div class="hero-vis reveal" data-delay="3" aria-hidden="true">
-                        <div class="hero-vis-halo"></div>
-                        <div class="hero-vis-frame">
-                            <div class="r r-1"></div><div class="r r-2"></div><div class="r r-3"></div><div class="r r-4"></div>
-                        </div>
-                        <div class="hero-vis-orbit a"></div>
-                        <div class="hero-vis-orbit b"></div>
-                        <div class="hero-vis-core"></div>
-                    </div>
-                </div>
+            <div class="what-term" aria-label="void">
+              <span class="what-word" aria-hidden="true">void</span>
+              <span class="what-meta">/vɔɪd/ · <em>n.</em></span>
             </div>
-        </section>
 
-        <!-- WHAT -->
-        <section class="what" id="what">
-            <div class="shell">
-                <div class="what-stage reveal">
-                    <div class="what-eyebrow">— 01 / what is void</div>
+            <p class="what-def" data-type-once>
+              a voice service with nothing extra.
+            </p>
 
-                    <div class="what-term" aria-label="void">
-                        <span class="what-word" aria-hidden="true">void</span>
-                        <span class="what-meta">/vɔɪd/ · <em>n.</em></span>
-                    </div>
+            <div class="what-rule" aria-hidden="true"></div>
 
-                    <p class="what-def" data-type-once>a voice service with nothing extra.</p>
+            <p class="what-sub">
+              everywhere else wants an account, an install, a checkbox for
+              trackers, a phone number. not here. open it, share a code, talk.
+              no account, no history, no traces.
+            </p>
 
-                    <div class="what-rule" aria-hidden="true"></div>
+            <p class="what-coda">nothing you'll need to delete later.</p>
+          </div>
+        </div>
+      </section>
 
-                    <p class="what-sub">everywhere else wants an account, an install, a checkbox for trackers, a phone number. not here. open it, share a code, talk. no account, no history, no traces.</p>
-
-                    <p class="what-coda">nothing you'll need to delete later.</p>
-                </div>
+      <!-- HOW -->
+      <section class="sect" id="how">
+        <div class="shell">
+          <div class="sect-head nobottom reveal">
+            <div>
+              <div class="num">— 02 / how it works</div>
+              <h2>just three steps.</h2>
             </div>
-        </section>
+            <p class="note"># 73 69 6c 65 6e 63 65</p>
+          </div>
 
-        <!-- HOW -->
-        <section class="sect" id="how">
-            <div class="shell">
-                <div class="sect-head nobottom reveal">
+          <div class="howto">
+            <div class="howto-steps reveal">
+              <article class="step" data-step="0">
+                <div class="step-icon">
+                  <span class="step-n">01</span>
+                </div>
+                <div class="step-body">
+                  <h3 class="step-title">open a room</h3>
+                  <p class="step-text">
+                    one click — and you get a short code like
+                    <span class="id">#A11LM</span>. no accounts, no verification
+                    codes.
+                  </p>
+                </div>
+              </article>
+              <article class="step" data-step="1">
+                <div class="step-icon">
+                  <span class="step-n">02</span>
+                </div>
+                <div class="step-body">
+                  <h3 class="step-title">invite someone</h3>
+                  <p class="step-text">
+                    send the code however you want. they enter it — void
+                    connects you and steps out of the way.
+                  </p>
+                </div>
+              </article>
+              <article class="step" data-step="2">
+                <div class="step-icon">
+                  <span class="step-n">03</span>
+                </div>
+                <div class="step-body">
+                  <h3 class="step-title">just talk</h3>
+                  <p class="step-text">
+                    everything stays between you: voice, chat, files — nothing
+                    leaves the room.
+                  </p>
+                </div>
+              </article>
+              <article class="step" data-step="3">
+                <div class="step-icon">
+                  <span class="step-n">×</span>
+                </div>
+                <div class="step-body">
+                  <h3 class="step-title">leave — and nothing remains</h3>
+                  <p class="step-text">
+                    the room disappears with the last person. nothing is saved.
+                    nothing at all.
+                  </p>
+                </div>
+              </article>
+            </div>
+
+            <div class="flow reveal" data-delay="1" aria-hidden="true">
+              <div class="flow-head">
+                <span>— how void works</span>
+                <span>you · someone</span>
+              </div>
+              <div class="flow-canvas">
+                <div class="flow-node srv" style="left: 50%; top: 24%">
+                  <span class="ring">
+                    <svg
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <rect x="2.5" y="3.5" width="11" height="3" rx="0.5" />
+                      <rect x="2.5" y="9.5" width="11" height="3" rx="0.5" />
+                      <circle cx="5" cy="5" r="0.5" fill="currentColor" />
+                      <circle cx="5" cy="11" r="0.5" fill="currentColor" />
+                    </svg>
+                  </span>
+                  <label>void</label>
+                  <span class="sub"
+                    >— helps you find each other. nothing more.</span
+                  >
+                </div>
+                <div class="flow-node you" style="left: 18%; top: 72%">
+                  <span class="ring">
+                    <svg
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <circle cx="8" cy="5.5" r="2.5" />
+                      <path
+                        d="M3.5 13.5c0.6-2.4 2.6-3.5 4.5-3.5s3.9 1.1 4.5 3.5"
+                      />
+                    </svg>
+                  </span>
+                  <label>you</label>
+                  <span class="sub"></span>
+                </div>
+                <div class="flow-node peer" style="left: 82%; top: 72%">
+                  <span class="ring">
+                    <svg
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <circle cx="8" cy="5.5" r="2.5" />
+                      <path
+                        d="M3.5 13.5c0.6-2.4 2.6-3.5 4.5-3.5s3.9 1.1 4.5 3.5"
+                      />
+                    </svg>
+                  </span>
+                  <label>friend</label>
+                  <span class="sub"></span>
+                </div>
+
+                <svg
+                  class="flow-edges"
+                  viewBox="0 0 100 100"
+                  preserveAspectRatio="none"
+                >
+                  <g id="flowPath" data-state="create">
+                    <path class="p2p" d="M 18 72 Q 50 92 82 72" />
+                    <path class="signaling" d="M 18 72 Q 33 48 50 24" />
+                    <path class="signaling" d="M 82 72 Q 67 48 50 24" />
+
+                    <circle
+                      id="flowSig"
+                      r="0.9"
+                      fill="#e6e6e8"
+                      style="
+                        offset-path: path(&quot;M 18 72 Q 33 48 50 24&quot;);
+                        offset-rotate: 0deg;
+                      "
+                    />
+                    <circle
+                      id="flowSig2"
+                      r="0.9"
+                      fill="#e6e6e8"
+                      style="
+                        offset-path: path(&quot;M 82 72 Q 67 48 50 24&quot;);
+                        offset-rotate: 0deg;
+                      "
+                    />
+
+                    <circle
+                      id="flowPing"
+                      r="1.2"
+                      fill="#e6e6e8"
+                      style="
+                        offset-path: path(&quot;M 18 72 Q 50 92 82 72&quot;);
+                        offset-rotate: 0deg;
+                      "
+                    />
+                    <circle
+                      id="flowPing2"
+                      r="1.0"
+                      fill="#c8c8cc"
+                      style="
+                        offset-path: path(&quot;M 18 72 Q 50 92 82 72&quot;);
+                        offset-rotate: 0deg;
+                      "
+                    />
+                  </g>
+                </svg>
+              </div>
+              <div class="flow-foot">
+                <span class="flow-legend"
+                  ><span class="swatch"></span
+                  ><span>your conversation</span></span
+                >
+                <span class="flow-legend dashed"
+                  ><span class="swatch"></span><span>introduction</span></span
+                >
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- WHY -->
+      <section class="sect" id="why">
+        <div class="shell">
+          <div class="sect-head reveal">
+            <div>
+              <div class="num">— 03 / why void</div>
+              <h2>six simple reasons.</h2>
+            </div>
+            <p class="note">/ 74 68 65 2d 76 6f 69 64 2d 65 67 67</p>
+          </div>
+
+          <div class="qual-grid reveal">
+            <article class="qual">
+              <div class="qual-head">
+                <span class="qual-tag">— 01</span>
+                <span class="qual-glyph">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="12" cy="9" r="3.6" />
+                    <path d="M5 19.5c1.2-3.2 4-4.5 7-4.5s5.8 1.3 7 4.5" />
+                    <line class="ban" x1="3.5" y1="3.5" x2="20.5" y2="20.5" />
+                  </svg>
+                </span>
+              </div>
+              <h3 class="qual-title">no accounts</h3>
+              <p class="qual-text">
+                no email, no passwords, no verification codes. open the room and
+                talk.
+              </p>
+            </article>
+
+            <article class="qual">
+              <div class="qual-head">
+                <span class="qual-tag">— 02</span>
+                <span class="qual-glyph">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <ellipse cx="12" cy="5" rx="6" ry="2" />
+                    <path d="M6 5v6c0 1.1 2.7 2 6 2s6-0.9 6-2V5" />
+                    <path d="M6 11v6c0 1.1 2.7 2 6 2s6-0.9 6-2v-6" />
+                    <line class="ban" x1="3.5" y1="3.5" x2="20.5" y2="20.5" />
+                  </svg>
+                </span>
+              </div>
+              <h3 class="qual-title">nothing kept</h3>
+              <p class="qual-text">
+                no messages, no files, no history. once the room closes, nothing
+                remains.
+              </p>
+            </article>
+
+            <article class="qual">
+              <div class="qual-head">
+                <span class="qual-tag">— 03</span>
+                <span class="qual-glyph">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="5" cy="12" r="2.4" />
+                    <circle cx="19" cy="12" r="2.4" />
+                    <path d="M7.4 12h9.2" />
+                    <path d="M14 9l3 3-3 3" />
+                  </svg>
+                </span>
+              </div>
+              <h3 class="qual-title">your conversation stays yours</h3>
+              <p class="qual-text">
+                voice travels directly between peers. no processing in someone
+                else's cloud.
+              </p>
+            </article>
+
+            <article class="qual">
+              <div class="qual-head">
+                <span class="qual-tag">— 04</span>
+                <span class="qual-glyph">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="12" cy="12" r="7.5" />
+                    <circle cx="12" cy="12" r="3.5" />
+                    <circle
+                      cx="12"
+                      cy="12"
+                      r="1"
+                      fill="currentColor"
+                      stroke="none"
+                    />
+                  </svg>
+                </span>
+              </div>
+              <h3 class="qual-title">built for the moment</h3>
+              <p class="qual-text">
+                the room exists only while it's needed. leave — and it
+                disappears.
+              </p>
+            </article>
+
+            <article class="qual">
+              <div class="qual-head">
+                <span class="qual-tag">— 05</span>
+                <span class="qual-glyph">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="3.5" y="5.5" width="13" height="9" rx="1" />
+                    <path d="M7 18h6" />
+                    <path d="M19 9l2.5-1.5v9L19 15z" />
+                  </svg>
+                </span>
+              </div>
+              <h3 class="qual-title">more than voice</h3>
+              <p class="qual-text">
+                chat, file sharing, and screen streaming — all in one place.
+              </p>
+            </article>
+
+            <article class="qual">
+              <div class="qual-head">
+                <span class="qual-tag">— 06</span>
+                <span class="qual-glyph">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="12" cy="12" r="7.5" />
+                    <circle cx="12" cy="12" r="3" />
+                    <line class="ban" x1="4" y1="4" x2="20" y2="20" />
+                  </svg>
+                </span>
+              </div>
+              <h3 class="qual-title">nobody is watching</h3>
+              <p class="qual-text">
+                no analytics, no trackers, no attention metrics.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- INSIDE -->
+      <section class="sect" id="inside">
+        <div class="shell">
+          <div class="sect-head nobottom reveal">
+            <div>
+              <div class="num">— 04 / what it does</div>
+              <h2>what's inside?</h2>
+            </div>
+            <p class="note">/ NO RELAY</p>
+          </div>
+
+          <!-- 1. mesh -->
+          <div class="feat-row reveal">
+            <div class="feat-copy">
+              <span class="feat-eyebrow">— 01 · voice</span>
+              <h3 class="feat-title">voice goes straight.</h3>
+              <p class="feat-text">
+                everyone hears everyone directly — no server delay, no cloud
+                processing. your voice travels device to device, and sounds the
+                way it should.
+              </p>
+              <div class="feat-tags">
+                <span class="pill">clean audio</span>
+                <span class="pill">no echo</span>
+                <span class="pill">no noise</span>
+              </div>
+            </div>
+            <div class="feat-vis">
+              <div class="vis-head">
+                <span>room · <span class="id">#A11LM</span></span>
+                <span>· mesh</span>
+              </div>
+              <div class="vis-body">
+                <div class="mesh-wrap">
+                  <svg
+                    class="mesh-edges"
+                    viewBox="0 0 200 200"
+                    preserveAspectRatio="none"
+                  >
+                    <g
+                      stroke="rgba(230,230,232,0.35)"
+                      stroke-width="0.6"
+                      fill="none"
+                    >
+                      <line x1="100" y1="40" x2="40" y2="120" />
+                      <line x1="100" y1="40" x2="160" y2="120" />
+                      <line x1="100" y1="40" x2="70" y2="170" />
+                      <line x1="100" y1="40" x2="130" y2="170" />
+                      <line x1="40" y1="120" x2="160" y2="120" />
+                      <line x1="40" y1="120" x2="70" y2="170" />
+                      <line x1="40" y1="120" x2="130" y2="170" />
+                      <line x1="160" y1="120" x2="70" y2="170" />
+                      <line x1="160" y1="120" x2="130" y2="170" />
+                      <line x1="70" y1="170" x2="130" y2="170" />
+                    </g>
+                  </svg>
+                  <div class="mesh-peer live" style="left: 50%; top: 20%">
+                    <div class="av">an</div>
+                    <div class="nm">ada</div>
+                  </div>
+                  <div class="mesh-peer live" style="left: 20%; top: 60%">
+                    <div class="av">jn</div>
+                    <div class="nm">jun</div>
+                  </div>
+                  <div class="mesh-peer" style="left: 80%; top: 60%">
+                    <div class="av">mr</div>
+                    <div class="nm">mira</div>
+                  </div>
+                  <div class="mesh-peer live" style="left: 35%; top: 85%">
+                    <div class="av">yo</div>
+                    <div class="nm">you</div>
+                  </div>
+                  <div class="mesh-peer" style="left: 65%; top: 85%">
+                    <div class="av">kl</div>
+                    <div class="nm">kel</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 2. chat -->
+          <div class="feat-row flip reveal">
+            <div class="feat-copy">
+              <span class="feat-eyebrow">— 02 · chat &amp; files</span>
+              <h3 class="feat-title">
+                send a message. drop a file. share a photo.
+              </h3>
+              <p class="feat-text">
+                the same direct channel as voice. files up to 100 mb, images up
+                to 10 mb. everything disappears with the room.
+              </p>
+              <div class="feat-tags">
+                <span class="pill">drag &amp; drop</span>
+                <span class="pill">images · 10 mb</span>
+                <span class="pill">files · 100 mb</span>
+              </div>
+            </div>
+            <div class="feat-vis">
+              <div class="vis-head">
+                <span>— chat</span>
+                <span>01:56</span>
+              </div>
+              <div class="vis-body">
+                <div class="chat-vis">
+                  <div class="chat-msg">
+                    <div class="who">someone</div>
+                    <span>joining in a sec</span>
+                  </div>
+                  <div class="chat-msg me">
+                    <div class="who">you</div>
+                    <span>no rush</span>
+                  </div>
+                  <div class="chat-msg file me">
+                    <div class="icon">exe</div>
                     <div>
-                        <div class="num">— 02 / how it works</div>
-                        <h2>just three steps.</h2>
+                      <div>void-setup.exe</div>
+                      <div class="meta">— 72.4 mb</div>
                     </div>
-                    <p class="note"># 73 69 6c 65 6e 63 65</p>
+                  </div>
+                  <div class="chat-msg">
+                    <div class="who">someone</div>
+                    <span>whoa o.o</span>
+                  </div>
                 </div>
-
-                <div class="howto">
-                    <div class="howto-steps reveal">
-                        <article class="step" data-step="0">
-                            <div class="step-icon">
-                                <span class="step-n">01</span>
-                            </div>
-                            <div class="step-body">
-                                <h3 class="step-title">open a room</h3>
-                                <p class="step-text">one click — and you get a short code like <span class="id">#A11LM</span>. no accounts, no verification codes.</p>
-                            </div>
-                        </article>
-                        <article class="step" data-step="1">
-                            <div class="step-icon">
-                                <span class="step-n">02</span>
-                            </div>
-                            <div class="step-body">
-                                <h3 class="step-title">invite someone</h3>
-                                <p class="step-text">send the code however you want. they enter it — void connects you and steps out of the way.</p>
-                            </div>
-                        </article>
-                        <article class="step" data-step="2">
-                            <div class="step-icon">
-                                <span class="step-n">03</span>
-                            </div>
-                            <div class="step-body">
-                                <h3 class="step-title">just talk</h3>
-                                <p class="step-text">everything stays between you: voice, chat, files — nothing leaves the room.</p>
-                            </div>
-                        </article>
-                        <article class="step" data-step="3">
-                            <div class="step-icon">
-                                <span class="step-n">×</span>
-                            </div>
-                            <div class="step-body">
-                                <h3 class="step-title">leave — and nothing remains</h3>
-                                <p class="step-text">the room disappears with the last person. nothing is saved. nothing at all.</p>
-                            </div>
-                        </article>
-                    </div>
-
-                    <div class="flow reveal" data-delay="1" aria-hidden="true">
-                        <div class="flow-head">
-                            <span>— how void works</span>
-                            <span>you · someone</span>
-                        </div>
-                        <div class="flow-canvas">
-                            <div class="flow-node srv"  style="left: 50%; top: 24%;">
-                                <span class="ring">
-                                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                        <rect x="2.5" y="3.5" width="11" height="3" rx="0.5"/>
-                                        <rect x="2.5" y="9.5" width="11" height="3" rx="0.5"/>
-                                        <circle cx="5" cy="5" r="0.5" fill="currentColor"/>
-                                        <circle cx="5" cy="11" r="0.5" fill="currentColor"/>
-                                    </svg>
-                                </span>
-                                <label>void</label>
-                                <span class="sub">— helps you find each other. nothing more.</span>
-                            </div>
-                            <div class="flow-node you" style="left: 18%; top: 72%;">
-                                <span class="ring">
-                                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                        <circle cx="8" cy="5.5" r="2.5"/>
-                                        <path d="M3.5 13.5c0.6-2.4 2.6-3.5 4.5-3.5s3.9 1.1 4.5 3.5"/>
-                                    </svg>
-                                </span>
-                                <label>you</label>
-                                <span class="sub"></span>
-                            </div>
-                            <div class="flow-node peer" style="left: 82%; top: 72%;">
-                                <span class="ring">
-                                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                        <circle cx="8" cy="5.5" r="2.5"/>
-                                        <path d="M3.5 13.5c0.6-2.4 2.6-3.5 4.5-3.5s3.9 1.1 4.5 3.5"/>
-                                    </svg>
-                                </span>
-                                <label>friend</label>
-                                <span class="sub"></span>
-                            </div>
-
-                            <svg class="flow-edges" viewBox="0 0 100 100" preserveAspectRatio="none">
-                                <g id="flowPath" data-state="create">
-                                    <path class="p2p" d="M 18 72 Q 50 92 82 72" />
-                                    <path class="signaling" d="M 18 72 Q 33 48 50 24" />
-                                    <path class="signaling" d="M 82 72 Q 67 48 50 24" />
-
-                                    <circle id="flowSig"  r="0.9" fill="#e6e6e8"
-                                            style="offset-path: path('M 18 72 Q 33 48 50 24'); offset-rotate: 0deg;" />
-                                    <circle id="flowSig2" r="0.9" fill="#e6e6e8"
-                                            style="offset-path: path('M 82 72 Q 67 48 50 24'); offset-rotate: 0deg;" />
-
-                                    <circle id="flowPing"  r="1.2" fill="#e6e6e8"
-                                            style="offset-path: path('M 18 72 Q 50 92 82 72'); offset-rotate: 0deg;" />
-                                    <circle id="flowPing2" r="1.0" fill="#c8c8cc"
-                                            style="offset-path: path('M 18 72 Q 50 92 82 72'); offset-rotate: 0deg;" />
-                                </g>
-                            </svg>
-                        </div>
-                        <div class="flow-foot">
-                            <span class="flow-legend"><span class="swatch"></span><span>your conversation</span></span>
-                            <span class="flow-legend dashed"><span class="swatch"></span><span>introduction</span></span>
-                        </div>
-                    </div>
-                </div>
+              </div>
             </div>
-        </section>
+          </div>
 
-        <!-- WHY -->
-        <section class="sect" id="why">
-            <div class="shell">
-                <div class="sect-head reveal">
-                    <div>
-                        <div class="num">— 03 / why void</div>
-                        <h2>six simple reasons.</h2>
-                    </div>
-                    <p class="note">/ 74 68 65 2d 76 6f 69 64 2d 65 67 67</p>
-                </div>
-
-                <div class="qual-grid reveal">
-                    <article class="qual">
-                        <div class="qual-head">
-                            <span class="qual-tag">— 01</span>
-                            <span class="qual-glyph">
-                                <svg viewBox="0 0 24 24" aria-hidden="true">
-                                    <circle cx="12" cy="9" r="3.6"/>
-                                    <path d="M5 19.5c1.2-3.2 4-4.5 7-4.5s5.8 1.3 7 4.5"/>
-                                    <line class="ban" x1="3.5" y1="3.5" x2="20.5" y2="20.5"/>
-                                </svg>
-                            </span>
-                        </div>
-                        <h3 class="qual-title">no accounts</h3>
-                        <p class="qual-text">no email, no passwords, no verification codes. open the room and talk.</p>
-                    </article>
-
-                    <article class="qual">
-                        <div class="qual-head">
-                            <span class="qual-tag">— 02</span>
-                            <span class="qual-glyph">
-                                <svg viewBox="0 0 24 24" aria-hidden="true">
-                                    <ellipse cx="12" cy="5" rx="6" ry="2"/>
-                                    <path d="M6 5v6c0 1.1 2.7 2 6 2s6-0.9 6-2V5"/>
-                                    <path d="M6 11v6c0 1.1 2.7 2 6 2s6-0.9 6-2v-6"/>
-                                    <line class="ban" x1="3.5" y1="3.5" x2="20.5" y2="20.5"/>
-                                </svg>
-                            </span>
-                        </div>
-                        <h3 class="qual-title">nothing kept</h3>
-                        <p class="qual-text">no messages, no files, no history. once the room closes, nothing remains.</p>
-                    </article>
-
-                    <article class="qual">
-                        <div class="qual-head">
-                            <span class="qual-tag">— 03</span>
-                            <span class="qual-glyph">
-                                <svg viewBox="0 0 24 24" aria-hidden="true">
-                                    <circle cx="5" cy="12" r="2.4"/>
-                                    <circle cx="19" cy="12" r="2.4"/>
-                                    <path d="M7.4 12h9.2"/>
-                                    <path d="M14 9l3 3-3 3"/>
-                                </svg>
-                            </span>
-                        </div>
-                        <h3 class="qual-title">your conversation stays yours</h3>
-                        <p class="qual-text">voice travels directly between peers. no processing in someone else's cloud.</p>
-                    </article>
-
-                    <article class="qual">
-                        <div class="qual-head">
-                            <span class="qual-tag">— 04</span>
-                            <span class="qual-glyph">
-                                <svg viewBox="0 0 24 24" aria-hidden="true">
-                                    <circle cx="12" cy="12" r="7.5"/>
-                                    <circle cx="12" cy="12" r="3.5"/>
-                                    <circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/>
-                                </svg>
-                            </span>
-                        </div>
-                        <h3 class="qual-title">built for the moment</h3>
-                        <p class="qual-text">the room exists only while it's needed. leave — and it disappears.</p>
-                    </article>
-
-                    <article class="qual">
-                        <div class="qual-head">
-                            <span class="qual-tag">— 05</span>
-                            <span class="qual-glyph">
-                                <svg viewBox="0 0 24 24" aria-hidden="true">
-                                    <rect x="3.5" y="5.5" width="13" height="9" rx="1"/>
-                                    <path d="M7 18h6"/>
-                                    <path d="M19 9l2.5-1.5v9L19 15z"/>
-                                </svg>
-                            </span>
-                        </div>
-                        <h3 class="qual-title">more than voice</h3>
-                        <p class="qual-text">chat, file sharing, and screen streaming — all in one place.</p>
-                    </article>
-
-                    <article class="qual">
-                        <div class="qual-head">
-                            <span class="qual-tag">— 06</span>
-                            <span class="qual-glyph">
-                                <svg viewBox="0 0 24 24" aria-hidden="true">
-                                    <circle cx="12" cy="12" r="7.5"/>
-                                    <circle cx="12" cy="12" r="3"/>
-                                    <line class="ban" x1="4" y1="4" x2="20" y2="20"/>
-                                </svg>
-                            </span>
-                        </div>
-                        <h3 class="qual-title">nobody is watching</h3>
-                        <p class="qual-text">no analytics, no trackers, no attention metrics.</p>
-                    </article>
-                </div>
+          <!-- 3. screen -->
+          <div class="feat-row reveal">
+            <div class="feat-copy">
+              <span class="feat-eyebrow">— 03 · screen</span>
+              <h3 class="feat-title">show what's on your screen.</h3>
+              <p class="feat-text">
+                with system audio and fullhd. great for working together,
+                watching movies, or gaming.
+              </p>
+              <div class="feat-tags">
+                <span class="pill">480p / 720p / 1080p</span>
+                <span class="pill">30 / 60 fps</span>
+                <span class="pill">screen audio</span>
+              </div>
             </div>
-        </section>
+            <div class="feat-vis">
+              <div class="vis-head">
+                <span>— screen</span>
+                <span>· on-air</span>
+              </div>
+              <div class="vis-body" style="padding: 14px">
+                <div class="screen-vis">
+                  <div class="screen-bar">
+                    <span class="traffic"
+                      ><span></span><span></span><span></span
+                    ></span>
+                    <span>editor — main.js</span>
+                  </div>
+                  <div class="screen-body" id="screenBody">
+                    <span class="code-line"
+                      ><span class="ln">01</span><span class="kw">const</span>
+                      <span class="fn">peer</span> = <span class="kw">new</span>
+                      <span class="fn">RTCPeerConnection</span>();</span
+                    >
+                    <span class="code-line"
+                      ><span class="ln">02</span
+                      ><span class="kw">const</span> ch = peer.<span class="fn"
+                        >createDataChannel</span
+                      >(<span class="st">'void'</span>);</span
+                    >
+                    <span class="code-line"><span class="ln">03</span></span>
+                    <span class="code-line"
+                      ><span class="ln">04</span>ch.<span class="fn"
+                        >onmessage</span
+                      >
+                      = (e) =&gt; {</span
+                    >
+                    <span class="code-line"
+                      ><span class="ln">05</span>
+                      <span class="cm">// — no server. pure p2p.</span></span
+                    >
+                    <span class="code-line"
+                      ><span class="ln">06</span>
+                      <span class="fn">render</span>(e.data);</span
+                    >
+                    <span class="code-line"><span class="ln">07</span>};</span>
+                    <span class="code-line"><span class="ln">08</span></span>
+                    <span class="code-line"
+                      ><span class="ln">09</span
+                      ><span class="fn">awaitNegotiation</span>(peer).<span
+                        class="fn"
+                        >then</span
+                      >(<span class="fn">join</span>);</span
+                    >
+                    <span class="code-line live-line" id="liveLine"
+                      ><span class="ln">10</span
+                      ><span class="typed" id="liveText"></span
+                      ><span class="caret" id="liveCaret"></span
+                    ></span>
 
-        <!-- INSIDE -->
-        <section class="sect" id="inside">
-            <div class="shell">
-                <div class="sect-head nobottom reveal">
-                    <div>
-                        <div class="num">— 04 / what it does</div>
-                        <h2>what's inside?</h2>
-                    </div>
-                    <p class="note">/ NO RELAY</p>
+                    <span class="screen-cursor" id="screenCursor">
+                      <svg
+                        viewBox="0 0 14 18"
+                        fill="none"
+                        stroke="rgba(255,255,255,0.95)"
+                        stroke-width="1"
+                        stroke-linejoin="round"
+                      >
+                        <path
+                          d="M1 1 L1 14 L4.5 11 L7 16 L9 15 L6.5 10 L11 10 Z"
+                          fill="rgba(20,20,22,0.85)"
+                        />
+                      </svg>
+                    </span>
+
+                    <span class="screen-resolution">1080P · 60FPS</span>
+                  </div>
                 </div>
-
-                <!-- 1. mesh -->
-                <div class="feat-row reveal">
-                    <div class="feat-copy">
-                        <span class="feat-eyebrow">— 01 · voice</span>
-                        <h3 class="feat-title">voice goes straight.</h3>
-                        <p class="feat-text">everyone hears everyone directly — no server delay, no cloud processing. your voice travels device to device, and sounds the way it should.</p>
-                        <div class="feat-tags">
-                            <span class="pill">clean audio</span>
-                            <span class="pill">no echo</span>
-                            <span class="pill">no noise</span>
-                        </div>
-                    </div>
-                    <div class="feat-vis">
-                        <div class="vis-head">
-                            <span>room · <span class="id">#A11LM</span></span>
-                            <span>· mesh</span>
-                        </div>
-                        <div class="vis-body">
-                            <div class="mesh-wrap">
-                                <svg class="mesh-edges" viewBox="0 0 200 200" preserveAspectRatio="none">
-                                    <g stroke="rgba(230,230,232,0.35)" stroke-width="0.6" fill="none">
-                                        <line x1="100" y1="40"  x2="40"  y2="120"/>
-                                        <line x1="100" y1="40"  x2="160" y2="120"/>
-                                        <line x1="100" y1="40"  x2="70"  y2="170"/>
-                                        <line x1="100" y1="40"  x2="130" y2="170"/>
-                                        <line x1="40"  y1="120" x2="160" y2="120"/>
-                                        <line x1="40"  y1="120" x2="70"  y2="170"/>
-                                        <line x1="40"  y1="120" x2="130" y2="170"/>
-                                        <line x1="160" y1="120" x2="70"  y2="170"/>
-                                        <line x1="160" y1="120" x2="130" y2="170"/>
-                                        <line x1="70"  y1="170" x2="130" y2="170"/>
-                                    </g>
-                                </svg>
-                                <div class="mesh-peer live" style="left: 50%; top: 20%;">
-                                    <div class="av">an</div>
-                                    <div class="nm">ada</div>
-                                </div>
-                                <div class="mesh-peer live" style="left: 20%; top: 60%;">
-                                    <div class="av">jn</div>
-                                    <div class="nm">jun</div>
-                                </div>
-                                <div class="mesh-peer" style="left: 80%; top: 60%;">
-                                    <div class="av">mr</div>
-                                    <div class="nm">mira</div>
-                                </div>
-                                <div class="mesh-peer live" style="left: 35%; top: 85%;">
-                                    <div class="av">yo</div>
-                                    <div class="nm">you</div>
-                                </div>
-                                <div class="mesh-peer" style="left: 65%; top: 85%;">
-                                    <div class="av">kl</div>
-                                    <div class="nm">kel</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 2. chat -->
-                <div class="feat-row flip reveal">
-                    <div class="feat-copy">
-                        <span class="feat-eyebrow">— 02 · chat &amp; files</span>
-                        <h3 class="feat-title">send a message. drop a file. share a photo.</h3>
-                        <p class="feat-text">the same direct channel as voice. files up to 100 mb, images up to 10 mb. everything disappears with the room.</p>
-                        <div class="feat-tags">
-                            <span class="pill">drag &amp; drop</span>
-                            <span class="pill">images · 10 mb</span>
-                            <span class="pill">files · 100 mb</span>
-                        </div>
-                    </div>
-                    <div class="feat-vis">
-                        <div class="vis-head">
-                            <span>— chat</span>
-                            <span>01:56</span>
-                        </div>
-                        <div class="vis-body">
-                            <div class="chat-vis">
-                                <div class="chat-msg">
-                                    <div class="who">someone</div>
-                                    <span>joining in a sec</span>
-                                </div>
-                                <div class="chat-msg me">
-                                    <div class="who">you</div>
-                                    <span>no rush</span>
-                                </div>
-                                <div class="chat-msg file me">
-                                    <div class="icon">exe</div>
-                                    <div>
-                                        <div>void-setup.exe</div>
-                                        <div class="meta">— 72.4 mb</div>
-                                    </div>
-                                </div>
-                                <div class="chat-msg">
-                                    <div class="who">someone</div>
-                                    <span>whoa o.o</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 3. screen -->
-                <div class="feat-row reveal">
-                    <div class="feat-copy">
-                        <span class="feat-eyebrow">— 03 · screen</span>
-                        <h3 class="feat-title">show what's on your screen.</h3>
-                        <p class="feat-text">with system audio and fullhd. great for working together, watching movies, or gaming.</p>
-                        <div class="feat-tags">
-                            <span class="pill">480p / 720p / 1080p</span>
-                            <span class="pill">30 / 60 fps</span>
-                            <span class="pill">screen audio</span>
-                        </div>
-                    </div>
-                    <div class="feat-vis">
-                        <div class="vis-head">
-                            <span>— screen</span>
-                            <span>· on-air</span>
-                        </div>
-                        <div class="vis-body" style="padding: 14px;">
-                            <div class="screen-vis">
-                                <div class="screen-bar">
-                                    <span class="traffic"><span></span><span></span><span></span></span>
-                                    <span>editor — main.js</span>
-                                </div>
-                                <div class="screen-body" id="screenBody">
-                                    <span class="code-line"><span class="ln">01</span><span class="kw">const</span> <span class="fn">peer</span> = <span class="kw">new</span> <span class="fn">RTCPeerConnection</span>();</span>
-                                    <span class="code-line"><span class="ln">02</span><span class="kw">const</span> ch = peer.<span class="fn">createDataChannel</span>(<span class="st">'void'</span>);</span>
-                                    <span class="code-line"><span class="ln">03</span></span>
-                                    <span class="code-line"><span class="ln">04</span>ch.<span class="fn">onmessage</span> = (e) =&gt; {</span>
-                                    <span class="code-line"><span class="ln">05</span>  <span class="cm">// — no server. pure p2p.</span></span>
-                                    <span class="code-line"><span class="ln">06</span>  <span class="fn">render</span>(e.data);</span>
-                                    <span class="code-line"><span class="ln">07</span>};</span>
-                                    <span class="code-line"><span class="ln">08</span></span>
-                                    <span class="code-line"><span class="ln">09</span><span class="fn">awaitNegotiation</span>(peer).<span class="fn">then</span>(<span class="fn">join</span>);</span>
-                                    <span class="code-line live-line" id="liveLine"><span class="ln">10</span><span class="typed" id="liveText"></span><span class="caret" id="liveCaret"></span></span>
-
-                                    <span class="screen-cursor" id="screenCursor">
-                                        <svg viewBox="0 0 14 18" fill="none" stroke="rgba(255,255,255,0.95)" stroke-width="1" stroke-linejoin="round">
-                                            <path d="M1 1 L1 14 L4.5 11 L7 16 L9 15 L6.5 10 L11 10 Z" fill="rgba(20,20,22,0.85)"/>
-                                        </svg>
-                                    </span>
-
-                                    <span class="screen-resolution">1080P · 60FPS</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
+              </div>
             </div>
-        </section>
+          </div>
+        </div>
+      </section>
 
-        <!-- MANIFEST / PRIVACY -->
-        <section class="manifest" id="privacy">
-            <div class="shell">
-                <div class="lead reveal">— 05 / nothing extra</div>
-                <h2 class="reveal" data-delay="1">void is about <em>what isn't here.</em><br/>that's all that matters.</h2>
+      <!-- MANIFEST / PRIVACY -->
+      <section class="manifest" id="privacy">
+        <div class="shell">
+          <div class="lead reveal">— 05 / nothing extra</div>
+          <h2 class="reveal" data-delay="1">
+            void is about <em>what isn't here.</em><br />that's all that
+            matters.
+          </h2>
 
-                <ul class="deny-list reveal" data-delay="2">
-                    <li>
-                        <span class="key">— 01</span>
-                        <span class="what">sign-ups and passwords</span>
-                        <span class="stat">none</span>
-                    </li>
-                    <li>
-                        <span class="key">— 02</span>
-                        <span class="what">message history</span>
-                        <span class="stat">none</span>
-                    </li>
-                    <li>
-                        <span class="key">— 03</span>
-                        <span class="what">counters and trackers</span>
-                        <span class="stat">none</span>
-                    </li>
-                    <li>
-                        <span class="key">— 04</span>
-                        <span class="what">middlemen between you</span>
-                        <span class="stat">none</span>
-                    </li>
-                    <li>
-                        <span class="key">— 05</span>
-                        <span class="what">traces in your browser</span>
-                        <span class="stat">none</span>
-                    </li>
-                </ul>
+          <ul class="deny-list reveal" data-delay="2">
+            <li>
+              <span class="key">— 01</span>
+              <span class="what">sign-ups and passwords</span>
+              <span class="stat">none</span>
+            </li>
+            <li>
+              <span class="key">— 02</span>
+              <span class="what">message history</span>
+              <span class="stat">none</span>
+            </li>
+            <li>
+              <span class="key">— 03</span>
+              <span class="what">counters and trackers</span>
+              <span class="stat">none</span>
+            </li>
+            <li>
+              <span class="key">— 04</span>
+              <span class="what">middlemen between you</span>
+              <span class="stat">none</span>
+            </li>
+            <li>
+              <span class="key">— 05</span>
+              <span class="what">traces in your browser</span>
+              <span class="stat">none</span>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- PLATFORMS -->
+      <section class="sect" id="download">
+        <div class="shell">
+          <div class="sect-head nobottom reveal">
+            <div>
+              <div class="num">— 06 / platforms</div>
+              <h2>from a browser or your desktop.</h2>
             </div>
-        </section>
+            <p class="note">
+              pick whichever feels easier. it's the same void inside.
+            </p>
+          </div>
 
-        <!-- PLATFORMS -->
-        <section class="sect" id="download">
-            <div class="shell">
-                <div class="sect-head nobottom reveal">
-                    <div>
-                        <div class="num">— 06 / platforms</div>
-                        <h2>from a browser or your desktop.</h2>
-                    </div>
-                    <p class="note">pick whichever feels easier. it's the same void inside.</p>
+          <div class="plat reveal">
+            <div class="plat-card">
+              <span class="index">— web · app.void-room.space</span>
+              <span class="name">web-app</span>
+              <p class="desc">
+                open a tab — you're in. nothing to install. works on phone and
+                desktop alike.
+              </p>
+              <ul class="spec">
+                <li><span>install</span> <b>—</b></li>
+                <li><span>size</span> <b>~ 0</b></li>
+                <li><span>autostart</span> <b>—</b></li>
+                <li><span>hotkeys</span> <b>browser</b></li>
+              </ul>
+              <div class="actions">
+                <a class="btn primary" href="https://app.void-room.space">
+                  <span>open in browser</span>
+                  <svg
+                    class="btn-arrow"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.4"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M3 8h10" />
+                    <path d="M9 4l4 4-4 4" />
+                  </svg>
+                </a>
+              </div>
+            </div>
+            <div class="plat-card">
+              <span class="index">— desktop · windows x64</span>
+              <span class="name">desktop-app</span>
+              <p class="desc">
+                a dedicated app, always within reach. faster launch, no browser
+                tabs.
+              </p>
+              <ul class="spec">
+                <li><span>install</span> <b>~ 17 mb</b></li>
+                <li><span>tray</span> <b>yes</b></li>
+                <li><span>autostart</span> <b>opt-in</b></li>
+                <li><span>hotkeys</span> <b>global</b></li>
+              </ul>
+              <div class="actions">
+                <div class="dl" data-dl data-open="false">
+                  <div class="dl-split">
+                    <button
+                      type="button"
+                      class="btn primary dl-main"
+                      data-dl-url="https://void-room.space/dl/void_installer.exe"
+                    >
+                      <span>download for windows</span>
+                    </button>
+                    <button
+                      type="button"
+                      class="btn primary dl-toggle"
+                      data-dl-toggle
+                      aria-expanded="false"
+                      aria-label="more download options"
+                    >
+                      <svg
+                        class="dl-chev"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.4"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="m4 6 4 4 4-4" />
+                      </svg>
+                    </button>
+                  </div>
+                  <div class="dl-menu" data-dl-menu>
+                    <button
+                      type="button"
+                      class="dl-opt"
+                      data-dl-url="https://void-room.space/dl/void_installer.exe"
+                    >
+                      <span>void desktop</span>
+                      <svg
+                        class="dl-ico"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.4"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="M8 2.5v7" />
+                        <path d="M4.5 6.5 8 10l3.5-3.5" />
+                        <path d="M3 12.5h10" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      class="dl-opt"
+                      data-dl-url="https://void-room.space/dl/void_portable.exe"
+                    >
+                      <span>void portable</span>
+                      <svg
+                        class="dl-ico"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.4"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="M8 2.5v7" />
+                        <path d="M4.5 6.5 8 10l3.5-3.5" />
+                        <path d="M3 12.5h10" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
+              </div>
+            </div>
+          </div>
 
-                <div class="plat reveal">
-                    <div class="plat-card">
-                        <span class="index">— web · app.void-room.space</span>
-                        <span class="name">web-app</span>
-                        <p class="desc">open a tab — you're in. nothing to install. works on phone and desktop alike.</p>
-                        <ul class="spec">
-                            <li><span>install</span> <b>—</b></li>
-                            <li><span>size</span> <b>~ 0</b></li>
-                            <li><span>autostart</span> <b>—</b></li>
-                            <li><span>hotkeys</span> <b>browser</b></li>
-                        </ul>
-                        <div class="actions">
-                            <a class="btn primary" href="https://app.void-room.space">
-                                <span>open in browser</span>
-                                <svg class="btn-arrow" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h10"/><path d="M9 4l4 4-4 4"/></svg>
-                            </a>
-                        </div>
-                    </div>
-                    <div class="plat-card">
-                        <span class="index">— desktop · windows x64</span>
-                        <span class="name">desktop-app</span>
-                        <p class="desc">a dedicated app, always within reach. faster launch, no browser tabs.</p>
-                        <ul class="spec">
-                            <li><span>install</span> <b>~ 17 mb</b></li>
-                            <li><span>tray</span> <b>yes</b></li>
-                            <li><span>autostart</span> <b>opt-in</b></li>
-                            <li><span>hotkeys</span> <b>global</b></li>
-                        </ul>
-                        <div class="actions">
-                            <div class="dl" data-dl data-open="false">
-                                <div class="dl-split">
-                                    <button type="button" class="btn primary dl-main" data-dl-url="https://void-room.space/dl/void_installer.exe">
-                                        <span>download for windows</span>
-                                    </button>
-                                    <button type="button" class="btn primary dl-toggle" data-dl-toggle aria-expanded="false" aria-label="more download options">
-                                        <svg class="dl-chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg>
-                                    </button>
-                                </div>
-                                <div class="dl-menu" data-dl-menu>
-                                    <button type="button" class="dl-opt" data-dl-url="https://void-room.space/dl/void_installer.exe">
-                                        <span>void desktop</span>
-                                        <svg class="dl-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.5v7"/><path d="M4.5 6.5 8 10l3.5-3.5"/><path d="M3 12.5h10"/></svg>
-                                    </button>
-                                    <button type="button" class="dl-opt" data-dl-url="https://void-room.space/dl/void_portable.exe">
-                                        <span>void portable</span>
-                                        <svg class="dl-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.5v7"/><path d="M4.5 6.5 8 10l3.5-3.5"/><path d="M3 12.5h10"/></svg>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- TEMPORARY: builds aren't code-signed yet, so instead of the signing line
+          <!-- TEMPORARY: builds aren't code-signed yet, so instead of the signing line
                      we show the smartscreen/defender explainer. Once the certificate lands —
                      restore the line below and drop .av-foot. -->
-                <!-- <p class="plat-foot">builds signed · <a href="https://signpath.org" target="_blank" rel="noopener">signpath foundation</a></p> -->
+          <!-- <p class="plat-foot">builds signed · <a href="https://signpath.org" target="_blank" rel="noopener">signpath foundation</a></p> -->
 
-                <p class="av-foot">
-                    <button type="button" class="av-trigger" data-av-open aria-haspopup="dialog">
-                        <span class="av-trigger-dot" aria-hidden="true"></span>
-                        <span data-i18n="av.trigger">antivirus blocking the install?</span>
-                    </button>
-                </p>
+          <p class="av-foot">
+            <button
+              type="button"
+              class="av-trigger"
+              data-av-open
+              aria-haspopup="dialog"
+            >
+              <span class="av-trigger-dot" aria-hidden="true"></span>
+              <span data-i18n="av.trigger"
+                >antivirus blocking the install?</span
+              >
+            </button>
+          </p>
+        </div>
+      </section>
+
+      <!-- CONTRIBUTORS -->
+      <section class="sect contrib" id="contributors">
+        <div class="shell">
+          <div class="sect-head nobottom reveal">
+            <div>
+              <div class="num">— 07 / contributors</div>
+              <h2>the people behind it.</h2>
             </div>
-        </section>
+            <p class="note">/ thank you</p>
+          </div>
 
-        <!-- CONTRIBUTORS -->
-        <section class="sect contrib" id="contributors">
-            <div class="shell">
-                <div class="sect-head nobottom reveal">
-                    <div>
-                        <div class="num">— 07 / contributors</div>
-                        <h2>the people behind it.</h2>
-                    </div>
-                    <p class="note">/ thank you</p>
+          <div class="contrib-stage reveal" data-delay="1">
+            <div class="contrib-frame">
+              <div class="contrib-eyebrow">
+                <span class="dot" aria-hidden="true"></span>
+                <span
+                  >roll · <span id="contribCount">0</span> in list · helping
+                  void</span
+                >
+              </div>
+
+              <div class="contrib-marquee">
+                <ul
+                  class="contrib-track"
+                  id="contribList"
+                  aria-live="polite"
+                  data-placeholder="your_name"
+                ></ul>
+              </div>
+
+              <div class="contrib-foot">
+                <div class="contrib-announcer">
+                  <span
+                    class="contrib-line"
+                    id="contribAnnouncer"
+                    data-line1="> next on the list: ___________ ?"
+                    data-line2="> next on the list: ___________ ?"
+                    data-line3="> next on the list: ___________ ?"
+                  ></span
+                  ><span class="contrib-caret" aria-hidden="true">▮</span>
                 </div>
-
-                <div class="contrib-stage reveal" data-delay="1">
-                    <div class="contrib-frame">
-                        <div class="contrib-eyebrow">
-                            <span class="dot" aria-hidden="true"></span>
-                            <span>roll · <span id="contribCount">0</span> in list · helping void</span>
-                        </div>
-
-                        <div class="contrib-marquee">
-                            <ul class="contrib-track" id="contribList" aria-live="polite" data-placeholder="your_name">
-                            </ul>
-                        </div>
-
-                        <div class="contrib-foot">
-                            <div class="contrib-announcer">
-                                <span class="contrib-line" id="contribAnnouncer"
-                                      data-line1="> next on the list: ___________ ?"
-                                      data-line2="> next on the list: ___________ ?"
-                                      data-line3="> next on the list: ___________ ?"></span><span class="contrib-caret" aria-hidden="true">▮</span>
-                            </div>
-                            <a class="contrib-cta"
-                               href="https://t.me/mtbibltww"
-                               target="_blank"
-                               rel="noopener noreferrer">get in touch ↗</a>
-                        </div>
-                    </div>
-                </div>
+                <a
+                  class="contrib-cta"
+                  href="https://t.me/casheaterr"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  >get in touch ↗</a
+                >
+              </div>
             </div>
-        </section>
+          </div>
+        </div>
+      </section>
 
-        <!-- FINAL -->
-        <section class="final">
-            <div class="ring-stack" aria-hidden="true">
-                <span></span><span></span><span></span><span></span><span></span>
+      <!-- FINAL -->
+      <section class="final">
+        <div class="ring-stack" aria-hidden="true">
+          <span></span><span></span><span></span><span></span><span></span>
+        </div>
+        <div class="shell">
+          <div class="final-content">
+            <div class="q reveal">— what is the music of life?</div>
+            <div class="a reveal" data-delay="1" data-type="cursor">
+              silence.
             </div>
-            <div class="shell">
-                <div class="final-content">
-                    <div class="q reveal">— what is the music of life?</div>
-                    <div class="a reveal" data-delay="1" data-type="cursor">silence.</div>
-                    <div class="final-actions reveal" data-delay="2">
-                        <a class="btn primary" href="https://void-room.space">
-                            <span>launch web</span>
-                            <svg class="btn-arrow" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h10"/><path d="M9 4l4 4-4 4"/></svg>
-                        </a>
-                        <a class="btn" href="#download">download desktop</a>
-                    </div>
-                </div>
+            <div class="final-actions reveal" data-delay="2">
+              <a class="btn primary" href="https://void-room.space">
+                <span>launch web</span>
+                <svg
+                  class="btn-arrow"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.4"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M3 8h10" />
+                  <path d="M9 4l4 4-4 4" />
+                </svg>
+              </a>
+              <a class="btn" href="#download">download desktop</a>
             </div>
-        </section>
+          </div>
+        </div>
+      </section>
     </div>
 
     <footer class="footer">
-        <p class="footer-copy"><a class="footer-credit-link" href="https://t.me/mtbibltww" target="_blank" rel="noopener noreferrer">void by casheaterr</a> · <span id="year">2026</span> · <a class="footer-credit-link internal" href="/en/privacy">privacy</a></p>
-        <a class="footer-lang" href="/" hreflang="ru" lang="ru">switch to russian</a>
+      <p class="footer-copy">
+        <a
+          class="footer-credit-link"
+          href="https://t.me/casheaterr"
+          target="_blank"
+          rel="noopener noreferrer"
+          >void by casheaterr</a
+        >
+        · <span id="year">2026</span> ·
+        <a class="footer-credit-link internal" href="/en/privacy">privacy</a>
+      </p>
+      <a class="footer-lang" href="/" hreflang="ru" lang="ru"
+        >switch to russian</a
+      >
     </footer>
 
     <!-- ANTIVIRUS EXPLAINER -->
-    <div class="av-modal" data-av-modal role="dialog" aria-modal="true" aria-labelledby="av-title" hidden>
-        <div class="av-backdrop" data-av-close></div>
+    <div
+      class="av-modal"
+      data-av-modal
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="av-title"
+      hidden
+    >
+      <div class="av-backdrop" data-av-close></div>
 
-        <div class="av-panel" data-lenis-prevent>
-            <button type="button" class="av-close" data-av-close aria-label="close">
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8"/><path d="M12 4l-8 8"/></svg>
-            </button>
+      <div class="av-panel" data-lenis-prevent>
+        <button type="button" class="av-close" data-av-close aria-label="close">
+          <svg
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.4"
+            stroke-linecap="round"
+            aria-hidden="true"
+          >
+            <path d="M4 4l8 8" />
+            <path d="M12 4l-8 8" />
+          </svg>
+        </button>
 
-            <div class="av-head">
-                <div class="av-num">— windows smartscreen · defender</div>
-                <h2 id="av-title">antivirus blocking the install?</h2>
-            </div>
-
-            <div class="av-body">
-                <p>void was released only recently, so the installer isn't code-signed yet — getting a developer certificate takes time. until then, Windows relies on the file's <b>reputation</b> rather than its contents: how many people have already downloaded and run it.</p>
-                <p>a fresh build simply has no reputation. that's why almost every new exe gets a «virus detected» — even a perfectly clean one.</p>
-                <p>you can verify it yourself:</p>
-            </div>
-
-            <div class="av-trust">
-                <a class="btn" href="https://www.virustotal.com/gui/file/6645d1454c23c57b091f40998e32b8a9616d7fa1815f8e8796f4843c2907d224/detection" target="_blank" rel="noopener noreferrer">
-                    <span>virustotal report</span>
-                    <svg class="btn-arrow" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h10"/><path d="M9 4l4 4-4 4"/></svg>
-                </a>
-                <a class="btn" href="https://github.com/jettsba/void" target="_blank" rel="noopener noreferrer">
-                    <span>view on GitHub</span>
-                    <svg class="btn-arrow" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h10"/><path d="M9 4l4 4-4 4"/></svg>
-                </a>
-            </div>
-            <div class="av-steps">
-                <div class="av-steps-title">how to install</div>
-                <ol>
-                    <li>
-                        <span class="key">— 01</span>
-                        <span class="what">the browser says «virus detected» → open the downloads list, click «···» next to the file and choose <b>«keep anyway»</b>.</span>
-                    </li>
-                    <li>
-                        <span class="key">— 02</span>
-                        <span class="what">the «windows protected your pc» window on launch → click <b>«more info»</b>, then <b>«run anyway»</b>.</span>
-                    </li>
-                    <li>
-                        <span class="key">— 03</span>
-                        <span class="what">defender already deleted the file → «windows security» → «virus & threat protection» → «protection history» → find void and hit <b>«allow on device»</b>.</span>
-                    </li>
-                </ol>
-            </div>
+        <div class="av-head">
+          <div class="av-num">— windows smartscreen · defender</div>
+          <h2 id="av-title">antivirus blocking the install?</h2>
         </div>
+
+        <div class="av-body">
+          <p>
+            void was released only recently, so the installer isn't code-signed
+            yet — getting a developer certificate takes time. until then,
+            Windows relies on the file's <b>reputation</b> rather than its
+            contents: how many people have already downloaded and run it.
+          </p>
+          <p>
+            a fresh build simply has no reputation. that's why almost every new
+            exe gets a «virus detected» — even a perfectly clean one.
+          </p>
+          <p>you can verify it yourself:</p>
+        </div>
+
+        <div class="av-trust">
+          <a
+            class="btn"
+            href="https://www.virustotal.com/gui/file/6645d1454c23c57b091f40998e32b8a9616d7fa1815f8e8796f4843c2907d224/detection"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <span>virustotal report</span>
+            <svg
+              class="btn-arrow"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.4"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M3 8h10" />
+              <path d="M9 4l4 4-4 4" />
+            </svg>
+          </a>
+          <a
+            class="btn"
+            href="https://github.com/jettsba/void"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <span>view on GitHub</span>
+            <svg
+              class="btn-arrow"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.4"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M3 8h10" />
+              <path d="M9 4l4 4-4 4" />
+            </svg>
+          </a>
+        </div>
+        <div class="av-steps">
+          <div class="av-steps-title">how to install</div>
+          <ol>
+            <li>
+              <span class="key">— 01</span>
+              <span class="what"
+                >the browser says «virus detected» → open the downloads list,
+                click «···» next to the file and choose
+                <b>«keep anyway»</b>.</span
+              >
+            </li>
+            <li>
+              <span class="key">— 02</span>
+              <span class="what"
+                >the «windows protected your pc» window on launch → click
+                <b>«more info»</b>, then <b>«run anyway»</b>.</span
+              >
+            </li>
+            <li>
+              <span class="key">— 03</span>
+              <span class="what"
+                >defender already deleted the file → «windows security» → «virus
+                & threat protection» → «protection history» → find void and hit
+                <b>«allow on device»</b>.</span
+              >
+            </li>
+          </ol>
+        </div>
+      </div>
     </div>
 
     <script src="/intro.js?v=1" defer></script>
     <script src="/landing.js?v=7" defer></script>
-</body>
+  </body>
 </html>

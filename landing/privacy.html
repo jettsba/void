@@ -1,147 +1,220 @@
 <!doctype html>
 <html lang="ru">
-<head>
+  <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
 
     <title>void :: приватность</title>
-    <meta name="description" content="что обрабатывает void, чего здесь нет, и как идёт разговор между участниками. кратко и по делу." />
+    <meta
+      name="description"
+      content="что обрабатывает void, чего здесь нет, и как идёт разговор между участниками. кратко и по делу."
+    />
     <meta name="robots" content="index, follow, max-image-preview:large" />
     <meta name="theme-color" content="#0a0a0b" />
     <meta name="color-scheme" content="dark" />
 
     <link rel="canonical" href="https://void-room.space/privacy" />
-    <link rel="alternate" hreflang="ru"        href="https://void-room.space/privacy" />
-    <link rel="alternate" hreflang="en"        href="https://void-room.space/en/privacy" />
-    <link rel="alternate" hreflang="x-default" href="https://void-room.space/en/privacy" />
+    <link
+      rel="alternate"
+      hreflang="ru"
+      href="https://void-room.space/privacy"
+    />
+    <link
+      rel="alternate"
+      hreflang="en"
+      href="https://void-room.space/en/privacy"
+    />
+    <link
+      rel="alternate"
+      hreflang="x-default"
+      href="https://void-room.space/en/privacy"
+    />
 
-    <link rel="icon"             type="image/svg+xml" href="/static/favicon/favicon.svg" />
-    <link rel="shortcut icon"                          href="/static/favicon/favicon.ico" />
-    <link rel="apple-touch-icon" sizes="180x180"      href="/static/favicon/apple-touch-icon.png" />
+    <link rel="icon" type="image/svg+xml" href="/static/favicon/favicon.svg" />
+    <link rel="shortcut icon" href="/static/favicon/favicon.ico" />
+    <link
+      rel="apple-touch-icon"
+      sizes="180x180"
+      href="/static/favicon/apple-touch-icon.png"
+    />
 
     <link rel="stylesheet" href="/landing.css?v=7" />
 
     <style>
-        .privacy-shell {
-            max-width: 680px;
-            margin: 0 auto;
-            padding: clamp(48px, 9vw, 96px) var(--gutter, 24px) clamp(64px, 12vw, 120px);
-            position: relative;
-            z-index: 2;
-        }
-        .privacy-eyebrow {
-            font-size: 11px;
-            letter-spacing: 0.22em;
-            text-transform: lowercase;
-            color: var(--fg-3);
-            margin-bottom: 18px;
-        }
-        .privacy-title {
-            font-family: var(--font);
-            font-weight: 400;
-            font-size: clamp(28px, 4.4vw, 44px);
-            line-height: 1.18;
-            letter-spacing: -0.01em;
-            color: var(--fg);
-            margin: 0 0 14px;
-        }
-        .privacy-meta {
-            font-size: 11px;
-            letter-spacing: 0.18em;
-            text-transform: lowercase;
-            color: var(--fg-4);
-            margin: 0 0 56px;
-        }
-        .privacy-block {
-            padding: 28px 0;
-            border-top: 1px solid var(--fg-5, rgba(230,230,232,0.08));
-        }
-        .privacy-block:first-of-type {
-            border-top: none;
-            padding-top: 0;
-        }
-        .privacy-block h2 {
-            font-family: var(--font);
-            font-weight: 400;
-            font-size: 13px;
-            letter-spacing: 0.18em;
-            text-transform: lowercase;
-            color: var(--fg-2);
-            margin: 0 0 14px;
-        }
-        .privacy-block p {
-            font-size: 15px;
-            line-height: 1.65;
-            color: var(--fg-2);
-            margin: 0 0 12px;
-        }
-        .privacy-block p:last-child { margin-bottom: 0; }
-        .privacy-block strong {
-            color: var(--fg);
-            font-weight: 400;
-        }
-        .privacy-block a {
-            color: var(--fg);
-            text-decoration: none;
-            border-bottom: 1px dotted var(--fg-3);
-            transition: border-color var(--t-fast);
-        }
-        .privacy-block a:hover {
-            border-bottom-color: var(--fg);
-        }
+      .privacy-shell {
+        max-width: 680px;
+        margin: 0 auto;
+        padding: clamp(48px, 9vw, 96px) var(--gutter, 24px)
+          clamp(64px, 12vw, 120px);
+        position: relative;
+        z-index: 2;
+      }
+      .privacy-eyebrow {
+        font-size: 11px;
+        letter-spacing: 0.22em;
+        text-transform: lowercase;
+        color: var(--fg-3);
+        margin-bottom: 18px;
+      }
+      .privacy-title {
+        font-family: var(--font);
+        font-weight: 400;
+        font-size: clamp(28px, 4.4vw, 44px);
+        line-height: 1.18;
+        letter-spacing: -0.01em;
+        color: var(--fg);
+        margin: 0 0 14px;
+      }
+      .privacy-meta {
+        font-size: 11px;
+        letter-spacing: 0.18em;
+        text-transform: lowercase;
+        color: var(--fg-4);
+        margin: 0 0 56px;
+      }
+      .privacy-block {
+        padding: 28px 0;
+        border-top: 1px solid var(--fg-5, rgba(230, 230, 232, 0.08));
+      }
+      .privacy-block:first-of-type {
+        border-top: none;
+        padding-top: 0;
+      }
+      .privacy-block h2 {
+        font-family: var(--font);
+        font-weight: 400;
+        font-size: 13px;
+        letter-spacing: 0.18em;
+        text-transform: lowercase;
+        color: var(--fg-2);
+        margin: 0 0 14px;
+      }
+      .privacy-block p {
+        font-size: 15px;
+        line-height: 1.65;
+        color: var(--fg-2);
+        margin: 0 0 12px;
+      }
+      .privacy-block p:last-child {
+        margin-bottom: 0;
+      }
+      .privacy-block strong {
+        color: var(--fg);
+        font-weight: 400;
+      }
+      .privacy-block a {
+        color: var(--fg);
+        text-decoration: none;
+        border-bottom: 1px dotted var(--fg-3);
+        transition: border-color var(--t-fast);
+      }
+      .privacy-block a:hover {
+        border-bottom-color: var(--fg);
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <div class="header-wrap">
-        <header class="header">
-            <a class="brand-lockup" href="/">
-                <span class="brand-logo-slot" aria-hidden="true">
-                    <span class="logo-eclipse"></span>
-                </span>
-                <span class="brand-mark">void</span>
-            </a>
-        </header>
+      <header class="header">
+        <a class="brand-lockup" href="/">
+          <span class="brand-logo-slot" aria-hidden="true">
+            <span class="logo-eclipse"></span>
+          </span>
+          <span class="brand-mark">void</span>
+        </a>
+      </header>
     </div>
 
     <main class="privacy-shell">
-        <div class="privacy-eyebrow">— приватность</div>
-        <h1 class="privacy-title">что обрабатывает void и чего здесь нет.</h1>
-        <p class="privacy-meta">обновлено 27.05.2026</p>
+      <div class="privacy-eyebrow">— приватность</div>
+      <h1 class="privacy-title">что обрабатывает void и чего здесь нет.</h1>
+      <p class="privacy-meta">обновлено 27.05.2026</p>
 
-        <section class="privacy-block">
-            <h2>чего здесь нет</h2>
-            <p>нет аккаунтов, email, паролей. нет истории сообщений и звонков. нет cookies-трекеров, аналитики, рекламных партнёров. void не продаёт данные и не передаёт их третьим лицам — нечего передавать.</p>
-        </section>
+      <section class="privacy-block">
+        <h2>чего здесь нет</h2>
+        <p>
+          нет аккаунтов, email, паролей. нет истории сообщений и звонков. нет
+          cookies-трекеров, аналитики, рекламных партнёров. void не продаёт
+          данные и не передаёт их третьим лицам — нечего передавать.
+        </p>
+      </section>
 
-        <section class="privacy-block">
-            <h2>что обрабатывается</h2>
-            <p>сервер видит IP-адрес твоего устройства — это технически необходимо для установления соединения и для защиты от атак (rate limiting, anti-bruteforce). IP хранится только в оперативной памяти сервера и стирается через несколько минут после отключения. в постоянное хранилище не пишется, никуда не передаётся.</p>
-        </section>
+      <section class="privacy-block">
+        <h2>что обрабатывается</h2>
+        <p>
+          сервер видит IP-адрес твоего устройства — это технически необходимо
+          для установления соединения и для защиты от атак (rate limiting,
+          anti-bruteforce). IP хранится только в оперативной памяти сервера и
+          стирается через несколько минут после отключения. в постоянное
+          хранилище не пишется, никуда не передаётся.
+        </p>
+      </section>
 
-        <section class="privacy-block">
-            <h2>что остаётся у тебя в браузере</h2>
-            <p>localStorage хранит твои настройки: язык, ник, выбор микрофона и динамика, уровни громкости. эти данные никогда не уходят на сервер — они нужны только твоему браузеру, чтобы запомнить выбор между сессиями. удалить можно очисткой данных сайта.</p>
-        </section>
+      <section class="privacy-block">
+        <h2>что остаётся у тебя в браузере</h2>
+        <p>
+          localStorage хранит твои настройки: язык, ник, выбор микрофона и
+          динамика, уровни громкости. эти данные никогда не уходят на сервер —
+          они нужны только твоему браузеру, чтобы запомнить выбор между
+          сессиями. удалить можно очисткой данных сайта.
+        </p>
+      </section>
 
-        <section class="privacy-block">
-            <h2>как идёт разговор</h2>
-            <p>голос, чат и файлы передаются <strong>напрямую</strong> между участниками через WebRTC. сервер только помогает вам найти друг друга в начале (это называется signalling) — дальше он не участвует. весь контент шифруется протоколами DTLS-SRTP, у сервера нет ключей.</p>
-        </section>
+      <section class="privacy-block">
+        <h2>как идёт разговор</h2>
+        <p>
+          голос, чат и файлы передаются <strong>напрямую</strong> между
+          участниками через WebRTC. сервер только помогает вам найти друг друга
+          в начале (это называется signalling) — дальше он не участвует. весь
+          контент шифруется протоколами DTLS-SRTP, у сервера нет ключей.
+        </p>
+      </section>
 
-        <section class="privacy-block">
-            <h2>когда возникает relay</h2>
-            <p>иногда прямое соединение между участниками невозможно — обычно из-за корпоративных сетей или мобильных операторов с CG-NAT. в этих редких случаях зашифрованные пакеты проходят через наш relay-сервер (TURN). сервер видит только метаданные подключения: IP-адреса, длительность сессии. <strong>контент остаётся зашифрованным</strong> — relay не может расшифровать голос или сообщения, ключи только у вас и собеседника.</p>
-        </section>
+      <section class="privacy-block">
+        <h2>когда возникает relay</h2>
+        <p>
+          иногда прямое соединение между участниками невозможно — обычно из-за
+          корпоративных сетей или мобильных операторов с CG-NAT. в этих редких
+          случаях зашифрованные пакеты проходят через наш relay-сервер (TURN).
+          сервер видит только метаданные подключения: IP-адреса, длительность
+          сессии. <strong>контент остаётся зашифрованным</strong> — relay не
+          может расшифровать голос или сообщения, ключи только у вас и
+          собеседника.
+        </p>
+      </section>
 
-        <section class="privacy-block">
-            <h2>контакт</h2>
-            <p>вопросы про приватность — в telegram: <a href="https://t.me/mtbibltww" target="_blank" rel="noopener noreferrer">@mtbibltww</a></p>
-        </section>
+      <section class="privacy-block">
+        <h2>контакт</h2>
+        <p>
+          вопросы про приватность — в telegram:
+          <a
+            href="https://t.me/casheaterr"
+            target="_blank"
+            rel="noopener noreferrer"
+            >@casheaterr</a
+          >
+        </p>
+      </section>
     </main>
 
     <footer class="footer">
-        <p class="footer-copy"><a class="footer-credit-link" href="https://t.me/mtbibltww" target="_blank" rel="noopener noreferrer">void by casheaterr</a> · <span>2026</span> · <a class="footer-credit-link internal" href="/">на главную</a></p>
-        <a class="footer-lang" href="/en/privacy" hreflang="en" lang="en">switch to english</a>
+      <p class="footer-copy">
+        <a
+          class="footer-credit-link"
+          href="https://t.me/casheaterr"
+          target="_blank"
+          rel="noopener noreferrer"
+          >void by casheaterr</a
+        >
+        · <span>2026</span> ·
+        <a class="footer-credit-link internal" href="/">на главную</a>
+      </p>
+      <a class="footer-lang" href="/en/privacy" hreflang="en" lang="en"
+        >switch to english</a
+      >
     </footer>
-</body>
+  </body>
 </html>

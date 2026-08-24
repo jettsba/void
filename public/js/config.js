@@ -85,6 +85,7 @@ const PREMIUM_NICKNAMES = new Set([
     "void",
     "casheaterr",
     "nakharaktere",
+    "suja",
     "fergjo",
     "michael",
     "aoki",

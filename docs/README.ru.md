@@ -102,14 +102,14 @@
 
 ## что внутри
 
-|  |  |
-|---|---|
-| **голос** | полный mesh WebRTC, прямой P2P‑звук между всеми в комнате, сервера в пути нет |
-| **шумоподавление** | RNNoise (ML‑модель в WASM/AudioWorklet) режет кулер, клавиатуру, фон — на клиенте, еще до отправки |
-| **чат и файлы** | по data‑каналу: текст, файлы до 100 МБ, изображения до 10 МБ |
-| **демонстрация экрана** | до 1080p60, с системным звуком |
-| **стабильность** | perfect negotiation, авто ICE‑restart, пересборка пира, watchdogs |
-| **нативный десктоп** | трей с живым статусом комнаты, глобальные хоткеи, подписанные авто‑обновления, deep‑link `void://` |
+|                         |                                                                                                    |
+| ----------------------- | -------------------------------------------------------------------------------------------------- |
+| **голос**               | полный mesh WebRTC, прямой P2P‑звук между всеми в комнате, сервера в пути нет                      |
+| **шумоподавление**      | RNNoise (ML‑модель в WASM/AudioWorklet) режет кулер, клавиатуру, фон — на клиенте, еще до отправки |
+| **чат и файлы**         | по data‑каналу: текст, файлы до 100 МБ, изображения до 10 МБ                                       |
+| **демонстрация экрана** | до 1080p60, с системным звуком                                                                     |
+| **стабильность**        | perfect negotiation, авто ICE‑restart, пересборка пира, watchdogs                                  |
+| **нативный десктоп**    | трей с живым статусом комнаты, глобальные хоткеи, подписанные авто‑обновления, deep‑link `void://` |
 
 ---
 
@@ -122,17 +122,17 @@
 JavaScript**, чтобы его можно
 было **прочитать**. полноценная WebRTC‑система, которую реально проследить от начала до конца.
 
-| слой | технологии |
-|---|---|
-| сигналинг | Node.js 20 · Express · ws |
-| транспорт медиа | WebRTC (perfect negotiation, DTLS‑SRTP) |
-| чат и файлы | RTCDataChannel (бинарный chunked‑transfer) |
-| аудио‑DSP | Web Audio — RNNoise → highpass/lowpass → компрессор → noise‑gate |
-| фронтенд | vanilla JS |
-| десктоп | Tauri 2 (Rust + WebView2) |
-| relay | coturn (TURN, короткоживущие HMAC‑credentials) |
-| reverse proxy | Caddy (авто‑HTTPS) |
-| деплой | Docker + docker‑compose, CI на push |
+| слой            | технологии                                                       |
+| --------------- | ---------------------------------------------------------------- |
+| сигналинг       | Node.js 20 · Express · ws                                        |
+| транспорт медиа | WebRTC (perfect negotiation, DTLS‑SRTP)                          |
+| чат и файлы     | RTCDataChannel (бинарный chunked‑transfer)                       |
+| аудио‑DSP       | Web Audio — RNNoise → highpass/lowpass → компрессор → noise‑gate |
+| фронтенд        | vanilla JS                                                       |
+| десктоп         | Tauri 2 (Rust + WebView2)                                        |
+| relay           | coturn (TURN, короткоживущие HMAC‑credentials)                   |
+| reverse proxy   | Caddy (авто‑HTTPS)                                               |
+| деплой          | Docker + docker‑compose, CI на push                              |
 
 </details>
 
@@ -174,14 +174,14 @@ self‑hosting, переменные окружения, настройка TURN
 все в **[DEVELOPMENT.md](DEVELOPMENT.md)**.
 
 баги и идеи → заводи [issue](https://github.com/jettsba/void/issues) или пиши в
-[Telegram](https://t.me/mtbibltww).
+[Telegram](https://t.me/casheaterr).
 
 ---
 
 <img src="kdpv.png" alt="void — голосовой чат, который невозможно прослушать" width="880">
 
 <div align="center">
-<sub><a href="../README.md">switch to english</a> ·<a href="https://t.me/mtbibltww"> crafted by casheaterr</a></sub>
+<sub><a href="../README.md">switch to english</a> ·<a href="https://t.me/casheaterr"> crafted by casheaterr</a></sub>
 <br>
 <sub><a href="../LICENSE"><b>AGPL‑3.0</b></a><b> © 2026 void</b></sub>
 </div>
