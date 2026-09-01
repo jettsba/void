@@ -35,17 +35,17 @@
    Посмотреть, как это выглядит, ДО выкатки: `VoidWhatsNewPreview()` в консоли. */
 
 window.VoidWhatsNew = {
-    version: "1.1.1",
+    version: "1.2.0",
     ru: [
-        "— горячие клавиши теперь выключены по умолчанию: включить можно в настройках",
-        "— на тильду (~) теперь можно назначить бинд без ctrl и shift",
-        "— карта клавиатуры в настройках стала полной — с цифрами, F-рядом, стрелками и мышью",
-        "— появилась кнопка «восстановить» — для возврата комбинаций по умолчанию"
+        "переработана отрисовка фона: убраны полосы и ступени на градиентах",
+        "— он также стал легче для отрисовки > меньше нагружает видеокарту",
+        "демонстрация экрана больше не мылит картинку на retina-экранах",
+        "на macOS в настройках теперь отображается маковская клавиатура"
     ],
     en: [
-        "— hotkeys are now off by default: turn them on in settings",
-        "— the tilde key (~) can be bound on its own, without ctrl or shift",
-        "— the keyboard map in settings is now complete — numbers, F-row, arrows and a mouse",
-        "— added a «restore» button to bring back the default bindings"
+        "the ambient background was rebuilt: no more bands and steps on gradients",
+        "— it also got lighter on the GPU than before",
+        "screen sharing no longer looks blurry on retina displays",
+        "on macOS the settings now show a mac keyboard layout"
     ]
 };

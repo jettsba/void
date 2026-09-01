@@ -725,6 +725,39 @@ html:not(.desktop) #settingsAppBtn {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+/* Маковский блок стрелок — «перевёрнутый T» как на физической плате: все
+   четыре клавиши половинной высоты, ←/↓/→ в нижнем ряду, ↑ над ↓, над ← и →
+   пусто. Сетка 3×2 с тем же зазором, что между клавишами, поэтому половинка
+   ровно равна (высота клавиши − зазор) / 2 и блок встаёт вровень с рядом. */
+.kbd-arrows {
+  min-width: 0;
+  height: 1.71rem;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: 1fr 1fr;
+  gap: 0.29rem;
+}
+.kbd-arrows .kbd-key {
+  height: auto;
+}
+.kbd-arrow-up {
+  grid-area: 1 / 2;
+}
+.kbd-arrow-left {
+  grid-area: 2 / 1;
+}
+.kbd-arrow-down {
+  grid-area: 2 / 2;
+}
+.kbd-arrow-right {
+  grid-area: 2 / 3;
+}
+/* На половинной высоте стрелка в 0.71rem упирается в края кэпа — ужимаем. */
+.kbd-arrows .kbd-key--ic svg {
+  width: 0.57rem;
+  height: 0.57rem;
+}
+
 /* Целевая клавиша бинда — залита; модификаторы — только подсвеченный контур:
    в комбинации важна цель, ctrl/shift лишь контекст. */
 .kbd-key.is-on {
@@ -846,6 +879,18 @@ html:not(.desktop) #settingsAppBtn {
     background var(--t-fast),
     border-color var(--t-fast),
     color var(--t-fast);
+}
+/* Маковский модификатор на кэпе — значок (⌘⌥⌃⇧). Чуть тоньше обводка, чем у
+   клавиатурной карты: кэп крупнее, при stroke-width 2 значок выглядел бы жирнее
+   соседних букв. */
+.binding-cap--ic svg {
+  width: 0.86rem;
+  height: 0.86rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 .hotkey-row:hover .binding-cap {
   border-color: var(--fg-2);

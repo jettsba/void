@@ -52,10 +52,23 @@ body {
      батарею телефона.
    В JS на этих же media-условиях rAF-цикл вообще не стартует. */
 @media (hover: none) and (pointer: coarse) {
+    /* !important — на блобовых темах видимостью gl-холста управляет JS
+       (inline display:block), и без него правило бы не сработало. */
+    #background-gl {
+        display: none !important;
+    }
+
     #background,
     #background-stars,
     #background-grain {
         display: none;
+    }
+
+    /* Виньетку возвращаем: на блобовых темах её обычно рисует шейдер, но здесь
+       холст скрыт целиком — без этого правила на телефоне не осталось бы ни
+       фона, ни затемнения по краям. */
+    html[data-bg-gl] body::after {
+        display: block;
     }
 
     /* iOS зумит инпут при focus, если у него font-size < 16px, и обратно НЕ

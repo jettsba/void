@@ -30,7 +30,7 @@
          чтобы избежать FOUC между web-mode и desktop-mode (custom titlebar). -->
     <script src="desktop-bootstrap.js?v=3"></script>
 
-    <link rel="stylesheet" href="css/base.css?v=25">
+    <link rel="stylesheet" href="css/base.css?v=27">
     <link rel="stylesheet" href="css/intro.css?v=18">
     <link rel="stylesheet" href="css/app.css?v=18">
     <link rel="stylesheet" href="css/header.css?v=24">
@@ -42,9 +42,9 @@
     <link rel="stylesheet" href="css/chat-attach.css?v=20">
     <link rel="stylesheet" href="css/chat-overlay.css?v=20">
     <link rel="stylesheet" href="css/screencast.css?v=32">
-    <link rel="stylesheet" href="css/responsive.css?v=22">
+    <link rel="stylesheet" href="css/responsive.css?v=23">
     <link rel="stylesheet" href="css/settings.css?v=38">
-    <link rel="stylesheet" href="css/app-settings.css?v=9">
+    <link rel="stylesheet" href="css/app-settings.css?v=10">
     <link rel="stylesheet" href="css/titlebar.css?v=16">
     <link rel="stylesheet" href="css/updater-banner.css?v=6">
 
@@ -83,6 +83,12 @@
         </div>
     </header>
 
+    <!-- background-gl: блобовые темы (silence/nebula) рисуются шейдером —
+         только там можно подмешать дизер ДО округления до 8 бит и убрать
+         террасы на градиенте. Идёт ПЕРВЫМ: 2D-холст выше по стопке, но на этих
+         темах пустой, а на grid/mesh gl-холст скрыт. Нет WebGL — остаётся
+         прежний 2D-путь. -->
+    <canvas id="background-gl" style="display:none"></canvas>
     <canvas id="background"></canvas>
     <canvas id="background-stars"></canvas>
     <div id="background-grain"></div>
@@ -464,18 +470,18 @@
     </div>
 
     <script defer src="log.js?v=1"></script>
-    <script defer src="settings.js?v=103"></script>
+    <script defer src="settings.js?v=104"></script>
     <!-- Заметки к текущему релизу (контент, правится на выкатке).
          Потребитель — js/desktop/whats-new.js. -->
-    <script defer src="whats-new.js?v=3"></script>
-    <script defer src="webrtc.js?v=21"></script>
+    <script defer src="whats-new.js?v=4"></script>
+    <script defer src="webrtc.js?v=22"></script>
     <script defer src="socket.js?v=3"></script>
     <script defer src="chat.js?v=8"></script>
     <script defer src="js/config.js?v=5"></script>
     <script defer src="js/state.js?v=9"></script>
     <script defer src="js/dev-mode.js?v=1"></script>
     <script defer src="js/toasts.js?v=1"></script>
-    <script defer src="js/background.js?v=9"></script>
+    <script defer src="js/background.js?v=11"></script>
     <script defer src="js/void-sfx.js?v=1"></script>
     <script defer src="js/void-sfx-pad.js?v=1"></script>
     <script defer src="js/audio.js?v=6"></script>
@@ -494,7 +500,7 @@
     <script defer src="js/desktop/save-file.js?v=1"></script>
     <script defer src="js/desktop/opener.js?v=2"></script>
     <script defer src="js/desktop/deep-link.js?v=1"></script>
-    <script defer src="js/app-settings.js?v=8"></script>
+    <script defer src="js/app-settings.js?v=9"></script>
     <script defer src="js/desktop/updater.js?v=6"></script>
     <script defer src="js/desktop/whats-new.js?v=1"></script>
 </body>

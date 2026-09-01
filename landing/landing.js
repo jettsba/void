@@ -17,8 +17,49 @@ void — landing behaviors
 var __voidEntrance = window.__voidEntrance || null;
 if (__voidEntrance) { try { window.scrollTo(0, 0); } catch (_) {} }
 
+/* Apple-платформы. macOS и iOS дают инерцию скролла на уровне СИСТЕМЫ: трекпад
+   и Magic Mouse шлют браузеру уже затухающий поток событий. Lenis поверх этого —
+   вторая инерция: перелёт цели, ватная остановка, долгий выбег после того, как
+   пальцы уже убраны. Поэтому на Apple скролл отдаём системе (он там и без нас
+   плавный), а плавность якорных переходов добираем нативным scrollIntoView.
+   Windows/Linux не трогаем: там колесо шлёт дискретные щелчки без всякой
+   инерции — её Lenis и добавляет, ради этого он тут и стоит.
+   iPadOS представляется как Mac, поэтому одной проверкой закрыты обе. */
+const IS_APPLE = /mac|iphone|ipad|ipod/i.test(
+    (navigator.userAgentData && navigator.userAgentData.platform) ||
+    navigator.platform || navigator.userAgent || ''
+);
+
 (function initLenis() {
+    /* Якоря без Lenis: нативный smooth-скролл. Тот же контракт — перехватываем
+       клик по #ссылке, доезжаем плавно, кладём хэш в историю. */
+    function startNative() {
+        document.addEventListener('click', (e) => {
+            const a = e.target.closest('a[href^="#"]');
+            if (!a) return;
+            const id = a.getAttribute('href').slice(1);
+            if (!id) return;
+            const el = document.getElementById(id);
+            if (!el) return;
+            e.preventDefault();
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            try { history.pushState(null, '', '#' + id); } catch (_) {}
+        });
+        if (__voidEntrance) {
+            const target = document.getElementById(__voidEntrance);
+            /* Та же пауза, что и в Lenis-ветке: сначала дать увидеть верх
+               страницы, потом уехать к секции. */
+            if (target) setTimeout(() => {
+                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 750);
+        }
+    }
+
     function start() {
+        if (IS_APPLE) {
+            startNative();
+            return;
+        }
         if (typeof Lenis === 'undefined') {
             /* Lenis не загрузился — но хэш уже убран и мы наверху, поэтому
                доставим юзера к секции напрямую (без анимации). */
@@ -89,12 +130,128 @@ if (__voidEntrance) { try { window.scrollTo(0, 0); } catch (_) {} }
     // Lenis is loaded with `defer`, so it's ready by DOMContentLoaded.
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', start);
-    } else if (typeof Lenis !== 'undefined') {
+    } else if (IS_APPLE || typeof Lenis !== 'undefined') {
         start();
     } else {
         window.addEventListener('load', start);
     }
 })();
+
+/* ----------------------------------------------------------------------------
+   Шейдерный фон (тот же приём, что в приложении, см. public/js/background.js).
+
+   Градиент блоба на почти чёрном фоне занимает 5-7 градаций яркости на полэкрана.
+   В 8 битах это обязано рисоваться террасами: замер живой страницы давал плато
+   шириной до двухсот пикселей. Плёнка шума сверху их не лечит — она рвёт границу,
+   но у каждой террасы остаётся своё среднее, а глаз видит именно среднее.
+   Лечит дизеринг ДО округления, а сделать его можно только в шейдере: в canvas 2D
+   каждая заливка сразу попадает в 8-битный буфер.
+
+   Один полноэкранный проход, без альфы/глубины/стенсила, powerPreference
+   low-power — дискретную карту не будим. Нет WebGL → возвращаемся на прежний
+   canvas-путь, он рабочий, просто с полосами.
+   ---------------------------------------------------------------------------- */
+const BG_MAX_LOBES = 8;
+
+function initBlobGL(canvas) {
+    let gl = null;
+    try {
+        const opts = { alpha: false, antialias: false, depth: false, stencil: false,
+                       preserveDrawingBuffer: false, powerPreference: 'low-power' };
+        gl = canvas.getContext('webgl', opts) || canvas.getContext('experimental-webgl', opts);
+    } catch (_) { return null; }
+    if (!gl) return null;
+
+    const VERT = 'attribute vec2 aPos; void main(){ gl_Position = vec4(aPos,0.0,1.0); }';
+    const FRAG = `
+precision highp float;
+uniform vec2  uRes;
+uniform vec3  uBase;
+uniform int   uCount;
+uniform vec4  uLobe[${BG_MAX_LOBES}];
+uniform vec3  uTint[${BG_MAX_LOBES}];
+uniform vec2  uVig;
+float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898,78.233))) * 43758.5453); }
+void main() {
+    vec2 fc = vec2(gl_FragCoord.x, uRes.y - gl_FragCoord.y);
+    vec3 acc = vec3(0.0);
+    for (int i = 0; i < ${BG_MAX_LOBES}; i++) {
+        if (i >= uCount) break;
+        vec4 L = uLobe[i];
+        float t = clamp(distance(fc, L.xy) / L.z, 0.0, 1.0);
+        acc += uTint[i] * (pow(1.0 - t, 1.4) * L.w);
+    }
+    vec3 col = uBase + acc;
+    vec2 q = (fc - 0.5 * uRes) / vec2(1.2 * uRes.x, 0.8 * uRes.y);
+    float v = clamp((length(q) - uVig.x) / max(1.0 - uVig.x, 0.001), 0.0, 1.0);
+    col *= 1.0 - uVig.y * v * v;
+    /* Дизер: равномерный шум ±полградации перед округлением до 8 бит. */
+    col += (hash(fc) - 0.5) / 255.0;
+    gl_FragColor = vec4(col, 1.0);
+}`;
+
+    function compile(type, src) {
+        const sh = gl.createShader(type);
+        gl.shaderSource(sh, src); gl.compileShader(sh);
+        if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(sh));
+        return sh;
+    }
+    let prog;
+    try {
+        prog = gl.createProgram();
+        gl.attachShader(prog, compile(gl.VERTEX_SHADER, VERT));
+        gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, FRAG));
+        gl.linkProgram(prog);
+        if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+    } catch (_) { return null; }
+
+    gl.useProgram(prog);
+    const buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 3,-1, -1,3]), gl.STATIC_DRAW);
+    const aPos = gl.getAttribLocation(prog, 'aPos');
+    gl.enableVertexAttribArray(aPos);
+    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+    const u = {};
+    for (const n of ['uRes','uBase','uCount','uLobe','uTint','uVig']) u[n] = gl.getUniformLocation(prog, n);
+    const lobes = new Float32Array(BG_MAX_LOBES * 4);
+    const tints = new Float32Array(BG_MAX_LOBES * 3);
+    let dpr = 1;
+
+    let lost = false;
+    canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); lost = true; }, { passive: false });
+
+    return {
+        get lost() { return lost; },
+        resize(cssW, cssH) {
+            /* Нативный dpr: дизер обязан ложиться на реальные пиксели экрана,
+               при масштабировании композитор усреднил бы соседние значения. */
+            dpr = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
+            canvas.width  = Math.max(1, Math.round(cssW * dpr));
+            canvas.height = Math.max(1, Math.round(cssH * dpr));
+            canvas.style.width  = cssW + 'px';
+            canvas.style.height = cssH + 'px';
+            gl.viewport(0, 0, canvas.width, canvas.height);
+        },
+        draw(list) {
+            const n = Math.min(list.length, BG_MAX_LOBES);
+            for (let i = 0; i < n; i++) {
+                const L = list[i];
+                lobes[i*4] = L.x * dpr; lobes[i*4+1] = L.y * dpr;
+                lobes[i*4+2] = L.r * dpr; lobes[i*4+3] = L.a;
+                tints[i*3] = L.tint[0]/255; tints[i*3+1] = L.tint[1]/255; tints[i*3+2] = L.tint[2]/255;
+            }
+            gl.uniform2f(u.uRes, canvas.width, canvas.height);
+            gl.uniform3f(u.uBase, 10/255, 10/255, 11/255);
+            gl.uniform1i(u.uCount, n);
+            gl.uniform2f(u.uVig, 0.40, 0.55);
+            gl.uniform4fv(u.uLobe, lobes);
+            gl.uniform3fv(u.uTint, tints);
+            gl.drawArrays(gl.TRIANGLES, 0, 3);
+        }
+    };
+}
 
 (function () {
     /* -------------------------------------------------- deep-field blobs
@@ -102,7 +259,7 @@ if (__voidEntrance) { try { window.scrollTo(0, 0); } catch (_) {} }
        - 4 пятна с лёгкими холодными/тёплыми тонами;
        - `globalCompositeOperation = 'lighter'` — пересечения просто светлеют,
          не дают видимых границ;
-       - 4-стоповый eased градиент вместо линейного — без mach band у края.
+       - многостоповый eased градиент — без изломов наклона и mach band.
        Слой лежит ПОД bgCanvas (звёзды) — DOM-порядок задаёт стопку. */
     const blob = document.getElementById('bgBlobs');
     /* На мобильном blob'ы убираем: они мелко дёргаются (URL-бар то появляется,
@@ -112,7 +269,12 @@ if (__voidEntrance) { try { window.scrollTo(0, 0); } catch (_) {} }
     if (blob && blobMobile) {
         blob.style.display = 'none';
     } else if (blob) {
-        const bctx = blob.getContext('2d');
+        /* Сначала пробуем шейдер (он единственный умеет дизер до округления),
+           и только если WebGL нет — обычный 2D-контекст. Контекст у canvas
+           берётся один раз и навсегда, поэтому порядок именно такой. */
+        const bgl = initBlobGL(blob);
+        if (bgl) document.documentElement.dataset.bgGl = '1';
+        const bctx = bgl ? null : blob.getContext('2d');
         const dpr = Math.min(window.devicePixelRatio || 1, 2);
         const TINTS = [
             [200, 205, 220],
@@ -130,6 +292,7 @@ if (__voidEntrance) { try { window.scrollTo(0, 0); } catch (_) {} }
         function bfit() {
             BW = document.documentElement.clientWidth  || window.innerWidth  || 0;
             BH = document.documentElement.clientHeight || window.innerHeight || 0;
+            if (bgl) { bgl.resize(BW, BH); return; }
             blob.width  = Math.max(1, Math.round(BW * dpr));
             blob.height = Math.max(1, Math.round(BH * dpr));
             blob.style.width  = BW + 'px';
@@ -154,23 +317,40 @@ if (__voidEntrance) { try { window.scrollTo(0, 0); } catch (_) {} }
         /* Под reduced-motion — на resize только перерисовать (без анимации). */
         window.addEventListener('resize', () => { bfit(); bseed(); if (blobReducedMotion) bpaint(); });
 
+        function bdrift() {
+            if (blobReducedMotion) return;
+            for (const b of blobs) {
+                b.x += b.vx; b.y += b.vy;
+                if (b.x < -b.r) b.x = BW + b.r;
+                if (b.x > BW + b.r) b.x = -b.r;
+                if (b.y < -b.r) b.y = BH + b.r;
+                if (b.y > BH + b.r) b.y = -b.r;
+            }
+        }
+
         function bpaint() {
+            bdrift();
+            if (bgl) {
+                if (!bgl.lost) bgl.draw(blobs);
+                if (!blobReducedMotion) requestAnimationFrame(bpaint);
+                return;
+            }
             bctx.clearRect(0, 0, BW, BH);
             bctx.globalCompositeOperation = 'lighter';
             for (const b of blobs) {
-                if (!blobReducedMotion) {
-                    b.x += b.vx; b.y += b.vy;
-                    if (b.x < -b.r) b.x = BW + b.r;
-                    if (b.x > BW + b.r) b.x = -b.r;
-                    if (b.y < -b.r) b.y = BH + b.r;
-                    if (b.y > BH + b.r) b.y = -b.r;
-                }
                 const [r, g, bl] = b.tint;
+                /* 16 стопов с плавным falloff вместо четырёх. Между стопами
+                   браузер интерполирует линейно → на каждом стопе излом наклона,
+                   а на градиенте в пол-экрана шириной и всего в 5-6 градаций
+                   яркости излом читается как кольцо. Показатель 1.4 повторяет
+                   прежнюю кривую (0.65^1.4 ≈ 0.55, 0.3^1.4 ≈ 0.19): вид тот же,
+                   изломов нет. Синхронно с public/js/background.js. */
                 const grad = bctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.r);
-                grad.addColorStop(0.0, `rgba(${r},${g},${bl},${b.a})`);
-                grad.addColorStop(0.35, `rgba(${r},${g},${bl},${b.a * 0.55})`);
-                grad.addColorStop(0.7, `rgba(${r},${g},${bl},${b.a * 0.15})`);
-                grad.addColorStop(1.0, `rgba(${r},${g},${bl},0)`);
+                for (let i = 0; i <= 16; i++) {
+                    const t = i / 16;
+                    const k = Math.pow(1 - t, 1.4);
+                    grad.addColorStop(t, `rgba(${r},${g},${bl},${(b.a * k).toFixed(4)})`);
+                }
                 bctx.fillStyle = grad;
                 bctx.beginPath();
                 bctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);

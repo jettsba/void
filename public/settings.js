@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "1.1.1";
+    const APP_VERSION = "1.2.0";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;

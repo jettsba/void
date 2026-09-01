@@ -2015,6 +2015,26 @@ async function startScreenShare(height = 1080, fps = 30, captureAudio = false) {
        почти бесплатна по битрейту → detail держит её резкой. См. W3C MST § contentHint. */
     if (videoTrack) {
         try { videoTrack.contentHint = "detail"; } catch (_) {}
+        /* Констрейнты getDisplayMedia — только ХИНТ: спека запрещает min/exact и
+           не обязывает выполнять ideal. На HiDPI (Retina) источник приходит в
+           физическом разрешении (напр. 3024x1964 вместо запрошенного 1080p), и
+           энкодер получает 6 Мпикс на битрейт, посчитанный под 2 Мпикс. Дальше
+           quality scaler / CPU-overuse роняют картинку в кашу. Дожимаем трек
+           явным max — это дешевле, чем гнать лишние пиксели до энкодера. Если
+           браузер не умеет (Safari) — не беда, ниже подстрахован явный
+           scaleResolutionDownBy. */
+        try {
+            await videoTrack.applyConstraints({
+                width: { max: width }, height: { max: height }, frameRate: { max: fps }
+            });
+        } catch (err) {
+            log.debug("rtc", "screen track applyConstraints rejected", { err: err?.message || String(err) });
+        }
+        const st = videoTrack.getSettings?.() || {};
+        log.info("rtc", "screen source", {
+            srcW: st.width, srcH: st.height, srcFps: st.frameRate,
+            targetH: height, targetFps: fps
+        });
     }
     /* Запоминаем целевые параметры — applyDirectScreenVideoParams читает их
        и для каждого peer'а пересчитывает encoder.maxBitrate/maxFramerate.
@@ -2182,6 +2202,17 @@ async function applyScreenAudioParams(senders) {
     }
 }
 
+/* Во сколько раз даунскейлить кадр ПЕРЕД энкодером: реальное разрешение
+   источника / целевое. Нужен, когда источник крупнее запрошенного (Retina-мак,
+   4K-монитор при выбранном 720p): без него энкодер жмёт лишние пиксели в тот же
+   битрейт и картинка расползается. Источник уже <= цели (обычный случай на
+   Windows) → 1, поведение не меняется. */
+function screenDownscaleFactor(track, targetHeight) {
+    const srcH = track?.getSettings?.().height || 0;
+    if (!srcH || !targetHeight || srcH <= targetHeight) return 1;
+    return Math.round((srcH / targetHeight) * 1000) / 1000;
+}
+
 /* Число зрителей активной демки = сколько пиров сейчас получают screen-video.
    На это число делится SCREEN_UPLOAD_BUDGET в обоих video-сеттерах. max(1,…)
    защищает от деления на ноль (демка без пиров — теоретически, no-op). */
@@ -2255,6 +2286,7 @@ async function applyDirectScreenVideoParams(senders, height, fps) {
        — режем, чтобы суммарный аплоад шарера держался около SCREEN_UPLOAD_BUDGET. */
     const viewers = screenViewerCount();
     const maxBitrate = Math.min(ceiling, Math.round(SCREEN_UPLOAD_BUDGET / viewers));
+    const downscale = screenDownscaleFactor(videoSender.track, height);
 
     const apply = async (withDegradation) => {
         const params = videoSender.getParameters();
@@ -2262,6 +2294,7 @@ async function applyDirectScreenVideoParams(senders, height, fps) {
         const enc = params.encodings[0];
         enc.maxBitrate = maxBitrate;
         enc.maxFramerate = fps;
+        enc.scaleResolutionDownBy = downscale;
         enc.networkPriority = "high";
         if (withDegradation) params.degradationPreference = "balanced";
         await videoSender.setParameters(params);
@@ -2269,11 +2302,11 @@ async function applyDirectScreenVideoParams(senders, height, fps) {
 
     try {
         await apply(true);
-        log.info("rtc", "direct screen video bitrate set", { height, fps, viewers, maxBitrate });
+        log.info("rtc", "direct screen video bitrate set", { height, fps, viewers, maxBitrate, downscale });
     } catch (err1) {
         try {
             await apply(false);
-            log.info("rtc", "direct screen video bitrate set (no degradation pref)", { height, fps, viewers, maxBitrate });
+            log.info("rtc", "direct screen video bitrate set (no degradation pref)", { height, fps, viewers, maxBitrate, downscale });
         } catch (err2) {
             log.warn("rtc", "direct screen video setParameters failed", { err: err2?.message || String(err2) });
         }
@@ -2338,7 +2371,11 @@ async function _collectPeerHud() {
         if (vout) {
             const kbps = dt ? Math.round(((vout.bytesSent - prev.vbytes) * 8) / 1000 / dt) : 0;
             const loss = vrin?.fractionLost != null ? (vrin.fractionLost * 100).toFixed(1) : "?";
+            /* encoderImplementation — главный маркер «почему мыло»: HW-энкодер
+               (MediaFoundation/VideoToolbox) против software (OpenH264/libvpx),
+               который на 1080p упирается в CPU и роняет разрешение. */
             line += `\n   screen: ${vout.frameWidth || 0}x${vout.frameHeight || 0}@${Math.round(vout.framesPerSecond || 0)} ${kbps}kbps qLim=${vout.qualityLimitationReason || "?"} loss=${loss}%`;
+            line += `\n   enc: ${vout.encoderImplementation || "?"}`;
         }
         _hudPrev.set(userId, { vbytes: vout?.bytesSent || 0, abytes: aout?.bytesSent || 0, ts: now });
         lines.push(line);
@@ -2754,7 +2791,9 @@ async function applyRelayBitrateLimits(peer) {
             if (!params.encodings || !params.encodings.length) params.encodings = [{}];
             const enc = params.encodings[0];
             enc.maxBitrate = videoCap;
-            enc.scaleResolutionDownBy = 1; // старт с полного; balanced даунскейлит сам
+            /* Даунскейл до выбранного разрешения (Retina/4K-источник крупнее
+               цели), дальше balanced режет сам под congestion. */
+            enc.scaleResolutionDownBy = screenDownscaleFactor(sender.track, screenTargetHeight);
             enc.maxFramerate = 30;
             if (withDegradation) params.degradationPreference = "balanced";
             await sender.setParameters(params);

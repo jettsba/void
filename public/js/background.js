@@ -125,6 +125,230 @@ function smoothRadialGradient(ctx, x, y, r, rgb, alphaMax, stops, easeExp) {
     return g;
 }
 
+/* ===== WEBGL-рендерер блобовых тем =====
+
+   ЗАЧЕМ. Градиент блоба на почти чёрном фоне занимает всего 5-7 градаций
+   яркости и растягивает их на полэкрана. В 8 битах это физически не может быть
+   гладким: замер живой страницы дал 11 значений альфы и плато шириной до 131
+   device-пикселя — те самые террасы. Плёнка шума СВЕРХУ их не лечит: она рвёт
+   границу, но не трогает сами ступени (у каждой террасы своё среднее, а глаз
+   видит именно среднее). Размытие не лечит по той же причине — после блюра
+   результат снова округляется до 8 бит.
+
+   Лечит только дизеринг ДО округления: подмешать в значение шум амплитудой
+   в половину градации и лишь потом округлить. Тогда пиксели вокруг порога
+   распределяются случайно, локальное среднее сохраняет дробную часть, и
+   ступеней не остаётся вовсе. В canvas 2D такое сделать негде — каждая заливка
+   сразу попадает в 8-битный буфер. В шейдере — одна строка.
+
+   ЦЕНА. Один полноэкранный проход вместо 12 полноэкранных заливок с blend mode
+   (nebula), никаких аллокаций на кадр, контекст без альфы/глубины/стенсила и с
+   powerPreference:"low-power" — дискретная карта не будится. По памяти это ровно
+   один буфер размером с холст, как и у canvas 2D.
+
+   Рендерим в НАТИВНОМ dpr (в отличие от 2D-пути с его cap 1.5): дизер обязан
+   ложиться на реальные пиксели экрана. При масштабировании 1.5→2 компоновщик
+   усреднил бы соседние значения и съел бы половину эффекта.
+
+   Фолбэк. Нет WebGL (старая машина, блоклист драйвера, потеря контекста) —
+   молча возвращаемся на прежний canvas-путь: он рабочий, просто с полосами. */
+
+const GL_THEMES = new Set(["silence", "nebula"]);
+const GL_MAX_LOBES = 16;
+
+let _glCanvas = null;
+let _glR = null;          // рендерер или null, если WebGL недоступен
+let _glTried = false;
+
+const GL_VERT = `
+attribute vec2 aPos;
+void main() { gl_Position = vec4(aPos, 0.0, 1.0); }
+`;
+
+const GL_FRAG = `
+precision highp float;
+uniform vec2  uRes;                    // размер холста в device-пикселях
+uniform vec3  uBase;                   // цвет фона (--bg-0)
+uniform int   uCount;                  // сколько долей рисуем
+uniform int   uScreen;                 // 1 = screen-накопление (nebula), 0 = аддитивное
+uniform float uFall;                   // показатель спада (1.4 silence / 4.0 nebula)
+uniform vec4  uLobe[${GL_MAX_LOBES}];  // xy — центр, z — радиус, w — альфа
+uniform vec3  uTint[${GL_MAX_LOBES}];  // цвет доли, 0..1
+uniform vec2  uVig;                    // виньетка: начало (0..1) и сила
+
+/* Дизер: равномерный шум ±полградации ПЕРЕД округлением до 8 бит. Статичный
+   по экрану (без времени) — иначе зерно ползло бы между кадрами. */
+float hash(vec2 p) {
+    return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
+}
+
+void main() {
+    /* gl_FragCoord считает снизу вверх, координаты блобов — сверху вниз. */
+    vec2 fc = vec2(gl_FragCoord.x, uRes.y - gl_FragCoord.y);
+
+    vec3 acc = vec3(0.0);
+    for (int i = 0; i < ${GL_MAX_LOBES}; i++) {
+        if (i >= uCount) break;
+        vec4 L = uLobe[i];
+        float t = clamp(distance(fc, L.xy) / L.z, 0.0, 1.0);
+        vec3 c = uTint[i] * (pow(1.0 - t, uFall) * L.w);
+        acc = (uScreen == 1) ? (acc + c - acc * c) : (acc + c);
+    }
+
+    vec3 col = uBase + acc;
+
+    /* Виньетка считается здесь же, а не слоем CSS сверху: у неё те же 5 градаций
+       на полэкрана, и отдельным слоем она получила бы собственные террасы уже
+       после нашего дизера. Эллипс 120%×80% от центра — форма как у прежнего
+       radial-gradient, спад квадратичный. */
+    vec2 q = (fc - 0.5 * uRes) / vec2(1.2 * uRes.x, 0.8 * uRes.y);
+    float v = clamp((length(q) - uVig.x) / max(1.0 - uVig.x, 0.001), 0.0, 1.0);
+    col *= 1.0 - uVig.y * v * v;
+
+    col += (hash(fc) - 0.5) / 255.0;
+    gl_FragColor = vec4(col, 1.0);
+}
+`;
+
+function _glCompile(gl, type, src) {
+    const sh = gl.createShader(type);
+    gl.shaderSource(sh, src);
+    gl.compileShader(sh);
+    if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+        const err = gl.getShaderInfoLog(sh);
+        gl.deleteShader(sh);
+        throw new Error(err || "shader compile failed");
+    }
+    return sh;
+}
+
+/** Поднять WebGL один раз. Вернёт рендерер или null — тогда работает 2D-путь. */
+function _glInit() {
+    if (_glTried) return _glR;
+    _glTried = true;
+    _glCanvas = document.getElementById("background-gl");
+    if (!_glCanvas) return null;
+
+    let gl = null;
+    try {
+        const opts = {
+            alpha: false,          // непрозрачный холст: фон рисуем сами, и
+                                   // композитор не переквантует наши значения
+            antialias: false, depth: false, stencil: false,
+            preserveDrawingBuffer: false,
+            powerPreference: "low-power",
+            desynchronized: true
+        };
+        gl = _glCanvas.getContext("webgl", opts) || _glCanvas.getContext("experimental-webgl", opts);
+    } catch (_) { gl = null; }
+    if (!gl) return null;
+
+    let prog;
+    try {
+        prog = gl.createProgram();
+        gl.attachShader(prog, _glCompile(gl, gl.VERTEX_SHADER, GL_VERT));
+        gl.attachShader(prog, _glCompile(gl, gl.FRAGMENT_SHADER, GL_FRAG));
+        gl.linkProgram(prog);
+        if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+            throw new Error(gl.getProgramInfoLog(prog) || "link failed");
+        }
+    } catch (err) {
+        if (window.log?.warn) log.warn("bg", "webgl unavailable, falling back to 2d", { err: err.message });
+        return null;
+    }
+
+    gl.useProgram(prog);
+    const buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    /* Два треугольника на весь клип — вся геометрия сцены. */
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 3,-1, -1,3]), gl.STATIC_DRAW);
+    const aPos = gl.getAttribLocation(prog, "aPos");
+    gl.enableVertexAttribArray(aPos);
+    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+    const u = {};
+    for (const n of ["uRes", "uBase", "uCount", "uScreen", "uFall", "uLobe", "uTint", "uVig"]) {
+        u[n] = gl.getUniformLocation(prog, n);
+    }
+
+    /* Потеря контекста (сон машины, сброс драйвера): гасим рендерер и уходим на
+       2D-путь, чтобы фон не превратился в чёрный прямоугольник. */
+    _glCanvas.addEventListener("webglcontextlost", (e) => {
+        e.preventDefault();
+        _glR = null;
+        _glCanvas.style.display = "none";
+        document.documentElement.removeAttribute("data-bg-gl");
+    }, { passive: false });
+
+    const lobes = new Float32Array(GL_MAX_LOBES * 4);
+    const tints = new Float32Array(GL_MAX_LOBES * 3);
+
+    _glR = {
+        gl,
+        /* Виньетка: начало спада (доля радиуса) и сила — синхронно с прежним
+           CSS-градиентом в base.css. */
+        vig: [0.40, 0.55],
+        resize() {
+            const dpr = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
+            const w = Math.round(window.innerWidth * dpr);
+            const h = Math.round(window.innerHeight * dpr);
+            if (_glCanvas.width !== w || _glCanvas.height !== h) {
+                _glCanvas.width = w;
+                _glCanvas.height = h;
+                gl.viewport(0, 0, w, h);
+            }
+            _glCanvas.style.width = window.innerWidth + "px";
+            _glCanvas.style.height = window.innerHeight + "px";
+            this.dpr = dpr;
+        },
+        /** list: [{x, y, r, a, tint}] в CSS-пикселях. */
+        draw(list, fall, screenBlend) {
+            const n = Math.min(list.length, GL_MAX_LOBES);
+            const d = this.dpr || 1;
+            for (let i = 0; i < n; i++) {
+                const L = list[i];
+                lobes[i*4]   = L.x * d;
+                lobes[i*4+1] = L.y * d;
+                lobes[i*4+2] = L.r * d;
+                lobes[i*4+3] = L.a;
+                tints[i*3]   = L.tint[0] / 255;
+                tints[i*3+1] = L.tint[1] / 255;
+                tints[i*3+2] = L.tint[2] / 255;
+            }
+            gl.uniform2f(u.uRes, _glCanvas.width, _glCanvas.height);
+            gl.uniform3f(u.uBase, 10/255, 10/255, 11/255);   // --bg-0 #0a0a0b
+            gl.uniform1i(u.uCount, n);
+            gl.uniform1i(u.uScreen, screenBlend ? 1 : 0);
+            gl.uniform1f(u.uFall, fall);
+            gl.uniform2f(u.uVig, this.vig[0], this.vig[1]);
+            gl.uniform4fv(u.uLobe, lobes);
+            gl.uniform3fv(u.uTint, tints);
+            gl.drawArrays(gl.TRIANGLES, 0, 3);
+        }
+    };
+    _glR.resize();
+    return _glR;
+}
+
+/** Активен ли GL для текущей темы. */
+function _glActive() {
+    return !!(_glR && _theme && GL_THEMES.has(_theme));
+}
+
+/* Дрейф блобов с заворотом по краям — общий для обоих путей рендера. */
+function _driftBlobs() {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    for (const b of blobs) {
+        b.x += b.vx;
+        b.y += b.vy;
+        if (b.x < -b.r) b.x = w + b.r;
+        if (b.x > w + b.r) b.x = -b.r;
+        if (b.y < -b.r) b.y = h + b.r;
+        if (b.y > h + b.r) b.y = -b.r;
+    }
+}
+
 /* ===== canvases ===== */
 
 /* DPR cap для canvas — амбиентный фон не нуждается в native retina
@@ -166,6 +390,8 @@ function sizeCanvas() {
     if (_themeInited && _theme && THEMES[_theme]?.resize) {
         THEMES[_theme].resize(ratioX, ratioY);
     }
+
+    if (_glR) _glR.resize();
 
     _lastCssW = w;
     _lastCssH = h;
@@ -209,26 +435,32 @@ function resizeSilence(ratioX, ratioY) {
     });
 }
 
+const SILENCE_FALLOFF = 1.4;
+
 function frameSilence(t) {
     const w = window.innerWidth;
     const h = window.innerHeight;
+    _driftBlobs();
+
+    if (_glActive()) {
+        _glR.draw(blobs, SILENCE_FALLOFF, /*screenBlend*/ false);
+        _drawStars(t);
+        return;
+    }
+
     ctx.clearRect(0, 0, w, h);
     ctx.globalCompositeOperation = "lighter";
     blobs.forEach(b => {
-        b.x += b.vx;
-        b.y += b.vy;
-        if (b.x < -b.r) b.x = w + b.r;
-        if (b.x > w + b.r) b.x = -b.r;
-        if (b.y < -b.r) b.y = h + b.r;
-        if (b.y > h + b.r) b.y = -b.r;
-
-        const [r, g, bl] = b.tint;
-        const grad = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.r);
-        grad.addColorStop(0.0, `rgba(${r},${g},${bl},${b.a})`);
-        grad.addColorStop(0.35, `rgba(${r},${g},${bl},${b.a * 0.55})`);
-        grad.addColorStop(0.7, `rgba(${r},${g},${bl},${b.a * 0.15})`);
-        grad.addColorStop(1.0, `rgba(${r},${g},${bl},0)`);
-        ctx.fillStyle = grad;
+        /* 16 стопов с плавным falloff вместо прежних четырёх (0 / .35 / .7 / 1).
+           Между стопами браузер интерполирует ЛИНЕЙНО, поэтому на каждом стопе
+           излом наклона — а на градиенте шириной в пол-экрана и высотой всего в
+           5-6 градаций яркости излом читается как чёткое кольцо. Это и была
+           «лесенка»: не сглаживание и не retina, а геометрия градиента (nebula
+           это уже прошла — см. smoothRadialGradient).
+           Показатель 1.4 подобран так, чтобы кривая совпала со старой
+           (0.65^1.4 ≈ 0.55, 0.3^1.4 ≈ 0.19) — вид блоба не меняется, уходят
+           только изломы. */
+        ctx.fillStyle = smoothRadialGradient(ctx, b.x, b.y, b.r, b.tint, b.a, 16, SILENCE_FALLOFF);
         ctx.beginPath();
         ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
         ctx.fill();
@@ -281,34 +513,47 @@ function resizeNebula(ratioX, ratioY) {
     });
 }
 
+const NEBULA_FALLOFF = 4;
+
+/* Три смещённые «доли» блоба на текущий момент времени. Каждая на ~55% альфы —
+   суммарно ≈ исходная, но контур получается неправильный, «галактический».
+   Общий источник геометрии для обоих путей рендера. */
+function _nebulaLobes(t) {
+    const out = [];
+    for (const b of blobs) {
+        const orbit = b.r * 0.22;
+        for (let i = 0; i < 3; i++) {
+            const angle = b.phase + (i / 3) * Math.PI * 2 + t * b.spin;
+            out.push({
+                x: b.x + Math.cos(angle) * orbit,
+                y: b.y + Math.sin(angle) * orbit,
+                r: b.r * 0.78,
+                a: b.a * 0.55,
+                tint: b.tint
+            });
+        }
+    }
+    return out;
+}
+
 function frameNebula(t) {
     const w = window.innerWidth;
     const h = window.innerHeight;
+    _driftBlobs();
+    const lobes = _nebulaLobes(t);
+
+    if (_glActive()) {
+        _glR.draw(lobes, NEBULA_FALLOFF, /*screenBlend*/ true);
+        _drawStars(t);
+        return;
+    }
+
     ctx.clearRect(0, 0, w, h);
     ctx.globalCompositeOperation = "screen";
-    blobs.forEach(b => {
-        b.x += b.vx;
-        b.y += b.vy;
-        if (b.x < -b.r) b.x = w + b.r;
-        if (b.x > w + b.r) b.x = -b.r;
-        if (b.y < -b.r) b.y = h + b.r;
-        if (b.y > h + b.r) b.y = -b.r;
-
-        /* Три смещённые «доли». Каждая на ~55% альфы — суммарно ≈ исходная,
-           но контур получается неправильный. */
-        const orbit = b.r * 0.22;
-        const subR = b.r * 0.78;
-        const subA = b.a * 0.55;
-        for (let i = 0; i < 3; i++) {
-            const angle = b.phase + (i / 3) * Math.PI * 2 + t * b.spin;
-            const ox = Math.cos(angle) * orbit;
-            const oy = Math.sin(angle) * orbit;
-            ctx.fillStyle = smoothRadialGradient(
-                ctx, b.x + ox, b.y + oy, subR, b.tint, subA, 12, 4
-            );
-            ctx.fillRect(0, 0, w, h);
-        }
-    });
+    for (const L of lobes) {
+        ctx.fillStyle = smoothRadialGradient(ctx, L.x, L.y, L.r, L.tint, L.a, 12, NEBULA_FALLOFF);
+        ctx.fillRect(0, 0, w, h);
+    }
     ctx.globalCompositeOperation = "source-over";
 
     _drawStars(t);
@@ -735,6 +980,12 @@ function applyBackgroundTheme(name, animate) {
     if (next === _theme && _themeInited) return;
 
     const html = document.documentElement;
+
+    /* GL поднимаем лениво — только когда впервые понадобилась блобовая тема.
+       На grid/mesh контекст вообще не создаётся. */
+    const wantGl = GL_THEMES.has(next);
+    if (wantGl && !_glTried) _glInit();
+
     const doSwap = () => {
         /* Уходящая тема может держать ресурсы (mousemove-handler у grid)
            — отпускаем их ДО смены _theme, чтобы listeners не «протекли». */
@@ -744,6 +995,20 @@ function applyBackgroundTheme(name, animate) {
         clearAllCanvases();
         THEMES[next].setup();
         _themeInited = true;
+
+        /* GL-холст непрозрачный и рисует фон целиком, вместе с виньеткой —
+           поэтому на блобовых темах прячем CSS-виньетку (иначе она легла бы
+           вторым слоем поверх уже отдизеренного кадра и вернула бы свои
+           ступени). На grid/mesh всё наоборот: холст прячем, виньетку
+           возвращаем. */
+        const glOn = !!_glR && wantGl;
+        if (_glCanvas) _glCanvas.style.display = glOn ? "block" : "none";
+        if (glOn) {
+            _glR.resize();
+            html.dataset.bgGl = "1";
+        } else {
+            delete html.dataset.bgGl;
+        }
     };
 
     if (!animate || !_themeInited) {

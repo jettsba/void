@@ -55,6 +55,18 @@
     const isDesktop = window.VoidPlatform === "desktop";
     const tauriEvent = window.__TAURI__ && window.__TAURI__.event;
 
+    /* Платформа для раскладки и подписей клавиш. На маке модификаторы и
+       называются, и рисуются иначе (⌘⌥⌃⇧ вместо win/alt/ctrl), и нижний ряд
+       физически другой — поэтому «клавиатура» в модалке и кэпы в списке биндов
+       строятся по этому флагу. Сам акселератор от платформы НЕ зависит: Tauri
+       понимает "Super" как Command на маке и как Win на Windows — меняется
+       только показ. userAgentData.platform там, где он есть (Chromium),
+       иначе navigator.platform. */
+    const IS_MAC = /mac/i.test(
+        (navigator.userAgentData && navigator.userAgentData.platform) ||
+        navigator.platform || navigator.userAgent || ""
+    );
+
     /* Tauri-unlisten'ы, привязанные к открытой модалке (напр. слушатели апдейтера
        в «настройках приложения»). Снимаются при закрытии модалки — чтобы не
        копить подписки при повторных открытиях. */
@@ -308,6 +320,18 @@
     const K = (label, key, units) => ({ label, key: key || null, units: units || 1 });
     const GAP = (units) => ({ label: null, key: null, units });
 
+    /* Маковский «перевёрнутый T»: все четыре стрелки — половинной высоты.
+       ←, ↓, → стоят в нижней половине ряда, ↑ — над ↓, над ← и → пусто.
+       В плоский ряд это не ложится, поэтому блок рисуется отдельной сеткой
+       3×2 шириной в 3 юнита (см. .kbd-arrows в app-settings.css). */
+    const ARROW_CLUSTER = { arrows: true, units: 3 };
+
+    /* Ширина F-клавиши в мак-раскладке. Верхний ряд там — 14 клавиш на ту же
+       ширину, что 15 клавиш ниже, промежутков между группами нет (в отличие от
+       PC-плат), а esc и Touch ID по краям шире функциональных.
+       25/24 = (15 − 1.5 esc − 1 touchid) / 12 — ровно то, что остаётся F-ряду. */
+    const MAC_FKEY = 25 / 24;
+
     /* Стрелки — inline SVG, а не юникод: гайд запрещает юникод-иконки
        (rules/VOID_STYLE_GUIDE.md §6, исключения только «—» и «·»). */
     const ARROW = {
@@ -317,7 +341,21 @@
         right: `<svg viewBox="0 0 24 24"><path d="M5 12h13M12 6l6 6-6 6"/></svg>`
     };
 
-    const KB_LAYOUT = [
+    /* Модификаторы мака — тоже inline SVG, а не unicode ⌘/⌥/⌃/⇧: гайд запрещает
+       unicode-иконки (rules/VOID_STYLE_GUIDE.md §6), да и глиф зависел бы от
+       того, есть ли он в JetBrains Mono. Формы стандартные, эппловские. */
+    const MAC_ICON = {
+        super: `<svg viewBox="0 0 24 24"><path d="M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3"/></svg>`,
+        alt:   `<svg viewBox="0 0 24 24"><path d="M3 4h6l6 16h6M14 4h7"/></svg>`,
+        ctrl:  `<svg viewBox="0 0 24 24"><path d="M5 15l7-7 7 7"/></svg>`,
+        shift: `<svg viewBox="0 0 24 24"><path d="M12 3.5 4.5 11.5H8.5V20h7v-8.5h4z"/></svg>`,
+        /* Touch ID — правая верхняя клавиша мака. Отпечаток: три вложенные
+           дуги. Клавиша нарисована ради узнаваемости платы, забиндить её
+           нельзя (до браузера она не доходит вовсе). */
+        touchid: `<svg viewBox="0 0 24 24"><path d="M5 16.5v-3a7 7 0 0 1 14 0v3"/><path d="M8.6 17v-3.5a3.4 3.4 0 0 1 6.8 0V17"/><path d="M12 17.5v-4"/></svg>`
+    };
+
+    const KB_LAYOUT_PC = [
         [K("esc", null), GAP(0.5),
          K("f1", "f1"), K("f2", "f2"), K("f3", "f3"), K("f4", "f4"), GAP(0.5),
          K("f5", "f5"), K("f6", "f6"), K("f7", "f7"), K("f8", "f8"), GAP(0.5),
@@ -355,6 +393,56 @@
          K(ARROW.left, "left"), K(ARROW.down, "down"), K(ARROW.right, "right")]
     ];
 
+    /* Мак — 6 рядов по 15 юнитов (у PC-раскладки 16), настоящие маковские
+       клавиши: нижний ряд fn/⌃/⌥/⌘, return вместо enter, delete вместо bksp,
+       модификаторы значками.
+
+       Правого навигационного столбца НЕТ намеренно: ins/home/end/pgup/pgdn на
+       маковских клавиатурах физически отсутствуют (на ноутбуках это fn+стрелки),
+       рисовать их — врать про железо. Плата на карте становится 60%-й.
+       Плата за это: если кто-то подключит внешнюю PC-клавиатуру и повесит бинд
+       на Home, mapKeyToTauri его примет, а подсветиться на карте будет нечему.
+       Осознанный размен: чужое железо реже, чем маковское. */
+    const KB_LAYOUT_MAC = [
+        [K("esc", null, 1.5),
+         K("f1", "f1", MAC_FKEY), K("f2", "f2", MAC_FKEY), K("f3", "f3", MAC_FKEY),
+         K("f4", "f4", MAC_FKEY), K("f5", "f5", MAC_FKEY), K("f6", "f6", MAC_FKEY),
+         K("f7", "f7", MAC_FKEY), K("f8", "f8", MAC_FKEY), K("f9", "f9", MAC_FKEY),
+         K("f10", "f10", MAC_FKEY), K("f11", "f11", MAC_FKEY), K("f12", "f12", MAC_FKEY),
+         K(MAC_ICON.touchid, null)],
+
+        [K("`", "backquote"),
+         K("1", "1"), K("2", "2"), K("3", "3"), K("4", "4"), K("5", "5"),
+         K("6", "6"), K("7", "7"), K("8", "8"), K("9", "9"), K("0", "0"),
+         K("-", "minus"), K("=", "equal"), K("delete", null, 2)],
+
+        [K("tab", "tab", 1.5),
+         K("q", "q"), K("w", "w"), K("e", "e"), K("r", "r"), K("t", "t"),
+         K("y", "y"), K("u", "u"), K("i", "i"), K("o", "o"), K("p", "p"),
+         K("[", "bracketleft"), K("]", "bracketright"), K("\\", "backslash", 1.5)],
+
+        [K("caps", null, 1.75),
+         K("a", "a"), K("s", "s"), K("d", "d"), K("f", "f"), K("g", "g"),
+         K("h", "h"), K("j", "j"), K("k", "k"), K("l", "l"),
+         K(";", "semicolon"), K("'", "quote"), K("return", "enter", 2.25)],
+
+        [K(MAC_ICON.shift, "shift", 2.25),
+         K("z", "z"), K("x", "x"), K("c", "c"), K("v", "v"), K("b", "b"),
+         K("n", "n"), K("m", "m"),
+         K(",", "comma"), K(".", "period"), K("/", "slash"),
+         /* Правый shift длинный до самого края — стрелок в этом ряду нет,
+            они целиком уехали в нижний, как на физической плате. */
+         K(MAC_ICON.shift, "shift", 2.75)],
+
+        [K("fn", null), K(MAC_ICON.ctrl, "ctrl"),
+         K(MAC_ICON.alt, "alt", 1.25), K(MAC_ICON.super, "super", 1.25),
+         K("", "space", 5),
+         K(MAC_ICON.super, "super", 1.25), K(MAC_ICON.alt, "alt", 1.25),
+         ARROW_CLUSTER]
+    ];
+
+    const KB_LAYOUT = IS_MAC ? KB_LAYOUT_MAC : KB_LAYOUT_PC;
+
     /* Модификаторы подсвечиваются контуром, а не заливкой: в комбинации важна
        целевая клавиша, ctrl/shift — только контекст. */
     const KB_MODS = new Set(["ctrl", "shift", "alt", "super"]);
@@ -378,6 +466,16 @@
         const rows = KB_LAYOUT.map((row) => {
             const keys = row.map((k) => {
                 const flex = ` style="flex:${k.units} 1 0"`;
+                if (k.arrows) {
+                    const cap = (dir, cls) =>
+                        `<span class="kbd-key kbd-key--ic ${cls}" data-key="${dir}">${ARROW[dir]}</span>`;
+                    return `<span class="kbd-arrows"${flex}>` +
+                        cap("up", "kbd-arrow-up") +
+                        cap("left", "kbd-arrow-left") +
+                        cap("down", "kbd-arrow-down") +
+                        cap("right", "kbd-arrow-right") +
+                    `</span>`;
+                }
                 if (k.label === null) return `<span class="kbd-gap"${flex}></span>`;
                 const isIcon = k.label.charAt(0) === "<";
                 const cls = ["kbd-key"];
@@ -428,11 +526,32 @@
         return m[part] || String(part).toLowerCase();
     }
 
+    /* Содержимое кэпа: на маке модификатор — значок (⌘⌥⌃⇧ как SVG), везде
+       ещё — слово. Отдаём ГОТОВЫЙ html, поэтому текст экранируем здесь же:
+       наружу не должно уйти ни одной неэкранированной подписи. */
+    function capMarkup(part) {
+        const icon = IS_MAC && MAC_ICON[String(part).toLowerCase()];
+        return icon || escape(capLabel(part));
+    }
+
+    /* Порядок модификаторов на показ. Apple пишет их как ⌃⌥⇧⌘ — сортируем
+       только отображение, сам акселератор в хранилище не трогаем. */
+    const MAC_MOD_ORDER = ["Ctrl", "Alt", "Shift", "Super"];
+    function orderPartsForDisplay(parts) {
+        if (!IS_MAC) return parts;
+        const isMod = (p) => MAC_MOD_ORDER.includes(p);
+        return [
+            ...parts.filter(isMod).sort((a, b) => MAC_MOD_ORDER.indexOf(a) - MAC_MOD_ORDER.indexOf(b)),
+            ...parts.filter((p) => !isMod(p))
+        ];
+    }
+
     function accelToKeycaps(accel) {
         if (!accel) return `<span class="binding-empty">—</span>`;
-        return accel.split("+").map((p, i) =>
-            `${i ? '<span class="binding-plus">+</span>' : ""}<span class="binding-cap">${escape(capLabel(p))}</span>`
-        ).join("");
+        return orderPartsForDisplay(accel.split("+")).map((p, i) => {
+            const cls = (IS_MAC && MAC_ICON[String(p).toLowerCase()]) ? "binding-cap binding-cap--ic" : "binding-cap";
+            return `${i ? '<span class="binding-plus">+</span>' : ""}<span class="${cls}">${capMarkup(p)}</span>`;
+        }).join("");
     }
 
     function renderBinding(btn, accel) {
