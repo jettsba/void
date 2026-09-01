@@ -97,3 +97,102 @@ function isPremiumNickname(nickname) {
     if (typeof nickname !== "string") return false;
     return PREMIUM_NICKNAMES.has(nickname.trim().toLowerCase());
 }
+
+/* ========= ПЛАТФОРМА =========
+   Один источник правды для «мы на маке». Нужен в трёх местах и с разными
+   целями, поэтому и вынесен: раскладка клавиатуры в настройках (⌘⌥⌃⇧ вместо
+   win/alt/ctrl), формулировка ошибки записи экрана (в macOS доступ выдаётся не
+   браузеру страницей, а приложению — в системных настройках) и диагностика.
+   userAgentData.platform там, где он есть (Chromium), иначе navigator.platform;
+   userAgent — последний рубеж. iPadOS представляется маком, и для обеих задач
+   это верно. */
+const IS_MAC = /mac/i.test(
+    (navigator.userAgentData && navigator.userAgentData.platform) ||
+    navigator.platform || navigator.userAgent || ""
+);
+window.VoidIsMac = IS_MAC;
+
+/* ========= WHEEL → «ЩЕЛЧКИ» =========
+
+   Регуляторы громкости (арка участника, слайдеры настроек, громкость демки)
+   раньше читали только ЗНАК deltaY и двигали значение на фиксированный шаг за
+   КАЖДОЕ событие. На колесе мыши это ровно один щелчок = один шаг. На тачпаде
+   macOS (и на Magic Mouse) один короткий свайп двумя пальцами — это десятки
+   событий с крошечными дельтами плюс инерционный «выбег» уже после того, как
+   пальцы убраны: громкость улетала с 0 на 100 за жест и не поддавалась
+   регулировке вовсе.
+
+   Хелпер переводит поток wheel-событий в целое число щелчков со знаком
+   (+ вверх / − вниз, 0 = «ещё рано»):
+
+   - дискретное колесо распознаём и пропускаем БЕЗ изменений — поведение на
+     мыши остаётся ровно прежним. Признаки: deltaMode ≠ 0 (Firefox шлёт строки),
+     wheelDeltaY кратен 120 (классический признак настоящего колеса) или дельта
+     сама по себе крупная;
+   - непрерывный поток (тачпад) копим в пикселях и отдаём щелчок на каждые
+     NOTCH_PX. Пауза между жестами и смена направления сбрасывают накопитель,
+     чтобы хвост инерции не перетекал в следующий жест. */
+const WHEEL_NOTCH_PX = 100;
+const WHEEL_GESTURE_GAP_MS = 220;
+const _wheelAccum = new WeakMap();
+let _wheelAccumFallback = { sum: 0, at: 0 };
+
+function _wheelIsDiscrete(e) {
+    if (e.deltaMode !== 0) return true;                    // строки/страницы = щелчки
+    const legacy = e.wheelDeltaY;                          // Chrome/Safari, нет в Firefox
+    if (typeof legacy === "number" && legacy !== 0 && Math.abs(legacy) % 120 === 0) return true;
+    return Math.abs(e.deltaY) >= WHEEL_NOTCH_PX;
+}
+
+/* Направление жеста → направление значения.
+
+   deltaY описывает движение СТРАНИЦЫ, а не пальцев. В macOS включена
+   «естественная» прокрутка (дефолт и на трекпаде, и на мыши): жест вниз двигает
+   содержимое вниз, то есть прокручивает страницу ВВЕРХ — и приезжает
+   отрицательный deltaY, ровно как от колеса, крученного вверх на Windows.
+   Регулятор от этого работал наоборот: пальцы вниз — громкость вверх.
+
+   Формально «deltaY<0 = громче» согласовано с прокруткой на обеих платформах,
+   но человек соотносит ползунок не с прокруткой, а с рукой. Поэтому на маке
+   переворачиваем знак: жест вверх — громче, вниз — тише.
+
+   Плата: у тех, кто отключил естественную прокрутку в системе, будет
+   наоборот. Отличить их из браузера нечем — API не существует; ставим на
+   дефолт, которым пользуется подавляющее большинство. */
+function _wheelGestureSign() {
+    return IS_MAC ? -1 : 1;
+}
+
+function wheelNotches(e) {
+    const dy = e.deltaY;
+    if (!dy) return 0;
+    const flip = _wheelGestureSign();
+    const dir = dy < 0 ? 1 : -1;
+    if (_wheelIsDiscrete(e)) {
+        /* Накопитель трекпада не должен пережить переход на мышь. */
+        const st = _wheelAccum.get(e.currentTarget) || _wheelAccumFallback;
+        st.sum = 0;
+        st.at = 0;
+        return dir * flip;
+    }
+
+    const key = e.currentTarget;
+    let st = key ? _wheelAccum.get(key) : _wheelAccumFallback;
+    if (!st) {
+        st = { sum: 0, at: 0 };
+        _wheelAccum.set(key, st);
+    }
+    const now = e.timeStamp || Date.now();
+    if (now - st.at > WHEEL_GESTURE_GAP_MS || (st.sum !== 0 && Math.sign(st.sum) !== Math.sign(dy))) {
+        st.sum = 0;
+    }
+    st.at = now;
+    st.sum += dy;
+
+    const steps = Math.trunc(st.sum / WHEEL_NOTCH_PX);
+    if (steps === 0) return 0;
+    st.sum -= steps * WHEEL_NOTCH_PX;
+    return -steps * flip;   // deltaY вниз положительный, «громче» — вверх
+}
+
+window.VoidWheel = { notches: wheelNotches };

@@ -174,12 +174,17 @@ function createVolumeArc(participant, userId) {
 
     /* Колесо мыши: ±5% за «щелчок». Слушаем на всём блобе (participant),
        а не только на арке — так регулировка работает и при наведении на
-       аватар. Нормализуем по знаку deltaY (deltaMode разный в FF/Chrome). */
+       аватар. Щелчки считает VoidWheel (js/config.js): на мыши — событие в
+       щелчок как прежде, на тачпаде macOS поток мелких дельт копится в
+       пикселях (иначе один свайп ставил громкость в 0 или 100). */
     const onWheel = (e) => {
         e.preventDefault();
-        const dir = e.deltaY < 0 ? 1 : -1;
+        const notches = window.VoidWheel
+            ? window.VoidWheel.notches(e)
+            : (e.deltaY < 0 ? 1 : -1);
+        if (!notches) return;
         const current = volumeMap.get(userId) ?? 1;
-        applyVolume(current + dir * 0.05);
+        applyVolume(current + notches * 0.05);
     };
     participant.addEventListener("wheel", onWheel, { passive: false });
 

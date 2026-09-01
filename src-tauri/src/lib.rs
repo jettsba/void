@@ -109,6 +109,16 @@ fn tray_menu_height(in_room: bool) -> f64 {
 #[derive(Default)]
 struct HotkeyMap(Mutex<HashMap<Shortcut, String>>);
 
+/// Хоткеи, которые сейчас удерживаются.
+///
+/// Автоповтор клавиатуры шлёт `Pressed` десятки раз в секунду, пока комбинация
+/// зажата: «мут» переключался туда-обратно со звуком на каждое срабатывание.
+/// Хоткей — событие нажатия, а не удержания, поэтому повторный `Pressed` до
+/// `Released` глушим. Тот же смысл, что `event.repeat` в вебе (см.
+/// public/js/app-settings.js).
+#[derive(Default)]
+struct HeldShortcuts(Mutex<std::collections::HashSet<Shortcut>>);
+
 /// Старт нативного loopback-захвата звука демонстрации (см. screen_audio.rs).
 /// JS передаёт Channel — Rust стримит в него PCM-кадры (16-bit/48k/stereo, Raw).
 /// Err → JS делает fallback на getDisplayMedia system audio.
@@ -201,6 +211,7 @@ pub fn run() {
                 .build(),
         )
         .manage(HotkeyMap::default())
+        .manage(HeldShortcuts::default())
         .invoke_handler(tauri::generate_handler![
             take_pending_deep_link,
             tray_menu_action,
@@ -1358,6 +1369,13 @@ fn decode_png_to_image(bytes: &[u8]) -> Image<'static> {
 fn register_hotkeys(app: &AppHandle, bindings: &HashMap<String, String>) {
     let gs = app.global_shortcut();
     let _ = gs.unregister_all();
+    /* Снятая регистрация уже не пришлёт Released — защёлка осталась бы
+       навсегда взведённой и глушила бы бинд после первого же срабатывания. */
+    if let Some(held) = app.try_state::<HeldShortcuts>() {
+        if let Ok(mut set) = held.0.lock() {
+            set.clear();
+        }
+    }
 
     let mut map: HashMap<Shortcut, String> = HashMap::new();
     #[cfg(windows)]
@@ -1424,8 +1442,25 @@ fn run_hotkey_action(app: &AppHandle, action: &str) {
 ///   - toggleWindow → обрабатываем здесь же (Rust), без round-trip в JS;
 ///   - остальные → emit "void:hotkey-pressed" → JS вызовет нужную функцию.
 fn on_global_shortcut(app: &AppHandle, shortcut: &Shortcut, event: tauri_plugin_global_shortcut::ShortcutEvent) {
+    /* Отпускание только снимает защёлку — действий на нём нет. */
     if event.state() != ShortcutState::Pressed {
+        if let Some(held) = app.try_state::<HeldShortcuts>() {
+            if let Ok(mut set) = held.0.lock() {
+                set.remove(shortcut);
+            }
+        }
         return;
+    }
+    /* Автоповтор: пока комбинация не отпущена, повторные Pressed игнорируем. */
+    if let Some(held) = app.try_state::<HeldShortcuts>() {
+        match held.0.lock() {
+            Ok(mut set) => {
+                if !set.insert(shortcut.clone()) {
+                    return;
+                }
+            }
+            Err(_) => {}
+        }
     }
     let action = match app.try_state::<HotkeyMap>() {
         Some(state) => state.0.lock().ok().and_then(|m| m.get(shortcut).cloned()),

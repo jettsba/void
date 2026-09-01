@@ -1774,6 +1774,7 @@
     letter-spacing: var(--tracking);
     color: var(--fg-3);
     user-select: none;
+    -webkit-user-select: none;
 }
 
 .settings-footer-meta {
@@ -2270,6 +2271,7 @@
     image-rendering: crisp-edges;
     -webkit-user-drag: none;
     user-select: none;
+    -webkit-user-select: none;
 }
 
 .support-qr-addr {

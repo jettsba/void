@@ -293,10 +293,16 @@ function initDemoVolumeSlider() {
     });
 
     /* Колёсико — ±5% за щелчок. На всём контейнере, чтобы крутить даже наведясь
-       на иконку. deltaY нормализуем по знаку (deltaMode разный в FF/Chrome). */
+       на иконку. Щелчки считает VoidWheel (js/config.js): мышь — как раньше,
+       по событию на щелчок; тачпад macOS копится в пикселях, иначе один свайп
+       двумя пальцами выкручивал громкость в упор. */
     container.addEventListener("wheel", (e) => {
         e.preventDefault();
-        setDemoVolume(demoVolume + (e.deltaY < 0 ? 0.05 : -0.05));
+        const notches = window.VoidWheel
+            ? window.VoidWheel.notches(e)
+            : (e.deltaY < 0 ? 1 : -1);
+        if (!notches) return;
+        setDemoVolume(demoVolume + notches * 0.05);
     }, { passive: false });
 
     renderDemoVolumeSlider();

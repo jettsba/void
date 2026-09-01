@@ -665,6 +665,7 @@ html:not(.desktop) #settingsAppBtn {
   border: 1px solid var(--fg-4);
   border-radius: 2px;
   user-select: none;
+  -webkit-user-select: none;
   /* Узкое окно (web на телефоне) — карта уезжает в горизонтальный скролл,
        а не сжимается в нечитаемую кашу. */
   overflow-x: auto;

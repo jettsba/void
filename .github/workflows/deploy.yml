@@ -158,9 +158,96 @@ jobs:
   # Idempotent — если для текущей версии package.json уже выпущен Release с
   # тегом desktop-v{version}, скип. То есть push без bump'а версии web-only,
   # build с bump'ом — выкатывает и desktop тоже. Один источник истины.
+  # ============================================================================
+  # Компиляционный сторож для Rust-части.
+  #
+  # Зачем отдельно от build-desktop: та собирается ТОЛЬКО когда для текущей
+  # версии ещё нет релиза, то есть фактически на бампе. Правки в src-tauri
+  # внутри батча (без бампа) не компилировались вообще НИ РАЗУ — ошибка
+  # всплывала на выкатке, посреди холодной 60-90-минутной сборки, в самый
+  # неудачный момент. Здесь то же самое проверяется на каждом пуше, который
+  # трогает Rust.
+  #
+  # `cargo check`, а не build: он доводит код до проверки типов и не линкует —
+  # в разы быстрее, а ловит ровно тот класс ошибок, ради которого ставится.
+  # Проверяем все ТРИ крейта: приложение, деинсталлятор и установщик собираются
+  # только на релизе, значит и молчат до релиза одинаково. Установщик к тому же
+  # чекается на чистом клоне без вшитого payload — его build.rs сам кладёт
+  # пустой placeholder (см. installer/src-tauri/build.rs).
+  #
+  # Rust на windows-раннере предустановлен — отдельный setup-шаг не нужен
+  # (build-desktop ниже тоже зовёт cargo напрямую).
+  # ============================================================================
+  check-desktop:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Нужна история: сравниваем пуш с его предшественником, чтобы не
+          # гонять чек на пушах, которые Rust не трогают.
+          fetch-depth: 0
+
+      - name: Detect Rust changes
+        id: detect
+        shell: bash
+        run: |
+          before="${{ github.event.before }}"
+          # workflow_dispatch, первый пуш в ветку, force-push — предшественника
+          # может не быть или он мог исчезнуть. Тогда проверяем, а не гадаем:
+          # лишний прогон дешевле пропущенной ошибки.
+          if [ -z "$before" ] || [ "$before" = "0000000000000000000000000000000000000000" ] \
+             || ! git cat-file -e "$before^{commit}" 2>/dev/null; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "no usable base commit - checking anyway"
+            exit 0
+          fi
+          if git diff --name-only "$before" "${{ github.sha }}" \
+             | grep -qE '^(src-tauri|installer/src-tauri|uninstaller/src-tauri)/'; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "rust touched - checking"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "no rust changes - skipping"
+          fi
+
+      - name: Cache cargo (check)
+        if: steps.detect.outputs.changed == 'true'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+            installer/src-tauri/target
+            uninstaller/src-tauri/target
+          # Свой префикс ключа: у build-desktop в target/ полноценные release-
+          # артефакты, у нас только метаданные проверки. С общим ключом они бы
+          # затирали кэш друг другу и обе джобы всегда стартовали холодными.
+          key: cargo-check-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock', 'installer/src-tauri/Cargo.lock', 'uninstaller/src-tauri/Cargo.lock') }}
+          restore-keys: |
+            cargo-check-${{ runner.os }}-
+
+      - name: cargo check (app, uninstaller, installer)
+        if: steps.detect.outputs.changed == 'true'
+        # ИМЕННО bash, не pwsh: в PowerShell упавшая нативная команда не
+        # останавливает скрипт, и код возврата шага берётся от ПОСЛЕДНЕЙ. Ошибка
+        # в первом крейте молча утонула бы за успехом третьего.
+        # Без --locked: Cargo.lock в репо отстаёт по версии пакета от Cargo.toml
+        # (её бампает выкатка, лок не трогает), и --locked отказался бы работать.
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo check --manifest-path src-tauri/Cargo.toml
+          cargo check --manifest-path uninstaller/src-tauri/Cargo.toml
+          cargo check --manifest-path installer/src-tauri/Cargo.toml
+
   build-desktop:
     runs-on: windows-latest
-    needs: deploy
+    # Гейт: сначала компиляционный сторож, потом полуторачасовая сборка.
+    # Иначе ошибка Rust жгла бы 40+ минут раннера, чтобы упасть на том же.
+    needs: [deploy, check-desktop]
     # Холодная сборка ТРЁХ независимых Tauri-крейтов (uninstaller → app →
     # installer), каждый в своём target/ — на Windows-раннере это ~60-90 мин с
     # нуля. 30 мин не хватало: джоба убивалась таймаутом, не успев сохранить

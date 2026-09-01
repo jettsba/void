@@ -1265,9 +1265,12 @@ section.what {
   font-weight: var(--w-reg);
   text-transform: lowercase;
   max-width: 560px;
-  /* When the JS-driven type-once is active, the line is emptied and refilled
-     character-by-character. Reserve a min-height so the layout below doesn't
-     jump up during the typewriter pass. */
+  /* Floor for the emptied element while the type-once pass runs (landing.js).
+     Only guarantees ONE line — how many the finished text actually takes
+     depends on viewport width, the clamped font size and the locale's string
+     length, so the real reservation is measured in JS before typing starts and
+     released when it ends. Without that measurement the page jerked down by a
+     line at the exact frame the text wrapped. */
   min-height: 1.4em;
 }
 
@@ -2425,6 +2428,18 @@ section.what {
 }
 .plat-card .actions {
   margin-top: auto;
+}
+
+/* Ряд «скачать для windows» + заглушка «macos · скоро». Отдельный модификатор,
+   а не правило на .actions: тот же класс носят CTA в других секциях, и делать
+   их все флексами ради одной карточки незачем. .dl внутри остаётся
+   inline-block со своим absolute-меню — обёртка только ставит две кнопки в
+   ряд и переносит их на узком экране. */
+.actions--dl {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
 }
 
 /* download split-button + dropdown -------------------------------------------

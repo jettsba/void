@@ -156,11 +156,45 @@ function buildMicConstraints() {
     return audioConstraints;
 }
 
+/**
+ * getUserMedia для микрофона с откатом на системный дефолт.
+ *
+ * В настройках можно закрепить конкретное устройство — оно уходит в
+ * констрейнты как `deviceId: {exact}`. Если устройства сейчас нет, спека
+ * ОБЯЗЫВАЕТ браузер отклонить запрос (OverconstrainedError), а не молча взять
+ * соседнее. На маке это дежурный сценарий, а не редкость: AirPods отвалились,
+ * внешний интерфейс не запитан, Bluetooth переключился на другой профиль.
+ * Отдельно Safari: он выдаёт НОВЫЕ deviceId на каждую сессию, поэтому
+ * сохранённый id там протухает всегда.
+ *
+ * Раньше отказ поднимался до tryAcquireMic и открывал модалку «доступ к
+ * микрофону заблокирован» — диагноз неверный: разрешение на месте, нет
+ * железки. Человек шёл разбираться с настройками ОС вместо того, чтобы
+ * просто войти. Ловим ровно этот класс ошибок, повторяем запрос без
+ * deviceId и снимаем протухшую привязку, чтобы она не всплыла снова.
+ */
+async function acquireMicStream() {
+    const constraints = buildMicConstraints();
+    try {
+        return await navigator.mediaDevices.getUserMedia({ audio: constraints, video: false });
+    } catch (err) {
+        const name = err?.name;
+        const deviceGone = constraints.deviceId
+            && (name === "OverconstrainedError" || name === "NotFoundError");
+        if (!deviceGone) throw err;
+        log.warn("rtc", "saved mic device unavailable, falling back to default", { err: name });
+        delete constraints.deviceId;
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: constraints, video: false });
+        try { window.VoidSettings?.setAudioInId?.(""); } catch (_) {}
+        try {
+            window.VoidToast?.showToast(_micT("errors.mic-device-gone"), { priority: "warn" });
+        } catch (_) {}
+        return stream;
+    }
+}
+
 async function initMedia() {
-    localStream = await navigator.mediaDevices.getUserMedia({
-        audio: buildMicConstraints(),
-        video: false
-    });
+    localStream = await acquireMicStream();
 
     /* Web Audio пайплайн поверх браузерного NS:
        - highpass 85Hz душит гул вентиляторов и низкочастотный rumble;
@@ -235,10 +269,7 @@ async function reinitLocalMic() {
     processedStream = null;
 
     try {
-        localStream = await navigator.mediaDevices.getUserMedia({
-            audio: buildMicConstraints(),
-            video: false
-        });
+        localStream = await acquireMicStream();
     } catch (err) {
         log.error("rtc", "mic re-acquire failed", { err: err?.message || String(err) });
         return false;
@@ -1914,6 +1945,36 @@ function stopNativeScreenAudio() {
     }
 }
 
+/**
+ * Подсказка, когда захват экрана зарубила ОС, а не человек.
+ *
+ * В macOS доступ к содержимому экрана выдаётся не сайту, а ПРИЛОЖЕНИЮ, и
+ * живёт в системных настройках («запись экрана»). Пока браузер там не отмечен,
+ * getDisplayMedia падает так же, как при закрытом пикере — NotAllowedError, и
+ * снаружи это выглядит как «кнопка демонстрации не работает»: ни окна выбора,
+ * ни сообщения. Причём после включения галки браузер надо ещё и перезапустить.
+ *
+ * Отличаем от отмены двумя признаками: Chromium/Edge прямо пишут в message
+ * «Permission denied by system», а системный отказ вдобавок прилетает
+ * мгновенно — пикера не было, значит закрыть его человек не мог. Порог с
+ * запасом: реальный клик по «отмена» быстрее ~400 мс не случается.
+ */
+const DISPLAY_MEDIA_SYSTEM_DENY_MS = 400;
+
+function reportDisplayMediaFailure(err, askedAt) {
+    if (err?.name !== "NotAllowedError" || !window.VoidIsMac) return;
+    const bySystem = /system/i.test(err?.message || "");
+    const tooFastForHuman = (performance.now() - askedAt) < DISPLAY_MEDIA_SYSTEM_DENY_MS;
+    if (!bySystem && !tooFastForHuman) return;   // человек просто закрыл пикер
+    log.warn("rtc", "screen capture denied by OS", { err: err?.message || String(err) });
+    try {
+        window.VoidToast?.showToast(_micT("errors.screencast.macos-permission"), {
+            priority: "warn",
+            duration: 12000
+        });
+    } catch (_) {}
+}
+
 async function startScreenShare(height = 1080, fps = 30, captureAudio = false) {
     const width = height === 480 ? 854 : height === 720 ? 1280 : 1920;
     /* На desktop звук демки берём НЕ из getDisplayMedia (он тащит голоса void),
@@ -1950,28 +2011,53 @@ async function startScreenShare(height = 1080, fps = 30, captureAudio = false) {
        индикатора), чтобы спрятать его без мелькания. На отмене пикера/ошибке/
        выходе из комнаты шлём active:false — снять хук. На web всё это no-op. */
     try { window.__TAURI__?.event?.emit("void:screencast-arming", {}); } catch (_) {}
+    const displayOptions = {
+        video: {
+            width: { ideal: width },
+            height: { ideal: height },
+            frameRate: { ideal: fps }
+        },
+        audio: audioConstraints,
+        /* Облагораживаем нативный пикер (перекрасить его нельзя — он вне DOM):
+           selfBrowserSurface:"exclude" убирает само окно Void из списка;
+           surfaceSwitching:"include" даёт сменить источник без повторного пикера;
+           systemAudio:"include" — чекбокс «поделиться звуком» в пикере (звук демки
+           запрашиваем всегда). Юзер сам выбирает источник: вкладка → чистый звук,
+           весь экран → системный звук (несёт голоса, см. voice-leak выше). */
+        selfBrowserSurface: "exclude",
+        surfaceSwitching: "include",
+        systemAudio: (captureAudio && !useNativeAudio) ? "include" : "exclude"
+    };
     let stream;
+    const askedAt = performance.now();
     try {
-        stream = await navigator.mediaDevices.getDisplayMedia({
-            video: {
-                width: { ideal: width },
-                height: { ideal: height },
-                frameRate: { ideal: fps }
-            },
-            audio: audioConstraints,
-            /* Облагораживаем нативный пикер (перекрасить его нельзя — он вне DOM):
-               selfBrowserSurface:"exclude" убирает само окно Void из списка;
-               surfaceSwitching:"include" даёт сменить источник без повторного пикера;
-               systemAudio:"include" — чекбокс «поделиться звуком» в пикере (звук демки
-               запрашиваем всегда). Юзер сам выбирает источник: вкладка → чистый звук,
-               весь экран → системный звук (несёт голоса, см. voice-leak выше). */
-            selfBrowserSurface: "exclude",
-            surfaceSwitching: "include",
-            systemAudio: (captureAudio && !useNativeAudio) ? "include" : "exclude"
-        });
+        stream = await navigator.mediaDevices.getDisplayMedia(displayOptions);
     } catch (e) {
-        emitScreencastActive(false); // отмена пикера / ошибка → снять хук
-        throw e;
+        /* Safari (macOS) захват системного звука через getDisplayMedia не
+           реализует и отвергает САМ ЗАПРОС с аудио — до показа пикера. Без
+           повтора демка на Safari не запускалась бы вообще, хотя видео там
+           работает. Повторяем ровно один раз и только если отказ НЕ похож на
+           «человек закрыл пикер» (NotAllowedError/AbortError): иначе пикер
+           всплыл бы второй раз после отмены. */
+        const audioMayBeUnsupported = !!displayOptions.audio
+            && e?.name !== "NotAllowedError" && e?.name !== "AbortError";
+        if (!audioMayBeUnsupported) {
+            emitScreencastActive(false); // отмена пикера / ошибка → снять хук
+            reportDisplayMediaFailure(e, askedAt);
+            throw e;
+        }
+        log.warn("rtc", "getDisplayMedia with audio rejected, retrying video-only", {
+            err: e?.name || String(e)
+        });
+        try {
+            stream = await navigator.mediaDevices.getDisplayMedia({
+                ...displayOptions, audio: false, systemAudio: "exclude"
+            });
+        } catch (e2) {
+            emitScreencastActive(false);
+            reportDisplayMediaFailure(e2, askedAt);
+            throw e2;
+        }
     }
     /* F13: пока юзер выбирал source в нативном промпте, он мог покинуть
        комнату. Tracks уже захвачены (OS-индикатор «вы шарите» горит),
@@ -2054,7 +2140,14 @@ async function startScreenShare(height = 1080, fps = 30, captureAudio = false) {
        заполнен: так каждый пир получает лимит под итоговое число зрителей
        (иначе ранние пиры считались бы под неполный счёт). relay/direct — внутри. */
     reapplyScreenVideoBudget();
+    /* `ended` тут означает ровно одно: демку прекратили СНАРУЖИ — кнопкой
+       «Остановить показ» браузера или системы. Собственный stopScreenShare()
+       снимает этот обработчик до track.stop() (спека `ended` на stop() не
+       обещает, но Chromium на маке присылал его асинхронно уже после нашего
+       teardown — и весь путь останова проходил второй раз, вместе со звуком).
+       Проверка screenStream — второй пояс на тот же случай. */
     videoTrack.onended = () => {
+        if (!screenStream) return;
         stopScreenShare();
         if (typeof broadcastScreencastState === 'function') broadcastScreencastState(false);
         if (typeof updateScreencastButton === 'function') updateScreencastButton(false);
@@ -2159,16 +2252,45 @@ function patchVideoStartBitrate(sdp, height, fps) {
  * Зовётся ПЕРЕД setLocalDescription, чтобы offer уже содержал H.264 первым.
  * Если getCapabilities/setCodecPreferences не поддержаны — no-op.
  */
+/* ===== Порядок видео-кодеков для демки =====
+
+   Дефолт — H.264 первым: под Windows его кодирует аппаратный NVIDIA MFT, и
+   это был осознанный выбор. На маке кодирует VideoToolbox, а у H.264 нет
+   инструментов screen-content coding, которые есть у VP9 — для текста и UI
+   это может стоить заметной резкости. Проверяется только замером на живой
+   машине, поэтому здесь — переключатель, а не смена дефолта.
+
+   Значения: "auto" (не трогаем порядок вообще, отдаём движку),
+   "vp9", "h264" (текущий дефолт). Живёт в localStorage, применяется к
+   СЛЕДУЮЩЕЙ демонстрации — порядок кодеков фиксируется на негоциации.
+   Пульт — window.VoidCodec (см. ниже). */
+const SCREEN_CODEC_KEY = "void:screen-codec";
+
+function screenCodecPreference() {
+    try {
+        const v = localStorage.getItem(SCREEN_CODEC_KEY);
+        return (v === "auto" || v === "vp9" || v === "h264") ? v : "h264";
+    } catch (_) {
+        return "h264";
+    }
+}
+
 function preferH264Video(peer) {
     if (typeof RTCRtpSender === "undefined" || !RTCRtpSender.getCapabilities) return;
+    const mode = screenCodecPreference();
+    /* auto — сознательно НЕ вызываем setCodecPreferences: движок сам решает,
+       и это третья точка замера наравне с h264/vp9. */
+    if (mode === "auto") return;
     const caps = RTCRtpSender.getCapabilities("video");
     if (!caps || !Array.isArray(caps.codecs)) return;
     const isH264 = c => /H264/i.test(c.mimeType);
     const isVP9  = c => /VP9/i.test(c.mimeType);
+    const first = mode === "vp9" ? isVP9 : isH264;
+    const second = mode === "vp9" ? isH264 : isVP9;
     const preferred = [
-        ...caps.codecs.filter(isH264),
-        ...caps.codecs.filter(isVP9),
-        ...caps.codecs.filter(c => !isH264(c) && !isVP9(c))
+        ...caps.codecs.filter(first),
+        ...caps.codecs.filter(second),
+        ...caps.codecs.filter(c => !first(c) && !second(c))
     ];
     for (const t of peer.getTransceivers()) {
         if (t.sender?.track?.kind !== "video") continue;
@@ -2180,6 +2302,59 @@ function preferH264Video(peer) {
         }
     }
 }
+
+/* Пульт для замера кодека из консоли. Диагностика, не пользовательская
+   фича — поэтому без UI.
+
+   VoidCodec.get()            — что стоит сейчас
+   VoidCodec.set("vp9")       — переключить (перезапустить демку!)
+   VoidCodec.report()         — что РЕАЛЬНО кодируется прямо сейчас
+
+   report() отвечает на главный вопрос «почему мыло»: разрешение на выходе
+   энкодера (а не то, что запрошено), fps, битрейт, кто кодирует
+   (encoderImplementation — аппаратный VideoToolbox или программный) и
+   qualityLimitationReason: "cpu" — энкодер не тянет, "bandwidth" — не тянет
+   сеть, "none" — упёрлись не в них. */
+window.VoidCodec = {
+    get() { return screenCodecPreference(); },
+    set(mode) {
+        if (!["auto", "vp9", "h264"].includes(mode)) {
+            console.warn('[VoidCodec] допустимо: "auto" | "vp9" | "h264"');
+            return screenCodecPreference();
+        }
+        try { localStorage.setItem(SCREEN_CODEC_KEY, mode); } catch (_) {}
+        console.info(`[VoidCodec] ${mode} — перезапусти демонстрацию, порядок кодеков берётся на негоциации`);
+        return mode;
+    },
+    async report() {
+        if (!peers || peers.size === 0) {
+            console.info("[VoidCodec] нет активных пиров");
+            return [];
+        }
+        const rows = [];
+        for (const [userId, peer] of peers) {
+            let stats;
+            try { stats = await peer.getStats(); } catch (_) { continue; }
+            stats.forEach(r => {
+                if (r.type !== "outbound-rtp" || r.kind !== "video") return;
+                const codec = r.codecId ? stats.get(r.codecId) : null;
+                rows.push({
+                    peer: userId,
+                    codec: codec?.mimeType || "?",
+                    encoder: r.encoderImplementation || "?",
+                    out: `${r.frameWidth || "?"}×${r.frameHeight || "?"}`,
+                    fps: Math.round(r.framesPerSecond || 0),
+                    kbps: r.targetBitrate ? Math.round(r.targetBitrate / 1000) : "?",
+                    qLim: r.qualityLimitationReason || "?",
+                    scaleDown: r.qualityLimitationResolutionChanges ?? "?"
+                });
+            });
+        }
+        if (rows.length && console.table) console.table(rows);
+        else console.info("[VoidCodec]", rows);
+        return rows;
+    }
+};
 
 /**
  * Поднять параметры encoder'а на screen-audio sender'е: целевой битрейт 192
@@ -2288,27 +2463,40 @@ async function applyDirectScreenVideoParams(senders, height, fps) {
     const maxBitrate = Math.min(ceiling, Math.round(SCREEN_UPLOAD_BUDGET / viewers));
     const downscale = screenDownscaleFactor(videoSender.track, height);
 
-    const apply = async (withDegradation) => {
+    const apply = async (withDegradation, withDownscale) => {
         const params = videoSender.getParameters();
         if (!params.encodings || !params.encodings.length) params.encodings = [{}];
         const enc = params.encodings[0];
         enc.maxBitrate = maxBitrate;
         enc.maxFramerate = fps;
-        enc.scaleResolutionDownBy = downscale;
+        if (withDownscale) enc.scaleResolutionDownBy = downscale;
         enc.networkPriority = "high";
         if (withDegradation) params.degradationPreference = "balanced";
         await videoSender.setParameters(params);
     };
 
+    /* Три захода, от полного к самому переносимому. setParameters — операция
+       «всё или ничего»: одно поле, которого движок не знает, роняет ВЕСЬ вызов,
+       и битрейт остаётся дефолтным. degradationPreference и
+       scaleResolutionDownBy как раз из таких: WebKit принимает их не во всех
+       версиях, и на маке в Safari прежняя двухступенчатая лесенка обрывалась
+       на втором шаге — демка уезжала на дефолтные ~руки-вверх настройки
+       энкодера. maxBitrate/maxFramerate поддержаны везде, поэтому последний
+       заход почти наверняка проходит. */
     try {
-        await apply(true);
+        await apply(true, true);
         log.info("rtc", "direct screen video bitrate set", { height, fps, viewers, maxBitrate, downscale });
     } catch (err1) {
         try {
-            await apply(false);
+            await apply(false, true);
             log.info("rtc", "direct screen video bitrate set (no degradation pref)", { height, fps, viewers, maxBitrate, downscale });
         } catch (err2) {
-            log.warn("rtc", "direct screen video setParameters failed", { err: err2?.message || String(err2) });
+            try {
+                await apply(false, false);
+                log.info("rtc", "direct screen video bitrate set (bitrate only)", { height, fps, viewers, maxBitrate });
+            } catch (err3) {
+                log.warn("rtc", "direct screen video setParameters failed", { err: err3?.message || String(err3) });
+            }
         }
     }
 }
@@ -2321,6 +2509,10 @@ function stopScreenShare() {
         }
     }
     screenSenders.clear();
+    /* Снимаем onended ДО остановки треков: это сигнал «демку прекратили
+       снаружи», а мы прекращаем её сами. Иначе останов проходит дважды —
+       со вторым broadcast'ом и вторым звуком. */
+    screenStream?.getVideoTracks?.().forEach(t => { t.onended = null; });
     screenStream?.getTracks().forEach(t => t.stop());
     screenStream = null;
     /* Останавливаем нативный loopback-захват (no-op если не desktop / не шёл). */
@@ -2786,27 +2978,37 @@ async function applyRelayBitrateLimits(peer) {
     for (const sender of senders) {
         if (!sender.track) continue;
         if (sender.track.kind !== "video") continue;
-        const apply = async (withDegradation) => {
+        const apply = async (withDegradation, withDownscale) => {
             const params = sender.getParameters();
             if (!params.encodings || !params.encodings.length) params.encodings = [{}];
             const enc = params.encodings[0];
             enc.maxBitrate = videoCap;
             /* Даунскейл до выбранного разрешения (Retina/4K-источник крупнее
                цели), дальше balanced режет сам под congestion. */
-            enc.scaleResolutionDownBy = screenDownscaleFactor(sender.track, screenTargetHeight);
+            if (withDownscale) {
+                enc.scaleResolutionDownBy = screenDownscaleFactor(sender.track, screenTargetHeight);
+            }
             enc.maxFramerate = 30;
             if (withDegradation) params.degradationPreference = "balanced";
             await sender.setParameters(params);
         };
+        /* Лесенка та же, что в applyDirectScreenVideoParams: отказ от одного
+           необязательного поля не должен оставлять relay-плечо без потолка
+           битрейта — на нём висит нагрузка coturn. */
         try {
-            await apply(true);
+            await apply(true, true);
             log.info("rtc", "relay video bitrate capped", { userId: peer._userId, viewers, videoCap });
         } catch (err1) {
             try {
-                await apply(false);
+                await apply(false, true);
                 log.info("rtc", "relay video bitrate capped (no degradation pref)", { userId: peer._userId, viewers, videoCap });
             } catch (err2) {
-                log.warn("rtc", "relay video bitrate cap failed", { err: err2?.message || String(err2) });
+                try {
+                    await apply(false, false);
+                    log.info("rtc", "relay video bitrate capped (bitrate only)", { userId: peer._userId, viewers, videoCap });
+                } catch (err3) {
+                    log.warn("rtc", "relay video bitrate cap failed", { err: err3?.message || String(err3) });
+                }
             }
         }
     }

@@ -83,6 +83,7 @@
     pointer-events: none;
     opacity: 0;
     user-select: none;
+    -webkit-user-select: none;
     transition: opacity 0.2s ease;
     white-space: nowrap;
 }
@@ -279,6 +280,17 @@
     margin-bottom: 0;
 }
 
+/* Пояснение под тумблером звука (только macOS, см. index.html). Тон — как у
+   меты: тише подписи, без рамки, без иконки. */
+.sc-note {
+    margin-top: -0.29rem;
+    font-size: 0.79rem;
+    line-height: 1.45;
+    letter-spacing: 0;
+    color: var(--fg-3);
+    text-transform: lowercase;
+}
+
 .sc-switch {
     position: relative;
     display: inline-block;
@@ -426,6 +438,7 @@ html.desktop.screen-native-fs .void-titlebar {
     /* Дизайн-гайд: border-radius 2px на прямоугольных элементах (не больше). */
     border-radius: 2px;
     backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
     transition:
         color var(--t-fast),
         border-color var(--t-fast),

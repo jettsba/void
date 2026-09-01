@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "1.2.0";
+    const APP_VERSION = "1.3.0";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
@@ -184,8 +184,11 @@
             "errors.id-collision": "сессия с этим id уже активна — обнови страницу",
             "errors.unknown": "что-то пошло не так",
             "errors.screencast.busy": "демонстрация уже идёт в этой комнате",
+            "screencast.audio.macos": "на macos звук идёт только при выборе вкладки браузера — при захвате экрана или окна его не будет",
             "errors.mic-lost": "микрофон отключился — пробую восстановить",
             "errors.mic-lost.failed": "не удалось восстановить микрофон — попробуй перезайти",
+            "errors.mic-device-gone": "выбранного микрофона нет — взял системный",
+            "errors.screencast.macos-permission": "macos не пускает браузер к экрану — системные настройки → конфиденциальность и безопасность → запись экрана, включи браузер и перезапусти его",
 
             "screencast.watch": "смотреть",
             "screencast.screen": "экран",
@@ -406,8 +409,11 @@
             "errors.id-collision": "session id is already active — refresh the page",
             "errors.unknown": "something went wrong",
             "errors.screencast.busy": "screen share is already active in this room",
+            "screencast.audio.macos": "on macos audio only comes through when you pick a browser tab — sharing a screen or window gives none",
             "errors.mic-lost": "mic disconnected — trying to restore",
             "errors.mic-lost.failed": "couldn't restore mic — try rejoining",
+            "errors.mic-device-gone": "selected mic is gone — switched to the system one",
+            "errors.screencast.macos-permission": "macos blocks screen capture for the browser — system settings → privacy & security → screen recording, enable your browser and restart it",
 
             "screencast.watch": "watch",
             "screencast.screen": "screen",
@@ -2129,16 +2135,23 @@
 
     /* Колёсико мыши над range-слайдером: крутим вверх — громче, вниз — тише.
        Меняем value и диспатчим штатный `input` — вся логика (setAudioInGain,
-       лейблы) остаётся одна. preventDefault, чтобы колесо не скроллило модалку. */
+       лейблы) остаётся одна. preventDefault, чтобы колесо не скроллило модалку.
+
+       Шаг считаем не по знаку дельты, а щелчками из VoidWheel (js/config.js):
+       на мыши это по-прежнему один шаг за щелчок, а тачпад macOS перестаёт
+       гнать ползунок в упор за один свайп. */
     const WHEEL_STEP = 5;
     function attachWheelToSlider(el) {
         if (!el) return;
         el.addEventListener("wheel", (e) => {
             if (el.disabled) return;
             e.preventDefault();
+            const notches = window.VoidWheel
+                ? window.VoidWheel.notches(e)
+                : (e.deltaY < 0 ? 1 : -1);
+            if (!notches) return;
             const min = Number(el.min), max = Number(el.max);
-            const dir = e.deltaY < 0 ? 1 : -1;
-            const next = Math.min(max, Math.max(min, Number(el.value) + dir * WHEEL_STEP));
+            const next = Math.min(max, Math.max(min, Number(el.value) + notches * WHEEL_STEP));
             if (next === Number(el.value)) return;
             el.value = next;
             el.dispatchEvent(new Event("input", { bubbles: true }));
@@ -2743,6 +2756,13 @@
         });
     }
 
+    /* Модальность последнего ввода. Нужна ровно в одном месте — решить, вернуть
+       ли фокус на gear-кнопку при закрытии панели (см. closePanel). Слушаем в
+       фазе capture, чтобы отметка успела встать до обработчиков закрытия. */
+    let _lastInputWasKeyboard = false;
+    document.addEventListener("keydown", () => { _lastInputWasKeyboard = true; }, true);
+    document.addEventListener("pointerdown", () => { _lastInputWasKeyboard = false; }, true);
+
     function closePanel() {
         if (!panelEl) return;
         /* Если открыта модалка категории — закрываем её вместе с панелью
@@ -2757,9 +2777,24 @@
         if (gearBtn) gearBtn.setAttribute("aria-expanded", "false");
         _settingsTrapCleanup?.();
         _settingsTrapCleanup = null;
-        /* Возвращаем фокус на gear-кнопку, с которой панель была открыта —
-           keyboard-only-юзер не теряет ориентацию. */
-        gearBtn?.focus({ preventScroll: true });
+        /* Фокус возвращаем на gear-кнопку — keyboard-only-юзер иначе теряет
+           ориентацию. Но ТОЛЬКО если панель закрыли с клавиатуры.
+
+           Мышью это давало залипшую шестерёнку: логотип показывает её на
+           `:hover`, `[aria-expanded="true"]` и `:focus-visible`. Первые два к
+           моменту закрытия сняты, а вот программный `focus()` браузеры
+           засчитывают за `:focus-visible` по собственной эвристике — WebKit
+           охотнее прочих. В итоге на маке шестерёнка оставалась гореть, хотя
+           курсор давно в стороне. Мышиному пользователю возврат фокуса не
+           нужен вовсе: снимаем фокус с уходящей панели и всё.
+
+           Внутри панели фокус оставлять нельзя в любом случае — она уходит
+           в aria-hidden. */
+        if (_lastInputWasKeyboard) {
+            gearBtn?.focus({ preventScroll: true });
+        } else if (panelEl.contains(document.activeElement)) {
+            document.activeElement.blur();
+        }
     }
 
     function bindBrandTrigger() {

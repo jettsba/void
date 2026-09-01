@@ -22,12 +22,35 @@
     const STORAGE_KEY = "void:settings";
     const HOTKEYS_KEY = "void:hotkeys";
 
-    const DEFAULT_HOTKEYS = {
+    /* Дефолтные бинды. Порядок токенов обязан совпадать с buildAccelerator
+       (Ctrl → Shift → Alt → Super), иначе сохранённый дефолт никогда не
+       совпадёт с тем, что соберётся из живого события.
+
+       На маке mic/sound скопированы с Discord: ⌘⇧M и ⌘⇧D — то, к чему у
+       голосовых чатов уже привыкли руки.
+
+       Оставшиеся два Discord не определяет вовсе (у него нет ни «покинуть
+       канал», ни «показать окно» по умолчанию), и просто заменить Ctrl на Cmd
+       там нельзя:
+         ⌘⇧V — системная «вставить и согласовать стиль», занята везде;
+         ⌘⇧Q — ВЫХОД ИЗ УЧЁТНОЙ ЗАПИСИ macOS. Повесить на неё «покинуть
+                комнату» значит разлогинить человека посреди разговора.
+       Option-комбинации тоже мимо: ⌥⇧Q печатает «Œ» — бинд с модификатором
+       срабатывает и в поле ввода. Поэтому у этих двух на маке остаётся ⌃⇧:
+       на macOS Ctrl не занят ни браузером, ни системой и символов не вводит. */
+    const DEFAULT_HOTKEYS_WIN = {
         toggleMic:    "Ctrl+Shift+M",
         toggleSound:  "Ctrl+Shift+D",
         toggleWindow: "Ctrl+Shift+V",
         leaveRoom:    "Ctrl+Shift+Q"
     };
+    const DEFAULT_HOTKEYS_MAC = {
+        toggleMic:    "Shift+Super+M",   // ⌘⇧M — как в Discord
+        toggleSound:  "Shift+Super+D",   // ⌘⇧D — как в Discord
+        toggleWindow: "Ctrl+Shift+V",
+        leaveRoom:    "Ctrl+Shift+Q"
+    };
+    const DEFAULT_HOTKEYS = window.VoidIsMac ? DEFAULT_HOTKEYS_MAC : DEFAULT_HOTKEYS_WIN;
 
     /* Клавиши, которые разрешено назначить БЕЗ модификатора.
        F-ряд — служебный, набору текста не мешает. Backquote (`/~) добавлен по
@@ -60,12 +83,9 @@
        физически другой — поэтому «клавиатура» в модалке и кэпы в списке биндов
        строятся по этому флагу. Сам акселератор от платформы НЕ зависит: Tauri
        понимает "Super" как Command на маке и как Win на Windows — меняется
-       только показ. userAgentData.platform там, где он есть (Chromium),
-       иначе navigator.platform. */
-    const IS_MAC = /mac/i.test(
-        (navigator.userAgentData && navigator.userAgentData.platform) ||
-        navigator.platform || navigator.userAgent || ""
-    );
+       только показ. Детект — общий VoidIsMac из js/config.js (он грузится
+       раньше), чтобы правило «мы на маке» не жило в двух копиях. */
+    const IS_MAC = !!window.VoidIsMac;
 
     /* Tauri-unlisten'ы, привязанные к открытой модалке (напр. слушатели апдейтера
        в «настройках приложения»). Снимаются при закрытии модалки — чтобы не
@@ -1027,6 +1047,11 @@
             (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
 
         document.addEventListener("keydown", (e) => {
+            /* Автоповтор ОС: зажатая комбинация шлёт keydown десятки раз в
+               секунду, и «мут» начинал переключаться туда-обратно со звуком на
+               каждое срабатывание. Хоткей — это событие нажатия, а не
+               удержания. */
+            if (e.repeat) return;
             const accel = buildAccelerator(e);                 // null на чистом modifier
             if (accel && !accel.includes("+") && isTypingTarget(e.target)) return;
             fireByAccel(e, accel);

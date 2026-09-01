@@ -243,6 +243,7 @@
     line-height: 1;
     pointer-events: none;
     user-select: none;
+    -webkit-user-select: none;
 }
 
 .entry-code-field.has-value .entry-hash {

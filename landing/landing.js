@@ -516,7 +516,15 @@ void main() {
        Elements with [data-type="cursor"] also get a typing animation:
        a blinking caret appears first, pauses, then types the text in. */
     function triggerTyping(el) {
-        const text = el.textContent;
+        /* trim() обязателен. В разметке строка лежит на своей строке с отступом,
+           поэтому textContent начинается переводом строки и четырнадцатью
+           пробелами и ими же заканчивается. Печатались они наравне с буквами:
+           первые ~2 секунды каретка мигала на пустом месте, «набирая» отступ,
+           а хвостовой пробел оставался в узле НАВСЕГДА — между текстом и
+           каретка-спаном он не схлопывается (схлопывается только пробел в самом
+           конце строки, а тут за ним идёт инлайновый элемент). Отсюда и зазор
+           после точки, и смещение всей центрированной строки влево на полпробела. */
+        const text = el.textContent.trim();
         el.textContent = '';
         const textNode = document.createTextNode('');
         const cursor   = document.createElement('span');
@@ -569,15 +577,34 @@ void main() {
 
     function triggerTypeOnce(el) {
         if (reducedMotion) return;
-        const text = el.textContent;
+        /* trim() — по той же причине, что и в triggerTyping: иначе первые
+           символы набора уходят на отступ из разметки. */
+        const text = el.textContent.trim();
         if (!text) return;
+        /* Резервируем ИТОГОВУЮ высоту до опустошения.
+
+           Строка набирается посимвольно, растёт в ширину и в какой-то момент
+           переносится на вторую строку — и ровно в этот кадр всё, что ниже,
+           уезжало вниз на высоту строки. Выглядит как рывок страницы.
+
+           CSS min-height (1.4em) от этого не спасает: он задан на ОДНУ строку,
+           а сколько их будет — зависит от ширины окна, размера шрифта по clamp
+           и длины перевода. Поэтому меряем фактическую высоту с полным текстом
+           и держим её на время набора. По окончании снимаем: текст на месте,
+           высота ровно та же, зато дальше элемент снова живёт по CSS и
+           переживает ресайз. */
+        const reserved = el.getBoundingClientRect().height;
+        if (reserved > 0) el.style.minHeight = reserved + 'px';
         el.textContent = '';
         const PER_CHAR = 22;
         let i = 0;
         const id = setInterval(() => {
             i++;
             el.textContent = text.slice(0, i);
-            if (i >= text.length) clearInterval(id);
+            if (i >= text.length) {
+                clearInterval(id);
+                el.style.minHeight = '';
+            }
         }, PER_CHAR);
     }
 

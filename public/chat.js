@@ -1329,6 +1329,26 @@ async function copyText(text) {
     }
 }
 
+/* Перекодировать картинку из blob:-URL в PNG.
+
+   Не косметика: async-clipboard принимает для изображений ТОЛЬКО image/png —
+   Safari по жёсткому whitelist'у типов, Chrome тем же списком. Вложения в чате
+   пережаты в JPEG (downscaleImage), поэтому прежний
+   `ClipboardItem({[blob.type]: blob})` с image/jpeg отвергался молча: ни
+   исключения, ни картинки в буфере. */
+function imageUrlToPngBlob(url) {
+    return loadImage(url).then((img) => new Promise((resolve, reject) => {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.naturalWidth || img.width;
+        canvas.height = img.naturalHeight || img.height;
+        canvas.getContext("2d").drawImage(img, 0, 0);
+        canvas.toBlob(
+            (b) => b ? resolve(b) : reject(new Error("png encode failed")),
+            "image/png"
+        );
+    }));
+}
+
 async function copyImage(url) {
     try {
         /* WebView2 не тянет navigator.clipboard.write() с картинками надёжно —
@@ -1338,8 +1358,15 @@ async function copyImage(url) {
             await window.VoidDesktop.copyImage(url);
             return true;
         }
-        const blob = await fetch(url).then((r) => r.blob());
-        await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+        if (typeof ClipboardItem === "undefined" || !navigator.clipboard?.write) return false;
+        /* Промис отдаём в ClipboardItem КАК ЕСТЬ, не дожидаясь его. Safari
+           засчитывает жест пользователя только если write() позван в том же
+           тике: любой await до вызова съедает user activation, и запись
+           отклоняется с NotAllowedError. Асинхронную часть за нас подождёт сам
+           ClipboardItem — ради этого он и принимает промисы. */
+        await navigator.clipboard.write([
+            new ClipboardItem({ "image/png": imageUrlToPngBlob(url) })
+        ]);
         return true;
     } catch (e) {
         log.warn("chat", "copy image failed", { err: e?.message || String(e) });

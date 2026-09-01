@@ -22,6 +22,11 @@ function init() {
 
     scModal = document.getElementById("scModal");
     scNextBtn = document.getElementById("scNextBtn");
+    /* Пояснение про звук демки — только на маке: браузеры там отдают
+       системный звук лишь при захвате вкладки, при выборе экрана или окна
+       аудио-трека не будет вовсе (ограничение движка, не наше). Тумблер
+       оставляем как есть — на вкладке он работает. */
+    if (window.VoidIsMac) document.getElementById("scAudioNote")?.removeAttribute("hidden");
 
     screenOverlay = document.getElementById("screenOverlay");
     screenOverlayVideo = document.getElementById("screenOverlayVideo");
@@ -146,6 +151,7 @@ function init() {
        поддерживаем актуальность в живой сессии. */
     updateAutoScale();
     window.addEventListener("resize", updateAutoScale);
+    watchDevicePixelRatio();
 
     /* === Lobby panel fit ===
        Футер «отталкивает» панель при низком окне / крупном масштабе. Считаем
@@ -189,7 +195,14 @@ function init() {
 
     scModal.querySelector(".sc-modal-backdrop").addEventListener("click", closeScModal);
 
+    /* Повторный вход в старт демки: «next» можно успеть нажать дважды до
+       появления системного пикера (на трекпаде мака лишний тап особенно
+       лёгок), и тогда пикер открывался бы дважды, а звук старта звучал бы
+       два раза. */
+    let _scStarting = false;
     scNextBtn.addEventListener("click", async () => {
+        if (_scStarting || isScreencasting) return;
+        _scStarting = true;
         const res = parseInt(scModal.querySelector("#scRes .sc-tile--active")?.dataset.val ?? "1080");
         const fps = parseInt(scModal.querySelector("#scFps .sc-tile--active")?.dataset.val ?? "30");
         /* Тумблер «звук демки» (дефолт вкл). На desktop звук берёт нативный
@@ -207,6 +220,8 @@ function init() {
             if (window.VoidSounds) VoidSounds.screencast(true);
         } catch (e) {
             log.debug("rtc", "screen share cancelled", { err: e?.message || String(e) });
+        } finally {
+            _scStarting = false;
         }
     });
 
@@ -709,6 +724,38 @@ function updateAutoScale() {
     if (typeof window.__voidApplyAutoScale === "function") {
         window.__voidApplyAutoScale();
     }
+}
+
+/* === Смена devicePixelRatio ===
+   Перетаскивание окна между мониторами разной плотности (на маке это
+   штатный сценарий: retina-экран ноутбука ↔ внешний 1x монитор) меняет
+   devicePixelRatio, НЕ меняя размер окна в CSS-пикселях — а значит `resize`
+   не стреляет. Без этого хука после переезда: ambient-фон остаётся с
+   разрешением бэкбуфера от прошлого экрана (мыло на retina или напрасная
+   4-кратная нагрузка на 1x), а на desktop-сборке ещё и --auto-scale
+   продолжает делиться на старый dpr.
+
+   Слушать нечего, кроме matchMedia на текущее значение: события
+   `devicepixelratiochange` в вебе нет. Медиа-запрос одноразовый — на каждое
+   срабатывание перевешиваемся на новое значение. */
+function watchDevicePixelRatio() {
+    if (typeof matchMedia !== "function") return;
+    let mq = null;
+    const onChange = () => {
+        updateAutoScale();
+        if (typeof sizeCanvas === "function"
+            && !matchMedia("(hover: none) and (pointer: coarse)").matches) {
+            sizeCanvas();
+        }
+        arm();
+    };
+    const arm = () => {
+        if (mq) mq.removeEventListener?.("change", onChange);
+        const dpr = window.devicePixelRatio || 1;
+        mq = matchMedia(`(resolution: ${dpr}dppx)`);
+        mq.addEventListener?.("change", onChange);
+    };
+    arm();
 }
 
 /* === Lobby panel fit («футер отталкивает панель») ===

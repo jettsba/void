@@ -33,6 +33,31 @@ let _rafId = null;
 let _theme = null;
 let _themeInited = false;
 
+/* ===== prefers-reduced-motion =====
+   Вся CSS-часть интерфейса этот флаг уже уважает (по @media-блоку почти в
+   каждом файле css/), а ambient-фон — единственное, что продолжало
+   безостановочно двигаться: блобы дрейфовали, сетка «дышала», точки mesh
+   плыли. На macOS «уменьшение движения» включают заметно чаще, чем на
+   Windows, — оно же гасит анимации системы, — так что расхождение там и
+   вылезает.
+
+   Гасим именно ДВИЖЕНИЕ, а не рендер: часы анимации замирают на фиксированном
+   значении, дрейф не применяется, но кадр по-прежнему перерисовывается —
+   поэтому подсветка точек под курсором (grid/mesh) и смена темы продолжают
+   работать. Тема остаётся ровно той, что выбрал пользователь: фон не
+   подменяется и не выключается. */
+let _reducedMotion = false;
+const FROZEN_CLOCK_S = 8;
+
+function _watchReducedMotion() {
+    if (typeof matchMedia !== "function") return;
+    const mq = matchMedia("(prefers-reduced-motion: reduce)");
+    const sync = () => { _reducedMotion = mq.matches; };
+    sync();
+    mq.addEventListener?.("change", sync);
+}
+_watchReducedMotion();
+
 /* Запоминаем последнюю CSS-ширину/высоту, чтобы при resize пересчитать
    позиции блобов пропорционально новому viewport (а не просто clamp'ить
    в правый/нижний край). Без этого при браузерном zoom-out блобы остаются
@@ -337,6 +362,7 @@ function _glActive() {
 
 /* Дрейф блобов с заворотом по краям — общий для обоих путей рендера. */
 function _driftBlobs() {
+    if (_reducedMotion) return;
     const w = window.innerWidth;
     const h = window.innerHeight;
     for (const b of blobs) {
@@ -836,12 +862,14 @@ function frameMesh() {
     const n = dots.length;
 
     /* drift + wrap по краям */
-    for (let i = 0; i < n; i++) {
-        const d = dots[i];
-        d.x += d.vx;
-        d.y += d.vy;
-        if (d.x < 0) d.x += w; else if (d.x > w) d.x -= w;
-        if (d.y < 0) d.y += h; else if (d.y > h) d.y -= h;
+    if (!_reducedMotion) {
+        for (let i = 0; i < n; i++) {
+            const d = dots[i];
+            d.x += d.vx;
+            d.y += d.vy;
+            if (d.x < 0) d.x += w; else if (d.x > w) d.x -= w;
+            if (d.y < 0) d.y += h; else if (d.y > h) d.y -= h;
+        }
     }
 
     const hoverActive = _meshHoverX >= 0 && _meshHoverY >= 0;
@@ -1072,7 +1100,10 @@ function paint() {
         /* cap>=60 → нативный rAF без гейта (плавность), иначе wall-clock gate. */
         if (cap >= 60 || now - _lastFrameMs >= 1000 / cap) {
             _lastFrameMs = now;
-            const t = now * 0.001;
+            /* Замороженные часы при reduced-motion: всё, что считается от t
+               (дыхание сетки, мерцание звёзд, фаза лепестков nebula), встаёт
+               на месте, а hover-эффекты продолжают считаться от курсора. */
+            const t = _reducedMotion ? FROZEN_CLOCK_S : now * 0.001;
             const handler = _theme ? THEMES[_theme]?.frame : null;
             if (handler) handler(t);
         }

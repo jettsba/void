@@ -49,6 +49,7 @@ body {
     text-transform: lowercase;
     overflow: hidden;
     user-select: none;
+    -webkit-user-select: none;
     cursor: default;
     -webkit-font-smoothing: antialiased;
 }

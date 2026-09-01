@@ -1,8 +1,4 @@
 .idea
-.claude
-rules
-tasks
-CLAUDE.md
 node_modules
 data
 .env
@@ -16,20 +12,23 @@ articles
 # Tauri / Rust build artefacts
 src-tauri/target
 src-tauri/gen/schemas
-# staged кастомный деинсталлятор (Веха B), вшивается в bundle.resources приложения
 src-tauri/bundled
 
-# Custom installer (отдельный Tauri-проект, см. tasks/installer-plan.md)
+# Custom installer
 installer/src-tauri/target
 installer/src-tauri/gen/schemas
-# вшиваемый NSIS-setup (билд-артефакт, кладётся перед сборкой)
 installer/src-tauri/payload
 
-# Custom uninstaller (Веха B, отдельный Tauri-проект)
+# Custom uninstaller
 uninstaller/src-tauri/target
 uninstaller/src-tauri/gen/schemas
 
 void.key
 void.key.pub
 
+.claude
+rules
+tasks
 design_handoff
+CLAUDE.md
+MACOS_DESKTOP_PLAN.md

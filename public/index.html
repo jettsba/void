@@ -24,27 +24,27 @@
     <!-- UI scale bootstrap. Внешний файл (а не inline) чтобы не требовать
          'unsafe-inline' в CSP. Блокирующий script — должен выполниться ДО
          CSS, иначе FOUC на больших мониторах. -->
-    <script src="ui-scale-bootstrap.js?v=4"></script>
+    <script src="ui-scale-bootstrap.js?v=5"></script>
     <!-- Desktop runtime bootstrap. Ставит html.desktop класс и
          window.VoidPlatform="desktop" при наличии Tauri runtime. До CSS,
          чтобы избежать FOUC между web-mode и desktop-mode (custom titlebar). -->
     <script src="desktop-bootstrap.js?v=3"></script>
 
-    <link rel="stylesheet" href="css/base.css?v=27">
+    <link rel="stylesheet" href="css/base.css?v=29">
     <link rel="stylesheet" href="css/intro.css?v=18">
     <link rel="stylesheet" href="css/app.css?v=18">
     <link rel="stylesheet" href="css/header.css?v=24">
     <link rel="stylesheet" href="css/stage.css?v=26">
-    <link rel="stylesheet" href="css/panel.css?v=26">
+    <link rel="stylesheet" href="css/panel.css?v=27">
     <link rel="stylesheet" href="css/volume-arc.css?v=18">
     <link rel="stylesheet" href="css/ping.css?v=18">
     <link rel="stylesheet" href="css/chat.css?v=26">
     <link rel="stylesheet" href="css/chat-attach.css?v=20">
     <link rel="stylesheet" href="css/chat-overlay.css?v=20">
-    <link rel="stylesheet" href="css/screencast.css?v=32">
+    <link rel="stylesheet" href="css/screencast.css?v=34">
     <link rel="stylesheet" href="css/responsive.css?v=23">
-    <link rel="stylesheet" href="css/settings.css?v=38">
-    <link rel="stylesheet" href="css/app-settings.css?v=10">
+    <link rel="stylesheet" href="css/settings.css?v=39">
+    <link rel="stylesheet" href="css/app-settings.css?v=11">
     <link rel="stylesheet" href="css/titlebar.css?v=16">
     <link rel="stylesheet" href="css/updater-banner.css?v=6">
 
@@ -420,6 +420,12 @@
                     <span class="sc-switch-track"></span>
                 </label>
             </div>
+            <!-- Только macOS: браузеры там отдают звук лишь при захвате вкладки,
+                 при выборе экрана или окна его нет. Разблокируется в js/app.js
+                 по VoidIsMac; на Windows остаётся hidden. -->
+            <p class="sc-note" id="scAudioNote" data-i18n="screencast.audio.macos" hidden>
+                on macos, audio only comes through when you share a browser tab
+            </p>
 
             <button class="sc-next-btn" id="scNextBtn" data-i18n="screencast.next">next →</button>
         </div>
@@ -470,37 +476,37 @@
     </div>
 
     <script defer src="log.js?v=1"></script>
-    <script defer src="settings.js?v=104"></script>
+    <script defer src="settings.js?v=107"></script>
     <!-- Заметки к текущему релизу (контент, правится на выкатке).
          Потребитель — js/desktop/whats-new.js. -->
-    <script defer src="whats-new.js?v=4"></script>
-    <script defer src="webrtc.js?v=22"></script>
+    <script defer src="whats-new.js?v=5"></script>
+    <script defer src="webrtc.js?v=24"></script>
     <script defer src="socket.js?v=3"></script>
-    <script defer src="chat.js?v=8"></script>
-    <script defer src="js/config.js?v=5"></script>
+    <script defer src="chat.js?v=9"></script>
+    <script defer src="js/config.js?v=7"></script>
     <script defer src="js/state.js?v=9"></script>
     <script defer src="js/dev-mode.js?v=1"></script>
     <script defer src="js/toasts.js?v=1"></script>
-    <script defer src="js/background.js?v=11"></script>
+    <script defer src="js/background.js?v=12"></script>
     <script defer src="js/void-sfx.js?v=1"></script>
     <script defer src="js/void-sfx-pad.js?v=1"></script>
     <script defer src="js/audio.js?v=6"></script>
     <script defer src="js/username.js?v=1"></script>
     <script defer src="js/controls.js?v=3"></script>
     <script defer src="js/participants.js?v=7"></script>
-    <script defer src="js/volume-arc.js?v=1"></script>
+    <script defer src="js/volume-arc.js?v=2"></script>
     <script defer src="js/ping-panel.js?v=2"></script>
-    <script defer src="js/screen-overlay.js?v=8"></script>
+    <script defer src="js/screen-overlay.js?v=9"></script>
     <script defer src="js/intro.js?v=3"></script>
     <script defer src="js/room.js?v=9"></script>
-    <script defer src="js/app.js?v=23"></script>
+    <script defer src="js/app.js?v=25"></script>
     <script defer src="js/desktop/titlebar.js?v=1"></script>
     <script defer src="js/desktop/tray-state.js?v=3"></script>
     <script defer src="js/desktop/clipboard.js?v=1"></script>
     <script defer src="js/desktop/save-file.js?v=1"></script>
     <script defer src="js/desktop/opener.js?v=2"></script>
     <script defer src="js/desktop/deep-link.js?v=1"></script>
-    <script defer src="js/app-settings.js?v=9"></script>
+    <script defer src="js/app-settings.js?v=11"></script>
     <script defer src="js/desktop/updater.js?v=6"></script>
     <script defer src="js/desktop/whats-new.js?v=1"></script>
 </body>
