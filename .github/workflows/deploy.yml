@@ -229,6 +229,32 @@ jobs:
           restore-keys: |
             cargo-check-${{ runner.os }}-
 
+      - name: Stub bundled resources
+        if: steps.detect.outputs.changed == 'true'
+        # tauri.conf.json главного приложения объявляет ресурсом
+        # `bundled/void-uninstaller.exe`, а он под .gitignore — в чистом клоне
+        # его НЕТ, и build.rs падает ещё до компиляции:
+        # «resource path doesn't exist». Релизная сборка кладёт туда настоящий
+        # деинсталлятор первым шагом трёхстадийной сборки; проверке собирать
+        # его незачем — tauri-build валидирует НАЛИЧИЕ пути, а не содержимое
+        # (проверено: с пустым файлом build.rs проходит).
+        #
+        # ВАЖНО: заглушка живёт только в этой джобе. В релизном пути её быть не
+        # должно — пустышка молча уехала бы в бандл вместо рабочего
+        # деинсталлятора. Поэтому и не в build.rs: там она сломала бы релиз
+        # тихо, а не громко.
+        #
+        # У installer-крейта та же история с payload/void_setup.exe, но он
+        # закрывает её сам (installer/src-tauri/build.rs кладёт placeholder).
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p src-tauri/bundled
+          if [ ! -f src-tauri/bundled/void-uninstaller.exe ]; then
+            : > src-tauri/bundled/void-uninstaller.exe
+            echo "created check-only placeholder for bundled/void-uninstaller.exe"
+          fi
+
       - name: cargo check (app, uninstaller, installer)
         if: steps.detect.outputs.changed == 'true'
         # ИМЕННО bash, не pwsh: в PowerShell упавшая нативная команда не
