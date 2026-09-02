@@ -39,25 +39,17 @@
    Посмотреть, как это выглядит, ДО выкатки: `VoidWhatsNewPreview()` в консоли. */
 
 window.VoidWhatsNew = {
-    version: "1.3.0",
+    version: "1.4.0",
     ru: [
-        "зажатая горячая клавиша больше не переключает состояние без остановки",
-        "звук старта и остановки демонстрации больше не двоится",
-        "если выбранный микрофон исчез, берётся системный вместо ошибки «нет доступа»",
-        "фон пересчитывается при переносе окна между экранами разной плотности",
-        "ambient-фон замирает, когда в системе включено «уменьшение движения»",
-        "шестерёнка в логотипе больше не залипает после закрытия настроек",
-        "большое количество изменений для поддержки macOS в веб-версии",
-        "— масштаб на retina, отрисовка шрифта, демонстрация экрана, горячие клавиши, громкость колесом и прочее"
+        "звонок теперь подключается в сетях, где раньше не соединялся",
+        "— появился запасной путь на случай, если провайдер режет основной",
+        "в многолюдных комнатах связь устанавливается надёжнее",
+        "первый собеседник больше не остаётся без резервного канала связи"
     ],
     en: [
-        "holding a hotkey no longer toggles it over and over",
-        "screen share start and stop sounds no longer play twice",
-        "if the selected mic is gone, the system one is used instead of a no-access error",
-        "the background is recalculated when the window moves between displays of different density",
-        "the ambient background freezes when the system asks for reduced motion",
-        "the gear icon no longer sticks after the settings panel closes",
-        "a big pass on macOS support in the web version",
-        "— ui scale on retina, type rendering, screen sharing, hotkeys, volume by wheel and more"
+        "calls now connect on networks where they used to fail",
+        "— a fallback route was added in case the provider blocks the main one",
+        "connections hold up better in crowded rooms",
+        "the first person you connect to no longer ends up without a fallback route"
     ]
 };

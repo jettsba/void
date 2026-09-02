@@ -215,14 +215,24 @@ async function initMedia() {
     createVolumeAnalyser(localStream, clientId);
     log.debug("rtc", "mic granted");
 
-    /* Fire-and-forget: запрашиваем TURN-creds параллельно с поднятием UI.
-       К моменту первого `callUser` (после получения user-list по WS) обычно
-       успевает — peer создастся уже с TURN в iceServers. Если не успел —
-       первый peer стартует со STUN-only; при необходимости recovery state
-       machine пересоберёт его через ICE restart/rebuild уже с TURN.
-       Без await — getUserMedia уже отработал, блокировать UI на сетевом
-       запросе бессмысленно. */
-    ensureTurnCredentials();
+    /* TURN-creds ждём ОГРАНИЧЕННОЕ время, прежде чем пустить юзера в комнату.
+       Раньше вызов был fire-and-forget с расчётом «к первому callUser обычно
+       успеет». В failure-логе видно, что не всегда: у одного и того же клиента
+       в одну и ту же секунду один peer с `turn: true`, соседний — с
+       `turn: false`, то есть первые peer'ы сессии стартовали STUN-only и
+       остались без relay-кандидатов. Recovery это чинит не всегда и не сразу.
+
+       Гонку закрываем здесь, а не в createPeer: там вызов синхронный из трёх
+       мест (callUser / handleOffer / rebuildPeer), и await внутри открыл бы
+       окно для двойного создания peer'а. initMedia же и так await'ится в
+       tryAcquireMic ДО входа в комнату.
+
+       Потолок ожидания — чтобы залипший/медленный endpoint не держал вход:
+       лучше STUN-only peer, чем юзер, застрявший на кнопке join. */
+    await Promise.race([
+        ensureTurnCredentials(),
+        new Promise(r => setTimeout(r, TURN_WAIT_MS))
+    ]);
 }
 
 function watchLocalMicTrack(stream) {
@@ -823,11 +833,19 @@ async function ensureTurnCredentials() {
     if (Date.now() < _turnExpiresAt) return;
     const fresh = await fetchTurnCredentials();
     if (fresh) {
-        _iceServersCached = [...STATIC_STUN_SERVERS, ...fresh.iceServers];
+        /* Свои серверы ПЕРВЫМИ, публичные STUN — хвостом-подстраховкой. У части
+           клиентов публичные адреса не резолвятся вовсе (в логе это пачки
+           «STUN host lookup received error» разом по всем трём), и сбор
+           кандидатов упирается в их таймауты. Свой хост отвечает и на STUN, и
+           на TURN, поэтому именно он должен идти первым. */
+        _iceServersCached = [...fresh.iceServers, ...STATIC_STUN_SERVERS];
         _turnExpiresAt = fresh.expiresAt;
         log.info("rtc", "turn credentials loaded", { servers: fresh.iceServers.length });
     }
 }
+
+/** Сколько ждём TURN-креды на входе в комнату (см. initMedia). */
+const TURN_WAIT_MS = 1500;
 
 // Периодический refresh. unref не нужен — это setInterval в браузере, не Node.
 setInterval(ensureTurnCredentials, 60_000);
@@ -893,6 +911,10 @@ function createPeer(userId, isChatInitiator) {
        установилось»: `reportConnectivity` мог не проставить `_iceReported`
        (см. classifyConnection), и условие провала срабатывало на живом звонке. */
     peer._everConnected = false;
+    /* Отчёт «соединение работало и оборвалось» — свой флаг, отдельно от
+       `_iceReported` (тот занят отчётом direct/relay и стоит уже у здорового
+       звонка). Один отчёт на peer-объект: пересборка даёт новый объект. */
+    peer._dropReported = false;
     /* Счётчик срабатываний sig-stuck watchdog. Tier 1 = restartIce, tier 2 =
        rebuildPeer. Сбрасывается на возврате в stable. */
     peer._sigStuckAttempts = 0;
@@ -905,6 +927,8 @@ function createPeer(userId, isChatInitiator) {
     peer._createdAt = Date.now();
     peer._turnAtCreate = _iceServersCached.length > STATIC_STUN_SERVERS.length;
     peer._iceErrors = [];
+    /** Сколько ICE-кандидатов пира до нас доехало (см. handleIce). */
+    peer._remoteCandCount = 0;
 
     /* Ошибки STUN/TURN — главный диагностический сигнал. 401/403 от coturn =
        протухшие/битые creds, 701 = сервер недостижим (порт/фаервол). Событие
@@ -1241,6 +1265,16 @@ async function handleIce(data) {
     const peer = peers.get(data.from);
     if (!peer) return;
 
+    /* Сколько кандидатов пира до нас РЕАЛЬНО доехало. Считаем сам факт прихода
+       сообщения, до всякой обработки: очередь, rollback и ошибки addIceCandidate
+       к вопросу «дошёл ли сигналинг» отношения не имеют.
+
+       Зачем: в failure-логе «кандидатов пира нет» — это вывод из браузерной
+       статистики, а она не показывает кандидатов, пока не сформировались пары.
+       То есть «сигналинг потерялся» и «пары не сложились» выглядели одинаково.
+       Прямой счётчик разводит эти два случая однозначно. */
+    peer._remoteCandCount = (peer._remoteCandCount || 0) + 1;
+
     /* Сетевой пакет с кандидатом мог обогнать соответствующий offer/answer
        (типичная гонка на rebuild и медленных каналах). addIceCandidate в
        таком случае бросает «remote description has not been set» —
@@ -1313,18 +1347,28 @@ function handlePeerConnectionStateChange(userId) {
         return;
     }
 
-    if (state === "failed" && !peer._iceReported) {
-        peer._iceReported = true;
+    if (state === "failed") {
         if (peer._everConnected) {
             /* Звонок работал и развалился (сеть отвалилась, ноут уснул). Это НЕ
                провал установки соединения и не тот случай, где помог бы TURN —
                считаем отдельной метрикой качества. Штатное завершение звонка
                сюда не попадает: там peer закрывается через cleanupPeerSlot, а
-               close() событие `failed` не порождает. */
-            reportDropped(peer);
-        } else {
+               close() событие `failed` не порождает.
+
+               Дедуп ОТДЕЛЬНЫМ флагом, а не общим `_iceReported`. Раньше условие
+               было `failed && !_iceReported`, но `_iceReported` уже выставлен
+               успешным reportConnectivity — то есть у нормально соединившегося
+               звонка обрыв не считался ВООБЩЕ. `dropped` при этом ловил только
+               редкий случай «connected, но пару кандидатов классифицировать не
+               удалось»: в проде это дало 2 записи против 2000+ direct. */
+            if (!peer._dropReported) {
+                peer._dropReported = true;
+                reportDropped(peer);
+            }
+        } else if (!peer._iceReported) {
             // Терминальный провал, до connected так и не дошли — это и есть тот
             // случай, где помог бы TURN-релей. Считаем отдельно + шлём диагностику.
+            peer._iceReported = true;
             reportFailure(peer);
         }
     }
@@ -2866,8 +2910,14 @@ async function reportFailure(peer) {
         turn: !!peer._turnAtCreate,
         relayOnly: !!forceRelay,
         ice: peer.iceConnectionState,
+        /* Провал объявляет connectionState, а в слепок до сих пор ехал только
+           iceConnectionState — это РАЗНЫЕ машины состояний, и в логе из-за
+           этого встречались пары вроде «провал при ice connected». Пишем обе. */
+        conn: peer.connectionState,
         gather: peer.iceGatheringState,
         sig: peer.signalingState,
+        /* Кандидаты пира, доехавшие по сигналингу (не из браузерной статистики). */
+        rc: peer._remoteCandCount || 0,
         errs: peer._iceErrors || [],
         platform: (typeof IS_DESKTOP !== "undefined" && IS_DESKTOP) ? "desktop" : "web",
         ua: navigator.userAgent.slice(0, 160),

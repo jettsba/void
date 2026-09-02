@@ -73,8 +73,10 @@ let _helloSent = false;
 
 /* Учёт визитов. Отдельный ключ, а не поле в `void:settings`: настройки
    перезаписываются целиком в saveState(), и служебное поле там рано или поздно
-   затёрлось бы. Формат: { first: "YYYY-MM-DD", last: "YYYY-MM-DD" }, даты в UTC —
-   так же, как сервер нарезает дневные бакеты (dayKey в lib/stats.js). */
+   затёрлось бы. Формат: { first: "YYYY-MM-DD", last: "YYYY-MM-DD", ret?: true },
+   даты в UTC — так же, как сервер нарезает дневные бакеты (dayKey в lib/stats.js).
+   `ret` — «я уже когда-то возвращался», нужен чтобы отчитаться о первом возврате
+   ровно один раз за всю жизнь браузера. */
 const VISIT_STORAGE_KEY = "void:visit";
 const VISIT_DAY_RX = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -88,8 +90,14 @@ const VISIT_DAY_RX = /^\d{4}-\d{2}-\d{2}$/;
  * даже теоретически. Считать по IP или слать стабильный id было бы проще, но
  * это ровно то, чего void не делает.
  *
- *   fresh — сегодня ещё не здоровались (без этого F5 накручивал бы счётчик);
- *   ret   — первый визит был раньше сегодняшнего дня, то есть человек вернулся.
+ *   fresh    — сегодня ещё не здоровались (без этого F5 накручивал бы счётчик);
+ *   ret      — первый визит был раньше сегодняшнего дня, то есть человек вернулся;
+ *   firstRet — это ПЕРВЫЙ в жизни возврат. Отдельный флаг нужен потому, что `ret`
+ *              шлётся при каждом следующем заходе, и по нему нельзя отличить
+ *              «человек вернулся один раз» от «человек ходит сюда каждый день».
+ *              Без него счётчик возвратов растёт быстрее числа людей, и ретеншн
+ *              из статистики не достаётся вовсе. Это ещё один бит того же класса,
+ *              что и предыдущие два: никакого идентификатора по-прежнему нет.
  */
 function markVisit() {
     const today = new Date().toISOString().slice(0, 10);
@@ -104,16 +112,28 @@ function markVisit() {
     const valid = rec && typeof rec === "object";
     const first = valid && VISIT_DAY_RX.test(rec.first) ? rec.first : today;
     const last = valid && VISIT_DAY_RX.test(rec.last) ? rec.last : "";
+    const everReturned = valid && rec.ret === true;
+
+    const ret = first < today;
+    /* Первым возвратом считаем только тот, о котором ещё не отчитывались.
+       Флаг ставим В ТОТ ЖЕ момент, что и шлём, — если запись не сохранится
+       (приватный режим), человек в следующий раз просто посчитается снова, как
+       и всё остальное в этом хранилище. */
+    const firstRet = ret && !everReturned;
 
     try {
-        localStorage.setItem(VISIT_STORAGE_KEY, JSON.stringify({ first, last: today }));
+        localStorage.setItem(VISIT_STORAGE_KEY, JSON.stringify({
+            first,
+            last: today,
+            ret: everReturned || ret
+        }));
     } catch (_) {
         /* Приватный режим или запрет хранилища: визит каждый раз будет считаться
            новым. Метрику это немного завышает, но ронять вход из-за счётчика
            нельзя. */
     }
 
-    return { fresh: last !== today, ret: first < today };
+    return { fresh: last !== today, ret, firstRet };
 }
 
 async function enterLobby() {
@@ -135,7 +155,12 @@ async function enterLobby() {
            читает ТОЛЬКО два булевых флага визита (см. markVisit) — ни userId,
            ни ника, ни какого-либо идентификатора здесь нет и быть не должно. */
         const visit = markVisit();
-        sendSocket({ type: "hello", fresh: visit.fresh, ret: visit.ret });
+        sendSocket({
+            type: "hello",
+            fresh: visit.fresh,
+            ret: visit.ret,
+            firstRet: visit.firstRet
+        });
         _helloSent = true;
     }
 }

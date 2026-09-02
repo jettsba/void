@@ -97,6 +97,7 @@ jobs:
              fi
 
              REBUILD=yes
+             RECREATE_TURN=no
              if [ -n "$BEFORE" ] && [ "$BEFORE" != "$AFTER" ]; then
                CHANGED=$(git diff --name-only "$BEFORE" "$AFTER")
                echo "--- changed files ---"
@@ -106,6 +107,13 @@ jobs:
                  REBUILD=yes
                else
                  REBUILD=no
+               fi
+               # turnserver.conf примонтирован бинд-маунтом: его содержимое меняется
+               # на диске, а описание контейнера — нет, поэтому обычный `up -d` coturn
+               # НЕ пересоздаёт и он молча доживает со старым конфигом. Ровно тот
+               # случай, когда деплой «прошёл», а правка не применилась.
+               if echo "$CHANGED" | grep -qE "^coturn/"; then
+                 RECREATE_TURN=yes
                fi
              fi
 
@@ -122,6 +130,12 @@ jobs:
                docker image prune -f
              else
                echo "front-only change -> container left running (zero signalling downtime)"
+             fi
+
+             if [ "$RECREATE_TURN" = yes ]; then
+               echo "coturn config changed -> recreating coturn"
+               docker compose --profile turn up -d --force-recreate coturn || \
+                 echo "coturn not running here (no TURN profile on this host) - skipped"
              fi'
 
       - name: Read version

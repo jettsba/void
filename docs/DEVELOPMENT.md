@@ -34,7 +34,7 @@ offer/answer/ICE) и раздачей статики. Две поверхнос�
                         │  сигналинг: offer / answer / ICE  (~5–20 kb/s)
                   ┌─────┴──────┐     ┌──────────────────────────┐
                   │  void.srv  │     │  coturn                  │
-                  │  rooms{}   │     │  3478/udp + 49152..49251 │
+                  │  rooms{}   │     │  3478 udp+tcp · 1k relay │
                   └─────┬──────┘     │  use-auth-secret +       │
                         │            │  HMAC-SHA1 credentials   │
                         │  /api/turn-credentials → HMAC creds
@@ -162,9 +162,12 @@ nano .env
 docker compose up -d --build
 
 # вариант Б — с TURN (для юзеров за CG-NAT / симметричным NAT):
-#   предусловие: A-запись turn.your-domain.com → IP VPS; firewall ниже
+#   предусловие: A-запись turn.your-domain.com → IP VPS
+#   firewall: если на машине есть ufw — правила ниже; если фаервола нет,
+#   порты и так открыты (см. раздел «TURN» — там же проверка снаружи)
 sudo ufw allow 3478/udp
-sudo ufw allow 49152:49251/udp
+sudo ufw allow 3478/tcp
+sudo ufw allow 49152:50151/udp
 docker compose --profile turn up -d --build
 
 # 4. Caddy + домен (один раз)
@@ -237,12 +240,48 @@ docker compose --profile turn up -d
 3. **остальные `TURN_*` в `.env`**: `TURN_HOST`, `TURN_EXTERNAL_IP`, `TURN_REALM`.
 4. **firewall** на VPS:
 
+   Сначала выясни, ЧТО там вообще фильтрует — `ufw` есть далеко не везде.
+   **На проде void host-фаервола нет вообще** (проверено 2026-09-02: ufw не
+   установлен, в nftables только Docker-цепочки для FORWARD, политика INPUT —
+   ACCEPT без правил), поэтому порты TURN открыты сами по себе и правил там
+   заводить не нужно. На чужой машине проверь так:
+
    ```bash
-   sudo ufw allow 3478/udp
-   sudo ufw allow 49152:49251/udp
+   command -v ufw nft iptables
+   sudo nft list ruleset 2>/dev/null | head -30
+   sudo iptables -S | head -30
+   sudo ss -lntup | grep 3478          # слушает ли coturn udp И tcp
    ```
 
-   (если у хостера внешний firewall — открыть и там)
+   Если host-фаервола нет — правила не нужны, порты и так наружу. Если есть
+   `ufw`:
+
+   ```bash
+   sudo ufw allow 3478/udp
+   sudo ufw allow 3478/tcp     # запасной путь для сетей, где режут UDP
+   sudo ufw allow 49152:50151/udp
+   ```
+
+   Проверка снаружи (со своей машины) — единственная, которой стоит верить:
+
+   ```bash
+   nc -vz turn.your-domain.com 3478    # tcp-путь
+   ```
+
+   (если у хостера внешний firewall — открывать надо в его панели, на самой
+   машине этого не увидеть)
+
+   **TCP 3478 обязателен.** `/api/turn-credentials` раздаёт клиенту адрес с
+   `?transport=tcp` наравне с UDP: у части клиентов UDP до coturn не доходит
+   вовсе (в failure-логе это `TURN allocate request timed out`), и TCP —
+   единственный оставшийся путь. Приоритет TCP-кандидатов ниже, так что на
+   здоровой сети он не выигрывает и ничего не замедляет.
+
+   **Диапазон relay-портов расширен до 1000** (было 100). Allocation берётся
+   при сборе кандидатов на КАЖДОЕ peer-соединение и на КАЖДЫЙ транспорт, а не
+   только когда relay реально нужен: полная комната на 10 человек — это до 180
+   allocation'ов. Если правило firewall не расширить вместе с конфигом coturn,
+   часть портов будет недостижима, и relay начнёт «случайно» не собираться.
 5. **запуск с `--profile turn`**:
 
    ```bash
