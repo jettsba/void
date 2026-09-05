@@ -39,17 +39,9 @@
    Посмотреть, как это выглядит, ДО выкатки: `VoidWhatsNewPreview()` в консоли. */
 
 window.VoidWhatsNew = {
-    version: "1.4.0",
-    ru: [
-        "звонок теперь подключается в сетях, где раньше не соединялся",
-        "— появился запасной путь на случай, если провайдер режет основной",
-        "в многолюдных комнатах связь устанавливается надёжнее",
-        "первый собеседник больше не остаётся без резервного канала связи"
-    ],
-    en: [
-        "calls now connect on networks where they used to fail",
-        "— a fallback route was added in case the provider blocks the main one",
-        "connections hold up better in crowded rooms",
-        "the first person you connect to no longer ends up without a fallback route"
-    ]
+    /* 1.4.1 — правки только в админ-панели, пользователю показывать нечего.
+       Пустые списки = баннера нет (штатный режим, см. правила выше). */
+    version: "",
+    ru: [],
+    en: []
 };
