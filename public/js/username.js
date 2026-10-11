@@ -42,24 +42,28 @@ function generateAndAssignUsername() {
     currentUsername = stored && stored.length > 0 ? stored : generateUsername();
 }
 
-function generateRoomCode(length = 5) {
-    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+/* Случайная строка из алфавита через crypto.getRandomValues (не Math.random:
+   его состояние предсказуемо, а код комнаты — ключ входа). Rejection
+   sampling: байт ≥ floor(256/n)·n отбрасываем, иначе первые символы алфавита
+   выпадали бы чаще (для 32 знаков порог = 256 — перекоса нет вовсе). */
+function randomFromAlphabet(chars, length) {
+    const limit = 256 - (256 % chars.length);
     let result = "";
-    for (let i = 0; i < length; i++) {
-        result += chars[Math.floor(Math.random() * chars.length)];
+    const buf = new Uint8Array(length * 2);
+    while (result.length < length) {
+        crypto.getRandomValues(buf);
+        for (let i = 0; i < buf.length && result.length < length; i++) {
+            if (buf[i] < limit) result += chars[buf[i] % chars.length];
+        }
     }
     return result;
 }
 
+function generateRoomCode(length = 5) {
+    // Без I, O, 0, 1 — их путают, когда диктуют код голосом.
+    return randomFromAlphabet("ABCDEFGHJKLMNPQRSTUVWXYZ23456789", length);
+}
+
 function generateClientId(length = 8) {
-
-    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    let result = "";
-
-    for (let i = 0; i < length; i++) {
-        const randomIndex = Math.floor(Math.random() * chars.length);
-        result += chars[randomIndex];
-    }
-
-    return result;
+    return randomFromAlphabet("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", length);
 }

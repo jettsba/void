@@ -174,7 +174,7 @@
     position: relative;
     background: var(--bg-1);
     border: 1px solid rgba(230, 230, 232, 0.07);
-    border-radius: 1rem;
+    border-radius: 2px;
     padding: 2rem 2rem 1.71rem;
     width: 25.71rem;
     display: flex;
@@ -225,7 +225,7 @@
     gap: 0.21rem;
     padding: 1.14rem 0.71rem 1rem;
     border: 1px solid var(--fg-4);
-    border-radius: 0.71rem;
+    border-radius: 2px;
     background: var(--bg-2);
     cursor: pointer;
     font-family: inherit;
@@ -310,7 +310,7 @@
 .sc-switch-track {
     position: absolute;
     inset: 0;
-    border-radius: 0.64rem;
+    border-radius: 999px;
     border: 1px solid var(--fg-4);
     background: transparent;
     transition: border-color 0.18s, background 0.18s;
@@ -349,7 +349,7 @@
     width: 100%;
     padding: 0.86rem;
     margin-top: 0.14rem;
-    border-radius: 0.57rem;
+    border-radius: 2px;
     border: 1px solid rgba(95, 170, 122, 0.4);
     background: rgba(95, 170, 122, 0.06);
     color: var(--screen);

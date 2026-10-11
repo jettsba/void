@@ -128,8 +128,6 @@ services:
           cpus: "0.3"
         reservations:
           memory: 64M
+    # Без логов: coturn пишет в них IP пользователей (см. turnserver.conf).
     logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
+      driver: "none"

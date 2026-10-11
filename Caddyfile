@@ -117,12 +117,16 @@ void-room.space {
         -Server
     }
 
-    # Длинный immutable cache для статики. Безопасно потому что все ссылки на
-    # CSS/JS/изображения с лендинга и app идут через cache-buster ?v=N: при
-    # правке файла бампим N → URL меняется → браузер скачивает новый ответ.
-    # Без bumpa старая версия может висеть в кэше юзера до года — поэтому в
-    # memory есть правило обязательного bump'а при правке landing/* и public/*.
-    @static path *.css *.js *.svg *.png *.jpg *.jpeg *.webp *.gif *.ico *.woff *.woff2 *.ttf *.otf *.mp3 *.ogg *.webmanifest
+    # Кэш. JS/CSS — `no-cache`: браузер хранит файл, но на каждом заходе
+    # перепроверяет его (ETag → 304 без тела, если не менялся). Раньше они
+    # были immutable на год под ручным cache-buster'ом ?v=N — забытый бамп
+    # оставлял у человека старый код до года. Цена перепроверки — один RTT
+    # на заход (HTTP/2 мультиплексирует все запросы разом).
+    # Шрифты/картинки/звуки меняются редко → immutable; при правке такого
+    # файла меняем ИМЯ или ?v= в ссылке.
+    @code path *.css *.js
+    header @code Cache-Control "no-cache"
+    @static path *.svg *.png *.jpg *.jpeg *.webp *.gif *.ico *.woff *.woff2 *.ttf *.otf *.mp3 *.ogg *.webmanifest
     header @static Cache-Control "public, max-age=31536000, immutable"
 
     # Скрытая страница: подкреплённый HTTP-заголовком noindex для путей
@@ -170,9 +174,11 @@ app.void-room.space {
         -Server
     }
 
-    # Длинный immutable cache для статики (то же обоснование что на лендинге —
-    # все ссылки версионированы через ?v=N, см. memory rule).
-    @static path *.css *.js *.svg *.png *.jpg *.jpeg *.webp *.gif *.ico *.woff *.woff2 *.ttf *.otf *.mp3 *.ogg *.webmanifest
+    # Кэш — как на лендинге: JS/CSS перепроверяются (no-cache + ETag),
+    # остальная статика immutable.
+    @code path *.css *.js
+    header @code Cache-Control "no-cache"
+    @static path *.svg *.png *.jpg *.jpeg *.webp *.gif *.ico *.woff *.woff2 *.ttf *.otf *.mp3 *.ogg *.webmanifest
     header @static Cache-Control "public, max-age=31536000, immutable"
 
     # /adminstats защищён timing-safe сравнением пароля (lib/admin-stats.js).

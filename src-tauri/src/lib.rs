@@ -164,10 +164,69 @@ fn open_devtools(window: tauri::WebviewWindow) {
 /// Открыть внешний URL в системном браузере (кнопка «админ-панель» → /adminstats).
 /// В Tauri window.open из webview не открывает окно, поэтому идём через opener-плагин
 /// (вызов из Rust не требует JS-ACL). Basic-auth /adminstats спросит сам браузер.
+///
+/// Только http(s). Опенер отдаёт строку ОС как есть, а `file:`, `ms-msdt:`,
+/// `search-ms:` и прочие схемы Windows — это запуск программ и поиск по диску.
+/// Сейчас из чата приходят только http(s)-ссылки, но одна будущая ошибка
+/// рендеринга не должна превращаться в выполнение кода на машине.
 #[tauri::command]
 fn open_external(app: tauri::AppHandle, url: String) -> std::result::Result<(), String> {
     use tauri_plugin_opener::OpenerExt;
+    let lower = url.trim_start().to_ascii_lowercase();
+    if !(lower.starts_with("https://") || lower.starts_with("http://")) {
+        return Err("only http(s) links can be opened".into());
+    }
     app.opener().open_url(url, None::<&str>).map_err(|e| e.to_string())
+}
+
+/// `%D0%BC` → байты UTF-8. Имя файла едет в заголовке IPC, а значения
+/// заголовков — только ASCII, поэтому JS шлёт encodeURIComponent.
+fn percent_decode(s: &str) -> String {
+    let b = s.as_bytes();
+    let mut out = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'%' && i + 2 < b.len() {
+            if let Ok(v) = u8::from_str_radix(&s[i + 1..i + 3], 16) {
+                out.push(v);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(b[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+/// Сохранить вложение чата: диалог «сохранить как» и запись — здесь, в Rust.
+/// JS передаёт только байты и имя по умолчанию, путь выбирает человек в
+/// системном окне. Раньше JS сам звал fs-плагин, и ACL разрешал запись в
+/// `$HOME/**` любому скрипту вебвью (вплоть до папки автозагрузки) — теперь
+/// fs-прав у вебвью нет вовсе. `Ok(false)` — человек закрыл диалог.
+#[tauri::command]
+async fn save_file(
+    app: tauri::AppHandle,
+    request: tauri::ipc::Request<'_>,
+) -> std::result::Result<bool, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
+        return Err("expected raw file bytes".into());
+    };
+    let data = bytes.clone();
+    let name = request
+        .headers()
+        .get("x-file-name")
+        .and_then(|v| v.to_str().ok())
+        .map(percent_decode)
+        .unwrap_or_else(|| "file".into());
+    // blocking_* нельзя звать с main-потока; async-команда живёт в пуле tokio.
+    let Some(picked) = app.dialog().file().set_file_name(&name).blocking_save_file() else {
+        return Ok(false);
+    };
+    let path = picked.into_path().map_err(|e| e.to_string())?;
+    std::fs::write(&path, &data).map_err(|e| e.to_string())?;
+    Ok(true)
 }
 
 
@@ -197,7 +256,6 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
@@ -219,7 +277,8 @@ pub fn run() {
             stop_screen_audio,
             set_dev_access,
             open_devtools,
-            open_external
+            open_external,
+            save_file
         ])
         .setup(|app| {
             // Bundled-web архитектура (Phase 6 фикс, v0.10.48):

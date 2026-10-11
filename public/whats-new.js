@@ -39,21 +39,21 @@
    Посмотреть, как это выглядит, ДО выкатки: `VoidWhatsNewPreview()` в консоли. */
 
 window.VoidWhatsNew = {
-    version: "1.5.0",
+    version: "1.6.0",
     ru: [
-        "гифки в чате теперь воспроизводятся",
-        "голоса собеседников больше не хрипят, когда у выключается микрофон",
-        "стабильнее связь в больших комнатах",
-        "— свёрнутое окно или заблокированный телефон у кого-то из участников больше не рвут соединение",
-        "участники ровнее располагаются на экране, особенно на телефоне",
-        "из поля ввода в чате пропали лишние полосы прокрутки"
+        "добавлен код безопасности звонка: разговор защищен, если символы у всех совпадают",
+        "— символы в панели связи внизу, нажми на них, чтобы узнать подробнее",
+        "вход в комнату можно закрыть, когда согласятся все участники",
+        "— свои вернутся даже после обрыва связи или перезапуска приложения",
+        "шумоподавление бережнее к тихому голосу",
+        "приложение теперь загружается быстрее"
     ],
     en: [
-        "chat gifs are now playing",
-        "other people's voices no longer crackle while your mic is off",
-        "steadier connection in big rooms",
-        "— a minimized window or a locked phone no longer drops anyone's connection",
-        "participants are laid out more evenly, especially on phones",
-        "no more stray scrollbars in the chat input"
+        "call security code added: if everyone sees the same symbols, the call is secure",
+        "— the symbols live in the connection panel below, tap them to learn more",
+        "a room can now be closed to newcomers once everyone agrees",
+        "— your people still get back in after a dropped connection or an app restart",
+        "noise suppression is gentler with quiet voices",
+        "the app loads faster"
     ]
 };

@@ -280,7 +280,8 @@ function init() {
             try {
                 const payload = JSON.stringify({
                     code: currentRoomCode,
-                    userId: clientId
+                    userId: clientId,
+                    token: leaveToken
                 });
                 const blob = new Blob([payload], { type: "application/json" });
                 navigator.sendBeacon("/api/leave-room", blob);

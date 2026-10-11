@@ -55,6 +55,8 @@ let usernameElement;
 let currentUsername = null;
 
 let currentRoomCode = null;
+/* Токен выхода из user-list: обязателен в sendBeacon /api/leave-room. */
+let leaveToken = null;
 
 let clientId = null;
 

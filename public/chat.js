@@ -339,6 +339,7 @@ function bindChatChannel(channel, userId) {
 
     channel.onopen = () => {
         log.debug("chat", "channel open", { userId });
+        window.VoidSafety?.onChannelOpen(userId);
     };
     channel.onclose = () => {
         if (chatChannels.get(userId) === channel) {
@@ -590,6 +591,12 @@ function handleIncoming(data, userId) {
     if (typeof data === "string") {
         let json;
         try { json = JSON.parse(data); } catch { return; }
+        /* Код безопасности (js/safety-code.js) едет по тому же каналу:
+           отправитель — владелец канала, поле from не нужно. */
+        if (json && json.type === "sas") {
+            window.VoidSafety?.onMessage(json, userId);
+            return;
+        }
         if (json.type !== "msg") return;
 
         /* B1: anti-spoof. Канал был открыт под конкретный userId — это и есть

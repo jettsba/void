@@ -4,9 +4,10 @@
    см. js/desktop/clipboard.js): клик проходит без единой ошибки/события,
    но ни диалога сохранения, ни файла на диске не появляется.
 
-   На десктопе идём в обход через нативные tauri-plugin-dialog (выбор пути)
-   + tauri-plugin-fs (запись байт) — тот же приём "нативный плагин вместо
-   Web API", что уже решил проблему с копированием картинок. */
+   На десктопе идём в обход через нативную команду `save_file` (lib.rs):
+   диалог «сохранить как» и запись байт делает Rust, путь выбирает человек.
+   Прав на файловую систему у вебвью нет вовсе — скрипт страницы не может
+   записать файл куда-то сам (раньше ACL пускал fs-плагин в $HOME/**). */
 (function () {
     "use strict";
 
@@ -21,26 +22,13 @@
     /* Возвращает true, если файл реально записан; false — юзер отменил
        диалог (не ошибка, просто "передумал"). Бросает при реальном сбое. */
     async function saveFile(blobUrl, filename) {
-        const savePath = await invoke("plugin:dialog|save", {
-            options: { defaultPath: filename }
-        });
-        if (!savePath) return false;
-
         const buf = await fetch(blobUrl).then((r) => r.arrayBuffer());
-
-        /* write_file — особый calling convention: сырые байты идут ВТОРЫМ
-           позиционным аргументом invoke (не внутри JSON args), путь и опции —
-           через headers. Так Tauri IPC передаёт бинарник эффективно, без
-           JSON.stringify каждого байта (важно — файлы до 100 МБ, см.
-           CHAT_MAX_FILE_MB в chat.js). Формат взят из официального
-           @tauri-apps/plugin-fs (writeFile), 1:1. */
-        await invoke("plugin:fs|write_file", new Uint8Array(buf), {
-            headers: {
-                path: encodeURIComponent(savePath),
-                options: JSON.stringify({})
-            }
+        /* Сырые байты — вторым аргументом invoke (raw body, без JSON-
+           сериализации каждого байта: файлы до 100 МБ). Имя — в заголовке,
+           закодированное: значения заголовков только ASCII. */
+        return invoke("save_file", new Uint8Array(buf), {
+            headers: { "x-file-name": encodeURIComponent(filename || "file") }
         });
-        return true;
     }
 
     window.VoidDesktop = window.VoidDesktop || {};

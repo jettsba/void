@@ -1,3 +1,13 @@
+/* Пиксельный шрифт интро подключаем ТОЛЬКО при включённом интро. Раньше
+   @font-face лежал в base.css, и скрытая разметка интро (курсор «|») заставляла
+   браузер качать шрифт на каждом первом заходе — 2 МБ ради выключенного экрана. */
+if (INTRO_ENABLED && typeof FontFace === "function" && document.fonts) {
+    try {
+        document.fonts.add(new FontFace("DotGothic16",
+            "url(/static/fonts/DotGothic16-Regular.woff2) format('woff2')", { display: "swap" }));
+    } catch (_) {}
+}
+
 function isIntroUnlockedInBrowser() {
     if (!INTRO_REMEMBER_UNLOCK) return false;
     try {

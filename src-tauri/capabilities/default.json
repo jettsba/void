@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Permissions for the Void windows (main + updater + tray-menu). Phase 1 — window controls. Phase 2 — tray, menu, notifications, autostart, global-shortcut. Updater v2 — frameless updater window reuses the same window/event perms. tray-menu — custom frameless tray context menu (hide/show/set-position/set-size + tray_menu_action command). External links (chat, settings footer, download banner) open via the custom open_external command (Rust-side opener plugin — no JS ACL needed).",
+  "description": "Permissions for the Void windows (main + updater + tray-menu). Phase 1 — window controls. Phase 2 — tray, menu, notifications, autostart, global-shortcut. Updater v2 — frameless updater window reuses the same window/event perms. tray-menu — custom frameless tray context menu (hide/show/set-position/set-size + tray_menu_action command). External links (chat, settings footer, download banner) open via the custom open_external command (Rust-side opener plugin, http(s) only — no JS ACL needed). Chat attachments are saved by the custom save_file command (dialog + write in Rust) — the webview has NO fs/dialog permissions on purpose: a script in the webview must not be able to write files.",
   "windows": ["main", "updater", "tray-menu"],
   "permissions": [
     "core:default",
@@ -24,18 +24,6 @@
     "global-shortcut:default",
     "clipboard-manager:allow-write-text",
     "clipboard-manager:allow-write-image",
-    "dialog:allow-save",
-    "fs:allow-write-file",
-    {
-      "identifier": "fs:scope",
-      "allow": [
-        { "path": "$HOME/**" },
-        { "path": "$DOWNLOAD/**" },
-        { "path": "$DOCUMENT/**" },
-        { "path": "$DESKTOP/**" },
-        { "path": "$TEMP/**" }
-      ]
-    },
     "deep-link:default",
     "updater:default"
   ]

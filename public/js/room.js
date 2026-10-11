@@ -14,6 +14,9 @@ async function tryJoin() {
 
     currentRoomCode = code;
 
+    // Сертификат для кода безопасности должен быть готов до первого peer'а.
+    await window.VoidSafety?.ready;
+
     try {
         await tryAcquireMic();
     } catch {
@@ -33,7 +36,8 @@ async function tryJoin() {
         type: "join-room",
         code,
         userId: clientId,
-        nickname: currentUsername
+        nickname: currentUsername,
+        ...roomJoinExtras(code)
     });
 }
 
@@ -211,6 +215,9 @@ function tearDownRoomState() {
     screencastBtn.setAttribute("aria-label", _t("controls.screencast.soon"));
 
     nicknameMap.clear();
+    leaveToken = null;
+    window.VoidSafety?.reset();
+    if (typeof resetRoomCloseState === "function") resetRoomCloseState();
     closeAllConnections();
 
     if (typeof resetSocketConnection === "function") {
@@ -307,7 +314,8 @@ function handleSocketReconnected() {
         code: currentRoomCode,
         userId: clientId,
         nickname: currentUsername,
-        resume: true
+        resume: true,
+        ...roomJoinExtras(currentRoomCode)
     });
 }
 
@@ -344,6 +352,7 @@ function leaveRoom() {
         room: currentRoomCode
     });
 
+    if (typeof forgetRoomPass === "function") forgetRoomPass();
     tearDownRoomState();
 }
 
@@ -358,6 +367,8 @@ let createRoomRetryCount = 0;
 async function handleCreateClick() {
 
     hideEntryError();
+
+    await window.VoidSafety?.ready;
 
     try {
         await tryAcquireMic();

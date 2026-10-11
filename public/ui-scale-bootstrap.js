@@ -16,7 +16,8 @@
    zoom иммунен → zoom ортогонален нашему scaling.
 
    Грузится синхронно blocking-<script> (БЕЗ defer/async) — должен выполниться
-   ДО парсинга CSS. КЭШ: ?v=N в index.html — бампать при правке (cache-buster). */
+   ДО парсинга CSS. КЭШ: JS/CSS отдаются с Cache-Control: no-cache (Caddyfile) —
+   браузер перепроверяет файл на каждом заходе, ручной cache-buster не нужен. */
 (function () {
     /* Канонический расчёт --auto-scale. Используется и тут (до CSS), и из
        app.js (resize-хук) — через window.__voidApplyAutoScale. */

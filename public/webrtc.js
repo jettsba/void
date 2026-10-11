@@ -368,7 +368,7 @@ async function createRnnoiseNode(ctx) {
     if (!ctx || !ctx.audioWorklet) return null;
     try {
         if (!ctx._rnnoiseModulePromise) {
-            ctx._rnnoiseModulePromise = ctx.audioWorklet.addModule("audio/rnnoise-processor.js?v=1");
+            ctx._rnnoiseModulePromise = ctx.audioWorklet.addModule("audio/rnnoise-processor.js");
         }
         await ctx._rnnoiseModulePromise;
         const node = new AudioWorkletNode(ctx, "rnnoise-processor", {
@@ -463,7 +463,18 @@ async function applyAudioProcessing(rawStream) {
     const GATE_HOLD_MS = 180;
     const GATE_ATTACK_S = 0.01;   // быстро открыть (не cut начало слова)
     const GATE_RELEASE_S = 0.20;  // медленно закрыть (не cut концы фраз)
-    const gateState = { open: true, lastSoundAt: performance.now(), running: true };
+    const gateState = { open: true, lastSoundAt: performance.now(), running: true, vadSpeech: false };
+    /* VAD от RNNoise (rnnoise-processor.js шлёт только смену состояния) —
+       ПОДСКАЗКА гейту, а не замена порога: речь, подтверждённая моделью,
+       открывает гейт и с уровня ниже GATE_ON (тихий голос), и держит его на
+       затухающих концах фраз. Закрыть гейт VAD не может — значит, и
+       обрезать речь своей ошибкой тоже. Шумодав выключен → VAD нет,
+       гейт работает по одному RMS, как раньше. */
+    if (rnnoise) {
+        rnnoise.port.addEventListener("message", (e) => {
+            if (e.data?.type === "vad") gateState.vadSpeech = e.data.speech === true;
+        });
+    }
 
     function gateTick() {
         if (!gateState.running) return;
@@ -500,7 +511,7 @@ async function applyAudioProcessing(rawStream) {
         }
         const rms = Math.sqrt(sumSq / analyserData.length);
         const now = performance.now();
-        if (rms > GATE_ON_LIN) {
+        if (rms > GATE_ON_LIN || (gateState.vadSpeech && rms > GATE_OFF_LIN)) {
             gateState.lastSoundAt = now;
             if (!gateState.open) {
                 gateState.open = true;
@@ -509,7 +520,7 @@ async function applyAudioProcessing(rawStream) {
                 gateGain.gain.setValueAtTime(gateGain.gain.value, t);
                 gateGain.gain.linearRampToValueAtTime(1, t + GATE_ATTACK_S);
             }
-        } else if (rms < GATE_OFF_LIN && now - gateState.lastSoundAt > GATE_HOLD_MS) {
+        } else if (!gateState.vadSpeech && rms < GATE_OFF_LIN && now - gateState.lastSoundAt > GATE_HOLD_MS) {
             if (gateState.open) {
                 gateState.open = false;
                 const t = ctx.currentTime;
@@ -912,7 +923,10 @@ function createPeer(userId, isChatInitiator) {
         /* Dev-режим force-relay: гоним медиа только через TURN — тест relay-пути
            и битрейт-капа без реального CG-NAT. Требует поднятый TURN (иначе
            кандидатов не будет — это ожидаемо для теста). Обычный режим — "all". */
-        iceTransportPolicy: forceRelay ? "relay" : "all"
+        iceTransportPolicy: forceRelay ? "relay" : "all",
+        /* Один DTLS-сертификат на все соединения вкладки — на нём держится
+           код безопасности (js/safety-code.js): у участника один отпечаток. */
+        certificates: window.VoidSafety?.certificates?.()
     });
 
     peer._userId = userId;
@@ -1136,12 +1150,13 @@ function createPeer(userId, isChatInitiator) {
                    (без него Chrome стартует с 200 kbps и ползёт минуту). */
                 sdp = patchVideoStartBitrate(sdp, screenTargetHeight, screenTargetFps);
             }
-            /* L6: warn если SDP подбирается к лимиту сервера (32 KB). Каждый
+            /* L6: warn если SDP подбирается к лимиту сервера (48 KB, MAX_SDP_BYTES
+               в lib/handlers.js; порог предупреждения — 3/4 от него). Каждый
                цикл stopScreenShare → startScreenShare может оставить
                orphan-transceiver'ы → SDP пухнет m-line'ами. Если упрётся в
                лимит, server тихо дропнет offer и negotiation залипнет
                в have-local-offer. */
-            if (sdp.length > 24_000) {
+            if (sdp.length > 36_000) {
                 log.warn("rtc", "large sdp", { bytes: sdp.length, type: desc.type, userId: peer._userId });
             }
             const msg = { to: peer._userId, type: desc.type };
@@ -2026,7 +2041,7 @@ async function startNativeScreenAudio() {
        зовётся из click-хендлера, так что gesture активен — resume пройдёт. Без
        resume MediaStreamDestination не тикает → трек молчит. */
     if (ctx.state === "suspended") { try { await ctx.resume(); } catch (_) {} }
-    await ctx.audioWorklet.addModule("audio/screen-audio-feeder.js?v=1");
+    await ctx.audioWorklet.addModule("audio/screen-audio-feeder.js");
     const node = new AudioWorkletNode(ctx, "screen-audio-feeder", {
         numberOfInputs: 0,
         numberOfOutputs: 1,

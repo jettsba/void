@@ -25,6 +25,7 @@ import { mountDownloadBeaconEndpoint } from "./lib/dl-beacon.js";
 import { mountBugReport } from "./lib/bug-report.js";
 import { mountTurnEndpoint } from "./lib/turn.js";
 import { mountLeaveBeaconEndpoint } from "./lib/leave-beacon.js";
+import { startGeo } from "./lib/privacy.js";
 import {
     consumeToken,
     handleHello,
@@ -32,6 +33,8 @@ import {
     handleJoinRoom,
     handleJoinConfirm,
     handleScreencastState,
+    handleRoomCloseVote,
+    handleRoomOpen,
     handleAudioState,
     handleNicknameUpdate,
     handleLeaveRoom,
@@ -286,6 +289,14 @@ const server = http.createServer(app);
 
 server.listen(PORT, HOST, () => {
     log.info("boot", "server running", { host: HOST, port: PORT });
+    // Страна в IP-метках логов (lib/privacy.js). Без базы метка = `(??)`.
+    if (process.env.GEO_DISABLED !== "1") {
+        startGeo((err, r) => {
+            if (err) log.warn("boot", "geo db unavailable", { err: err.message });
+            else if (!r.kept) log.info("boot", "geo db loaded", { ranges: r.ranges, month: r.downloaded || "cached" });
+            else if (r.err) log.warn("boot", "geo db refresh failed, keeping old", { err: r.err });
+        });
+    }
 });
 
 /* ========= WEBSOCKET ========= */
@@ -454,6 +465,14 @@ wss.on("connection", (ws, req) => {
 
                 case "screencast-state":
                     handleScreencastState(ws, data);
+                    break;
+
+                case "room-close-vote":
+                    handleRoomCloseVote(ws, data);
+                    break;
+
+                case "room-open":
+                    handleRoomOpen(ws);
                     break;
 
                 case "offer":

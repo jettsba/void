@@ -146,6 +146,7 @@ function removeAllParticipants() {
 function addParticipant(userId, nickname) {
 
     nicknameMap.set(userId, nickname);
+    window.dispatchEvent(new Event("void:participants-changed"));
 
     /* Идемпотентность. Если participant с таким userId уже в DOM и не уходит
        pop-out'ом — это повторный addParticipant (новый user-list после
@@ -227,6 +228,7 @@ function addParticipant(userId, nickname) {
 function removeParticipant(userId) {
 
     nicknameMap.delete(userId);
+    window.dispatchEvent(new Event("void:participants-changed"));
 
     const el = participantElements.get(userId) ||
         document.querySelector(`.participant[data-user-id="${userId}"]`);

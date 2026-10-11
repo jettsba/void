@@ -17,6 +17,16 @@
 import createModule from "./rnnoise-sync.js";
 
 const FRAME_SIZE = 480; // 10ms @ 48kHz, RNNoise hard requirement.
+/* Выходное кольцо: process() отдаёт блоки по 128, RNNoise выдаёт по 480 —
+   в кольце копится максимум 480 + 128 сэмплов, 4 кадра с запасом. */
+const OUT_RING = FRAME_SIZE * 4;
+
+/* VAD: rnnoise_process_frame возвращает вероятность речи в кадре. Гистерезис
+   здесь, в аудиопотоке, а в main thread уходит только смена состояния —
+   сообщение раз в пару секунд, а не 100 в секунду. */
+const VAD_ON = 0.6;
+const VAD_OFF = 0.3;
+const VAD_OFF_HOLD_FRAMES = 30; // 300 мс тишины, прежде чем сказать «речи нет»
 
 class RNNoiseProcessor extends AudioWorkletProcessor {
     constructor() {
@@ -26,8 +36,16 @@ class RNNoiseProcessor extends AudioWorkletProcessor {
         this.state = 0;
         this.inputPtr = 0;
         this.outputPtr = 0;
-        this.inBuf = [];
-        this.outBuf = [];
+        /* Фиксированные буферы вместо push/shift по JS-массиву: shift — O(n),
+           а аллокации на realtime-потоке будят GC и дают щелчки. */
+        this.inFrame = new Float32Array(FRAME_SIZE);
+        this.inFill = 0;
+        this.outRing = new Float32Array(OUT_RING);
+        this.outRead = 0;
+        this.outWrite = 0;
+        this.outCount = 0;
+        this.speech = false;
+        this.quietFrames = 0;
         this.disabled = sampleRate !== 48000;
 
         if (this.disabled) {
@@ -62,6 +80,21 @@ class RNNoiseProcessor extends AudioWorkletProcessor {
         }
     }
 
+    trackVad(p) {
+        if (!(p >= 0)) return;
+        if (!this.speech && p > VAD_ON) {
+            this.speech = true;
+            this.quietFrames = 0;
+            this.port.postMessage({ type: "vad", speech: true });
+        } else if (this.speech) {
+            this.quietFrames = p < VAD_OFF ? this.quietFrames + 1 : 0;
+            if (this.quietFrames >= VAD_OFF_HOLD_FRAMES) {
+                this.speech = false;
+                this.port.postMessage({ type: "vad", speech: false });
+            }
+        }
+    }
+
     process(inputs, outputs) {
         const input = inputs[0]?.[0];
         const output = outputs[0]?.[0];
@@ -79,26 +112,33 @@ class RNNoiseProcessor extends AudioWorkletProcessor {
         const inPtrIdx = this.inputPtr >> 2;
         const outPtrIdx = this.outputPtr >> 2;
 
-        // Накапливаем входной сигнал в буфер 480-сэмпловыми кадрами.
+        // Накапливаем входной сигнал 480-сэмпловыми кадрами.
         for (let i = 0; i < input.length; i++) {
-            this.inBuf.push(input[i] * 32768);
+            this.inFrame[this.inFill++] = input[i] * 32768;
+            if (this.inFill === FRAME_SIZE) {
+                this.inFill = 0;
+                heap.set(this.inFrame, inPtrIdx);
+                const vad = this.module._rnnoise_process_frame(this.state, this.outputPtr, this.inputPtr);
+                this.trackVad(vad);
+                for (let k = 0; k < FRAME_SIZE; k++) {
+                    if (this.outCount === OUT_RING) break; // не бывает при 128-блоках; страховка
+                    this.outRing[this.outWrite] = heap[outPtrIdx + k] / 32768;
+                    this.outWrite = (this.outWrite + 1) % OUT_RING;
+                    this.outCount++;
+                }
+            }
         }
 
-        while (this.inBuf.length >= FRAME_SIZE) {
-            for (let i = 0; i < FRAME_SIZE; i++) {
-                heap[inPtrIdx + i] = this.inBuf.shift();
-            }
-            this.module._rnnoise_process_frame(this.state, this.outputPtr, this.inputPtr);
-            for (let i = 0; i < FRAME_SIZE; i++) {
-                this.outBuf.push(heap[outPtrIdx + i] / 32768);
-            }
-        }
-
-        // Заполняем выход из готовых обработанных сэмплов. Если буфер ещё
-        // не накопился до 480 (первый блок) — выходим тишиной, это <10ms
-        // и незаметно при старте трансляции.
+        // Заполняем выход из готовых обработанных сэмплов. Пока первый кадр
+        // не накопился до 480 — тишина, это <10ms и незаметно при старте.
         for (let i = 0; i < output.length; i++) {
-            output[i] = this.outBuf.length > 0 ? this.outBuf.shift() : 0;
+            if (this.outCount > 0) {
+                output[i] = this.outRing[this.outRead];
+                this.outRead = (this.outRead + 1) % OUT_RING;
+                this.outCount--;
+            } else {
+                output[i] = 0;
+            }
         }
 
         return true;

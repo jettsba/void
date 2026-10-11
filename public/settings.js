@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "1.5.0";
+    const APP_VERSION = "1.6.0";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
@@ -180,6 +180,7 @@
             "errors.code-taken": "не удалось подобрать свободный код — попробуй ещё раз",
             "errors.join-session-invalid": "сессия недействительна — попробуй ещё раз",
             "errors.connection-lost": "соединение потеряно",
+            "errors.room-closed": "вход закрыт",
             "errors.rate-limited": "слишком много попыток — подожди немного",
             "errors.id-collision": "сессия с этим id уже активна — обнови страницу",
             "errors.unknown": "что-то пошло не так",
@@ -320,6 +321,21 @@
             "invite.code-label": "комната:",
             "invite.copy-link": "скопировать ссылку",
             "invite.copied": "скопировано",
+            "roomClose.close": "закрыть вход",
+            "roomClose.unvote": "отменить",
+            "roomClose.open": "открыть",
+            "roomClose.closed": "вход закрыт",
+            "roomClose.you": "ты",
+            "sas.label": "код безопасности",
+            "sas.title": "код безопасности",
+            "sas.mini.error": "код не сошёлся",
+            "sas.status.alone": "код появится, когда в комнате будет кто-то ещё",
+            "sas.status.pending": "сверяем ключи со всеми участниками…",
+            "sas.status.error": "ключ одного из участников не совпал с обещанным — соединение могло быть перехвачено. перезайдите в комнату",
+            "sas.status.unavailable": "этот браузер не умеет показывать код безопасности",
+            "sas.body": "это отпечаток шифрования вашего разговора. если у всех символы совпадают — разговор защищён.",
+            "sas.hint": "код меняется, когда кто-то входит или выходит",
+            "sas.close": "понятно",
 
             "deeplink.invite": "вас пригласили в комнату #{code}",
             "deeplink.open-app": "открыть в приложении",
@@ -405,6 +421,7 @@
             "errors.code-taken": "could not pick a free code — try again",
             "errors.join-session-invalid": "session invalid — try again",
             "errors.connection-lost": "connection lost",
+            "errors.room-closed": "room closed",
             "errors.rate-limited": "too many attempts — wait a bit",
             "errors.id-collision": "session id is already active — refresh the page",
             "errors.unknown": "something went wrong",
@@ -545,6 +562,21 @@
             "invite.code-label": "room code:",
             "invite.copy-link": "copy link",
             "invite.copied": "copied",
+            "roomClose.close": "close the room",
+            "roomClose.unvote": "cancel",
+            "roomClose.open": "open",
+            "roomClose.closed": "room closed",
+            "roomClose.you": "you",
+            "sas.label": "security code",
+            "sas.title": "security code",
+            "sas.mini.error": "code mismatch",
+            "sas.status.alone": "the code appears once someone else is in the room",
+            "sas.status.pending": "checking keys with everyone…",
+            "sas.status.error": "someone's key didn't match what they committed to — the connection may be intercepted. rejoin the room",
+            "sas.status.unavailable": "this browser can't show a security code",
+            "sas.body": "a fingerprint of your call's encryption. if everyone sees the same symbols — the call is secure.",
+            "sas.hint": "the code changes whenever someone joins or leaves",
+            "sas.close": "got it",
 
             "deeplink.invite": "you've been invited to room #{code}",
             "deeplink.open-app": "open in the app",

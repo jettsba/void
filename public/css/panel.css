@@ -458,9 +458,40 @@
 }
 
 .room-code-view {
+    position: relative;
     display: inline-grid;
     grid-template: 1fr / 1fr;
     justify-items: start;
+}
+
+/* Индикатор «тебя ждут»: идёт голосование за закрытие, а твоего голоса нет.
+   Абсолютно над серединой надписи — футер не сдвигается. Тихо дышит. */
+.room-vote-dot {
+    position: absolute;
+    bottom: calc(100% + 0.29rem);
+    left: 50%;
+    width: 0.29rem;
+    height: 0.29rem;
+    background: var(--fg);
+    border-radius: 50%;
+    box-shadow: 0 0 6px rgba(230, 230, 232, 0.45);
+    opacity: 0;
+    transform: translate(-50%, 0.21rem) scale(0.4);
+    pointer-events: none;
+    transition:
+        opacity var(--t-med),
+        transform var(--t-med);
+}
+
+.room-info.has-pending-vote .room-vote-dot {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+    animation: room-vote-breathe 2.4s ease-in-out 320ms infinite;
+}
+
+@keyframes room-vote-breathe {
+    0%, 100% { box-shadow: 0 0 6px rgba(230, 230, 232, 0.45); }
+    50% { box-shadow: 0 0 2px rgba(230, 230, 232, 0.15); }
 }
 
 .room-code-panel {
@@ -534,7 +565,10 @@
     color: var(--fg-2);
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    transition: color var(--t-fast);
+    transition:
+        color var(--t-fast),
+        opacity 200ms ease-out 110ms,
+        transform 220ms cubic-bezier(.2, .6, .2, 1) 110ms;
 }
 
 .invite-code-row:hover .invite-code-row-value,
@@ -574,8 +608,11 @@
     transition: border-color var(--t-fast), color var(--t-fast);
 }
 
+/* flex, а не inline-flex: строчный бокс садится на базовую линию, и под ним
+   остаётся место под «хвосты» букв — подпись висела выше центра, а оверлей
+   «скопировано» (честный центр) выглядел опущенным. */
 .invite-link-btn-inner {
-    display: inline-flex;
+    display: flex;
     align-items: center;
     justify-content: center;
     gap: 0.43rem;
@@ -602,33 +639,241 @@
 }
 
 /* Фидбэк «скопировано» — общий для обоих action-узлов. Перекрывает контент
-   на 1 секунду. */
+   на 1 секунду. Смена текста — как у кнопки «закрыть вход»: старый уходит
+   вверх и гаснет, новый приходит снизу (и обратно тем же путём). */
 .invite-row-copied {
     position: absolute;
     inset: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--bg-1);
+    /* Фон прозрачный: старый текст и так гаснет сам, а непрозрачный оверлей,
+       съезжая вниз в анимации, закрывал нижнюю рамку — кнопка «темнела» снизу. */
+    background: transparent;
     border-radius: 2px;
     color: var(--fg);
     opacity: 0;
+    transform: translateY(0.36rem);
     pointer-events: none;
-    transition: opacity var(--t-fast);
+    transition:
+        opacity 120ms ease-in,
+        transform 140ms ease-in;
 }
 
+/* Уходящий текст гаснет за 120 мс, входящий стартует с задержкой 110 мс —
+   в каждый момент виден один, без «двойной экспозиции». В обе стороны. */
 .invite-code-row.is-copied .invite-row-copied,
 .invite-link-btn.is-copied .invite-row-copied {
     opacity: 1;
+    transform: translateY(0);
+    transition:
+        opacity 200ms ease-out 110ms,
+        transform 220ms cubic-bezier(.2, .6, .2, 1) 110ms;
+}
+
+.invite-code-row-label,
+.invite-link-btn-inner {
+    transition:
+        opacity 200ms ease-out 110ms,
+        transform 220ms cubic-bezier(.2, .6, .2, 1) 110ms;
 }
 
 .invite-code-row.is-copied .invite-code-row-label,
 .invite-code-row.is-copied .invite-code-row-value,
 .invite-link-btn.is-copied .invite-link-btn-inner {
     opacity: 0;
+    transform: translateY(-0.36rem);
+    transition:
+        color var(--t-fast),
+        opacity 120ms ease-in,
+        transform 140ms ease-in;
+}
+
+/* ===== «Закрыть вход» (js/room-close.js): кнопка + кружки голосов. =====
+   Нейтрально и «закрыто» видна только кнопка. С первым голосом над ней
+   раскрывается ряд кружков. Раскрытие — переход grid-template-rows 0fr → 1fr
+   (анимируемая «auto»-высота). */
+.room-close {
+    display: flex;
+    flex-direction: column;
+    padding-top: 0.86rem;
+    border-top: 1px solid var(--fg-4);
+}
+
+.room-close-btn[aria-pressed="true"] {
+    border-color: var(--fg-3);
+    color: var(--fg);
+}
+
+/* Текст кнопки анимирует room-close.js (Web Animations: сдвиг + ширина) —
+   нужен блочный бокс; nowrap + overflow, чтобы на анимации ширины текст не
+   переносился на вторую строку. */
+#roomCloseLabel {
+    display: inline-block;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+/* Дужка замка: на наведении по закрытой комнате поворачивается вокруг левой
+   ножки и приподнимается — замок «открывается». */
+/* Повёрнутая дужка выходит за viewBox — не обрезаем. */
+.room-close-icon {
+    overflow: visible;
+}
+
+.room-close-shackle {
+    transform-box: view-box;
+    transform-origin: 8.5px 11px;
+    transition: transform var(--t-med);
+}
+
+.room-close-btn.is-unlock-hint .room-close-shackle {
+    transform: translateY(-1.2px) rotate(-26deg);
+}
+
+/* Высоту схлопывает inner (min-height:0), а отступы живут уровнем ниже, в
+   .room-close-dots: padding прямо на элементе трека не сжимается, и
+   схлопнутый ряд оставлял под кнопкой пустую полосу. */
+.room-close-reveal {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 280ms cubic-bezier(.2, .6, .2, 1);
+}
+
+.room-close-reveal-inner {
+    min-height: 0;
+    overflow: hidden;
+}
+
+.room-close.is-voting .room-close-reveal {
+    grid-template-rows: 1fr;
+}
+
+.room-close-dots {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem;
+    /* Запас под «вспышку» (scale + свечение) — иначе её обрежет overflow;
+       снизу — отступ до кнопки. */
+    padding: 0.29rem 0.29rem 0.86rem;
+}
+
+/* Кружок = участник; закрашен — проголосовал. */
+.room-close-dot {
+    width: 0.5rem;
+    height: 0.5rem;
+    border: 1px solid var(--fg-3);
+    border-radius: 50%;
+    transition:
+        background-color var(--t-med),
+        border-color var(--t-med),
+        box-shadow var(--t-med);
+}
+
+.room-close-dot.is-voted {
+    background: var(--fg);
+    border-color: var(--fg);
+    box-shadow: 0 0 6px rgba(230, 230, 232, 0.35);
+}
+
+/* Всплытие ряда: пока раскрывается место, кружки по очереди проявляются
+   из точки. Сдвига нет — ряд и так едет, второе движение давало «дрожь». */
+.room-close-dot.is-entering {
+    animation: rc-dot-in 300ms cubic-bezier(.2, .6, .2, 1) both;
+    animation-delay: calc(var(--i, 0) * 50ms + 120ms);
+}
+
+/* Схлопывание: кружки гаснут быстрее, чем закрывается место. */
+.room-close:not(.is-voting) .room-close-dot {
+    opacity: 0;
+    transform: scale(0.5);
+    transition:
+        opacity 160ms ease-in,
+        transform 160ms ease-in;
+}
+
+/* Загорание — короткий «пульс» наружу; потухание — сжатие. */
+.room-close-dot.is-lighting {
+    animation: rc-dot-on 420ms cubic-bezier(.2, .6, .2, 1);
+}
+
+.room-close-dot.is-dimming {
+    animation: rc-dot-off 360ms ease-out;
+}
+
+.room-close-dot.is-leaving {
+    animation: rc-dot-out 240ms ease-in forwards;
+}
+
+@keyframes rc-dot-in {
+    from { opacity: 0; transform: scale(0.3); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes rc-dot-on {
+    0% { transform: scale(1); }
+    40% { transform: scale(1.5); box-shadow: 0 0 10px rgba(230, 230, 232, 0.55); }
+    100% { transform: scale(1); }
+}
+
+@keyframes rc-dot-off {
+    0% { transform: scale(1); }
+    45% { transform: scale(0.65); }
+    100% { transform: scale(1); }
+}
+
+@keyframes rc-dot-out {
+    to { opacity: 0; transform: scale(0.3); }
+}
+
+/* Замок у кода комнаты в футере — только когда вход закрыт. Абсолютно справа
+   от надписи: в потоке он расширял .room-info, и центрованный футер целиком
+   съезжал влево. Появление/исчезновение — проявление со сдвигом. */
+.room-lock-icon {
+    position: absolute;
+    top: 50%;
+    left: 100%;
+    width: 0.79rem;
+    height: 0.79rem;
+    margin-left: 0.36rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    opacity: 0;
+    transform: translate(-0.29rem, -50%) scale(0.7);
+    pointer-events: none;
+    transition:
+        opacity var(--t-med),
+        transform var(--t-med);
+}
+
+.room-info.is-closed .room-lock-icon {
+    opacity: 1;
+    transform: translate(0, -50%) scale(1);
 }
 
 @media (prefers-reduced-motion: reduce) {
+    .room-close-shackle {
+        transition-duration: 0.01ms;
+    }
+    .room-info.has-pending-vote .room-vote-dot {
+        animation: none;
+    }
+    .room-vote-dot,
+    .room-lock-icon,
+    .room-close-dot,
+    .room-close-reveal {
+        transition-duration: 0.01ms;
+    }
+    .room-close-dot.is-entering,
+    .room-close-dot.is-lighting,
+    .room-close-dot.is-dimming,
+    .room-close-dot.is-leaving {
+        animation: none;
+    }
     .invite-panel {
         transition-duration: 0.01ms;
         transform: translateX(-50%);
@@ -637,8 +882,11 @@
         transform: translateX(-50%);
     }
     .invite-row-copied,
+    .invite-code-row-label,
     .invite-code-row-value,
+    .invite-link-btn-inner,
     .invite-link-btn {
         transition-duration: 0.01ms;
+        transition-delay: 0s;
     }
 }

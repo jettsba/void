@@ -184,4 +184,6 @@ self‑hosting, переменные окружения, настройка TURN
 <sub><a href="../README.md">switch to english</a> ·<a href="https://t.me/casheaterr"> crafted by casheaterr</a></sub>
 <br>
 <sub><a href="../LICENSE"><b>AGPL‑3.0</b></a><b> © 2026 void</b></sub>
+<br>
+<sub>страна в серверных логах: <a href="https://db-ip.com">IP Geolocation by DB-IP</a> (CC BY 4.0)</sub>
 </div>

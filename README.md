@@ -81,7 +81,7 @@ then it's out of the loop. **it never sees a byte of your audio, messages, or fi
 <br>
 <b>relay · only when a direct path fails</b>
 <br>
-<sub>in symmetric / CG‑NAT (mobile carriers) ~1 in 4 pairs can't connect directly and fall back to a
+<sub>in symmetric / CG‑NAT (mobile carriers) about 1 in 3 pairs (~32%) can't connect directly and fall back to a
 TURN relay (coturn). it ferries the <b>still‑encrypted</b> packets — it can't decrypt them either.</sub>
 </td>
 </tr>
@@ -175,7 +175,8 @@ bugs and ideas → open an [issue](https://github.com/jettsba/void/issues) or re
 <img src="docs/kdpv.png" alt="void — a voice chat that can't be wiretapped" width="880">
 
 <div align="center">
-<sub><a href="../README.ru.md">switch to russian</a> ·<a href="https://t.me/casheaterr"> crafted by casheaterr</a></sub>
+<sub><a href="docs/README.ru.md">switch to russian</a> ·<a href="https://t.me/casheaterr"> crafted by casheaterr</a></sub>
 <br>
-<sub><a href="../LICENSE"><b>AGPL‑3.0</b></a><b> © 2026 void</b></sub>
+<sub><a href="LICENSE"><b>AGPL‑3.0</b></a><b> © 2026 void</b></sub>
+<br>
 </div>

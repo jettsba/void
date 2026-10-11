@@ -1,13 +1,15 @@
 {
   "name": "void-room",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "type": "module",
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build && node scripts/rename-bundles.mjs"
+    "tauri:build": "tauri build && node scripts/rename-bundles.mjs",
+    "test": "node --test tests/unit/*.test.mjs",
+    "test:e2e": "node --test --test-concurrency=1 tests/e2e/*.test.mjs"
   },
   "dependencies": {
     "express": "^4.18.2",
@@ -19,5 +21,12 @@
     "@tauri-apps/cli": "^2.1.0",
     "nodemon": "^3.0.1",
     "playwright": "^1.62.1"
+  },
+  "nodemonConfig": {
+    "watch": [
+      "server.js",
+      "lib/"
+    ],
+    "ext": "js,mjs,json"
   }
 }

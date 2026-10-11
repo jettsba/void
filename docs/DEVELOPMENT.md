@@ -1,14 +1,14 @@
 # void — разработка и эксплуатация
 
-Технический док для мейнтейнера void. Публичный обзор — в [../README.md](../README.md);
-плотный снапшот архитектуры для LLM — в [../rules/CONTEXT.md](../rules/CONTEXT.md). Этот
-файл — человеческое руководство по эксплуатации: как запустить, задеплоить, настроить и
-отладить.
+Технический док для мейнтейнера void. Публичный обзор — в [../README.md](../README.md).
+Этот файл — человеческое руководство по эксплуатации: как запустить, задеплоить,
+настроить и отладить. (Ссылки на `rules/` и `tasks/` ниже — это локальные рабочие
+заметки мейнтейнера, в репозиторий они не входят.)
 
-> Текущая версия: **0.12.10**. Версионирование батчевое — см. `../CLAUDE.md` и
-> `../rules/current-commit.md`. Версия держится синхронно в `package.json`,
-> `public/settings.js` (`APP_VERSION`), `src-tauri/Cargo.toml` и
-> `src-tauri/tauri.conf.json`.
+> Текущая версия — в `package.json`. Версионирование батчевое: bump только на выкатке.
+> Руками версия пишется в `package.json`, `public/settings.js` (`APP_VERSION`) и
+> `src-tauri/Cargo.toml`; `src-tauri/tauri.conf.json` берёт её из `package.json` сам.
+> Расхождение ловит `npm test` (и CI перед деплоем).
 
 ---
 
@@ -43,15 +43,16 @@ offer/answer/ICE) и раздачей статики. Две поверхнос�
                         ▼
                    Caddy :443 → localhost:3000
 
-  Desktop = тот же веб-клиент внутри Tauri WebView2-окна
-  (грузит app.void-room.space; сервер платформу почти не различает).
+  Desktop = тот же веб-клиент внутри Tauri WebView2-окна. С v0.10.48 грузит
+  ВСТРОЕННУЮ в бинарь копию public/ (не сайт) — веб-правки доезжают до desktop
+  только с новым релизом exe. Сервер платформу почти не различает.
 ```
 
 - Сервер **никогда не видит ни одного аудио-байта** — только сводит пиров.
 - Чат и файлы — тоже P2P, через `RTCDataChannel`. Сервер о них ничего не знает.
 - Полный mesh: для N юзеров → `N*(N-1)/2` соединений. `MAX_ROOM_USERS=10` — голосовой
   потолок mesh-топологии (демка делит битрейт по числу зрителей; дальше нужен SFU).
-- TURN **включён в проде** (релеит примерно 40–45% пар на CG-NAT). Если `TURN_HOST` /
+- TURN **включён в проде** (релеит около трети пар — ~32% по /adminstats). Если `TURN_HOST` /
   `TURN_SECRET` не заданы — endpoint отдаёт 503, и клиенты откатываются на STUN-only.
 
 ---
@@ -92,7 +93,8 @@ devDeps: `@tauri-apps/cli`, `@jitsi/rnnoise-wasm`, `nodemon`. Никаких ORM
 │   ├── bug-report.js          — POST /api/report-bug → Yandex SMTP (nodemailer)
 │   ├── leave-beacon.js        — POST /api/leave-room (navigator.sendBeacon на pagehide)
 │   ├── turn.js                — GET /api/turn-credentials, HMAC-SHA1 короткие creds для coturn
-│   └── log.js                 — structured JSON-line logger
+│   ├── privacy.js             — псевдонимы для логов: IP → `ip#3fa9c1 (RU)` (суточная соль в памяти + страна по офлайн-базе DB-IP), код комнаты → room ref
+│   └── log.js                 — structured logger; поля `ip`/`code` маскирует сам (через privacy.js)
 ├── public/                    — веб-фронт (отдаётся на app.void-room.space, грузится и в desktop)
 │   ├── index.html             — DOM-скелет: titlebar (desktop) + intro + app + chat + screen overlay
 │   ├── settings.js            — i18n (ru/en) + панель настроек + APP_VERSION + support-модалка
@@ -117,7 +119,8 @@ devDeps: `@tauri-apps/cli`, `@jitsi/rnnoise-wasm`, `nodemon`. Никаких ORM
 ├── coturn/                    — turnserver.conf + logs (опц., --profile turn)
 ├── Dockerfile, docker-compose.yml, docker-entrypoint.sh, Caddyfile, .env.example
 ├── CLAUDE.md                  — workflow-правила агента (батч-коммиты)
-└── rules/                     — CONTEXT.md, VOID_STYLE_GUIDE.md, lessons.md, current-commit.md
+├── tests/                     — unit (node:test, `npm test`, гоняется в CI перед деплоем) + e2e (Playwright, `npm run test:e2e`)
+└── rules/                     — локальные заметки мейнтейнера (не в репозитории)
 ```
 
 ---
@@ -219,6 +222,8 @@ docker compose --profile turn up -d
 | `BIND_HOST` | 127.0.0.1 (вне Docker) / 0.0.0.0 (compose) | server.js |
 | `ADMIN_STATS_PASSWORD` | — (нет → /adminstats отдаёт 503) | lib/admin-stats.js |
 | `LOG_LEVEL` | info — `error \| warn \| info \| debug` | lib/log.js |
+| `GEO_FILE` | `data/geo-country.csv.gz` — офлайн-база стран DB-IP Lite (сервер сам качает раз в месяц) | lib/privacy.js |
+| `GEO_DISABLED` | — `1` = не грузить базу, страна в IP-метках логов = `??` | server.js |
 | `ALLOWED_ORIGINS` | void-room.space + www + app | lib/security.js |
 | `MAX_ROOM_USERS` | 10 | lib/security.js |
 | `STATS_FILE` | `./data/stats.json` | lib/stats.js |
@@ -313,8 +318,7 @@ TTL ~1ч. coturn валидирует тем же `--static-auth-secret`. Баз
 
 Зачем: у части пользователей до coturn не доходит ни UDP, ни TCP 3478 — VPN-
 провайдеры с фильтром портов, прокси, пропускающие только 443. Для них клиент
-получает 4-й адрес `turns:turn.void-room.space:443?transport=tcp`. Стенд с
-замерами — `tasks/todo.md`.
+получает 4-й адрес `turns:turn.void-room.space:443?transport=tcp`.
 
 Как устроено: на VDS один публичный IP, 443 занят сайтом. Caddy (сборка с
 модулем **layer4**) смотрит SNI входящего TLS: `turn.void-room.space` — сам
@@ -423,10 +427,12 @@ user-agent и id текущей комнаты. Если баг воспроиз
 
 ## конвенции
 
-- **Версионирование / коммиты:** батч через `rules/current-commit.md` — копим строки
-  правок, bump версии ТОЛЬКО на «выкатываем» (см. `CLAUDE.md`). Версия синхронна в 4
-  файлах (package.json, settings.js `APP_VERSION`, Cargo.toml, tauri.conf.json) + `?v=`
-  cache-buster для затронутых CSS/JS в index.html.
+- **Версионирование / коммиты:** правки копятся батчем, bump версии — только на
+  выкатке. Версия руками в 3 файлах (package.json, settings.js `APP_VERSION`,
+  Cargo.toml), tauri.conf.json ссылается на package.json; синхронность проверяет
+  `npm test`. Ручных cache-buster'ов `?v=` у JS/CSS больше нет: Caddy отдаёт их с
+  `Cache-Control: no-cache` (перепроверка по ETag на каждом заходе). Immutable
+  остаются шрифты/картинки/звуки — при их правке меняется имя файла или `?v=`.
 - **Naming:** JS `camelCase`, файлы `kebab-case.js`, CSS-классы `kebab-case`.
 - **Никаких бандлеров.** `<script defer>` в index.html, порядок важен. Desktop-only код
   гейтится `if (IS_DESKTOP)` / динамическим import.
@@ -443,17 +449,22 @@ user-agent и id текущей комнаты. Если баг воспроиз
 
 ## известные ограничения
 
-- **Mesh scalability:** 5 — потолок. Дальше нужен SFU (смена архитектуры).
+- **Mesh scalability:** 10 участников — потолок (`MAX_ROOM_USERS`). Дальше нужен SFU
+  (смена архитектуры).
 - **Spoofable userId:** клиент сам генерирует `userId` (сервер валидирует формат).
   Некритично — нет состояния между сессиями для угона.
-- **Reconnect = полная пересборка mesh:** короткий аудио-провал; локальный mic сохраняется.
-- **Рестарт сервера = всё пропало:** комнаты in-memory by design (эфемерность).
+- **Reconnect сигналинга не трогает живой mesh:** пиры пересобираются, только если
+  все соединения уже мертвы (короткий аудио-провал; локальный mic сохраняется).
+- **Рестарт сервера:** комнаты in-memory by design (эфемерность), но с v1.1.0 они
+  воскресают из `join-room {resume:true}` в первые 2 минуты после старта — разговор
+  при выкатке не прерывается (медиа P2P). Закрытая комната воскресает закрытой.
 - **Desktop:** только Windows x64. Web и desktop настройки не шарятся (разный origin).
-  Оффлайн = «нет интернета» (remote-only by design).
+  Интерфейс встроен в бинарь, но без сети звонить всё равно не с кем.
 - **Никаких пушей в браузере:** закрыта вкладка = ничего не услышишь (десктоп частично
   закрывает это через трей / мигание окна).
 
 ---
 
-Плотный справочник по архитектуре (WS-протокол, peer-стейт-машины, security-слои,
-WebRTC-внутренности) — в `../rules/CONTEXT.md`.
+Детали протокола и стейт-машин — в комментариях кода (`lib/handlers.js`,
+`public/webrtc.js`, `public/socket.js`): почти у каждого нетривиального решения рядом
+записано «почему».

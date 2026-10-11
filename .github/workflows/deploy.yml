@@ -23,7 +23,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Unit-тесты (node:test, без зависимостей — npm install не нужен): сервер,
+  # приватность логов, закрытие комнаты, токен выхода, синхронность версий.
+  # Деплой ждёт их — сломанная логика комнат не уезжает на прод.
+  # e2e (Playwright, два браузера) — локально: `npm run test:e2e`.
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Unit tests
+        run: npm test
+
   deploy:
+    needs: test
     runs-on: ubuntu-latest
     timeout-minutes: 10
 

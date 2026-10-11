@@ -453,7 +453,8 @@ function handleSocketMessage(data) {
                             type: "join-room",
                             code: currentRoomCode,
                             userId: clientId,
-                            nickname: currentUsername
+                            nickname: currentUsername,
+                            ...roomJoinExtras(currentRoomCode)
                         });
                     }
                 }, delay);
@@ -556,6 +557,9 @@ function handleSocketMessage(data) {
             // Любой user-list — это успешное вхождение. Сбрасываем счётчик
             // повторных попыток после reconnect-collision.
             _reconnectRejoinRetries = 0;
+            /* Токен выхода для sendBeacon на pagehide (app.js): без него
+               /api/leave-room нас не выпишет — защита от кика чужими руками. */
+            if (typeof data.leaveToken === "string") leaveToken = data.leaveToken;
             const wasJoined = isJoined;
             if (!wasJoined) {
                 enterRoomUI();
@@ -617,8 +621,13 @@ function handleSocketMessage(data) {
                     if (!alive.has(userId)) nicknameMap.delete(userId);
                 });
             }
+            if (typeof applyRoomCloseState === "function") applyRoomCloseState(data);
             break;
         }
+
+        case "room-close-state":
+            if (typeof applyRoomCloseState === "function") applyRoomCloseState(data);
+            break;
 
         case "offer":
             handleOffer(data);
