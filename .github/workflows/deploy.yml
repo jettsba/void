@@ -85,8 +85,12 @@ jobs:
         # лениво (hot() в server.js), а реальная смена зависимостей всегда
         # меняет package-lock.json. Ручной workflow_dispatch (или любой прогон
         # без новых коммитов) пересобирает всегда — escape hatch.
+        # ServerAliveInterval: раннеры GitHub живут в Azure, а там NAT рвёт
+        # TCP после ~4 мин тишины. Деплой 2026-10-11 молча ждал reload Caddy
+        # 7.5 мин и умер с «Broken pipe» на 4:45 — посреди скрипта.
         run: |
-          ssh "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
+          ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=10 \
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
             'set -euo pipefail
              cd ~/void
              # Деплой-копия — ЧИСТОЕ зеркало origin/main. Раньше тут был
@@ -98,7 +102,12 @@ jobs:
              # untracked/gitignored, reset --hard их не трогает; tracked-файлы и
              # так обязаны совпадать с origin. git clean НЕ зовём — он снёс бы
              # data/ и .env.
-             BEFORE=$(git rev-parse HEAD 2>/dev/null || echo "")
+             # Дифф считаем от последнего УСПЕШНО задеплоенного коммита
+             # (.deployed-sha пишется в самом конце скрипта), а не от HEAD:
+             # упавший посреди деплой уже сделал reset, и следующий прогон
+             # иначе не увидел бы серверных правок — контейнер так и остался
+             # бы старым. Нет файла → BEFORE пуст → полная пересборка.
+             BEFORE=$(cat .deployed-sha 2>/dev/null || echo "")
              git fetch origin main
              git reset --hard origin/main
              AFTER=$(git rev-parse HEAD)
@@ -112,8 +121,10 @@ jobs:
                if sudo caddy validate --adapter caddyfile --config ~/void/Caddyfile >/tmp/caddy-validate.log 2>&1; then
                  echo "Caddyfile changed, syncing..."
                  sudo cp ~/void/Caddyfile /etc/caddy/Caddyfile
-                 sudo systemctl reload caddy
-                 echo "Caddy reloaded"
+                 # --no-block: reload ждёт, пока старый конфиг отпустит активные
+                 # соединения (grace_period в Caddyfile) — деплою ждать незачем.
+                 sudo systemctl reload --no-block caddy
+                 echo "Caddy reload queued"
                else
                  echo "::warning::Caddyfile NOT synced: installed caddy rejects it (layer4 build missing?)"
                  tail -n 3 /tmp/caddy-validate.log
@@ -162,7 +173,9 @@ jobs:
                echo "coturn config changed -> recreating coturn"
                docker compose --profile turn up -d --force-recreate coturn || \
                  echo "coturn not running here (no TURN profile on this host) - skipped"
-             fi'
+             fi
+
+             echo "$AFTER" > .deployed-sha'
 
       - name: Read version
         id: ver

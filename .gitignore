@@ -32,3 +32,5 @@ tasks
 design_handoff
 CLAUDE.md
 MACOS_DESKTOP_PLAN.md
+# маркер последнего успешного деплоя (живёт только на VPS)
+.deployed-sha
