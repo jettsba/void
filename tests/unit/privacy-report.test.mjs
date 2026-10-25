@@ -2,7 +2,7 @@ import "./_env.mjs";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-const { scrubReport } = await import("../../lib/bug-report.js");
+const { scrubReport } = await import("../../lib/privacy.js");
 
 test("bug report: room code and every participant id are replaced with log refs", () => {
     const parsed = { room: "KX7A2", userId: "SELF1234", peers: [{ userId: "PEER5678" }, { userId: "PEER9999" }] };
