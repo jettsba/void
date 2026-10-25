@@ -29,7 +29,7 @@
 
 <br>
 
-create a room, share a short code, and start talking. when the last person leaves, the room **disappears**. nothing is stored because there's nowhere to store it.
+create a room, share a short code, and start talking. when the last person leaves, the room **disappears**. conversations aren't stored anywhere — there's no database to store them in.
 
 voice, chat, file sharing, and screen sharing all happen **directly** between participants. the server only introduces devices to each other. once they're connected, it has nothing left to do.
 
@@ -48,6 +48,8 @@ voice, chat, file sharing, and screen sharing all happen **directly** between pa
 there's **no database**. not "we have one, but we promise not to look" — there's simply no database at all. rooms exist only as a regular `Map` in the server's memory: a room code and a list of who's inside. when the last person leaves, everything is gone.
 
 that's why there's nowhere to intercept a conversation from the server side — **it never exists there in the first place.** participants encrypt the media stream directly between their devices (DTLS-SRTP, with keys negotiated between browsers). even when a poor network forces traffic through a relay, it only forwards encrypted packets and has no way to decrypt them.
+
+and you don't have to take that on trust: every room shows a **security code** — five symbols derived from everyone's encryption keys. if everyone sees the same five, nobody is sitting in the middle of the call — not even the server. compare them out loud, not in the chat.
 
 <sub>"impossible to eavesdrop on" refers to <i>the connection between participants</i>, not to their devices. if an endpoint is compromised, no p2p architecture can protect it — the audio can be captured before encryption ever happens. cryptography secures the channel, not a compromised endpoint.</sub>
 
@@ -82,7 +84,7 @@ then it's out of the loop. **it never sees a byte of your audio, messages, or fi
 <b>relay · only when a direct path fails</b>
 <br>
 <sub>in symmetric / CG‑NAT (mobile carriers) about 1 in 3 pairs (~32%) can't connect directly and fall back to a
-TURN relay (coturn). it ferries the <b>still‑encrypted</b> packets — it can't decrypt them either.</sub>
+TURN relay (coturn). it ferries the <b>still‑encrypted</b> packets — it can't decrypt them either. it sees only both sides' IP addresses and how long the session lasts, and only room participants can use it.</sub>
 </td>
 </tr>
 </table>
@@ -101,6 +103,8 @@ direct and never touches the tunnel.
 | **voice**             | full‑mesh WebRTC, direct P2P audio between everyone in the room, no server in the path                               |
 | **noise suppression** | RNNoise (ML model in WASM/AudioWorklet) strips fans, keyboards, background hum — client‑side, before it's even sent  |
 | **chat & files**      | over the data channel: text, files up to 100 MB, images up to 10 MB                                                  |
+| **security code**     | five symbols, the same for everyone in the room = nobody in the middle, not even the server (commit‑reveal, as in ZRTP) |
+| **closed rooms**      | everyone votes — and the room shuts to newcomers; the people inside get back in after a dropped connection or a server update |
 | **screen sharing**    | with real system audio, up to 1080p60                                                                                |
 | **resilient**         | perfect negotiation, automatic ICE‑restart, peer rebuild, a watchdog that catches "connected‑but‑dead" peers in ~5 s |
 | **native desktop**    | frameless titlebar, system tray with live in‑room status, global hotkeys, signed auto‑updates, `void://` deep links  |

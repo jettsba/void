@@ -1,23 +1,27 @@
 /* ===== Dev-режим (админ-режим) — сессионный флаг + негласная активация =====
-   Включается негласным жестом: ник == "casheaterr" (case-insensitive) И 10
-   кликов по пилюле версии в настройках (.settings-footer-pill). Живёт ТОЛЬКО в
-   памяти — полное закрытие приложения (свежий webview при следующем запуске) →
-   снова выключен. За флагом спрятаны все debug-инструменты: нативная консоль
-   (ПКМ-меню + F12/Ctrl+Shift+I), peer-HUD, force-relay, копирование диагностики,
-   кнопки «админ-панель» и «DevTools» — всё в разделе настроек «разработчик».
+   Включается жестом: 10 кликов по пилюле версии в настройках
+   (.settings-footer-pill), но ТОЛЬКО на машине, где dev-режим разрешён руками:
+     - desktop: файл `dev-mode` в папке данных приложения
+       (%APPDATA%\space.void-room.app\dev-mode) или env VOID_DEV=1 — проверяет
+       Rust (команда dev_mode_available), он же держит гейт на set_dev_access и
+       open_devtools;
+     - web: `localStorage["void:dev"] = "1"` (выставить из консоли браузера —
+       DevTools в браузере и так доступны, гейт тут только от случайного входа).
+   Раньше вместо флага был ник автора: он публичный, и «скрытый» режим со
+   снятой защитой DevTools включал кто угодно. Живёт ТОЛЬКО в памяти — полное
+   закрытие приложения (свежий webview при следующем запуске) → снова выключен.
+   За флагом спрятаны все debug-инструменты: нативная консоль (ПКМ-меню +
+   F12/Ctrl+Shift+I), peer-HUD, force-relay, копирование диагностики, кнопки
+   «админ-панель» и «DevTools» — всё в разделе настроек «разработчик».
 
    Нативная блокировка F12 на desktop делается в Rust (lib.rs,
    setup_dev_access_gate + команда set_dev_access) по атомику DEV_ACCESS; здесь
    при активации зовём invoke("set_dev_access", { enabled: true }). ПКМ-меню
    WebView2 гасится ниже прямо в JS (contextmenu preventDefault до активации —
-   тот же приём, что в tray-menu.js).
-
-   Активация возможна на любой платформе (жест в настройках), но нативная
-   блокировка консоли — только desktop; web-браузер не трогаем. */
+   тот же приём, что в tray-menu.js). */
 (function () {
     "use strict";
 
-    const ADMIN_NICK = "casheaterr";
     const CLICKS_NEEDED = 10;
     /* Сбрасываем счётчик, если пауза между кликами слишком большая — чтобы клики
        разных заходов в настройки не накапливались в случайную активацию. */
@@ -29,10 +33,13 @@
 
     function isEnabled() { return devMode; }
 
-    function currentNick() {
-        try {
-            return (window.VoidSettings?.getNickname() || "").trim().toLowerCase();
-        } catch (_) { return ""; }
+    async function allowedOnThisMachine() {
+        if (window.VoidPlatform === "desktop") {
+            try { return await window.__TAURI__?.core?.invoke("dev_mode_available") === true; }
+            catch (_) { return false; }
+        }
+        try { return localStorage.getItem("void:dev") === "1"; }
+        catch (_) { return false; }
     }
 
     function enable() {
@@ -49,14 +56,14 @@
     }
 
     /* Вызывается из settings.js на каждый клик по пилюле версии. */
-    function registerPillClick() {
+    async function registerPillClick() {
         if (devMode) return;
         const now = Date.now();
         clicks = (now - lastClickTs > CLICK_RESET_MS) ? 1 : clicks + 1;
         lastClickTs = now;
         if (clicks < CLICKS_NEEDED) return;
         clicks = 0;
-        if (currentNick() === ADMIN_NICK) enable();
+        if (await allowedOnThisMachine()) enable();
     }
 
     /* ПКМ-меню WebView2 (Обновить / Печать / «Проверить» → консоль). До

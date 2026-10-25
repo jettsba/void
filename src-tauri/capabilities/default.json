@@ -1,8 +1,10 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Permissions for the Void windows (main + updater + tray-menu). Phase 1 — window controls. Phase 2 — tray, menu, notifications, autostart, global-shortcut. Updater v2 — frameless updater window reuses the same window/event perms. tray-menu — custom frameless tray context menu (hide/show/set-position/set-size + tray_menu_action command). External links (chat, settings footer, download banner) open via the custom open_external command (Rust-side opener plugin, http(s) only — no JS ACL needed). Chat attachments are saved by the custom save_file command (dialog + write in Rust) — the webview has NO fs/dialog permissions on purpose: a script in the webview must not be able to write files.",
-  "windows": ["main", "updater", "tray-menu"],
+  "description": "Permissions for the main Void window only. The updater and tray-menu windows have their own minimal sets (updater.json / tray-menu.json): a script in those small windows must not reach the clipboard, shortcuts, notifications or autostart. External links open via the custom open_external command (Rust-side opener plugin, http(s) only). Chat attachments are saved by the custom save_file command (dialog + write in Rust) — the webview has NO fs/dialog permissions on purpose. Custom commands are not covered by capabilities, so each sensitive command checks the calling window's label itself (lib.rs, from_main).",
+  "windows": [
+    "main"
+  ],
   "permissions": [
     "core:default",
     "core:event:default",

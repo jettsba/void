@@ -38,23 +38,6 @@ let reconnectTimer = null;
 let reconnecting = false;
 
 /**
- * Поднимаем на ~10s после успешного реконнекта. Используется чтобы отличить
- * «свежий пользователь нажал join» от «WS только что мигнул, мы сами
- * перезаходим». Отличие важно для id-collision: сервер ещё не успел
- * отработать close старого ws (heartbeat 30s × 2), поэтому видит наш
- * `userId` живым и отдаёт `id-collision`. В этом окне такая ошибка —
- * не настоящий конфликт, а гонка реконнекта; молча ждём и пробуем ещё.
- */
-let _wasReconnect = false;
-let _wasReconnectClearTimer = null;
-let _reconnectRejoinRetries = 0;
-const _RECONNECT_REJOIN_MAX_RETRIES = 3;
-// Базовая задержка перед первой повторной попыткой join после id-collision.
-// Следующие попытки: base * 1.5^retry (1.5s, 2.25s, 3.375s).
-const _RECONNECT_REJOIN_BASE_DELAY_MS = 1500;
-const _WAS_RECONNECT_WINDOW_MS = 10000;
-
-/**
  * F3: liveness watchdog. Сервер шлёт data-frame `{type:"keepalive"}` раз в
  * 30 секунд (HEARTBEAT_INTERVAL_MS на сервере). Если timeout секунд подряд
  * от сервера НИЧЕГО не пришло — значит TCP-туннель мёртв, хотя
@@ -334,12 +317,6 @@ async function attemptReconnect() {
     try {
         await connectSocket();
         log.info("ws", "reconnected");
-        _wasReconnect = true;
-        if (_wasReconnectClearTimer) clearTimeout(_wasReconnectClearTimer);
-        _wasReconnectClearTimer = setTimeout(() => {
-            _wasReconnect = false;
-            _wasReconnectClearTimer = null;
-        }, _WAS_RECONNECT_WINDOW_MS);
         cancelReconnect();
         if (typeof onReconnectSuccess === "function") {
             onReconnectSuccess();
@@ -432,35 +409,13 @@ function handleSocketMessage(data) {
             break;
 
         case "join-failed":
-            // id-collision сразу после WS-реконнекта — не настоящая ошибка, а
-            // гонка с серверным heartbeat'ом: сервер ещё видит наш старый ws
-            // как «живой», потому что close-фрейм с прошлого сокета не дошёл
-            // (VPN-смена, RST вместо FIN). Не выкидываем юзера — ждём и
-            // пересылаем join-room ещё раз; сервер прибьёт старый ws по
-            // missed-pong в течение HEARTBEAT_INTERVAL_MS и пропустит нас.
-            if (data.reason === "id-collision"
-                && _wasReconnect
-                && _reconnectRejoinRetries < _RECONNECT_REJOIN_MAX_RETRIES) {
-                _reconnectRejoinRetries += 1;
-                log.debug("ws", "id-collision on reconnect rejoin, retrying", {
-                    attempt: _reconnectRejoinRetries,
-                    max: _RECONNECT_REJOIN_MAX_RETRIES
-                });
-                const delay = Math.round(_RECONNECT_REJOIN_BASE_DELAY_MS * Math.pow(1.5, _reconnectRejoinRetries - 1));
-                setTimeout(() => {
-                    if (typeof isJoined !== "undefined" && isJoined && currentRoomCode) {
-                        sendSocket({
-                            type: "join-room",
-                            code: currentRoomCode,
-                            userId: clientId,
-                            nickname: currentUsername,
-                            ...roomJoinExtras(currentRoomCode)
-                        });
-                    }
-                }, delay);
-                return;
-            }
-            _reconnectRejoinRetries = 0;
+            /* id-collision после WS-реконнекта раньше был гонкой с heartbeat'ом
+               (сервер ещё считал наш старый сокет живым), и мы пересылали
+               join-room, пока тот не умрёт. Теперь реконнект несёт токен сессии,
+               и сервер сразу подменяет старый сокет нашим. id-collision значит,
+               что токен не подошёл (сессия потеряна) — ждать бесполезно, а
+               тихие повторы только копили бы отказы. Одна попытка и честная
+               ошибка: «обнови страницу». */
             /* Причину пишем в лог обязательно, без этой строки такой отчёт неразбираем. */
             log.warn("ws", "join failed", { reason: data.reason || "unknown" });
             if (typeof abortJoinAttempt === "function") {
@@ -554,12 +509,14 @@ function handleSocketMessage(data) {
         }
 
         case "user-list": {
-            // Любой user-list — это успешное вхождение. Сбрасываем счётчик
-            // повторных попыток после reconnect-collision.
-            _reconnectRejoinRetries = 0;
-            /* Токен выхода для sendBeacon на pagehide (app.js): без него
-               /api/leave-room нас не выпишет — защита от кика чужими руками. */
+            /* Токен сессии: с ним sendBeacon на pagehide выписывает нас из комнаты
+               (app.js), и с ним же реконнект возвращает нас на своё место
+               (handleSocketReconnected). Без него ни то ни другое не работает —
+               защита от кика и от захвата нашего userId чужими руками. */
             if (typeof data.leaveToken === "string") leaveToken = data.leaveToken;
+            /* TURN-креды — до любого peer'а: соседи начнут звонить нам только
+               после этого сообщения. */
+            if ("turn" in data && typeof applyTurnCredentials === "function") applyTurnCredentials(data.turn);
             const wasJoined = isJoined;
             if (!wasJoined) {
                 enterRoomUI();
@@ -627,6 +584,10 @@ function handleSocketMessage(data) {
 
         case "room-close-state":
             if (typeof applyRoomCloseState === "function") applyRoomCloseState(data);
+            break;
+
+        case "turn-credentials":
+            if (typeof applyTurnCredentials === "function") applyTurnCredentials(data.turn);
             break;
 
         case "offer":

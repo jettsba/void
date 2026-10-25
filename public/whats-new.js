@@ -39,21 +39,27 @@
    Посмотреть, как это выглядит, ДО выкатки: `VoidWhatsNewPreview()` в консоли. */
 
 window.VoidWhatsNew = {
-    version: "1.6.0",
+    version: "1.7.0",
     ru: [
-        "добавлен код безопасности звонка: разговор защищен, если символы у всех совпадают",
-        "— символы в панели связи внизу, нажми на них, чтобы узнать подробнее",
-        "вход в комнату можно закрыть, когда согласятся все участники",
-        "— свои вернутся даже после обрыва связи или перезапуска приложения",
-        "шумоподавление бережнее к тихому голосу",
-        "приложение теперь загружается быстрее"
+        "большое техническое обновление  - void стал еще безопаснее",
+        "закрытую комнату больше нельзя занять или открыть снаружи — в том числе пока сервер обновляется",
+        "— свои возвращаются после обрыва связи и обновления сервера сами, разговор не прерывается",
+        "вход по ссылке теперь всегда спрашивает подтверждение",
+        "код безопасности больше нельзя «заморозить»: если он долго не сходится, появится предупреждение",
+        "чат защищён от флуда и от подмены чужих картинок и файлов",
+        "программы, присланные в чат, помечаются и сохраняются только повторным нажатием",
+        "— сохранённые файлы из чата windows теперь считает скачанными из интернета и предупредит перед запуском",
+        "двойное нажатие на «создать» или «войти» больше не выкидывает из комнаты"
     ],
     en: [
-        "call security code added: if everyone sees the same symbols, the call is secure",
-        "— the symbols live in the connection panel below, tap them to learn more",
-        "a room can now be closed to newcomers once everyone agrees",
-        "— your people still get back in after a dropped connection or an app restart",
-        "noise suppression is gentler with quiet voices",
-        "the app loads faster"
+        "a big technical update — void is now even more secure",
+        "a closed room can no longer be taken over or opened from outside — not even while the server updates",
+        "— your people get back in on their own after a dropped connection or a server update, the call keeps going",
+        "joining through a link now always asks for confirmation",
+        "the security code can no longer be \"frozen\": if it takes too long to match, you'll see a warning",
+        "the chat is protected from flooding and from someone swapping other people's images and files",
+        "programs sent in the chat are marked and only saved on a second click",
+        "— windows now treats files saved from the chat as downloaded from the internet and warns before running them",
+        "double-clicking create or join no longer kicks you out of the room"
     ]
 };

@@ -373,6 +373,12 @@
     color: var(--fg);
 }
 
+/* Автор не найден в реестре участников (ушёл, а канал ещё донёс сообщение). */
+.chat-msg-nick.is-unverified {
+    color: var(--fg-3);
+    font-style: italic;
+}
+
 .chat-msg-time {
     font-variant-numeric: tabular-nums;
     flex-shrink: 0;

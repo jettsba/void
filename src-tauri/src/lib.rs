@@ -119,13 +119,27 @@ struct HotkeyMap(Mutex<HashMap<Shortcut, String>>);
 #[derive(Default)]
 struct HeldShortcuts(Mutex<std::collections::HashSet<Shortcut>>);
 
+/// Команды ниже зовутся из JS, а capabilities Tauri собственные команды
+/// приложения не разграничивают по окнам. Поэтому каждая чувствительная команда
+/// сама проверяет, из какого окна пришёл вызов: окну трея и окну обновления
+/// нечего делать с файлами, DevTools или внешними ссылками.
+const MAIN_LABEL: &str = "main";
+
+fn from_main(window: &tauri::WebviewWindow) -> bool {
+    window.label() == MAIN_LABEL
+}
+
 /// Старт нативного loopback-захвата звука демонстрации (см. screen_audio.rs).
 /// JS передаёт Channel — Rust стримит в него PCM-кадры (16-bit/48k/stereo, Raw).
 /// Err → JS делает fallback на getDisplayMedia system audio.
 #[tauri::command]
 fn start_screen_audio(
+    window: tauri::WebviewWindow,
     channel: tauri::ipc::Channel<tauri::ipc::InvokeResponseBody>,
 ) -> std::result::Result<(), String> {
+    if !from_main(&window) {
+        return Err("not allowed from this window".into());
+    }
     #[cfg(windows)]
     {
         screen_audio::start(channel)
@@ -139,25 +153,59 @@ fn start_screen_audio(
 
 /// Останавливает нативный loopback-захват (идемпотентно).
 #[tauri::command]
-fn stop_screen_audio() {
+fn stop_screen_audio(window: tauri::WebviewWindow) {
+    if !from_main(&window) {
+        return;
+    }
     #[cfg(windows)]
     {
         screen_audio::stop();
     }
 }
 
+/// Dev-режим разрешён только на машине, где его включили руками: файл
+/// `dev-mode` в папке данных приложения (%APPDATA%\space.void-room.app\dev-mode)
+/// или переменная окружения `VOID_DEV=1`. Раньше режим включался жестом в
+/// настройках (ник автора + 10 кликов) — ник публичный, а команды ниже были
+/// доступны любому скрипту вебвью. Теперь без флага на диске их не включить
+/// ничем, что приходит из сети.
+fn dev_mode_allowed(app: &tauri::AppHandle) -> bool {
+    if std::env::var("VOID_DEV").map(|v| v == "1").unwrap_or(false) {
+        return true;
+    }
+    app.path()
+        .app_data_dir()
+        .map(|d| d.join("dev-mode").is_file())
+        .unwrap_or(false)
+}
+
+/// Можно ли на этой машине включить dev-режим (js/dev-mode.js спрашивает при
+/// жесте в настройках).
+#[tauri::command]
+fn dev_mode_available(app: tauri::AppHandle, window: tauri::WebviewWindow) -> bool {
+    from_main(&window) && dev_mode_allowed(&app)
+}
+
 /// Dev-режим: включить/выключить доступ к DevTools (F12/Ctrl+Shift+I/J/C).
 /// Зовётся из js/dev-mode.js при активации. Флаг читает AcceleratorKeyPressed
-/// (windows). На non-windows — no-op (там гейта клавиш нет).
+/// (windows). На non-windows — no-op (там гейта клавиш нет). Включить — только
+/// при флаге dev-режима на машине.
 #[tauri::command]
-fn set_dev_access(enabled: bool) {
+fn set_dev_access(app: tauri::AppHandle, window: tauri::WebviewWindow, enabled: bool) {
+    if !from_main(&window) || (enabled && !dev_mode_allowed(&app)) {
+        return;
+    }
     DEV_ACCESS.store(enabled, Ordering::SeqCst);
 }
 
 /// Dev-режим: явно открыть DevTools (кнопка в dev-настройках). Фича `devtools`
-/// включена в Cargo.toml → метод доступен и в release-сборке.
+/// включена в Cargo.toml → метод доступен и в release-сборке, поэтому гейт —
+/// флаг dev-режима на машине.
 #[tauri::command]
-fn open_devtools(window: tauri::WebviewWindow) {
+fn open_devtools(app: tauri::AppHandle, window: tauri::WebviewWindow) {
+    if !from_main(&window) || !dev_mode_allowed(&app) {
+        return;
+    }
     window.open_devtools();
 }
 
@@ -170,8 +218,15 @@ fn open_devtools(window: tauri::WebviewWindow) {
 /// Сейчас из чата приходят только http(s)-ссылки, но одна будущая ошибка
 /// рендеринга не должна превращаться в выполнение кода на машине.
 #[tauri::command]
-fn open_external(app: tauri::AppHandle, url: String) -> std::result::Result<(), String> {
+fn open_external(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+    url: String,
+) -> std::result::Result<(), String> {
     use tauri_plugin_opener::OpenerExt;
+    if !from_main(&window) {
+        return Err("not allowed from this window".into());
+    }
     let lower = url.trim_start().to_ascii_lowercase();
     if !(lower.starts_with("https://") || lower.starts_with("http://")) {
         return Err("only http(s) links can be opened".into());
@@ -199,17 +254,83 @@ fn percent_decode(s: &str) -> String {
     String::from_utf8_lossy(&out).into_owned()
 }
 
+/// Имя файла от собеседника → безопасное для диалога и диска. Тот же фильтр,
+/// что в public/chat.js (safeFileName); здесь — последний рубеж, потому что
+/// имя приходит из вебвью:
+///   - управляющие символы и bidi-override'ы вон (U+202E показывал «gpj.exe»
+///     как «exe.jpg» прямо в окне сохранения);
+///   - запрещённые в Windows символы → «_», без ведущих/хвостовых точек и
+///     пробелов («фото.jpg .exe»);
+///   - зарезервированные имена (CON, NUL, COM1…) — с префиксом;
+///   - не длиннее 64 символов, расширение при обрезке сохраняем.
+fn sanitize_file_name(raw: &str) -> String {
+    const MAX_CHARS: usize = 64;
+    let cleaned: String = raw
+        .chars()
+        .filter(|c| {
+            !c.is_control()
+                && !matches!(*c, '\u{061C}' | '\u{200E}' | '\u{200F}' | '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}')
+        })
+        .map(|c| if matches!(c, '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*') { '_' } else { c })
+        .collect();
+    let trimmed = cleaned.trim_matches(|c: char| c == '.' || c.is_whitespace());
+    if trimmed.is_empty() {
+        return "file".into();
+    }
+    let mut name = trimmed.to_string();
+    let stem = name.split('.').next().unwrap_or("").to_ascii_lowercase();
+    let reserved = matches!(stem.as_str(), "con" | "prn" | "aux" | "nul")
+        || ((stem.starts_with("com") || stem.starts_with("lpt"))
+            && stem.len() == 4
+            && stem.as_bytes()[3].is_ascii_digit());
+    if reserved {
+        name.insert(0, '_');
+    }
+    let chars: Vec<char> = name.chars().collect();
+    if chars.len() > MAX_CHARS {
+        let ext: Vec<char> = match name.rfind('.') {
+            Some(i) if i > 0 => {
+                let e: Vec<char> = name[i..].chars().collect();
+                if e.len() <= 12 { e } else { Vec::new() }
+            }
+            _ => Vec::new(),
+        };
+        let keep = MAX_CHARS - ext.len();
+        name = chars[..keep].iter().chain(ext.iter()).collect();
+    }
+    name
+}
+
+/// Mark-of-the-Web: поток Zone.Identifier с ZoneId=3 («интернет») рядом с
+/// файлом. По нему Windows SmartScreen и Office понимают, что файл пришёл
+/// извне, и предупреждают при запуске. Без него программа из чата запускалась
+/// двойным кликом молча, как будто человек сам её собрал. Ошибка (флешка с
+/// FAT32, где нет потоков) — не повод проваливать сохранение.
+#[cfg(windows)]
+fn mark_from_internet(path: &std::path::Path) {
+    let mut ads = path.as_os_str().to_owned();
+    ads.push(":Zone.Identifier");
+    if let Err(e) = std::fs::write(std::path::PathBuf::from(ads), "[ZoneTransfer]\r\nZoneId=3\r\n") {
+        eprintln!("[save_file] mark-of-the-web failed: {e}");
+    }
+}
+
 /// Сохранить вложение чата: диалог «сохранить как» и запись — здесь, в Rust.
 /// JS передаёт только байты и имя по умолчанию, путь выбирает человек в
 /// системном окне. Раньше JS сам звал fs-плагин, и ACL разрешал запись в
 /// `$HOME/**` любому скрипту вебвью (вплоть до папки автозагрузки) — теперь
 /// fs-прав у вебвью нет вовсе. `Ok(false)` — человек закрыл диалог.
+/// Имя чистим (sanitize_file_name), файл помечаем как скачанный из интернета.
 #[tauri::command]
 async fn save_file(
     app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
     request: tauri::ipc::Request<'_>,
 ) -> std::result::Result<bool, String> {
     use tauri_plugin_dialog::DialogExt;
+    if !from_main(&window) {
+        return Err("not allowed from this window".into());
+    }
     let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
         return Err("expected raw file bytes".into());
     };
@@ -219,6 +340,7 @@ async fn save_file(
         .get("x-file-name")
         .and_then(|v| v.to_str().ok())
         .map(percent_decode)
+        .map(|n| sanitize_file_name(&n))
         .unwrap_or_else(|| "file".into());
     // blocking_* нельзя звать с main-потока; async-команда живёт в пуле tokio.
     let Some(picked) = app.dialog().file().set_file_name(&name).blocking_save_file() else {
@@ -226,6 +348,8 @@ async fn save_file(
     };
     let path = picked.into_path().map_err(|e| e.to_string())?;
     std::fs::write(&path, &data).map_err(|e| e.to_string())?;
+    #[cfg(windows)]
+    mark_from_internet(&path);
     Ok(true)
 }
 
@@ -275,6 +399,7 @@ pub fn run() {
             tray_menu_action,
             start_screen_audio,
             stop_screen_audio,
+            dev_mode_available,
             set_dev_access,
             open_devtools,
             open_external,
@@ -663,6 +788,7 @@ fn launch_main_window(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.show();
         let _ = w.set_focus();
+        note_main_hidden(false);
         return;
     }
 
@@ -710,9 +836,16 @@ fn launch_main_window(app: &AppHandle) {
 
     // Подгоняем под рабочую область монитора (любой размер/любой OS-масштаб),
     // центрируем в ней, затем показываем (окно построено скрытым — без мелькания).
+    // Исключение — перезапуск после тихого обновления в трее: человек нас не
+    // открывал, окно остаётся спрятанным, как было до установки.
     fit_main_window_to_monitor(&window);
-    let _ = window.show();
-    let _ = window.set_focus();
+    if take_relaunch_to_tray(app) {
+        note_main_hidden(true);
+    } else {
+        let _ = window.show();
+        let _ = window.set_focus();
+        note_main_hidden(false);
+    }
 
     #[cfg(windows)]
     {
@@ -735,6 +868,7 @@ fn launch_main_window(app: &AppHandle) {
             if CLOSE_TO_TRAY.load(Ordering::SeqCst) {
                 api.prevent_close();
                 let _ = window_for_close.hide();
+                note_main_hidden(true);
                 if !SHOWN_HIDE_TOAST.swap(true, Ordering::SeqCst) {
                     let _ = app_for_close
                         .notification()
@@ -802,16 +936,21 @@ fn fit_main_window_to_monitor(window: &tauri::WebviewWindow) {
 /// входе в комнату.
 ///
 /// РЕШЕНИЕ: перехватываем PermissionRequested на уровне ICoreWebView2 и сразу
-/// отвечаем ALLOW для микрофона/камеры. Origin — наш собственный bundled
-/// index.html, приложение установлено пользователем осознанно → авто-грант
-/// уместен и убирает диалог насовсем. Token регистрации не храним: хендлер
-/// живёт всё время жизни окна.
+/// отвечаем ALLOW для микрофона. Origin — наш собственный bundled index.html,
+/// приложение установлено пользователем осознанно → авто-грант уместен и
+/// убирает диалог насовсем. Token регистрации не храним: хендлер живёт всё
+/// время жизни окна.
+///
+/// ТОЛЬКО микрофон. Камера в продукте не используется нигде (все getUserMedia —
+/// audio-only, демонстрация экрана идёт через getDisplayMedia — другой путь), а
+/// её авто-грант был мёртвой привилегией: любой скрипт, попавший в webview,
+/// получил бы видео без единого вопроса. Понадобится камера — грант по жесту в
+/// момент первого использования, не при старте.
 #[cfg(windows)]
 fn setup_media_permissions(window: &tauri::WebviewWindow) {
     use webview2_com::Microsoft::Web::WebView2::Win32::{
         ICoreWebView2PermissionRequestedEventArgs, COREWEBVIEW2_PERMISSION_KIND,
-        COREWEBVIEW2_PERMISSION_KIND_CAMERA, COREWEBVIEW2_PERMISSION_KIND_MICROPHONE,
-        COREWEBVIEW2_PERMISSION_STATE_ALLOW,
+        COREWEBVIEW2_PERMISSION_KIND_MICROPHONE, COREWEBVIEW2_PERMISSION_STATE_ALLOW,
     };
     use webview2_com::PermissionRequestedEventHandler;
 
@@ -827,9 +966,7 @@ fn setup_media_permissions(window: &tauri::WebviewWindow) {
                         // PermissionKind в этом биндинге — out-param геттер.
                         let mut kind = COREWEBVIEW2_PERMISSION_KIND::default();
                         args.PermissionKind(&mut kind)?;
-                        if kind == COREWEBVIEW2_PERMISSION_KIND_MICROPHONE
-                            || kind == COREWEBVIEW2_PERMISSION_KIND_CAMERA
-                        {
+                        if kind == COREWEBVIEW2_PERMISSION_KIND_MICROPHONE {
                             args.SetState(COREWEBVIEW2_PERMISSION_STATE_ALLOW)?;
                         }
                     }
@@ -1121,10 +1258,16 @@ async fn startup_update_flow(app: AppHandle) {
 /// ТАЙМАУТ 15с: без него зависшее соединение блокировало бы попытку надолго, а
 /// следующая — только через интервал. Возвращает true, если проверка ЗАВЕРШИЛАСЬ
 /// (есть апдейт или актуально), false при ошибке/таймауте — для ретрая-после-фейла.
-async fn check_update_banner(app: &AppHandle) -> bool {
+enum UpdateCheck {
+    Found(tauri_plugin_updater::Update),
+    UpToDate,
+    Failed,
+}
+
+async fn check_update(app: &AppHandle) -> UpdateCheck {
     let Ok(updater) = app.updater() else {
         let _ = app.emit("void:updater-status", serde_json::json!({ "status": "init-error" }));
-        return false;
+        return UpdateCheck::Failed;
     };
     match tokio::time::timeout(std::time::Duration::from_secs(15), updater.check()).await {
         Err(_) => {
@@ -1132,33 +1275,47 @@ async fn check_update_banner(app: &AppHandle) -> bool {
                 "void:updater-status",
                 serde_json::json!({ "status": "error", "message": "timeout" }),
             );
-            false
+            UpdateCheck::Failed
         }
         Ok(Ok(Some(update))) => {
             let _ = app.emit(
                 "void:updater-status",
                 serde_json::json!({ "status": "available", "version": update.version }),
             );
-            let _ = app.emit(
-                "void:updater-available",
-                serde_json::json!({
-                    "version": update.version,
-                    "body": update.body.clone().unwrap_or_default(),
-                }),
-            );
-            true
+            UpdateCheck::Found(update)
         }
         Ok(Ok(None)) => {
             let _ = app.emit("void:updater-status", serde_json::json!({ "status": "uptodate" }));
-            true
+            UpdateCheck::UpToDate
         }
         Ok(Err(e)) => {
             let _ = app.emit(
                 "void:updater-status",
                 serde_json::json!({ "status": "error", "message": format!("{e:?}") }),
             );
-            false
+            UpdateCheck::Failed
         }
+    }
+}
+
+fn emit_update_available(app: &AppHandle, update: &tauri_plugin_updater::Update) {
+    let _ = app.emit(
+        "void:updater-available",
+        serde_json::json!({
+            "version": update.version,
+            "body": update.body.clone().unwrap_or_default(),
+        }),
+    );
+}
+
+async fn check_update_banner(app: &AppHandle) -> bool {
+    match check_update(app).await {
+        UpdateCheck::Found(update) => {
+            emit_update_available(app, &update);
+            true
+        }
+        UpdateCheck::UpToDate => true,
+        UpdateCheck::Failed => false,
     }
 }
 
@@ -1173,11 +1330,36 @@ fn start_periodic_check(app: AppHandle) {
         loop {
             // Ретрай-после-фейла: успех → 15 мин, ошибка/таймаут → 2 мин (чтобы
             // на нестабильном канале не ждать 15 мин до следующей попытки).
-            let ok = check_update_banner(&app).await;
+            // Нашли обновление, а приложение давно спрятано в трее и человек не
+            // в комнате — ставим тихо (см. silent_update), иначе баннер.
+            let ok = match check_update(&app).await {
+                UpdateCheck::Found(update) => {
+                    if idle_for_silent_update(&app) {
+                        silent_update(&app, update).await;
+                    } else {
+                        emit_update_available(&app, &update);
+                    }
+                    true
+                }
+                UpdateCheck::UpToDate => true,
+                UpdateCheck::Failed => false,
+            };
             let delay = if ok { 15 * 60 } else { 120 };
             tokio::time::sleep(std::time::Duration::from_secs(delay)).await;
         }
     });
+}
+
+/// С какого момента главное окно спрятано в трей (None — окно на экране).
+/// Нужно тихому обновлению: ставим его, только если человек давно не трогал
+/// приложение. Свёрнутое (minimize) окно спрятанным не считается — к нему
+/// возвращаются одним кликом по таскбару.
+static HIDDEN_SINCE: Mutex<Option<std::time::Instant>> = Mutex::new(None);
+
+fn note_main_hidden(hidden: bool) {
+    if let Ok(mut g) = HIDDEN_SINCE.lock() {
+        *g = if hidden { Some(std::time::Instant::now()) } else { None };
+    }
 }
 
 fn show_main_window(app: &AppHandle) {
@@ -1185,6 +1367,7 @@ fn show_main_window(app: &AppHandle) {
         let _ = w.unminimize();
         let _ = w.show();
         let _ = w.set_focus();
+        note_main_hidden(false);
     }
 }
 
@@ -1193,10 +1376,95 @@ fn toggle_main_window(app: &AppHandle) {
         let visible = w.is_visible().unwrap_or(false);
         if visible {
             let _ = w.hide();
+            note_main_hidden(true);
         } else {
             let _ = w.unminimize();
             let _ = w.show();
             let _ = w.set_focus();
+            note_main_hidden(false);
+        }
+    }
+}
+
+/* ---------- тихое обновление в трее ----------
+ * Баннер обновления живёт в главном окне. Приложение, которое неделями висит в
+ * трее, его не показывает никому — человек сидит на старой версии (и без
+ * свежих исправлений безопасности), пока сам не перезапустит. Поэтому: если
+ * окно спрятано в трей дольше SILENT_UPDATE_IDLE и человек не в комнате, найденное
+ * обновление ставим молча и запускаемся обратно в трей. Во всех остальных
+ * случаях — прежний баннер, решает человек. */
+const SILENT_UPDATE_IDLE: std::time::Duration = std::time::Duration::from_secs(30 * 60);
+/// Маркер «после установки вернуться в трей». Перезапуск после NSIS делает не
+/// наш процесс, аргументы ему не передать — поэтому файл с коротким сроком.
+const RELAUNCH_TO_TRAY_FILE: &str = "relaunch-to-tray";
+const RELAUNCH_MARKER_MAX_AGE: std::time::Duration = std::time::Duration::from_secs(10 * 60);
+
+fn idle_for_silent_update(app: &AppHandle) -> bool {
+    let Some(w) = app.get_webview_window(MAIN_LABEL) else {
+        return false;
+    };
+    if w.is_visible().unwrap_or(true) {
+        return false;
+    }
+    if ROOM_SHARE.lock().map(|g| g.is_some()).unwrap_or(true) {
+        return false;
+    }
+    HIDDEN_SINCE
+        .lock()
+        .ok()
+        .and_then(|g| *g)
+        .map(|t| t.elapsed() >= SILENT_UPDATE_IDLE)
+        .unwrap_or(false)
+}
+
+fn relaunch_marker(app: &AppHandle) -> Option<std::path::PathBuf> {
+    app.path().app_data_dir().ok().map(|d| d.join(RELAUNCH_TO_TRAY_FILE))
+}
+
+fn write_relaunch_marker(app: &AppHandle) {
+    if let Some(p) = relaunch_marker(app) {
+        if let Some(dir) = p.parent() {
+            let _ = std::fs::create_dir_all(dir);
+        }
+        let _ = std::fs::write(&p, b"1");
+    }
+}
+
+fn clear_relaunch_marker(app: &AppHandle) {
+    if let Some(p) = relaunch_marker(app) {
+        let _ = std::fs::remove_file(p);
+    }
+}
+
+/// Запущены ли мы тихим обновлением (свежий маркер). Маркер одноразовый.
+fn take_relaunch_to_tray(app: &AppHandle) -> bool {
+    let Some(p) = relaunch_marker(app) else {
+        return false;
+    };
+    let fresh = std::fs::metadata(&p)
+        .and_then(|m| m.modified())
+        .ok()
+        .and_then(|t| t.elapsed().ok())
+        .map(|age| age < RELAUNCH_MARKER_MAX_AGE)
+        .unwrap_or(false);
+    let _ = std::fs::remove_file(&p);
+    fresh
+}
+
+async fn silent_update(app: &AppHandle, update: tauri_plugin_updater::Update) {
+    let _ = app.emit(
+        "void:updater-status",
+        serde_json::json!({ "status": "silent-install", "version": update.version }),
+    );
+    write_relaunch_marker(app);
+    match update.download_and_install(|_, _| {}, || {}).await {
+        // На Windows установщик сам завершает процесс и запускает новую версию;
+        // restart — для остальных платформ.
+        Ok(_) => app.restart(),
+        Err(e) => {
+            eprintln!("[updater] silent tray install failed: {:?}", e);
+            clear_relaunch_marker(app);
+            emit_update_available(app, &update);
         }
     }
 }
@@ -1348,7 +1616,12 @@ fn open_tray_menu(app: &AppHandle, cursor: PhysicalPosition<f64>) {
 /// Действие из кастомного трей-меню (клик по пункту). Сначала прячем меню,
 /// затем выполняем. Копи-действия — no-op вне комнаты (пункты там скрыты).
 #[tauri::command]
-fn tray_menu_action(app: AppHandle, action: String) {
+fn tray_menu_action(app: AppHandle, window: tauri::WebviewWindow, action: String) {
+    // Только из окна трей-меню: остальным окнам (и скриптам в них) кнопки
+    // трея — копировать ссылку, выйти из комнаты — жать незачем.
+    if window.label() != TRAY_MENU_LABEL {
+        return;
+    }
     if let Some(w) = app.get_webview_window(TRAY_MENU_LABEL) {
         let _ = w.hide();
     }
@@ -1396,7 +1669,10 @@ fn route_deep_link(app: &AppHandle, url: &str) {
 /// Забирает (и очищает) код из deep-link, пойманного до готовности окна.
 /// JS дёргает на init — для cold-start входа в комнату по ссылке.
 #[tauri::command]
-fn take_pending_deep_link() -> Option<String> {
+fn take_pending_deep_link(window: tauri::WebviewWindow) -> Option<String> {
+    if !from_main(&window) {
+        return None;
+    }
     PENDING_ROOM.lock().ok().and_then(|mut g| g.take())
 }
 
@@ -1530,4 +1806,35 @@ fn on_global_shortcut(app: &AppHandle, shortcut: &Shortcut, event: tauri_plugin_
     };
 
     run_hotkey_action(app, &action);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::sanitize_file_name;
+
+    #[test]
+    fn strips_bidi_and_control_chars() {
+        // U+202E разворачивает хвост: в диалоге «invoice\u{202E}gpj.exe» выглядит как «invoiceexe.jpg».
+        assert_eq!(sanitize_file_name("invoice\u{202E}gpj.exe"), "invoicegpj.exe");
+        assert_eq!(sanitize_file_name("a\u{0007}b\u{200F}c.txt"), "abc.txt");
+    }
+
+    #[test]
+    fn neutralizes_windows_tricks() {
+        assert_eq!(sanitize_file_name("фото.jpg .exe"), "фото.jpg .exe");
+        assert_eq!(sanitize_file_name("  ..evil.exe. . "), "evil.exe");
+        assert_eq!(sanitize_file_name("..\\..\\x/y:z.txt"), "_.._x_y_z.txt");
+        assert_eq!(sanitize_file_name("CON.txt"), "_CON.txt");
+        assert_eq!(sanitize_file_name("com1"), "_com1");
+        assert_eq!(sanitize_file_name("console.txt"), "console.txt");
+        assert_eq!(sanitize_file_name("..."), "file");
+    }
+
+    #[test]
+    fn caps_length_keeping_extension() {
+        let long = format!("{}.pdf", "a".repeat(300));
+        let out = sanitize_file_name(&long);
+        assert_eq!(out.chars().count(), 64);
+        assert!(out.ends_with(".pdf"));
+    }
 }

@@ -131,14 +131,14 @@
     <main class="privacy-shell">
       <div class="privacy-eyebrow">— privacy</div>
       <h1 class="privacy-title">what void processes, and what isn't here.</h1>
-      <p class="privacy-meta">updated 2026-05-27</p>
+      <p class="privacy-meta">updated 2026-10-25</p>
 
       <section class="privacy-block">
         <h2>what isn't here</h2>
         <p>
           no accounts, no email, no passwords. no message or call history. no
-          tracking cookies, no analytics, no advertising partners. void doesn't
-          sell data and doesn't share it with third parties — there's nothing to
+          tracking cookies, no analytics, no advertising partners. void doesn't sell
+          data and doesn't share it with third parties — there's nothing to
           share.
         </p>
       </section>
@@ -147,10 +147,15 @@
         <h2>what is processed</h2>
         <p>
           the server sees your IP address — technically required to set up the
-          connection and to defend against abuse (rate limiting,
-          anti-bruteforce). the IP is kept only in the server's memory and is
-          wiped a few minutes after you disconnect. it isn't written to
-          persistent storage and isn't shared with anyone.
+          connection and to defend against abuse (rate limits, protection
+          against guessing room codes). the IP is kept only in the server's
+          memory — for an hour at most, never written to disk, never shared. in
+          the logs it's replaced with an anonymous tag that changes every day;
+          room codes and participant ids appear there only as tags too.
+        </p>
+        <p>
+          while you're in a room, the server holds your nickname in memory —
+          to show it to the others. leave, and it's forgotten.
         </p>
       </section>
 
@@ -158,9 +163,11 @@
         <h2>what stays in your browser</h2>
         <p>
           localStorage keeps your settings: language, nickname, microphone and
-          speaker choice, volume levels. these never leave your device — they
-          exist only so your browser can remember your choices between sessions.
-          clear them by clearing site data.
+          speaker choice, volume levels. they exist only so your browser can
+          remember your choices between sessions; of these, only the nickname
+          reaches the server — and only for the duration of a call. no traces of
+          your calls are left in the browser. clear the settings by clearing
+          site data.
         </p>
       </section>
 
@@ -173,6 +180,17 @@
           path. all content is encrypted with DTLS-SRTP; the server does not
           hold any keys.
         </p>
+        <p>
+          you can check that nobody sits in the middle — not even the server —
+          with the <strong>security code</strong>: five symbols in the room. if
+          everyone sees the same ones, the call is yours alone. compare them out
+          loud, not in the chat.
+        </p>
+        <p>
+          to find a direct path, the browser asks public STUN servers (google,
+          cloudflare) for its outside address — that's how WebRTC works. they see
+          only the IP; the call never goes through them.
+        </p>
       </section>
 
       <section class="privacy-block">
@@ -180,11 +198,24 @@
         <p>
           sometimes a direct connection between participants isn't possible —
           usually because of corporate networks or mobile carriers with CG-NAT.
-          in these rare cases, encrypted packets pass through our relay server
-          (TURN). the relay sees only connection metadata: IP addresses, session
-          duration. <strong>the content stays encrypted</strong> — the relay
-          cannot decrypt voice or messages, the keys live only with you and the
-          other person.
+          that happens to roughly one pair in three: then encrypted packets pass
+          through our relay server (TURN). the relay sees only connection
+          metadata: both sides' IP addresses and the session duration — under a
+          one-time id, without your nickname or the room code. only room
+          participants can use the relay. <strong>the content stays
+          encrypted</strong> — the relay cannot decrypt voice or messages, the
+          keys live only with you and the other person.
+        </p>
+      </section>
+
+      <section class="privacy-block">
+        <h2>if you send a bug report</h2>
+        <p>
+          a report leaves only when you press "send" in the settings yourself —
+          it goes to the developer's mailbox. it contains your description, a
+          contact (if you gave one), the version, your browser and the app's
+          technical log. the room code and participant ids are replaced with
+          anonymous tags, the IP with the daily tag.
         </p>
       </section>
 

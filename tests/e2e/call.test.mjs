@@ -6,6 +6,10 @@
  *   E2E_SHOTS=/tmp/void-shots npm run test:e2e   — плюс скриншоты UI
  *
  * Нужен установленный Chromium для Playwright: `npx playwright install chromium`.
+ *
+ *   E2E_SYNTH_MIC=1 npm run test:e2e   — микрофон из генератора Web Audio вместо
+ *   фейкового устройства Chromium. На macOS без доступа терминала к микрофону
+ *   getUserMedia в headless-Chromium просто висит даже с fake-device.
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -32,10 +36,25 @@ async function waitFor(fn, { timeout = 20_000, step = 200, what = "condition" } 
     throw new Error(`timeout waiting for ${what}: ${last instanceof Error ? last.message : JSON.stringify(last)}`);
 }
 
-async function openClient(name) {
-    const ctx = await browser.newContext({ permissions: ["microphone"], viewport: { width: 1280, height: 800 } });
+async function openClient(name, ctxOptions = {}) {
+    const ctx = await browser.newContext({ permissions: ["microphone"], viewport: { width: 1280, height: 800 }, ...ctxOptions });
+    if (process.env.E2E_SYNTH_MIC === "1") {
+        await ctx.addInitScript(() => {
+            const real = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+            navigator.mediaDevices.getUserMedia = async (c) => {
+                if (c && c.video) return real(c);
+                const ac = new AudioContext();
+                const osc = ac.createOscillator();
+                const dst = ac.createMediaStreamDestination();
+                osc.connect(dst);
+                osc.start();
+                return dst.stream;
+            };
+        });
+    }
     const page = await ctx.newPage();
     page.on("pageerror", e => console.error(`[${name}] pageerror`, e.message));
+    if (ctxOptions.noNavigate) return page;
     await page.goto(BASE + "/");
     await page.waitForFunction(() => typeof tryJoin === "function" && document.body.style.opacity === "1");
     return page;
@@ -60,14 +79,32 @@ async function audioPackets(page) {
     });
 }
 
-before(async () => {
-    const data = mkdtempSync(join(tmpdir(), "void-e2e-"));
+/* Каталог данных общий на все запуски сервера в тесте: в нём лежит секрет
+   билетов возврата, и после рестарта сервер должен узнать свои же билеты. */
+let dataDir;
+
+async function startServer() {
     server = spawn(process.execPath, ["server.js"], {
         cwd: root,
-        env: { ...process.env, PORT: String(PORT), STATS_FILE: join(data, "stats.json"), GEO_DISABLED: "1", LOG_LEVEL: "warn" },
+        env: { ...process.env, PORT: String(PORT), STATS_FILE: join(dataDir, "stats.json"), GEO_DISABLED: "1", LOG_LEVEL: "warn" },
         stdio: ["ignore", "inherit", "inherit"]
     });
     await waitFor(() => fetch(BASE + "/api/version").then(r => r.ok), { what: "server up" });
+}
+
+/* Как выкатка: SIGTERM (сервер успевает разослать server-restarting) и новый
+   процесс на том же порту. */
+async function restartServer() {
+    const old = server;
+    const exited = new Promise(r => old.once("exit", r));
+    old.kill("SIGTERM");
+    await exited;
+    await startServer();
+}
+
+before(async () => {
+    dataDir = mkdtempSync(join(tmpdir(), "void-e2e-"));
+    await startServer();
     browser = await chromium.launch({
         args: [
             "--use-fake-ui-for-media-stream",
@@ -148,4 +185,58 @@ test("two people: call connects, audio flows, security code matches, closed room
     ), { what: "SAS for 3" })));
     assert.deepEqual(s3[0], s3[1]);
     assert.deepEqual(s3[1], s3[2]);
+});
+
+test("deploy restart: a closed room comes back closed, members return on their own, outsiders stay out", async () => {
+    const a = await openClient("A2");
+    await a.click("#createBtn");
+    const code = await waitFor(() => a.evaluate(() => isJoined && currentRoomCode), { what: "room created" });
+    const b = await openClient("B2");
+    await joinByCode(b, code);
+    await waitFor(() => allConnected(a, 1), { what: "A2 connected" });
+
+    await a.click("#roomInfo");
+    await a.click("#roomCloseBtn");
+    await waitFor(() => b.evaluate(() => document.querySelectorAll(".room-close-dot.is-voted").length === 1), { what: "B2 sees the vote" });
+    await b.evaluate(() => document.getElementById("roomCloseBtn").click());
+    await waitFor(() => a.evaluate(() => document.getElementById("roomInfo").classList.contains("is-closed")), { what: "closed" });
+
+    await restartServer();
+
+    // Оба вернулись сами (билет поднимает комнату закрытой, токен — своё место).
+    for (const [p, name] of [[a, "A2"], [b, "B2"]]) {
+        await waitFor(() => p.evaluate(() => isJoined
+            && document.getElementById("connLabel")?.textContent
+            && document.getElementById("roomInfo").classList.contains("is-closed")
+            && document.getElementById("connDot").classList.contains("live")), { what: `${name} back after restart`, timeout: 30_000 });
+    }
+    // Разговор не рвался: P2P идёт мимо сервера.
+    await waitFor(() => allConnected(a, 1), { what: "A2 still connected to B2" });
+
+    const c = await openClient("C2");
+    await joinByCode(c, code);
+    const err = await waitFor(() => c.evaluate(() => {
+        const el = document.getElementById("entryErrorText");
+        return !isJoined && el && el.textContent;
+    }), { what: "outsider rejected after restart" });
+    assert.match(err, /закрыт|closed/);
+});
+
+test("invite link on a phone asks before joining; no mic, no join until the click", async () => {
+    const a = await openClient("A3");
+    await a.click("#createBtn");
+    const code = await waitFor(() => a.evaluate(() => isJoined && currentRoomCode), { what: "room created" });
+
+    const phone = await openClient("phone", { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, noNavigate: true });
+    await phone.goto(`${BASE}/?room=${code}`);
+    await waitFor(() => phone.evaluate(() => document.querySelector("#inviteBanner .invite-banner-code")?.textContent),
+        { what: "confirm banner on the phone" });
+    assert.equal(await phone.evaluate(() => document.querySelector("#inviteBanner .invite-banner-code").textContent), code);
+    await phone.waitForTimeout(1500);
+    assert.deepEqual(await phone.evaluate(() => ({ isJoined, mic: !!localStream })), { isJoined: false, mic: false },
+        "nothing happens without the click");
+
+    await phone.click("#inviteBanner .invite-banner-open");
+    await waitFor(() => phone.evaluate(() => isJoined && !!localStream), { what: "joined after the click" });
+    await waitFor(() => allConnected(a, 1), { what: "A3 sees the phone" });
 });

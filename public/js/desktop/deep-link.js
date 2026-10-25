@@ -1,8 +1,11 @@
 /* ============ Deep-link приём (desktop-only) ============
-   Ловит void://room/КОД и входит в комнату:
+   Ловит void://room/КОД и предлагает войти в комнату:
    - warm (app уже открыт): событие "void:deep-link-room" из Rust;
    - cold (ссылка запустила app): команда take_pending_deep_link на init.
-   Сам вход — joinRoomByCode() из app.js. В web-сборке модуль no-op. */
+   Входа без клика нет: confirmJoinByLink() из app.js показывает экран с кодом,
+   и только «войти» запускает вход и микрофон. Раньше одна ссылка из любого
+   мессенджера или сайта сажала человека в чужую комнату с включённым
+   микрофоном. В web-сборке модуль no-op. */
 
 (function () {
     "use strict";
@@ -24,7 +27,7 @@
     function handle(code) {
         if (!code) return;
         whenReady(() => {
-            if (typeof joinRoomByCode === "function") joinRoomByCode(code);
+            if (typeof confirmJoinByLink === "function") confirmJoinByLink(code);
         });
     }
 

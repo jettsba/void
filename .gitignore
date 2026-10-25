@@ -27,10 +27,8 @@ void.key
 void.key.pub
 
 .claude
+CLAUDE.md
 rules
 tasks
 design_handoff
-CLAUDE.md
-MACOS_DESKTOP_PLAN.md
-# маркер последнего успешного деплоя (живёт только на VPS)
 .deployed-sha

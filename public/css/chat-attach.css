@@ -60,6 +60,14 @@
     text-transform: lowercase;
 }
 
+/* Исполняемый файл от собеседника: предупреждение под размером. */
+.chat-attach-file-warn {
+    color: var(--signal-warn);
+    font-size: 0.71rem;
+    letter-spacing: var(--tracking-wide);
+    text-transform: lowercase;
+}
+
 .chat-attach-file-dl {
     flex-shrink: 0;
     display: none;

@@ -37,7 +37,7 @@ offer/answer/ICE) и раздачей статики. Две поверхнос�
                   │  rooms{}   │     │  3478 udp+tcp · 1k relay │
                   └─────┬──────┘     │  use-auth-secret +       │
                         │            │  HMAC-SHA1 credentials   │
-                        │  /api/turn-credentials → HMAC creds
+                        │  TURN-креды → в user-list по WS (только участникам)
                         │  /adminstats (HTML-дашборд, Basic auth)
                         │  ./data/stats.json (debounced persist, только метрики)
                         ▼
@@ -92,7 +92,8 @@ devDeps: `@tauri-apps/cli`, `@jitsi/rnnoise-wasm`, `nodemon`. Никаких ORM
 │   ├── desktop-downloads.js   — поллинг GitHub Releases API → счётчики загрузок installer+portable
 │   ├── bug-report.js          — POST /api/report-bug → Yandex SMTP (nodemailer)
 │   ├── leave-beacon.js        — POST /api/leave-room (navigator.sendBeacon на pagehide)
-│   ├── turn.js                — GET /api/turn-credentials, HMAC-SHA1 короткие creds для coturn
+│   ├── turn.js                — HMAC-SHA1 короткие creds для coturn: участнику в user-list / по turn-refresh; переходный GET /api/turn-credentials для старых десктопов (до 1.7.2)
+│   ├── resume-ticket.js       — подпись билетов закрытых комнат (секрет: env RESUME_SECRET или data/resume-secret)
 │   ├── privacy.js             — псевдонимы для логов: IP → `ip#3fa9c1 (RU)` (суточная соль в памяти + страна по офлайн-базе DB-IP), код комнаты → room ref
 │   └── log.js                 — structured logger; поля `ip`/`code` маскирует сам (через privacy.js)
 ├── public/                    — веб-фронт (отдаётся на app.void-room.space, грузится и в desktop)
@@ -226,6 +227,10 @@ docker compose --profile turn up -d
 | `GEO_DISABLED` | — `1` = не грузить базу, страна в IP-метках логов = `??` | server.js |
 | `ALLOWED_ORIGINS` | void-room.space + www + app | lib/security.js |
 | `MAX_ROOM_USERS` | 10 | lib/security.js |
+| `ROOMS_CAP` | 10000 — потолок комнат на сервер (сверху клиент получает `server-full`) | lib/security.js |
+| `CREATE_ROOM_LIMIT` | 20 — успешных create-room в минуту с одного IP | lib/security.js |
+| `FAILED_JOIN_LIMIT` | 20 — РАЗНЫХ кодов с отказом в минуту, дальше блок IP на 5 мин | lib/security.js |
+| `RESUME_SECRET` | — (нет → `data/resume-secret`, создаётся сам) — подпись билетов закрытых комнат | lib/resume-ticket.js |
 | `STATS_FILE` | `./data/stats.json` | lib/stats.js |
 | `BUG_SMTP_USER` / `BUG_SMTP_PASS` / `BUG_SMTP_TO` | — / — / =USER | lib/bug-report.js |
 | `TURN_HOST` / `TURN_SECRET` | — (нет → 503, STUN-only) | lib/turn.js + coturn |
@@ -276,7 +281,7 @@ docker compose --profile turn up -d
    (если у хостера внешний firewall — открывать надо в его панели, на самой
    машине этого не увидеть)
 
-   **TCP 3478 обязателен.** `/api/turn-credentials` раздаёт клиенту адрес с
+   **TCP 3478 обязателен.** Сервер раздаёт клиенту адрес с
    `?transport=tcp` наравне с UDP: у части клиентов UDP до coturn не доходит
    вовсе (в failure-логе это `TURN allocate request timed out`), и TCP —
    единственный оставшийся путь. Приоритет TCP-кандидатов ниже, так что на
@@ -294,17 +299,21 @@ docker compose --profile turn up -d
    ```
 
 Как это работает: coturn в режиме `use-auth-secret`. Сервер выдаёт короткоживущие
-credentials через `GET /api/turn-credentials?uid=` —
-`username = ${expiry}:${userId}`, `credential = base64(HMAC-SHA1(TURN_SECRET, username))`,
-TTL ~1ч. coturn валидирует тем же `--static-auth-secret`. Базы нет, ротация автоматическая.
+credentials ТОЛЬКО участнику комнаты — в его персональном `user-list` (поле `turn`)
+и по WS-запросу `turn-refresh` —
+`username = ${expiry}:${sid}` (sid — одноразовый серверный id сессии, не userId),
+`credential = base64(HMAC-SHA1(TURN_SECRET, username))`, TTL ~1ч. coturn валидирует
+тем же `--static-auth-secret`. Базы нет, ротация автоматическая. Свой публичный IP
+coturn запрещён как peer флагом `--denied-peer-ip=${TURN_EXTERNAL_IP}` (compose).
 
 ### проверка TURN
 
-- `curl 'https://app.your-domain.com/api/turn-credentials?uid=test'` — должен вернуть JSON
-  с `iceServers`, не 503.
+- Войти в комнату в браузере, в DevTools → Network → WS найти входящий `user-list`:
+  поле `turn` должно содержать `iceServers` (не `false` — это значит TURN_* не заданы).
 - Открыть [trickle-ice tool](https://webrtc.github.io/samples/src/content/peerconnection/trickle-ice/),
-  вставить `turn:turn.your-domain.com:3478` + `username`/`credential` из ответа curl,
+  вставить `turn:turn.your-domain.com:3478` + `username`/`credential` из этого `turn`,
   нажать **Gather candidates** — должен появиться candidate `Type: relay` с IP VPS.
+  (Креды живут час и привязаны к сессии комнаты — снаружи их больше не выдают.)
 - Созвониться вдвоём из разных сетей, открыть `/adminstats` → виджет «connectivity»
   покажет долю `direct / relay / failed`. **failed должен быть 0%.**
 
@@ -422,6 +431,16 @@ user-agent и id текущей комнаты. Если баг воспроиз
 
 `?debug=1` в URL поднимает уровень до `debug` на одну загрузку, не трогая localStorage.
 На сервере то же самое — через `LOG_LEVEL` (см. деплой).
+
+### dev-режим (HUD пиров, force-relay, DevTools в desktop)
+
+Включается 10 быстрыми кликами по пилюле версии в настройках — но только на
+машине, где он разрешён руками:
+
+- **desktop:** создать пустой файл `%APPDATA%\space.void-room.app\dev-mode`
+  (или запустить приложение с переменной окружения `VOID_DEV=1`). Проверяет
+  Rust: без флага команды DevTools не работают, что бы ни прислал JS.
+- **web:** в консоли браузера `localStorage.setItem("void:dev", "1")`.
 
 ---
 

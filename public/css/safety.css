@@ -50,7 +50,8 @@
     filter: drop-shadow(0 0 4px rgba(230, 230, 232, 0.35));
 }
 
-.sas-row[data-state="error"] .sas-mini {
+.sas-row[data-state="error"] .sas-mini,
+.sas-row[data-state="timeout"] .sas-mini {
     color: var(--signal-warn);
     filter: none;
 }
@@ -246,7 +247,8 @@
     display: none;
 }
 
-.sas-modal[data-state="error"] .sas-status {
+.sas-modal[data-state="error"] .sas-status,
+.sas-modal[data-state="timeout"] .sas-status {
     color: var(--signal-warn);
 }
 

@@ -47,8 +47,25 @@ const CHAT_MAX_TEXT_LEN = 4000;
 
 /** LRU-кап на «живые» blob-URL'ы в чате. Раньше освобождались только
  *  при `resetChatOnLeave` — за долгую сессию с сотней картинок копится
- *  сотни МБ. Когда переполняем, прибиваем самый старый URL. */
+ *  сотни МБ. Когда переполняем, прибиваем самый старый URL.
+ *  Квота — НА КАЖДОГО отправителя: при общей квоте 31 мини-вложение одного
+ *  участника отзывало все картинки и файлы остальных. */
 const CHAT_MAX_LIVE_BLOB_URLS = 30;
+
+/** Сколько сообщений чата держим в DOM. Чат эфемерный, но без потолка поток
+ *  от одного участника растил DOM и память у всех без ограничений. 1000 —
+ *  больше, чем набирается в самом длинном живом разговоре. */
+const CHAT_MAX_MESSAGES = 1000;
+
+/** Приём от одного участника: не больше N сообщений (текст, вложения, реакции)
+ *  в секунду. Руками больше трёх не набрать, вставка — одно сообщение. Всё,
+ *  что сверху, — флуд: молча отбрасываем. */
+const CHAT_INBOUND_PER_SEC = 20;
+
+/** Ник и имя файла от собеседника режем до этой длины (ник 200 тысяч
+ *  символов рендерился целиком). msgId — идентификатор, а не текст. */
+const CHAT_MAX_NAME_LEN = 64;
+const CHAT_MAX_MSGID_LEN = 64;
 
 /* Long-press-жест: время удержания pointer'а до показа контекстного меню,
    и максимальный сдвиг (px²) — больше → считаем за drag/scroll и отменяем. */
@@ -71,7 +88,16 @@ const messageReactions = new Map();
 
 /** LRU для blob-URL'ов: Map сохраняет порядок вставки, переставляем
  *  через delete + set когда URL переиспользуется. */
-const liveBlobUrls = new Map(); // url → addedAt
+const liveBlobUrls = new Map(); // url → owner userId
+
+/** msgId → userId автора. msgId генерирует отправитель, и раньше любой мог
+ *  прислать вложение с ЧУЖИМ msgId: при сборке файла поиск по id находил узел
+ *  жертвы и подменял в нём картинку или файл («invoice.pdf.exe» под ником
+ *  честного человека). Первый, кто занял msgId, им и владеет; повтор — отбой. */
+const msgOwners = new Map();
+
+/** userId → {windowStart, count, warned} — счётчик приёма для CHAT_INBOUND_PER_SEC. */
+const inboundRate = new Map();
 
 let chatPendingAttachments = []; // [{id, file, kind, previewUrl}]
 
@@ -304,6 +330,8 @@ function resetChatOnLeave() {
     channelInbox.clear();
     channelSendQueues.clear();
     messageReactions.clear();
+    msgOwners.clear();
+    inboundRate.clear();
     closeContextMenu();
 
     if (lightboxState) closeLightbox();
@@ -349,7 +377,7 @@ function bindChatChannel(channel, userId) {
         const inbox = channelInbox.get(userId);
         if (inbox) {
             clearInboxWatchdog(inbox);
-            failPendingMessage(inbox.meta.msgId);
+            failPendingMessage(inbox.node);
             channelInbox.delete(userId);
         }
     };
@@ -378,7 +406,7 @@ function detachChatChannelForUser(userId) {
     const inbox = channelInbox.get(userId);
     if (inbox) {
         clearInboxWatchdog(inbox);
-        failPendingMessage(inbox.meta.msgId);
+        failPendingMessage(inbox.node);
         channelInbox.delete(userId);
     }
 }
@@ -393,7 +421,7 @@ function startInboxWatchdog(userId, inbox) {
             userId, msgId: inbox.meta.msgId,
             received: inbox.received, total: inbox.meta.totalChunks
         });
-        failPendingMessage(inbox.meta.msgId);
+        failPendingMessage(inbox.node);
         channelInbox.delete(userId);
     }, CHAT_INBOX_STALL_MS);
 }
@@ -587,17 +615,80 @@ function waitForLowBuffer(channel) {
 
 /* ========= RECEIVE ========= */
 
+/* Окно в секунду на каждого собеседника. Предупреждение в лог — один раз на
+   окно, иначе флудер утопил бы и лог. */
+function inboundAllowed(userId) {
+    const now = Date.now();
+    let r = inboundRate.get(userId);
+    if (!r || now - r.windowStart >= 1000) {
+        r = { windowStart: now, count: 0, warned: false };
+        inboundRate.set(userId, r);
+    }
+    r.count += 1;
+    if (r.count <= CHAT_INBOUND_PER_SEC) return true;
+    if (!r.warned) {
+        r.warned = true;
+        log.warn("chat", "inbound flood dropped", { userId });
+    }
+    return false;
+}
+
+function isValidMsgId(id) {
+    return typeof id === "string" && id.length > 0 && id.length <= CHAT_MAX_MSGID_LEN;
+}
+
+/* Имя файла от собеседника → безопасное для показа и для диска:
+   - управляющие символы и bidi-override'ы (U+202E «развернуть»: «gpj.exe»
+     показывается как «exe.jpg») вон;
+   - запрещённые в Windows символы → «_», без ведущих/хвостовых точек и пробелов
+     («фото.jpg .exe» → обход проверки расширения);
+   - зарезервированные имена Windows (CON, NUL, COM1…) → с префиксом;
+   - не длиннее CHAT_MAX_NAME_LEN, расширение при обрезке сохраняем.
+   Тот же фильтр повторяет Rust при записи на диск (save_file) — последний рубеж. */
+const FILENAME_STRIP_RX = /[\u0000-\u001f\u007f-\u009f؜‎‏‪-‮⁦-⁩]/g;
+const FILENAME_RESERVED_RX = /^(con|prn|aux|nul|com\d|lpt\d)(\.|$)/i;
+
+function safeFileName(raw, fallback = "file") {
+    let name = typeof raw === "string" ? raw : "";
+    name = name.replace(FILENAME_STRIP_RX, "")
+        .replace(/[<>:"/\\|?*]/g, "_")
+        .replace(/\s+/g, " ")
+        .replace(/^[\s.]+|[\s.]+$/g, "");
+    if (!name) return fallback;
+    if (FILENAME_RESERVED_RX.test(name)) name = "_" + name;
+    if (name.length > CHAT_MAX_NAME_LEN) {
+        const dot = name.lastIndexOf(".");
+        const ext = dot > 0 && name.length - dot <= 12 ? name.slice(dot) : "";
+        name = name.slice(0, CHAT_MAX_NAME_LEN - ext.length) + ext;
+    }
+    return name;
+}
+
+/* Расширения, которые Windows запускает двойным кликом. Такие файлы от
+   собеседника передаём (друзья пересылают друг другу программы), но в чате
+   помечаем, а перед сохранением на десктопе переспрашиваем. */
+const EXECUTABLE_EXT_RX = /\.(exe|msi|msix|msp|bat|cmd|com|scr|pif|cpl|ps1|psm1|vbs|vbe|js|jse|wsf|wsh|hta|lnk|url|reg|jar|appx|appxbundle|application|gadget|inf|scf|sct)$/i;
+
+function isExecutableName(name) {
+    return typeof name === "string" && EXECUTABLE_EXT_RX.test(name);
+}
+
 function handleIncoming(data, userId) {
     if (typeof data === "string") {
         let json;
         try { json = JSON.parse(data); } catch { return; }
+        /* «null», числа, массивы — валидный JSON, но не сообщение. Раньше
+           строка "null" роняла обработчик (json.type у null). */
+        if (!json || typeof json !== "object" || Array.isArray(json)) return;
         /* Код безопасности (js/safety-code.js) едет по тому же каналу:
-           отправитель — владелец канала, поле from не нужно. */
-        if (json && json.type === "sas") {
+           отправитель — владелец канала, поле from не нужно. Под лимит чата не
+           попадает: у него свой бюджет в safety-code.js. */
+        if (json.type === "sas") {
             window.VoidSafety?.onMessage(json, userId);
             return;
         }
         if (json.type !== "msg") return;
+        if (!inboundAllowed(userId)) return;
 
         /* B1: anti-spoof. Канал был открыт под конкретный userId — это и есть
            логический отправитель. Если peer прислал свой json с чужим `from`,
@@ -621,6 +712,16 @@ function handleIncoming(data, userId) {
             return;
         }
 
+        if (json.kind !== "text" && json.kind !== "attachment") return;
+
+        /* msgId: непустая строка разумной длины и ещё никем не занятая — ни
+           нашим сообщением, ни чужим, ни прошлым этого же собеседника. */
+        if (!isValidMsgId(json.msgId)) return;
+        if (msgOwners.has(json.msgId)) {
+            log.warn("chat", "colliding msgId rejected", { userId, owner: msgOwners.get(json.msgId) });
+            return;
+        }
+
         if (json.kind === "text") {
             /* B2: cap длины. Локально <textarea maxlength="2000">, но peer
                может прислать любой размер. Без cap'а можно положить layout
@@ -634,6 +735,7 @@ function handleIncoming(data, userId) {
         }
 
         if (json.kind === "attachment") {
+            json.name = safeFileName(json.name, json.mediaKind === "image" ? "image" : "file");
             // sanity
             const cap = (json.mediaKind === "image" ? CHAT_MAX_IMAGE_MB : CHAT_MAX_FILE_MB) * 1024 * 1024;
             if (typeof json.size !== "number" || json.size <= 0 || json.size > cap * 1.5) {
@@ -654,11 +756,14 @@ function handleIncoming(data, userId) {
             const prev = channelInbox.get(userId);
             if (prev) {
                 clearInboxWatchdog(prev);
-                failPendingMessage(prev.meta.msgId);
+                failPendingMessage(prev.node);
             }
 
+            /* node — прямая ссылка на узел ЭТОГО сообщения: прогресс и готовый
+               файл пишем только в него, а не в «первый найденный по msgId». */
             const newInbox = {
                 meta: json,
+                node: null,
                 chunks: [],
                 received: 0,
                 totalBytes: 0,
@@ -666,7 +771,7 @@ function handleIncoming(data, userId) {
             };
             channelInbox.set(userId, newInbox);
             startInboxWatchdog(userId, newInbox);
-            appendMessage(json, false, { ready: false });
+            newInbox.node = appendMessage(json, false, { ready: false });
             return;
         }
         return;
@@ -687,12 +792,12 @@ function handleIncoming(data, userId) {
         if (inbox.totalBytes > inbox.meta.size + CHAT_CHUNK_BYTES) {
             log.warn("chat", "transfer overflow, aborting", { msgId: inbox.meta.msgId });
             clearInboxWatchdog(inbox);
-            failPendingMessage(inbox.meta.msgId);
+            failPendingMessage(inbox.node);
             channelInbox.delete(userId);
             return;
         }
 
-        updateMessageProgress(inbox.meta.msgId, inbox.received / inbox.meta.totalChunks);
+        updateMessageProgress(inbox.node, inbox.received / inbox.meta.totalChunks);
 
         if (inbox.received >= inbox.meta.totalChunks) {
             clearInboxWatchdog(inbox);
@@ -700,8 +805,8 @@ function handleIncoming(data, userId) {
                 type: inbox.meta.mime || "application/octet-stream"
             });
             const url = URL.createObjectURL(blob);
-            trackBlobUrl(url);
-            finalizeMessageAttachment(inbox.meta.msgId, url, inbox.meta);
+            trackBlobUrl(url, userId);
+            finalizeMessageAttachment(inbox.node, url, inbox.meta);
             channelInbox.delete(userId);
         }
     }
@@ -709,7 +814,47 @@ function handleIncoming(data, userId) {
 
 /* ========= UI: messages list ========= */
 
+/* Имя автора входящего сообщения — из реестра участников (nicknameMap), который
+   ведёт сервер, а не из поля nick в самом сообщении: его пишет отправитель, и
+   раньше можно было подписаться чужим именем. Если такой же ник в комнате у
+   кого-то ещё (включая нас) — добавляем хвост id, чтобы дубль был различим.
+   Участник уже ушёл, а канал ещё донёс сообщение — имени в реестре нет:
+   честно пишем «неизвестный», без доверия к присланному. */
+function chatAuthorName(userId) {
+    const nick = typeof nicknameMap !== "undefined" ? nicknameMap.get(userId) : null;
+    if (!nick) return { text: _ct("chat.unknown"), unverified: true };
+    const key = nick.toLowerCase();
+    let dup = false;
+    if (typeof nicknameMap !== "undefined") {
+        for (const [id, other] of nicknameMap) {
+            if (id !== userId && typeof other === "string" && other.toLowerCase() === key) { dup = true; break; }
+        }
+    }
+    return { text: dup ? `${nick} #${String(userId).slice(0, 4)}` : nick, unverified: false };
+}
+
+/* Звук и бейдж непрочитанного — не чаще раза в секунду, даже если сообщения
+   сыплются пачкой. */
+let _lastMessageSoundAt = 0;
+
+/* Потолок истории: старейшие сообщения уходят из DOM вместе со своими
+   реакциями и записью о владельце msgId. */
+function trimChatHistory() {
+    while (chatMessagesEl.childElementCount > CHAT_MAX_MESSAGES) {
+        const oldest = chatMessagesEl.firstElementChild;
+        if (!oldest) break;
+        const id = oldest.dataset.msgId;
+        if (id) {
+            messageReactions.delete(id);
+            msgOwners.delete(id);
+        }
+        oldest.remove();
+    }
+}
+
 function appendMessage(msg, isSelf, attachState = null) {
+    msgOwners.set(msg.msgId, isSelf ? getSelfId() : msg.from);
+
     const wrap = document.createElement("div");
     wrap.className = "chat-msg" + (isSelf ? " chat-msg-self" : "");
     wrap.dataset.msgId = msg.msgId;
@@ -723,7 +868,9 @@ function appendMessage(msg, isSelf, attachState = null) {
         nick.dataset.i18n = "chat.you";
         nick.textContent = _ct("chat.you");
     } else {
-        nick.textContent = msg.nick || "—";
+        const author = chatAuthorName(msg.from);
+        nick.textContent = author.text;
+        if (author.unverified) nick.classList.add("is-unverified");
     }
 
     const time = document.createElement("span");
@@ -747,6 +894,7 @@ function appendMessage(msg, isSelf, attachState = null) {
     attachLikeGestures(wrap, msg.msgId);
     chatMessagesEl.appendChild(wrap);
     renderReactionBadge(msg.msgId);
+    trimChatHistory();
 
     if (!chatHasMessages) {
         chatHasMessages = true;
@@ -759,14 +907,17 @@ function appendMessage(msg, isSelf, attachState = null) {
         scrollChatToBottom(true);
     }
 
-    if (!isSelf) {
-        if (!chatOpen) {
+    if (!isSelf && !chatOpen) {
+        const now = Date.now();
+        if (now - _lastMessageSoundAt >= 1000) {
+            _lastMessageSoundAt = now;
             markUnread();
             playMessageSound();
         }
     }
 
     requestAnimationFrame(refreshChatJumpButton);
+    return wrap;
 }
 
 /* Домен без протокола (claude.ai, example.co.uk) тоже линкуется — не только
@@ -844,6 +995,16 @@ function renderAttachment(msg, isSelf, attachState) {
         meta.appendChild(nm);
         meta.appendChild(sz);
 
+        /* Программа или скрипт от собеседника — видно сразу, до скачивания. */
+        if (!isSelf && isExecutableName(msg.name)) {
+            fi.classList.add("is-executable");
+            const warn = document.createElement("div");
+            warn.className = "chat-attach-file-warn";
+            warn.dataset.i18n = "chat.exe.badge";
+            warn.textContent = _ct("chat.exe.badge");
+            meta.appendChild(warn);
+        }
+
         const dl = document.createElement("a");
         dl.className = "chat-attach-file-dl";
         dl.textContent = "↓";
@@ -872,15 +1033,24 @@ function renderAttachment(msg, isSelf, attachState) {
     return container;
 }
 
-function updateMessageProgress(msgId, frac) {
-    const wrap = chatMessagesEl.querySelector(`[data-msg-id="${cssEscape(msgId)}"]`);
+/* Узел сообщения: входящие вложения передают прямую ссылку (inbox.node),
+   свои — msgId (он наш и гарантированно уникален). Узел, вытесненный из
+   истории потолком CHAT_MAX_MESSAGES, уже не в DOM — писать в него незачем. */
+function msgNode(target) {
+    if (!target) return null;
+    if (typeof target !== "string") return target.isConnected ? target : null;
+    return chatMessagesEl.querySelector(`[data-msg-id="${cssEscape(target)}"]`);
+}
+
+function updateMessageProgress(target, frac) {
+    const wrap = msgNode(target);
     if (!wrap) return;
     const bar = wrap.querySelector(".chat-attach-progress-bar");
     if (bar) bar.style.width = Math.round(Math.min(1, frac) * 100) + "%";
 }
 
-function finalizeMessageAttachment(msgId, url, meta) {
-    const wrap = chatMessagesEl.querySelector(`[data-msg-id="${cssEscape(msgId)}"]`);
+function finalizeMessageAttachment(target, url, meta) {
+    const wrap = msgNode(target);
     if (!wrap) return;
     const attach = wrap.querySelector(".chat-attach");
     if (!attach) return;
@@ -903,14 +1073,14 @@ function finalizeMessageAttachment(msgId, url, meta) {
 }
 
 function markOwnAttachmentReady(msgId) {
-    const wrap = chatMessagesEl.querySelector(`[data-msg-id="${cssEscape(msgId)}"]`);
+    const wrap = msgNode(msgId);
     if (!wrap) return;
     const attach = wrap.querySelector(".chat-attach");
     if (attach) attach.classList.add("is-ready");
 }
 
-function failPendingMessage(msgId) {
-    const wrap = chatMessagesEl.querySelector(`[data-msg-id="${cssEscape(msgId)}"]`);
+function failPendingMessage(target) {
+    const wrap = msgNode(target);
     if (!wrap) return;
     const attach = wrap.querySelector(".chat-attach");
     if (!attach) return;
@@ -1384,7 +1554,22 @@ async function copyImage(url) {
     }
 }
 
+/* Исполняемый файл от собеседника сохраняем только вторым нажатием в течение
+   5 с: первое показывает предупреждение. Так программа из чата не ложится на
+   диск по случайному клику, а друзьям переслать её всё ещё можно. */
+let _exeSaveArmed = null; // {url, until}
+
 async function saveBlobUrl(url, filename) {
+    if (isExecutableName(filename) && liveBlobUrls.get(url) !== getSelfId()) {
+        const now = Date.now();
+        if (!_exeSaveArmed || _exeSaveArmed.url !== url || now > _exeSaveArmed.until) {
+            _exeSaveArmed = { url, until: now + 5000 };
+            showChatToast(_ct("chat.exe.confirm"));
+            return;
+        }
+        _exeSaveArmed = null;
+    }
+
     /* `<a download>` на blob:-URL молча не срабатывает в WebView2 (клик
        проходит без единой ошибки — ни исключения, ни события, поэтому
        раньше это выглядело как полная тишина даже с log level=info: логировать
@@ -1888,17 +2073,22 @@ function newMsgId() {
  * Дублирующая запись в `objectUrlsToRevoke` нужна, чтобы при выходе из
  * комнаты ОБЕ коллекции (LRU + leave-cleanup) вычистили всё, что было.
  */
-function trackBlobUrl(url) {
+function trackBlobUrl(url, owner = getSelfId()) {
     if (!url) return;
     objectUrlsToRevoke.add(url);
     if (liveBlobUrls.has(url)) liveBlobUrls.delete(url);
-    liveBlobUrls.set(url, Date.now());
-    while (liveBlobUrls.size > CHAT_MAX_LIVE_BLOB_URLS) {
-        const oldest = liveBlobUrls.keys().next().value;
-        if (oldest == null) break;
-        liveBlobUrls.delete(oldest);
-        objectUrlsToRevoke.delete(oldest);
-        try { URL.revokeObjectURL(oldest); } catch (_) {}
+    liveBlobUrls.set(url, owner);
+    /* Квота на отправителя: вытесняем самый старый URL ЭТОГО же владельца,
+       чужие не трогаем. */
+    let mine = 0;
+    for (const o of liveBlobUrls.values()) if (o === owner) mine += 1;
+    for (const [u, o] of liveBlobUrls) {
+        if (mine <= CHAT_MAX_LIVE_BLOB_URLS) break;
+        if (o !== owner) continue;
+        liveBlobUrls.delete(u);
+        objectUrlsToRevoke.delete(u);
+        try { URL.revokeObjectURL(u); } catch (_) {}
+        mine -= 1;
     }
 }
 

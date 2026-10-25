@@ -43,6 +43,11 @@ const SAS_ICON_NAMES = [
 ];
 const SAS_LEN = 5;
 const SAS_EPOCH_KEEP = 8; // сколько чужих эпох держим в inbox (пиры могут отставать на шаг)
+/* Сколько код может «сверяться», прежде чем мы честно скажем, что что-то не так.
+   Нормальная сверка занимает доли секунды. Вечное ожидание выглядело как
+   «ещё проверяет» и молча оставляло звонок без единственной защиты от
+   подмены — участник комнаты мог заморозить её у соседа мусорными эпохами. */
+const SAS_PENDING_TIMEOUT_MS = 30_000;
 
 const VoidSafety = (() => {
     let certificate = null;
@@ -106,12 +111,18 @@ const VoidSafety = (() => {
         return null;
     }
 
+    /* Вытесняем старейшую эпоху, но НИКОГДА не текущую: раньше восемь мусорных
+       эпох от соседа выталкивали commit'ы активной, и код навсегда зависал. */
     function box(id) {
         let b = inbox.get(id);
         if (!b) {
             b = { commits: new Map(), nonces: new Map() };
             inbox.set(id, b);
-            while (inbox.size > SAS_EPOCH_KEEP) inbox.delete(inbox.keys().next().value);
+            while (inbox.size > SAS_EPOCH_KEEP) {
+                const victim = [...inbox.keys()].find(k => k !== epoch?.id && k !== id);
+                if (victim === undefined) break;
+                inbox.delete(victim);
+            }
         }
         return b;
     }
@@ -149,8 +160,20 @@ const VoidSafety = (() => {
         if (epoch.revealed) send(uid, { op: "reveal", epoch: epoch.id, n: epoch.nonce });
     }
 
+    let pendingTimer = null;
     function setResult(state, icons = null) {
         result = { state, icons };
+        if (pendingTimer) { clearTimeout(pendingTimer); pendingTimer = null; }
+        if (state === "pending") {
+            const ep = epoch;
+            pendingTimer = setTimeout(() => {
+                pendingTimer = null;
+                if (epoch === ep && result.state === "pending") {
+                    log.warn("rtc", "safety code: still pending, showing timeout");
+                    setResult("timeout");
+                }
+            }, SAS_PENDING_TIMEOUT_MS);
+        }
         render();
     }
 
@@ -231,16 +254,26 @@ const VoidSafety = (() => {
         setResult("ready", icons);
     }
 
+    /* Эпоха = отсортированный состав комнаты через запятую. Настоящая эпоха
+       от соседа всегда содержит и его, и нас — всё остальное мусор, который
+       даже не заводит запись в inbox. */
+    const EPOCH_RX = /^[A-Za-z0-9_-]{1,64}(,[A-Za-z0-9_-]{1,64}){1,31}$/;
+
     function onMessage(msg, uid) {
         if (!msg || typeof msg.epoch !== "string" || msg.epoch.length > 1024) return;
+        const isCommit = msg.op === "commit" && /^[0-9a-f]{64}$/.test(msg.c);
+        const isReveal = msg.op === "reveal" && /^[0-9a-f]{32}$/.test(msg.n);
+        if (!isCommit && !isReveal) return;
+        if (!EPOCH_RX.test(msg.epoch)) return;
+        const ids = msg.epoch.split(",");
+        if (!ids.includes(uid) || !ids.includes(clientId)) return;
+
         const b = box(msg.epoch);
-        if (msg.op === "commit" && /^[0-9a-f]{64}$/.test(msg.c)) {
+        if (isCommit) {
             if (!b.commits.has(uid)) b.commits.set(uid, msg.c);
-        } else if (msg.op === "reveal" && /^[0-9a-f]{32}$/.test(msg.n)) {
+        } else if (b.commits.has(uid) && !b.nonces.has(uid)) {
             // reveal без commit'а — нарушение порядка (канал ordered), не берём.
-            if (b.commits.has(uid) && !b.nonces.has(uid)) b.nonces.set(uid, msg.n);
-        } else {
-            return;
+            b.nonces.set(uid, msg.n);
         }
         if (epoch && msg.epoch === epoch.id) evaluate();
     }
@@ -294,9 +327,9 @@ const VoidSafety = (() => {
                     mini.appendChild(dot);
                 }
                 row.setAttribute("aria-label", _t("sas.status.pending"));
-            } else if (result.state === "error") {
-                mini.textContent = _t("sas.mini.error");
-                row.setAttribute("aria-label", _t("sas.status.error"));
+            } else if (result.state === "error" || result.state === "timeout") {
+                mini.textContent = _t("sas.mini." + result.state);
+                row.setAttribute("aria-label", _t("sas.status." + result.state));
             }
         }
         renderModal();

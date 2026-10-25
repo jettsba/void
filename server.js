@@ -41,6 +41,7 @@ import {
     handleDisconnect,
     handleSignal,
     handleIceReport,
+    handleTurnRefresh,
 } from "./lib/handlers.js";
 
 import path from "node:path";
@@ -254,10 +255,10 @@ mountAdminStats(app);
    route (нет смысла парсить тело на каждом запросе статики). 256 KB cap —
    с запасом под полный log.bugReport() от Chrome (история + peer stats). */
 mountBugReport(app, express.json({ limit: "256kb" }));
-/* /api/turn-credentials — выдаёт клиенту короткие HMAC-credentials для
-   coturn-сервиса. Если TURN_HOST/TURN_SECRET пусты — endpoint молча 503,
-   клиент работает только со STUN. */
-mountTurnEndpoint(app);
+/* /api/turn-credentials — ПЕРЕХОДНЫЙ путь только для десктопов до 1.7.0 (новый
+   клиент получает TURN-креды по WS в user-list). Сжат лимитом, удаляется в
+   1.7.2 — см. lib/turn.js. */
+mountTurnEndpoint(app, getClientIp);
 /* T1.1: /api/leave-room — приём navigator.sendBeacon на pagehide. Гарантирует
    быстрое (до 1s) исчезновение «призрака» в комнате при закрытии вкладки,
    когда WS leave-room не успевает уйти из TCP-буфера. 256 байт лимит — body
@@ -483,6 +484,10 @@ wss.on("connection", (ws, req) => {
 
                 case "ice-report":
                     handleIceReport(ws, data);
+                    break;
+
+                case "turn-refresh":
+                    handleTurnRefresh(ws);
                     break;
 
                 default:

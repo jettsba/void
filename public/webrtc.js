@@ -215,25 +215,9 @@ async function initMedia() {
 
     createVolumeAnalyser(localStream, clientId);
     log.debug("rtc", "mic granted");
-
-    /* TURN-creds ждём ОГРАНИЧЕННОЕ время, прежде чем пустить юзера в комнату.
-       Раньше вызов был fire-and-forget с расчётом «к первому callUser обычно
-       успеет». В failure-логе видно, что не всегда: у одного и того же клиента
-       в одну и ту же секунду один peer с `turn: true`, соседний — с
-       `turn: false`, то есть первые peer'ы сессии стартовали STUN-only и
-       остались без relay-кандидатов. Recovery это чинит не всегда и не сразу.
-
-       Гонку закрываем здесь, а не в createPeer: там вызов синхронный из трёх
-       мест (callUser / handleOffer / rebuildPeer), и await внутри открыл бы
-       окно для двойного создания peer'а. initMedia же и так await'ится в
-       tryAcquireMic ДО входа в комнату.
-
-       Потолок ожидания — чтобы залипший/медленный endpoint не держал вход:
-       лучше STUN-only peer, чем юзер, застрявший на кнопке join. */
-    await Promise.race([
-        ensureTurnCredentials(),
-        new Promise(r => setTimeout(r, TURN_WAIT_MS))
-    ]);
+    /* TURN-креды здесь больше не ждём: сервер кладёт их в user-list, а он
+       приходит раньше любого peer'а (соседи начинают звонить нам только после
+       нашего входа). Гонки «первые peer'ы без relay» больше нет по построению. */
 }
 
 function watchLocalMicTrack(stream) {
@@ -810,7 +794,7 @@ function forceOpenMicGate() {
  * провайдером, остальные подхватят. Чем разнообразнее провайдеры — тем устойчивее.
  *
  * Эти всегда присутствуют в iceServers. TURN-сервер (если сконфигурирован
- * на бэке) добавляется отдельно — см. `ensureTurnCredentials` ниже.
+ * на бэке) добавляется отдельно — см. `applyTurnCredentials` ниже.
  */
 /* Три сервера, не пять. По разбору failure-лога `stun.nextcloud.com:443` дал 9
    таймаутов на 54 записи (худший результат), а третий google-адрес не добавлял
@@ -830,72 +814,48 @@ const STATIC_STUN_SERVERS = [
  * createPeer читает _iceServersCached СИНХРОННО — это намеренно, чтобы
  * не каскадить async по всем callsite (callUser/handleOffer/rebuildPeer).
  *
- * Заполняется через `ensureTurnCredentials`, которая вызывается из
- * initMedia (один раз на сессию) и затем периодически refresh-таймером.
- * До первого fetch'а массив = только STUN. Если бэк отдал 503 (TURN
- * не настроен) — так и остаётся STUN-only до конца сессии.
+ * TURN-креды выдаёт только участнику комнаты: сервер кладёт их в наш
+ * персональный user-list и присылает новые по нашему WS-запросу `turn-refresh`
+ * (lib/turn.js). Раньше их отдавал открытый HTTP-адрес любому желающему —
+ * бесплатный relay через наш сервер. До входа в комнату массив = только STUN;
+ * peer'ов там и нет. `turn === false` — TURN на сервере не настроен
+ * (dev/portable), остаёмся STUN-only до конца сессии.
  */
 let _iceServersCached = STATIC_STUN_SERVERS;
 let _turnExpiresAt = 0;
-let _turnFetchInFlight = null;
+let _turnRefreshAskedAt = 0;
 
-async function fetchTurnCredentials() {
-    if (_turnFetchInFlight) return _turnFetchInFlight;
-    _turnFetchInFlight = (async () => {
-        try {
-            const uid = typeof clientId !== "undefined" ? clientId : "anon";
-            const res = await fetch(`${window.VoidApiBase || ""}/api/turn-credentials?uid=${encodeURIComponent(uid)}`, {
-                credentials: "same-origin"
-            });
-            if (res.status === 503) {
-                // TURN не сконфигурирован на бэке — это норма для dev/portable.
-                // Молча остаёмся со STUN-only, не повторяем fetch до перезагрузки.
-                _turnExpiresAt = Number.MAX_SAFE_INTEGER;
-                return null;
-            }
-            if (!res.ok) {
-                log.warn("rtc", "turn creds fetch failed", { status: res.status });
-                return null;
-            }
-            const data = await res.json();
-            if (!Array.isArray(data.iceServers)) return null;
-            // Обновляемся за 5 минут до истечения — анти-race с активными звонками.
-            const expiresAt = Date.now() + (Math.max(60, data.ttl - 300)) * 1000;
-            return { iceServers: data.iceServers, expiresAt };
-        } catch (err) {
-            log.warn("rtc", "turn creds fetch error", { err: err?.message || String(err) });
-            return null;
-        } finally {
-            _turnFetchInFlight = null;
-        }
-    })();
-    return _turnFetchInFlight;
+function applyTurnCredentials(turn) {
+    if (turn === false) {
+        _iceServersCached = STATIC_STUN_SERVERS;
+        _turnExpiresAt = Number.MAX_SAFE_INTEGER;
+        return;
+    }
+    if (!turn || !Array.isArray(turn.iceServers)) return;
+    /* Свои серверы ПЕРВЫМИ, публичные STUN — хвостом-подстраховкой. У части
+       клиентов публичные адреса не резолвятся вовсе (в логе это пачки
+       «STUN host lookup received error» разом по всем трём), и сбор
+       кандидатов упирается в их таймауты. Свой хост отвечает и на STUN, и
+       на TURN, поэтому именно он должен идти первым. */
+    _iceServersCached = [...turn.iceServers, ...STATIC_STUN_SERVERS];
+    // Обновляемся за 5 минут до истечения — анти-race с активными звонками.
+    const ttl = Number(turn.ttl) || 3600;
+    _turnExpiresAt = Date.now() + Math.max(60, ttl - 300) * 1000;
+    log.info("rtc", "turn credentials loaded", { servers: turn.iceServers.length });
 }
 
 /**
- * Гарантирует, что в `_iceServersCached` лежит свежий набор (STUN + TURN,
- * если бэк его выдаёт). Зовётся:
- *   - из initMedia (после getUserMedia, не блокируя его)
- *   - из setInterval (раз в минуту, дёшево — fetch только при истечении)
- * Идемпотентно: повторный вызов до истечения — no-op.
+ * Креды истекают (длинный звонок через relay) — просим новые по WS. Вне комнаты
+ * нечего продлевать: свежие придут с user-list при следующем входе.
+ * Повторный запрос — не чаще раза в минуту (сервер всё равно ответит раз в 30 с).
  */
-async function ensureTurnCredentials() {
+function ensureTurnCredentials() {
     if (Date.now() < _turnExpiresAt) return;
-    const fresh = await fetchTurnCredentials();
-    if (fresh) {
-        /* Свои серверы ПЕРВЫМИ, публичные STUN — хвостом-подстраховкой. У части
-           клиентов публичные адреса не резолвятся вовсе (в логе это пачки
-           «STUN host lookup received error» разом по всем трём), и сбор
-           кандидатов упирается в их таймауты. Свой хост отвечает и на STUN, и
-           на TURN, поэтому именно он должен идти первым. */
-        _iceServersCached = [...fresh.iceServers, ...STATIC_STUN_SERVERS];
-        _turnExpiresAt = fresh.expiresAt;
-        log.info("rtc", "turn credentials loaded", { servers: fresh.iceServers.length });
-    }
+    if (typeof isJoined === "undefined" || !isJoined) return;
+    if (Date.now() - _turnRefreshAskedAt < 60_000) return;
+    _turnRefreshAskedAt = Date.now();
+    sendSocket({ type: "turn-refresh" });
 }
-
-/** Сколько ждём TURN-креды на входе в комнату (см. initMedia). */
-const TURN_WAIT_MS = 1500;
 
 // Периодический refresh. unref не нужен — это setInterval в браузере, не Node.
 setInterval(ensureTurnCredentials, 60_000);
@@ -1242,7 +1202,43 @@ function callUser(userId) {
     // запланировал negotiation-needed.
 }
 
+/**
+ * Offer по команде соседа сносит наш peer с ним (rebuild). Раньше — безусловно
+ * и ДО проверки SDP: пачкой таких сообщений участник комнаты держал нас в
+ * вечной пересборке (CPU, выжженная TURN-квота, забитый ответами сигналинг).
+ * Теперь: мусор без признаков SDP отбрасываем сразу, а сносить peer по
+ * команде одного и того же соседа даём не чаще раза в 10 с. Сервер режет
+ * флаг с тем же окном, это вторая линия — для честного пира хватает одной
+ * пересборки на эпизод (его собственные предохранители ≤4 в минуту).
+ */
+const REMOTE_REBUILD_COOLDOWN_MS = 10_000;
+const _remoteRebuildAt = new Map(); // userId -> ts последнего сноса по его команде
+
+function looksLikeOfferSdp(offer) {
+    const sdp = offer && offer.type === "offer" ? offer.sdp : null;
+    return typeof sdp === "string"
+        && sdp.startsWith("v=0")
+        && /\r?\nm=/.test(sdp)
+        && /\r?\na=fingerprint:/.test(sdp);
+}
+
 async function handleOffer(data) {
+
+    if (!looksLikeOfferSdp(data.offer)) {
+        log.warn("rtc", "malformed offer dropped", { from: data.from });
+        return;
+    }
+
+    let rebuild = !!data.rebuild;
+    if (rebuild) {
+        const last = _remoteRebuildAt.get(data.from) || 0;
+        if (Date.now() - last < REMOTE_REBUILD_COOLDOWN_MS) {
+            log.debug("rtc", "remote rebuild throttled", { from: data.from });
+            rebuild = false;
+        } else {
+            _remoteRebuildAt.set(data.from, Date.now());
+        }
+    }
 
     /* F8: на rebuild ICE-кандидаты от удалённой стороны (с её НОВОГО peer'а)
        могут прилететь раньше rebuild-offer'а — это типичный гонка на медленных
@@ -1250,7 +1246,7 @@ async function handleOffer(data) {
        peer'а, который мы сейчас закроем. Сохраняем перед cleanup, чтобы новый
        peer получил их сразу после setRemoteDescription. */
     let carriedPendingIce = null;
-    if (data.rebuild) {
+    if (rebuild) {
         const oldPeer = peers.get(data.from);
         if (oldPeer?._pendingIceCandidates?.length) {
             carriedPendingIce = oldPeer._pendingIceCandidates;
@@ -1916,6 +1912,7 @@ function closeAllConnections() {
        сессии счётчик жив (60s TTL), и это правильно — там он работает как
        защита от бесконечного rebuild-loop'а. */
     peerZombieRebuilds.clear();
+    _remoteRebuildAt.clear();
     /* По той же причине сбрасываем счётчики recovery и отправленных отчётов о
        провале: новая сессия в комнате должна начинаться с чистого листа, иначе
        после leave→join circuit breaker сработает сразу, а первый реальный

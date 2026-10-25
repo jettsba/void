@@ -1,0 +1,12 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "tray-menu",
+  "description": "Custom tray context menu: listens to tray state events and hides itself; its actions go through the tray_menu_action command, which accepts calls from this window only.",
+  "windows": [
+    "tray-menu"
+  ],
+  "permissions": [
+    "core:default",
+    "core:window:allow-hide"
+  ]
+}

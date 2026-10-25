@@ -1,5 +1,9 @@
 async function tryJoin() {
-    if (isJoined) return;
+    /* currentRoomCode != null — вход уже идёт (ждём микрофон/сокет/ответ).
+       Второй Enter/клик слал повторный join, его confirm сервер отбивал, и
+       человека выкидывало из только что открытой комнаты. Все пути отказа
+       (abortJoinAttempt, tearDownRoomState) код сбрасывают. */
+    if (isJoined || currentRoomCode) return;
 
     hideEntryError();
 
@@ -309,12 +313,16 @@ function handleSocketReconnected() {
 
     setConnectionState("connecting");
 
+    /* token — доказательство, что это наша сессия: сервер подменит наш
+       старый сокет (если ещё считает его живым) или пустит обратно после
+       обрыва. Без него наш userId в окне возврата занят за нами для всех. */
     sendSocket({
         type: "join-room",
         code: currentRoomCode,
         userId: clientId,
         nickname: currentUsername,
         resume: true,
+        ...(leaveToken ? { token: leaveToken } : {}),
         ...roomJoinExtras(currentRoomCode)
     });
 }
@@ -365,6 +373,13 @@ const CREATE_ROOM_MAX_RETRIES = 5;
 let createRoomRetryCount = 0;
 
 async function handleCreateClick() {
+
+    /* Защита от двойного клика, как в tryJoin. Код ставим сразу, ещё до
+       await'ов — он и есть метка «создание идёт» (sendCreateRoomAttempt его
+       перегенерирует). Без этого второй клик создавал вторую комнату на том
+       же сокете, а первая оставалась на сервере фантомом. */
+    if (isJoined || currentRoomCode) return;
+    currentRoomCode = generateRoomCode();
 
     hideEntryError();
 

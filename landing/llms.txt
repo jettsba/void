@@ -1,6 +1,6 @@
 # void
 
-> void is a free, ephemeral peer-to-peer voice room application. Open a room with one click, share a short code with up to nine others, and talk — voice, chat, files, and screen sharing travel directly between participants over WebRTC, without servers, accounts, history, or tracking. When the last person leaves, the room disappears entirely.
+> void is a free, ephemeral peer-to-peer voice room application. Open a room with one click, share a short code with up to nine others, and talk — voice, chat, files, and screen sharing travel directly between participants over WebRTC, end-to-end encrypted (DTLS-SRTP). The server only introduces participants to each other; when no direct path exists (about one pair in three), encrypted packets pass through a relay that cannot decrypt them. No accounts, no history, no tracking. When the last person leaves, the room disappears entirely.
 
 ## About
 

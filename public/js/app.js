@@ -542,23 +542,45 @@ function consumeInviteLinkFromUrl() {
     const normalized = raw.toUpperCase().replace(/[^A-Z0-9]/g, "");
     if (!ROOM_CODE_RX.test(normalized)) return;
 
-    /* Desktop-приложение: обрабатываем напрямую (обычно сюда не попадаем —
-       deep-link идёт через Rust-событие). Мобильные/тач-устройства: баннер НЕ
-       показываем и сразу заходим в комнату — десктоп-приложения под них нет
-       (мобильные приложения — в далёком будущем), а выбор «открыть в приложении»
-       имеет смысл только в десктоп-БРАУЗЕРЕ. В десктоп-вебе НЕ авто-входим:
-       показываем баннер-приглашение с выбором. Любой вход — по клику юзера. */
+    /* Desktop-приложение (обычно сюда не попадаем — deep-link идёт через
+       Rust-событие) и мобильные/тач-устройства: выбор «открыть в приложении»
+       им не нужен — десктоп-приложения под телефон нет, а desktop уже в нём.
+       Но и сразу входить нельзя: ссылку мог прислать кто угодно, и раньше
+       один тап по ней сажал человека в чужую комнату с включённым микрофоном
+       (на Android с запомненным разрешением — совсем без вопросов). Поэтому
+       экран подтверждения с кодом. В десктоп-вебе — баннер с выбором.
+       Любой вход — по клику юзера. */
     const isTouch = matchMedia("(hover: none) and (pointer: coarse)").matches;
     if (window.VoidPlatform === "desktop" || isTouch) {
-        joinRoomByCode(normalized);
+        confirmJoinByLink(normalized);
         return;
     }
     showInviteBanner(normalized);
 }
 
-/* Вход в комнату по коду — для desktop deep-link приёмника (js/desktop/deep-link.js).
-   Тот же путь, что invite-link: ставим код, дёргаем tryJoin (сразу если приложение
-   уже разблокировано, иначе по void:app-unlocked). */
+/* Вход по ссылке, пришедшей СНАРУЖИ (void:// на desktop, ?room= на телефоне):
+   только после явного «войти» на экране с кодом. До клика — ни join-room, ни
+   микрофона. Клик и есть согласие: после него вход обычный, микрофон включён.
+
+   Каждая новая ссылка заменяет экран целиком: кнопка входит ровно в тот код,
+   что показан (раньше при пачке ссылок экран мог показывать один код, а вход
+   шёл в другой). Уже в комнате — ссылку игнорируем: выдёргивать человека из
+   идущего разговора чужой ссылкой нельзя. */
+function confirmJoinByLink(raw) {
+    const code = (raw || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (!ROOM_CODE_RX.test(code)) return false;
+    if (isJoined || currentRoomCode) {
+        log.info("ui", "invite link ignored: already in a room");
+        return false;
+    }
+    showInviteBanner(code, { confirm: true });
+    return true;
+}
+
+/* Вход в комнату по коду после клика в баннере приглашения (оба режима
+   showInviteBanner). Напрямую из внешней ссылки не зовётся — только через
+   подтверждение. Ставим код, дёргаем tryJoin (сразу если приложение уже
+   разблокировано, иначе по void:app-unlocked). */
 function joinRoomByCode(raw) {
     const normalized = (raw || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
     if (!ROOM_CODE_RX.test(normalized)) return false;
@@ -604,9 +626,17 @@ function voidDownloadUrl() {
    (cold-start бывает >2с, вкладка при открытии app остаётся 'visible', а
    focus/blur непостоянны). Поэтому НЕ авто-редиректим на download — после клика
    «открыть в приложении» показываем ручной фолбэк «не открылось? → скачать /
-   в браузере». Так в download случайно не уведём того, у кого app открылся. */
-function showInviteBanner(code) {
-    if (document.getElementById("inviteBanner")) return;
+   в браузере». Так в download случайно не уведём того, у кого app открылся.
+
+   `confirm: true` — тот же баннер как экран подтверждения входа по внешней
+   ссылке (confirmJoinByLink): кнопки «войти» / «отмена». Он заменяет любой
+   прежний баннер — показанный код всегда тот, в который войдём. */
+function showInviteBanner(code, { confirm = false } = {}) {
+    const prev = document.getElementById("inviteBanner");
+    if (prev) {
+        if (!confirm) return;
+        prev.remove();
+    }
     const tr = (k, fb) => (typeof _t === "function" ? _t(k) : fb);
     const DOWNLOAD_URL = voidDownloadUrl();
 
@@ -680,6 +710,17 @@ function showInviteBanner(code) {
         b.addEventListener("click", onClick);
         return b;
     };
+
+    if (confirm) {
+        actions.append(
+            mkBtn("invite-banner-open", tr("deeplink.join", "войти"), goWeb),
+            mkBtn("invite-banner-web", tr("deeplink.cancel", "отмена"), dismiss)
+        );
+        banner.append(text, actions, timer);
+        document.body.appendChild(banner);
+        requestAnimationFrame(() => banner.classList.add("is-visible"));
+        return;
+    }
 
     const openBtn = mkBtn(
         "invite-banner-open",

@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "1.6.0";
+    const APP_VERSION = "1.7.0";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
@@ -141,6 +141,9 @@
             "chat.file.tooBig": "файл больше {mb} мб",
             "chat.download": "скачать",
             "chat.download.saved": "файл сохранён",
+            "chat.unknown": "неизвестный",
+            "chat.exe.badge": "программа — открывай, только если доверяешь",
+            "chat.exe.confirm": "это программа — нажми ещё раз, чтобы сохранить",
             "chat.download.failed": "не удалось сохранить",
             "chat.remove": "убрать",
             "chat.image": "изображение",
@@ -182,6 +185,7 @@
             "errors.connection-lost": "соединение потеряно",
             "errors.room-closed": "вход закрыт",
             "errors.rate-limited": "слишком много попыток — подожди немного",
+            "errors.server-full": "сервер переполнен — попробуй через минуту",
             "errors.id-collision": "сессия с этим id уже активна — обнови страницу",
             "errors.unknown": "что-то пошло не так",
             "errors.screencast.busy": "демонстрация уже идёт в этой комнате",
@@ -303,7 +307,7 @@
             "dev.forceRelay": "принудительный relay",
             "dev.forceRelay.hint": "гнать медиа через turn — тест relay-пути",
             "bug.title": "сообщить о проблеме",
-            "bug.body": "опиши, что пошло не так или что хотелось бы добавить. к заявке автоматически приложится короткий технический лог — поможет быстрее разобраться.",
+            "bug.body": "опиши, что пошло не так или что хотелось бы добавить. к заявке автоматически приложится короткий технический лог — поможет быстрее разобраться. код комнаты и id участников в нём заменяются анонимными метками.",
             "bug.desc.placeholder": "опиши проблему или предложение",
             "bug.contact.placeholder": "контакт (почта / telegram), по желанию",
             "bug.contact.hint": "необязательно, но так смогу ответить",
@@ -329,6 +333,8 @@
             "sas.label": "код безопасности",
             "sas.title": "код безопасности",
             "sas.mini.error": "код не сошёлся",
+            "sas.mini.timeout": "код не сверен",
+            "sas.status.timeout": "не удалось сверить код со всеми участниками. возможно, у кого-то старая версия void — или соединение пытаются перехватить. перезайдите в комнату",
             "sas.status.alone": "код появится, когда в комнате будет кто-то ещё",
             "sas.status.pending": "сверяем ключи со всеми участниками…",
             "sas.status.error": "ключ одного из участников не совпал с обещанным — соединение могло быть перехвачено. перезайдите в комнату",
@@ -341,7 +347,9 @@
             "deeplink.open-app": "открыть в приложении",
             "deeplink.continue-web": "продолжить в браузере",
             "deeplink.fallback": "приложение не открылось?",
-            "deeplink.download": "скачать приложение"
+            "deeplink.download": "скачать приложение",
+            "deeplink.join": "войти",
+            "deeplink.cancel": "отмена"
         },
         en: {
             "intro.question": "what is the music of life?",
@@ -382,6 +390,9 @@
             "chat.file.tooBig": "file larger than {mb} mb",
             "chat.download": "download",
             "chat.download.saved": "file saved",
+            "chat.unknown": "unknown",
+            "chat.exe.badge": "program — open only if you trust it",
+            "chat.exe.confirm": "this is a program — click again to save",
             "chat.download.failed": "save failed",
             "chat.remove": "remove",
             "chat.image": "image",
@@ -423,6 +434,7 @@
             "errors.connection-lost": "connection lost",
             "errors.room-closed": "room closed",
             "errors.rate-limited": "too many attempts — wait a bit",
+            "errors.server-full": "server is full — try again in a minute",
             "errors.id-collision": "session id is already active — refresh the page",
             "errors.unknown": "something went wrong",
             "errors.screencast.busy": "screen share is already active in this room",
@@ -544,7 +556,7 @@
             "dev.forceRelay": "force relay",
             "dev.forceRelay.hint": "route media via turn — test relay path",
             "bug.title": "report a bug",
-            "bug.body": "describe what went wrong or what you'd like to see added. a short technical log will be attached automatically — it helps me figure out the issue faster.",
+            "bug.body": "describe what went wrong or what you'd like to see added. a short technical log will be attached automatically — it helps me figure out the issue faster. the room code and participant ids in it are replaced with anonymous tags.",
             "bug.desc.placeholder": "describe the problem or suggestion",
             "bug.contact.placeholder": "contact (email / telegram), optional",
             "bug.contact.hint": "optional, lets me reach back if needed",
@@ -570,6 +582,8 @@
             "sas.label": "security code",
             "sas.title": "security code",
             "sas.mini.error": "code mismatch",
+            "sas.mini.timeout": "not verified",
+            "sas.status.timeout": "couldn't verify the code with everyone. someone may be on an old version of void — or the connection is being intercepted. rejoin the room",
             "sas.status.alone": "the code appears once someone else is in the room",
             "sas.status.pending": "checking keys with everyone…",
             "sas.status.error": "someone's key didn't match what they committed to — the connection may be intercepted. rejoin the room",
@@ -582,7 +596,9 @@
             "deeplink.open-app": "open in the app",
             "deeplink.continue-web": "continue in browser",
             "deeplink.fallback": "app didn't open?",
-            "deeplink.download": "download the app"
+            "deeplink.download": "download the app",
+            "deeplink.join": "join",
+            "deeplink.cancel": "cancel"
         }
     };
 

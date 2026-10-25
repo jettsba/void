@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 
 process.env.LOG_LEVEL = "info";
 const { log } = await import("../../lib/log.js");
-const { roomRef } = await import("../../lib/privacy.js");
+const { roomRef, userRef } = await import("../../lib/privacy.js");
 
 function capture(fn) {
     const lines = [];
@@ -14,13 +14,14 @@ function capture(fn) {
     return lines;
 }
 
-test("raw IP and room code never reach the log line", () => {
+test("raw IP, room code and userId never reach the log line", () => {
     const [line] = capture(() => log.warn("room", "created", { code: "MNXH2", ip: "203.0.113.7", userId: "AB12" }));
     assert.ok(!line.includes("203.0.113.7"), line);
     assert.ok(!line.includes("MNXH2"), line);
     assert.match(line, / ip#[0-9a-f]{6} \([A-Z?]{2,3}\)/);
     assert.ok(line.includes(`room=${roomRef("MNXH2")}`), line);
-    assert.ok(line.includes("userId=AB12"), line);
+    assert.ok(!line.includes("AB12"), line);
+    assert.ok(line.includes(`user=${userRef("AB12")}`), line);
 });
 
 test("ordinary fields are printed as before", () => {

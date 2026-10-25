@@ -4,35 +4,44 @@
  * lib/handlers.js handleRoomCloseVote). Голос отзывается повторным нажатием,
  * таймаута нет. Открыть обратно — любой участник одним нажатием.
  *
- * Пропуск: при закрытии сервер раздаёт участникам общий `pass`. Храним его в
- * sessionStorage (живёт в этой вкладке, переживает перезагрузку) и шлём в
- * каждом join-room — так нас пускают обратно после обрыва сети, перезагрузки
- * вкладки и выкатки сервера (комната воскресает закрытой: `closed` + `pass`
- * в resume-join).
+ * Пропуск: при закрытии сервер раздаёт участникам общий `pass` и подписанный
+ * `ticket`. Храним оба в sessionStorage (живут в этой вкладке, переживают
+ * перезагрузку) и шлём в каждом join-room — так нас пускают обратно после
+ * обрыва сети и перезагрузки вкладки. После выкатки сервера комната воскресает
+ * закрытой только по билету: свой пропуск может придумать кто угодно, а
+ * подпись сервера — нет (см. lib/resume-ticket.js).
  */
 
 const ROOM_PASS_KEY = (code) => `void:room-pass:${code}`;
+const ROOM_TICKET_KEY = (code) => `void:room-ticket:${code}`;
 
 let roomCloseState = { closed: false, votes: new Set() };
 
-function _readPass(code) {
-    if (!code) return null;
-    try { return sessionStorage.getItem(ROOM_PASS_KEY(code)); } catch (_) { return null; }
+function _read(key) {
+    try { return sessionStorage.getItem(key); } catch (_) { return null; }
 }
 
-function _writePass(code, pass) {
-    if (!code) return;
+function _write(key, value) {
     try {
-        if (pass) sessionStorage.setItem(ROOM_PASS_KEY(code), pass);
-        else sessionStorage.removeItem(ROOM_PASS_KEY(code));
+        if (value) sessionStorage.setItem(key, value);
+        else sessionStorage.removeItem(key);
     } catch (_) {}
 }
 
-/* Поля для join-room: пропуск (если есть) и флаг «комната была закрыта».
-   Флаг сервер смотрит только при воскрешении после рестарта. */
+function _writePass(code, pass, ticket) {
+    if (!code) return;
+    _write(ROOM_PASS_KEY(code), pass);
+    _write(ROOM_TICKET_KEY(code), pass ? ticket : null);
+}
+
+/* Поля для join-room: пропуск с билетом (если есть) и флаг «комната была
+   закрыта». Флаг и билет сервер смотрит только при воскрешении после рестарта. */
 function roomJoinExtras(code) {
-    const pass = _readPass(code);
-    return pass ? { pass, closed: true } : {};
+    if (!code) return {};
+    const pass = _read(ROOM_PASS_KEY(code));
+    if (!pass) return {};
+    const ticket = _read(ROOM_TICKET_KEY(code));
+    return { pass, closed: true, ...(ticket ? { ticket } : {}) };
 }
 
 /* Состояние из user-list / room-close-state. */
@@ -41,7 +50,7 @@ function applyRoomCloseState(data) {
     roomCloseState.closed = data.closed === true;
     roomCloseState.votes = new Set(Array.isArray(data.closeVotes) ? data.closeVotes : []);
     if (roomCloseState.closed && typeof data.pass === "string") {
-        _writePass(currentRoomCode, data.pass);
+        _writePass(currentRoomCode, data.pass, typeof data.ticket === "string" ? data.ticket : null);
     } else if (!roomCloseState.closed) {
         _writePass(currentRoomCode, null);
     }
