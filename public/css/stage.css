@@ -435,10 +435,15 @@
    content-area. Чтобы плашка ехала ВМЕСТЕ с видимым контентом, вычитаем
    из transform половину --chat-rail. На мобиле rail = 0px → no-op.
    Стейт-машина — в js/toasts.js: data-kind="hint"|"toast",
-   data-priority="error|warn|info" варьирует цвет. */
+   data-priority="error|warn|info" варьирует цвет.
+
+   Высота — от строки статуса, а не от верха полосы футера: строка стоит в
+   середине полосы (4.57rem), и при «100% + 0.57rem» подсказка висела в ~2.4rem
+   над ней — на маке (окно ниже, rem крупнее из-за поправки на retina) она
+   налезала на «создать комнату». Теперь низ плашки на 1rem над центром строки. */
 .toast-host {
     position: absolute;
-    bottom: calc(100% + 0.57rem);
+    bottom: calc(50% + 1rem);
     left: 50%;
     transform: translateX(calc(-50% - var(--chat-rail, 0px) / 2)) translateY(-0.29rem);
     max-width: calc(100% - 2.29rem);

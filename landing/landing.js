@@ -937,8 +937,8 @@ void main() {
 })();
 
 /* ----------------------------------------------------------------------------
-   Download split-button: главная половина качает desktop-installer, стрелка
-   справа раскрывает меню (desktop + portable). Загрузку триггерим из временного
+   Download split-button: главная половина качает windows-installer, стрелка
+   справа раскрывает меню (desktop + portable); рядом — кнопка «macos» (dmg). Загрузку триггерим из временного
    <a download>, а не через href на кнопке — поэтому браузер не показывает
    длинный github-URL в статус-баре при наведении. Меню закрывается по клику
    вне, по Esc и после выбора варианта.
@@ -950,7 +950,8 @@ void main() {
         // GitHub-счётчик отвалился — загрузки переехали на свой домен. Fire-and-forget.
         try {
             const asset = url.includes('void_installer') ? 'installer'
-                        : url.includes('void_portable') ? 'portable' : null;
+                        : url.includes('void_portable') ? 'portable'
+                        : url.endsWith('.dmg') ? 'dmg' : null;
             if (asset && navigator.sendBeacon) {
                 navigator.sendBeacon(
                     '/api/dl-hit',
@@ -984,8 +985,10 @@ void main() {
             if (toggle) toggle.setAttribute('aria-expanded', 'true');
         };
 
-        // главная кнопка + опции меню несут data-dl-url → качают по клику
-        dl.querySelectorAll('[data-dl-url]').forEach((btn) => {
+        // главная кнопка, опции меню и соседняя «macos» несут data-dl-url →
+        // качают по клику
+        const row = dl.closest('.actions--dl') || dl;
+        row.querySelectorAll('[data-dl-url]').forEach((btn) => {
             btn.addEventListener('click', () => {
                 triggerDownload(btn.dataset.dlUrl);
                 close();
@@ -1061,7 +1064,63 @@ void main() {
             trigger.focus();
         };
 
-        trigger.addEventListener('click', open);
+        /* Вкладки windows / macos. Каждое открытие начинается с windows —
+           большинство приходит отсюда, и так договорились. Стрелки ←/→
+           переключают, как в любом tablist. */
+        const tabs = Array.from(modal.querySelectorAll('[data-av-tab]'));
+        const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+        let resizeEnd = null;
+        /* Вкладки разной высоты (mac длиннее): без анимации панель прыгала
+           за один кадр. Замеряем высоту до и после смены и ведём её
+           transition'ом; по окончании возвращаем auto, чтобы панель снова
+           подстраивалась под окно (max-height). */
+        const animateHeight = (from) => {
+            if (!panel || reduceMotion.matches) return;
+            const to = panel.offsetHeight;
+            if (Math.abs(to - from) < 2) return;
+            if (resizeEnd) resizeEnd();
+            panel.style.height = `${from}px`;
+            panel.classList.add('is-resizing');
+            void panel.offsetHeight;           // зафиксировать стартовую высоту
+            panel.style.height = `${to}px`;
+            const done = (e) => {
+                if (e && (e.target !== panel || e.propertyName !== 'height')) return;
+                panel.removeEventListener('transitionend', done);
+                panel.classList.remove('is-resizing');
+                panel.style.height = '';
+                resizeEnd = null;
+            };
+            resizeEnd = done;
+            panel.addEventListener('transitionend', done);
+        };
+        const selectTab = (name, focus, animate = true) => {
+            const fromHeight = panel ? panel.offsetHeight : 0;
+            tabs.forEach((tab) => {
+                const on = tab.dataset.avTab === name;
+                tab.setAttribute('aria-selected', String(on));
+                tab.tabIndex = on ? 0 : -1;
+                if (on && focus) tab.focus();
+            });
+            modal.querySelectorAll('[data-av-pane]').forEach((pane) => {
+                pane.hidden = pane.dataset.avPane !== name;
+            });
+            if (panel) panel.scrollTop = 0;
+            if (animate) animateHeight(fromHeight);
+        };
+        tabs.forEach((tab, i) => {
+            tab.addEventListener('click', () => selectTab(tab.dataset.avTab, false));
+            tab.addEventListener('keydown', (e) => {
+                if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+                e.preventDefault();
+                const next = tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
+                selectTab(next.dataset.avTab, true);
+            });
+        });
+
+        trigger.addEventListener('click', () => {
+            selectTab('win', false, false);   // панель ещё скрыта — анимировать нечего
+            open();
+        });
         modal.querySelectorAll('[data-av-close]').forEach((el) => {
             el.addEventListener('click', close);
         });

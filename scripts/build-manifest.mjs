@@ -1,14 +1,21 @@
-/* Генерирует latest.json (manifest для Tauri Updater) из артефактов
-   prod-сборки. Запускается в CI после `tauri build`.
+/* Генерирует latest.json (manifest для Tauri Updater) из готовых артефактов
+   релиза. Запускается в CI джобой publish-desktop, когда обе сборки сдали
+   файлы в dist/:
+     void_setup.exe.sig            — подпись NSIS-установщика (Windows)
+     void_macos.app.tar.gz.sig     — подпись архива .app (macOS, universal)
 
-   Tauri 2 кладёт `.sig` файл рядом с подписываемым бинарём. Точный путь
-   зависит от target — для NSIS обычно `bundle/nsis/void_setup.exe.sig`,
-   но может быть и `bundle/nsis/Void_X.Y.Z_x64-setup.exe.sig` (до нашего
-   rename-bundles), или `bundle/updater/...`. Поэтому делаем рекурсивный
-   поиск всех `.sig` в `target/release` и берём первый.
+   Апдейтер на Windows качает void_setup.exe и запускает его тихо; на macOS —
+   архив .app и подменяет им бандл. Universal-бинарь один на обе архитектуры,
+   поэтому darwin-aarch64 и darwin-x86_64 ведут на один и тот же файл.
+
+   env:
+     ARTIFACTS_DIR      — где лежат .sig (по умолчанию dist)
+     MANIFEST_BASE_URL  — откуда качать файлы (по умолчанию GitHub latest)
+     MANIFEST_OUT       — куда писать манифест (по умолчанию latest.json)
+     RELEASE_NOTES      — notes в манифесте
 
    Формат manifest — стандартный Tauri Updater v2:
-     https://v2.tauri.app/plugin/updater/#dynamic-update-server */
+     https://v2.tauri.app/plugin/updater/#static-json-file */
 
 import fs from "node:fs";
 import path from "node:path";
@@ -16,73 +23,41 @@ import path from "node:path";
 const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
 const version = pkg.version;
 
-const releaseDir = path.resolve("src-tauri/target/release");
-
-if (!fs.existsSync(releaseDir)) {
-    console.error("✗ release dir not found:", releaseDir);
-    process.exit(1);
-}
-
-// Рекурсивный поиск всех .sig файлов в target/release.
-function findSigs(dir, acc = []) {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-        const full = path.join(dir, entry.name);
-        if (entry.isDirectory()) {
-            findSigs(full, acc);
-        } else if (entry.isFile() && entry.name.endsWith(".sig")) {
-            acc.push(full);
-        }
-    }
-    return acc;
-}
-
-const sigs = findSigs(releaseDir);
-console.log("found .sig files:", sigs.length);
-sigs.forEach((s) => console.log("  -", path.relative(process.cwd(), s)));
-
-if (sigs.length === 0) {
-    console.error(
-        "✗ no .sig files found — make sure TAURI_SIGNING_PRIVATE_KEY env was set during build."
-    );
-    process.exit(1);
-}
-
-// Выбираем NSIS installer signature (предпочитаем void_setup.exe.sig
-// или *_setup.exe.sig, иначе первый попавшийся).
-const preferred =
-    sigs.find((s) => s.endsWith("void_setup.exe.sig")) ||
-    sigs.find((s) => /_setup\.exe\.sig$/i.test(s)) ||
-    sigs[0];
-
-console.log("✓ using:", path.relative(process.cwd(), preferred));
-const signature = fs.readFileSync(preferred, "utf8").trim();
-
-// URL инсталлера в манифесте. По умолчанию — GitHub Release основного (теперь
-// публичного) репо. Но генерим манифест ДВАЖДЫ: для GitHub (этот дефолт) и для
-// зеркала на своём домене (MANIFEST_URL=https://void-room.space/dl/void_setup.exe),
-// т.к. GitHub в РФ нестабилен. Какой источник ответит апдейтеру первым (endpoints
-// в tauri.conf), из того же `url` он и качает. MANIFEST_OUT — путь вывода.
-// `releases/latest/download/...` GitHub автоматом редиректит на latest release.
+const dir = path.resolve(process.env.ARTIFACTS_DIR || "dist");
 const repo = process.env.RELEASES_REPO || "jettsba/void";
-const releaseUrl =
-    process.env.MANIFEST_URL ||
-    `https://github.com/${repo}/releases/latest/download/void_setup.exe`;
+const base = (process.env.MANIFEST_BASE_URL ||
+    `https://github.com/${repo}/releases/latest/download`).replace(/\/+$/, "");
+
+/* Подпись обязательна: манифест без платформы молча оставил бы её юзеров на
+   старой версии, а с битой подписью апдейтер откажется ставить — лучше упасть
+   здесь, громко. */
+function signature(file) {
+    const sigPath = path.join(dir, `${file}.sig`);
+    if (!fs.existsSync(sigPath)) {
+        console.error(`✗ missing ${path.relative(process.cwd(), sigPath)} — was the build signed (TAURI_SIGNING_PRIVATE_KEY)?`);
+        process.exit(1);
+    }
+    return fs.readFileSync(sigPath, "utf8").trim();
+}
+
+const win = { url: `${base}/void_setup.exe`, signature: signature("void_setup.exe") };
+const mac = { url: `${base}/void_macos.app.tar.gz`, signature: signature("void_macos.app.tar.gz") };
 
 const manifest = {
     version,
     notes: process.env.RELEASE_NOTES || `Release v${version}`,
     pub_date: new Date().toISOString(),
     platforms: {
-        "windows-x86_64": {
-            url: releaseUrl,
-            signature,
-        },
+        "windows-x86_64": win,
+        "darwin-aarch64": mac,
+        "darwin-x86_64": mac,
     },
 };
 
 const outPath = path.resolve(process.env.MANIFEST_OUT || "latest.json");
 fs.writeFileSync(outPath, JSON.stringify(manifest, null, 2));
 console.log("✓ manifest →", path.relative(process.cwd(), outPath));
-console.log("  version:  ", version);
-console.log("  url:      ", releaseUrl);
-console.log("  signature:", signature.slice(0, 40) + "...");
+console.log("  version:", version);
+for (const [platform, { url }] of Object.entries(manifest.platforms)) {
+    console.log(`  ${platform.padEnd(15)} ${url}`);
+}

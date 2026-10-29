@@ -13,6 +13,7 @@
 <a href="https://void-room.space"><img alt="website" src="https://img.shields.io/badge/website-void--room.space-e6e6e8?style=flat-square&labelColor=101012"></a>
 <a href="https://app.void-room.space"><img alt="launch web app" src="https://img.shields.io/badge/web_app-launch_↗-e6e6e8?style=flat-square&labelColor=101012"></a>
 <a href="https://github.com/jettsba/void/releases/latest/download/void_installer.exe"><img alt="download for windows" src="https://img.shields.io/badge/windows-download_↓-e6e6e8?style=flat-square&labelColor=101012"></a>
+<a href="https://github.com/jettsba/void/releases/latest/download/void.dmg"><img alt="download for macos" src="https://img.shields.io/badge/macos-download_↓-e6e6e8?style=flat-square&labelColor=101012"></a>
 
 <a href="https://github.com/jettsba/void/releases/latest"><img alt="latest release" src="https://img.shields.io/github/v/release/jettsba/void?style=flat-square&labelColor=101012&color=4d4d54&label=release"></a>
 <a href="https://github.com/jettsba/void/stargazers"><img alt="stars" src="https://img.shields.io/github/stars/jettsba/void?style=flat-square&labelColor=101012&color=4d4d54"></a>
@@ -150,9 +151,11 @@ to be **read** — a complete, production‑hardened WebRTC system you can actua
 </td>
 <td valign="top">
 
-**windows desktop** — native: tray, global hotkeys, auto‑update
+**desktop** — native: tray, global hotkeys, auto‑update
 
-**→ [download the installer](https://github.com/jettsba/void/releases/latest/download/void_installer.exe)**
+**→ [windows](https://github.com/jettsba/void/releases/latest/download/void_installer.exe) · [macos](https://github.com/jettsba/void/releases/latest/download/void.dmg)**
+
+<sub>macos build isn't notarized yet — first launch: system settings → privacy & security → «open anyway»</sub>
 
 </td>
 </tr>

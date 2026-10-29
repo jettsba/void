@@ -83,7 +83,11 @@ async function tryAcquireMic() {
 
     let previewToast = false;
     if (permState === "prompt") {
-        window.VoidToast?.showToast(_t("hints.mic-permission-incoming"), {
+        /* В приложении на маке спрашивает не браузер, а система (окно TCC). */
+        const hint = window.VoidPlatform === "desktop" && window.VoidIsMac
+            ? "hints.mic-permission-incoming.macos"
+            : "hints.mic-permission-incoming";
+        window.VoidToast?.showToast(_t(hint), {
             priority: "info",
             duration: 8000
         });

@@ -254,7 +254,9 @@
             const version = String(p.version || "?");
             dlog("update available", { version });
             lastVersion = version;
-            if (isSnoozed(version)) { dlog("snoozed — banner suppressed", { version }); return; }
+            /* manual — человек сам нажал «Проверить обновления…» в меню (macOS):
+               отложенный раньше баннер показываем всё равно. */
+            if (!p.manual && isSnoozed(version)) { dlog("snoozed — banner suppressed", { version }); return; }
             /* Loosened dedup: Rust теперь эмитит available на каждой удачной
                проверке (страховка от пропуска эмита). Не сбиваем активную
                загрузку/установку повторным показом. */

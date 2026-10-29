@@ -1,6 +1,6 @@
 [package]
 name = "void-desktop"
-version = "1.7.0"
+version = "1.8.0"
 description = "Void — эфемерные P2P голосовые комнаты"
 authors = ["Void"]
 edition = "2021"
@@ -66,6 +66,11 @@ windows = { version = "0.59", features = [
     # setup_dev_access_gate.
     "Win32_UI_Input_KeyboardAndMouse",
 ] }
+
+# NSLocale.preferredLanguages — язык нативных меню по системным настройкам
+# (lib.rs mac_menu_ru). Версия = та, что уже тянут tao/wry (Cargo.lock).
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-foundation = { version = "0.3", features = ["NSLocale", "NSArray", "NSString"] }
 
 [features]
 custom-protocol = ["tauri/custom-protocol"]

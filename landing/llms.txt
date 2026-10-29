@@ -9,7 +9,7 @@
 - Why void: https://void-room.space/en/#why
 - Feature overview: https://void-room.space/en/#inside
 - Privacy model: https://void-room.space/en/#privacy
-- Platforms (web and desktop): https://void-room.space/en/#download
+- Platforms (web, Windows and macOS desktop): https://void-room.space/en/#download
 
 ## Docs
 

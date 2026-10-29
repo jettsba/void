@@ -18,6 +18,12 @@
     if (isTauri) {
         document.documentElement.classList.add("desktop");
         window.VoidPlatform = "desktop";
+        /* macOS-сборка: нативный «светофор» поверх нашей полосы вместо своих
+           кнопок окна (css/titlebar.css). Тот же детект, что VoidIsMac в
+           js/config.js, но нужен раньше CSS — config.js грузится позже. */
+        var plat = (navigator.userAgentData && navigator.userAgentData.platform) ||
+            navigator.platform || navigator.userAgent || "";
+        if (/mac/i.test(plat)) document.documentElement.classList.add("mac");
     }
 
     /* API base URLs.

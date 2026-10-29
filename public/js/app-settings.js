@@ -87,6 +87,13 @@
        раньше), чтобы правило «мы на маке» не жило в двух копиях. */
     const IS_MAC = !!window.VoidIsMac;
 
+    /* Мышиные бинды. В вебе их ловит сама страница, на Windows-десктопе —
+       глобальный хук (src-tauri/src/mouse_hook.rs). На маке-десктопе
+       глобального хука пока нет (нужен CGEventTap и разрешение «Мониторинг
+       ввода»), а бинд, который работает только в фокусе окна, — обман для
+       хоткея. Поэтому там мышь не предлагаем вовсе. */
+    const MOUSE_BINDS = !(IS_MAC && isDesktop);
+
     /* Tauri-unlisten'ы, привязанные к открытой модалке (напр. слушатели апдейтера
        в «настройках приложения»). Снимаются при закрытии модалки — чтобы не
        копить подписки при повторных открытиях. */
@@ -512,7 +519,7 @@
             <div class="kbd-visual" data-kbd aria-hidden="true">
                 <div class="kbd-stage">
                     <div class="kbd-board">${rows}</div>
-                    ${KB_MOUSE}
+                    ${MOUSE_BINDS ? KB_MOUSE : ""}
                 </div>
             </div>
         `;
@@ -665,6 +672,7 @@
            модификатора просто ждём дальше, не закрывая капчур. */
         const wheelHandler = (e) => {
             if (!e.deltaY) return;
+            if (!MOUSE_BINDS) return;
             e.preventDefault();
             e.stopPropagation();
             if (!(e.ctrlKey || e.shiftKey || e.altKey || e.metaKey)) return;
@@ -714,6 +722,7 @@
      * свою кнопку без догадок.
      */
     function mouseButtonToken(button) {
+        if (!MOUSE_BINDS) return null;
         if (button === 1) return "Mouse3";  // средняя (клик колесом)
         if (button === 3) return "Mouse4";  // боковая «назад»
         if (button === 4) return "Mouse5";  // боковая «вперёд»
@@ -1006,6 +1015,11 @@
                 patchAppState({ autoStart: enabled });
                 window.VoidSettings?.refreshCats?.();
             })
+            .catch(() => {});
+
+        /* «Настройки…» (⌘,) из меню приложения macOS — lib.rs run_app_menu_action. */
+        tauriEvent
+            .listen("void:open-settings", () => window.VoidSettings?.openPanel?.())
             .catch(() => {});
 
         tauriEvent

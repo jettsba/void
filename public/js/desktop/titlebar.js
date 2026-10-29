@@ -23,6 +23,24 @@
 
     const tauriWindow = window.__TAURI__.window.getCurrentWindow();
 
+    /* macOS: кнопки окна системные, наши скрыты; полоса над шапкой прозрачная
+       (css/titlebar.css). Окно тянется и за неё, и за пустое место шапки —
+       Tauri ловит атрибут только на самом элементе под курсором, поэтому
+       логотип и кнопка чата остаются кнопками. Полноэкранный режим
+       отслеживаем: в нём полосы нет, раскладка обычная. */
+    if (document.documentElement.classList.contains("mac")) {
+        document.querySelector(".app > .header")?.setAttribute("data-tauri-drag-region", "");
+        const syncFullscreen = async () => {
+            try {
+                const fs = await tauriWindow.isFullscreen();
+                document.documentElement.classList.toggle("mac-fullscreen", fs);
+            } catch (e) { /* некритично — полоса просто останется */ }
+        };
+        tauriWindow.onResized(syncFullscreen);
+        syncFullscreen();
+        return;
+    }
+
     const minBtn = document.getElementById("voidTitlebarMin");
     const maxBtn = document.getElementById("voidTitlebarMax");
     const closeBtn = document.getElementById("voidTitlebarClose");

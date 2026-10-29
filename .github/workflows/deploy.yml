@@ -207,10 +207,9 @@ jobs:
               ]
             }' || echo "IndexNow ping failed (non-fatal)"
 
-  # Desktop release: собираем signed .exe + создаём GitHub Release.
-  # Idempotent — если для текущей версии package.json уже выпущен Release с
-  # тегом desktop-v{version}, скип. То есть push без bump'а версии web-only,
-  # build с bump'ом — выкатывает и desktop тоже. Один источник истины.
+  # Desktop-релиз (Windows + macOS) — джобы release-check / build-* /
+  # publish-desktop ниже. Idempotent по тегу desktop-v{version}: push без
+  # bump'а версии — только web, с bump'ом — выкатывает и desktop.
   # ============================================================================
   # Компиляционный сторож для Rust-части.
   #
@@ -228,11 +227,19 @@ jobs:
   # чекается на чистом клоне без вшитого payload — его build.rs сам кладёт
   # пустой placeholder (см. installer/src-tauri/build.rs).
   #
-  # Rust на windows-раннере предустановлен — отдельный setup-шаг не нужен
-  # (build-desktop ниже тоже зовёт cargo напрямую).
+  # Rust на раннерах предустановлен — отдельный setup-шаг не нужен.
+  #
+  # Две ОС: Windows (все три крейта) и macOS (только приложение — установщик и
+  # деинсталлятор там не собираются). Половина кода в lib.rs разведена
+  # cfg(windows)/cfg(target_os = "macos"), и ветку, которую не компилировали,
+  # иначе ловил бы только релиз.
   # ============================================================================
   check-desktop:
-    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 30
 
     steps:
@@ -283,7 +290,7 @@ jobs:
             cargo-check-${{ runner.os }}-
 
       - name: Stub bundled resources
-        if: steps.detect.outputs.changed == 'true'
+        if: steps.detect.outputs.changed == 'true' && runner.os == 'Windows'
         # tauri.conf.json главного приложения объявляет ресурсом
         # `bundled/void-uninstaller.exe`, а он под .gitignore — в чистом клоне
         # его НЕТ, и build.rs падает ещё до компиляции:
@@ -319,14 +326,64 @@ jobs:
         run: |
           set -euo pipefail
           cargo check --manifest-path src-tauri/Cargo.toml
-          cargo check --manifest-path uninstaller/src-tauri/Cargo.toml
-          cargo check --manifest-path installer/src-tauri/Cargo.toml
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            cargo check --manifest-path uninstaller/src-tauri/Cargo.toml
+            cargo check --manifest-path installer/src-tauri/Cargo.toml
+          fi
 
-  build-desktop:
+
+  # ============================================================================
+  # Desktop-релиз: Windows + macOS одной версией.
+  #
+  #   release-check ─┬─ build-windows ─┐
+  #                  └─ build-macos  ──┴─ publish-desktop
+  #
+  # Сборки идут параллельно на своих раннерах и только сдают файлы
+  # артефактами. Релиз, манифест апдейтера и зеркало /dl делает ОДНА джоба
+  # после обеих: у версии всегда полный набор платформ. Упала одна сборка —
+  # релиза нет вовсе, и следующий прогон соберёт обе заново (идемпотентность по
+  # тегу та же). Иначе latest.json вышел бы без одной из платформ, а тег уже
+  # занят — повторить сборку недостающей было бы нечем.
+  # ============================================================================
+  release-check:
+    runs-on: ubuntu-latest
+    needs: deploy
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+      tag: ${{ steps.ver.outputs.tag }}
+      exists: ${{ steps.check.outputs.exists }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read version
+        id: ver
+        run: |
+          v=$(node -p "require('./package.json').version")
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "tag=desktop-v$v" >> "$GITHUB_OUTPUT"
+
+      # Idempotent: если для версии package.json уже выпущен релиз с тегом
+      # desktop-v{version} — сборки пропускаются. Пуш без бампа = только web.
+      - name: Check if release already exists
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view "${{ steps.ver.outputs.tag }}" --repo jettsba/void >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Release ${{ steps.ver.outputs.tag }} already exists — skipping build."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "Release ${{ steps.ver.outputs.tag }} not found — building."
+          fi
+
+  build-windows:
     runs-on: windows-latest
     # Гейт: сначала компиляционный сторож, потом полуторачасовая сборка.
     # Иначе ошибка Rust жгла бы 40+ минут раннера, чтобы упасть на том же.
-    needs: [deploy, check-desktop]
+    needs: [release-check, check-desktop]
+    if: needs.release-check.outputs.exists == 'false'
     # Холодная сборка ТРЁХ независимых Tauri-крейтов (uninstaller → app →
     # installer), каждый в своём target/ — на Windows-раннере это ~60-90 мин с
     # нуля. 30 мин не хватало: джоба убивалась таймаутом, не успев сохранить
@@ -334,63 +391,21 @@ jobs:
     # одному холодному прогону доехать и наполнить кэш; дальше restore-keys
     # (см. шаг кэша) делает сборки инкрементальными и быстрыми.
     timeout-minutes: 90
-    permissions:
-      contents: write  # релиз идёт в ЭТОТ же репо → хватает встроенного GITHUB_TOKEN
-    env:
-      # Основной репо теперь публичный → отдельный релизный репо больше не нужен,
-      # релизы идут сюда же. Анонимный доступ к release-URL работает (нужен
-      # апдейтеру и кнопкам лендинга без авторизации). Бинарники к тому же
-      # дублируются на свой домен (/dl) — см. шаг «Upload artifacts to VPS».
-      RELEASES_REPO: jettsba/void
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Read version
-        id: ver
-        shell: pwsh
-        run: |
-          $v = (Get-Content package.json | ConvertFrom-Json).version
-          echo "version=$v" >> $env:GITHUB_OUTPUT
-          echo "tag=desktop-v$v" >> $env:GITHUB_OUTPUT
-
-      - name: Check if release already exists
-        id: check
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # gh release view для несуществующего тега возвращает exit 1 и
-          # пишет в stderr — иначе PowerShell в GH Actions считает шаг
-          # failed до проверки $LASTEXITCODE. Глушим оба stream'а и явно
-          # разрешаем продолжать выполнение через $ErrorActionPreference.
-          $ErrorActionPreference = 'Continue'
-          gh release view "${{ steps.ver.outputs.tag }}" --repo "${{ env.RELEASES_REPO }}" *> $null
-          if ($LASTEXITCODE -eq 0) {
-            "exists=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-            Write-Host "Release ${{ steps.ver.outputs.tag }} already exists — skipping build."
-          } else {
-            "exists=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-            Write-Host "Release ${{ steps.ver.outputs.tag }} not found — building."
-          }
-          # Сбрасываем код возврата на 0, чтобы шаг сам не упал из-за того,
-          # что предыдущая команда внутри гила вернула non-zero.
-          exit 0
-
       - name: Setup Node
-        if: steps.check.outputs.exists == 'false'
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
       - name: Setup Rust
-        if: steps.check.outputs.exists == 'false'
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-pc-windows-msvc
 
       - name: Cache cargo registry
-        if: steps.check.outputs.exists == 'false'
         uses: actions/cache@v4
         with:
           path: |
@@ -410,11 +425,9 @@ jobs:
             cargo-${{ runner.os }}-
 
       - name: npm install
-        if: steps.check.outputs.exists == 'false'
         run: npm ci
 
       - name: Verify signing secrets present
-        if: steps.check.outputs.exists == 'false'
         shell: pwsh
         env:
           KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -430,7 +443,6 @@ jobs:
           }
 
       - name: Build custom uninstaller (Веха B) + stage as app resource
-        if: steps.check.outputs.exists == 'false'
         shell: pwsh
         run: |
           # Деинсталлятор собираем ПЕРВЫМ и кладём в src-tauri/bundled/, откуда
@@ -442,7 +454,6 @@ jobs:
                     "src-tauri/bundled/void-uninstaller.exe" -Force
 
       - name: Build + sign
-        if: steps.check.outputs.exists == 'false'
         shell: pwsh
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -465,7 +476,6 @@ jobs:
           npm run tauri:build
 
       - name: List bundle output (diagnostic)
-        if: steps.check.outputs.exists == 'false'
         shell: pwsh
         run: |
           Write-Host "=== bundle/ contents ==="
@@ -478,7 +488,6 @@ jobs:
             Format-Table -AutoSize | Out-String -Width 200 | Write-Host
 
       - name: Build custom installer (single-file, embeds NSIS)
-        if: steps.check.outputs.exists == 'false'
         shell: pwsh
         run: |
           # Веха A: вшиваем свежесобранный NSIS-setup в кастомный установщик и
@@ -493,17 +502,199 @@ jobs:
           $sz = (Get-Item "installer/src-tauri/target/release/void_installer.exe").Length
           Write-Host "void_installer.exe size: $sz bytes"
 
-      - name: Generate manifest
-        if: steps.check.outputs.exists == 'false'
-        run: node scripts/build-manifest.mjs
+      - name: Stage release files
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          cp installer/src-tauri/target/release/void_installer.exe \
+             src-tauri/target/release/void_portable.exe \
+             src-tauri/target/release/bundle/nsis/void_setup.exe \
+             src-tauri/target/release/bundle/nsis/void_setup.exe.sig \
+             dist/
+          ls -la dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-windows
+          path: dist/
+          if-no-files-found: error
+          retention-days: 3
+
+  # macOS: universal-бинарь (Apple Silicon + Intel одним .app). Без сертификата
+  # Apple: подпись САМОПОДПИСАННЫМ сертификатом (секреты APPLE_CERTIFICATE*),
+  # без нотаризации — Gatekeeper на первом запуске всё равно спросит, но
+  # подпись стабильна между версиями, и macOS не сбрасывает выданные
+  # разрешения (микрофон, запись экрана) после каждого автообновления: у ad-hoc
+  # подписи «личность» = хеш бинаря, а он у каждой версии свой.
+  build-macos:
+    runs-on: macos-latest
+    needs: [release-check, check-desktop]
+    if: needs.release-check.outputs.exists == 'false'
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: |
+            cargo-${{ runner.os }}-
+
+      - name: npm install
+        run: npm ci
+
+      - name: Verify signing secrets present
         env:
-          # RELEASES_REPO наследуется из job-level env (виден всем шагам) —
-          # build-manifest.mjs кладёт его в download-URL внутри latest.json.
-          RELEASE_NOTES: "Desktop release ${{ steps.ver.outputs.tag }}"
+          KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          CERT: ${{ secrets.APPLE_CERTIFICATE }}
+          CERT_PASS: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          fail=0
+          [ ${#KEY} -ge 100 ] || { echo "::error::TAURI_SIGNING_PRIVATE_KEY is missing or too short"; fail=1; }
+          [ ${#CERT} -ge 100 ] || { echo "::error::APPLE_CERTIFICATE (base64 .p12) is missing — see docs/DEVELOPMENT.md"; fail=1; }
+          [ -n "$CERT_PASS" ] || { echo "::error::APPLE_CERTIFICATE_PASSWORD is missing"; fail=1; }
+          exit $fail
+
+      # Свой keychain с сертификатом, добавленный в поиск. Сертификат НЕ
+      # доверенный (самоподписанный), поэтому через APPLE_CERTIFICATE Tauri его
+      # не найдёт (`find-identity -v` показывает только доверенные). А с одним
+      # APPLE_SIGNING_IDENTITY Tauri зовёт `codesign -s "void desktop"` как
+      # есть — codesign доверия к сертификату не требует.
+      - name: Import code signing certificate
+        env:
+          CERT: ${{ secrets.APPLE_CERTIFICATE }}
+          CERT_PASS: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          kc="$RUNNER_TEMP/void-signing.keychain-db"
+          kp="$(openssl rand -hex 16)"
+          security create-keychain -p "$kp" "$kc"
+          security set-keychain-settings -lut 21600 "$kc"
+          security unlock-keychain -p "$kp" "$kc"
+          printf '%s' "$CERT" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$kc" -P "$CERT_PASS" -T /usr/bin/codesign
+          rm -f "$RUNNER_TEMP/cert.p12"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$kp" "$kc" >/dev/null
+          existing=()
+          while IFS= read -r line; do
+            line="${line//\"/}"; line="${line#"${line%%[![:space:]]*}"}"
+            [ -n "$line" ] && existing+=("$line")
+          done < <(security list-keychains -d user)
+          security list-keychains -d user -s "$kc" "${existing[@]}"
+          security find-identity -p codesigning "$kc"
+
+      - name: Build + sign (universal)
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          RAW_PASS: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: void desktop
+        run: |
+          set -euo pipefail
+          # Пароль ключа апдейтера: пробел из UI секретов срезаем (см. тот же шаг
+          # в build-windows), но переменную экспортируем ВСЕГДА, даже пустой —
+          # без неё Tauri на маке молча не подписывает Void.app.tar.gz
+          # (проверено: архив есть, .sig нет, сборка «зелёная»).
+          export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="$(printf '%s' "${RAW_PASS:-}" | xargs)"
+          unset RAW_PASS
+          npx tauri build --target universal-apple-darwin
+
+      - name: Verify app signature
+        run: |
+          set -euo pipefail
+          app="src-tauri/target/universal-apple-darwin/release/bundle/macos/Void.app"
+          codesign --verify --strict --deep "$app"
+          req="$(codesign -dr - "$app" 2>&1)"
+          echo "$req"
+          # Стабильная «личность» = корень сертификата. ad-hoc (cdhash) здесь —
+          # значит, подпись тихо не применилась.
+          echo "$req" | grep -q 'certificate root' || { echo "::error::app is not signed with the void certificate"; exit 1; }
+          lipo -archs "$app/Contents/MacOS/void-desktop"
+
+      # DMG собирает dmgbuild, а не bundler Tauri: тот оформляет окно через
+      # AppleScript к Finder, а Finder без видимой сессии молча теряет фон и
+      # позиции иконок. Подробности — src-tauri/macos/dmg-settings.py.
+      - name: Build DMG
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/dmgbuild"
+          "$RUNNER_TEMP/dmgbuild/bin/pip" install --quiet dmgbuild==1.6.5
+          mkdir -p dist
+          "$RUNNER_TEMP/dmgbuild/bin/dmgbuild" -s src-tauri/macos/dmg-settings.py \
+            -D app="src-tauri/target/universal-apple-darwin/release/bundle/macos/Void.app" \
+            Void dist/void.dmg
+
+      - name: Stage release files
+        run: |
+          set -euo pipefail
+          b="src-tauri/target/universal-apple-darwin/release/bundle/macos"
+          cp "$b/Void.app.tar.gz" dist/void_macos.app.tar.gz
+          cp "$b/Void.app.tar.gz.sig" dist/void_macos.app.tar.gz.sig
+          ls -la dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-macos
+          path: dist/
+          if-no-files-found: error
+          retention-days: 3
+
+  publish-desktop:
+    runs-on: ubuntu-latest
+    needs: [release-check, build-windows, build-macos]
+    timeout-minutes: 20
+    permissions:
+      contents: write  # релиз идёт в ЭТОТ же репо → хватает встроенного GITHUB_TOKEN
+    env:
+      # Основной репо теперь публичный → отдельный релизный репо больше не нужен,
+      # релизы идут сюда же. Анонимный доступ к release-URL работает (нужен
+      # апдейтеру и кнопкам лендинга без авторизации). Бинарники к тому же
+      # дублируются на свой домен (/dl) — см. шаг «Upload artifacts to VPS».
+      RELEASES_REPO: jettsba/void
+      TAG: ${{ needs.release-check.outputs.tag }}
+      VERSION: ${{ needs.release-check.outputs.version }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Generate manifests
+        env:
+          RELEASE_NOTES: "Desktop release ${{ needs.release-check.outputs.tag }}"
+        run: |
+          set -euo pipefail
+          ls -la dist
+          # Два варианта: GitHub (url → releases/latest/download) и зеркало
+          # (url → void-room.space/dl). Подписи одни и те же.
+          node scripts/build-manifest.mjs
+          MANIFEST_BASE_URL="https://void-room.space/dl" MANIFEST_OUT="latest.vps.json" \
+            node scripts/build-manifest.mjs
 
       - name: Create GitHub Release
-        if: steps.check.outputs.exists == 'false'
-        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -511,17 +702,20 @@ jobs:
           # (checkout@v4 берёт именно его). Пишем в файл, чтобы корректно
           # пробросить многострочный текст и спецсимволы.
           git log -1 --pretty=%B > release_notes.txt
-          gh release create "${{ steps.ver.outputs.tag }}" \
-            --repo "${{ env.RELEASES_REPO }}" \
-            --title "void desktop v${{ steps.ver.outputs.version }}" \
+          gh release create "$TAG" \
+            --repo "$RELEASES_REPO" \
+            --title "void desktop v$VERSION" \
             --notes-file release_notes.txt \
             --latest \
             --target main \
-            "installer/src-tauri/target/release/void_installer.exe" \
-            "src-tauri/target/release/bundle/nsis/void_setup.exe" \
-            "src-tauri/target/release/bundle/nsis/void_setup.exe.sig" \
-            "src-tauri/target/release/void_portable.exe" \
-            "latest.json"
+            dist/void_installer.exe \
+            dist/void_setup.exe \
+            dist/void_setup.exe.sig \
+            dist/void_portable.exe \
+            dist/void.dmg \
+            dist/void_macos.app.tar.gz \
+            dist/void_macos.app.tar.gz.sig \
+            latest.json
 
       # В репо держим РОВНО ОДИН релиз — текущий. История релизов никому не нужна:
       # апдейтер ходит на releases/latest/download/latest.json (алиас последнего)
@@ -534,11 +728,9 @@ jobs:
       # Ошибку удаления не считаем фатальной: релиз уже создан и залит на зеркало,
       # ронять из-за уборки зелёную сборку незачем — просто пишем warning.
       - name: Prune old releases and desktop tags (keep current)
-        if: steps.check.outputs.exists == 'false'
-        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          KEEP: ${{ steps.ver.outputs.tag }}
+          KEEP: ${{ needs.release-check.outputs.tag }}
         run: |
           set -uo pipefail
 
@@ -569,12 +761,10 @@ jobs:
 
       # Зеркало раздачи: дублируем артефакты на свой домен (void-room.space/dl),
       # т.к. GitHub в РФ нестабилен. Перезаписью → на сервере всегда одна,
-      # последняя версия. Манифест для зеркала генерим заново с url, указывающим
-      # на /dl (а не на GitHub). Переиспользуем те же deploy-секреты, что и web —
-      # ничего нового, и переезд на новый сервер = смена DEPLOY_HOST + DNS.
+      # последняя версия. Манифест для зеркала (url → /dl) сгенерирован выше.
+      # Переиспользуем те же deploy-секреты, что и web — ничего нового, и
+      # переезд на новый сервер = смена DEPLOY_HOST + DNS.
       - name: Upload artifacts to VPS mirror
-        if: steps.check.outputs.exists == 'false'
-        shell: bash
         env:
           SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
@@ -586,20 +776,18 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
-          # Манифест для зеркала: url → void-room.space/dl (не GitHub).
-          MANIFEST_URL="https://void-room.space/dl/void_setup.exe" \
-            MANIFEST_OUT="latest.vps.json" \
-            node scripts/build-manifest.mjs
-
           SSH="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new"
           SCP="scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new"
 
           $SSH "$DEPLOY_USER@$DEPLOY_HOST" 'mkdir -p /srv/void-dl'
           $SCP \
-            "installer/src-tauri/target/release/void_installer.exe" \
-            "src-tauri/target/release/void_portable.exe" \
-            "src-tauri/target/release/bundle/nsis/void_setup.exe" \
-            "src-tauri/target/release/bundle/nsis/void_setup.exe.sig" \
+            dist/void_installer.exe \
+            dist/void_portable.exe \
+            dist/void_setup.exe \
+            dist/void_setup.exe.sig \
+            dist/void.dmg \
+            dist/void_macos.app.tar.gz \
+            dist/void_macos.app.tar.gz.sig \
             "$DEPLOY_USER@$DEPLOY_HOST:/srv/void-dl/"
           $SCP "latest.vps.json" "$DEPLOY_USER@$DEPLOY_HOST:/srv/void-dl/latest.json"
           # Caddy (юзер caddy) должен читать файлы и обходить каталог.

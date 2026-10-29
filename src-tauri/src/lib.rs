@@ -34,15 +34,22 @@ mod screen_indicator;
 mod mouse_hook;
 
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, AtomicIsize, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
+#[cfg(windows)]
+use std::sync::atomic::AtomicIsize;
 use std::sync::Mutex;
 
 use tauri::{
     image::Image,
-    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    tray::TrayIconBuilder,
     window::Color,
-    AppHandle, Emitter, Listener, LogicalSize, Manager, PhysicalPosition, PhysicalSize,
+    AppHandle, Emitter, Listener, Manager, PhysicalPosition, PhysicalSize,
     WebviewUrl, WebviewWindowBuilder, WindowEvent,
+};
+#[cfg(not(target_os = "macos"))]
+use tauri::{
+    tray::{MouseButton, MouseButtonState, TrayIconEvent},
+    LogicalSize,
 };
 
 /// Базовый фон приложения (--bg-0 = #0a0a0b из public/css/base.css). Красим им
@@ -59,8 +66,32 @@ use tauri_plugin_notification::NotificationExt;
 use tauri_plugin_updater::UpdaterExt;
 
 const TRAY_ID: &str = "main";
+#[cfg(not(target_os = "macos"))]
 const ICON_IDLE_PNG: &[u8] = include_bytes!("../icons/tray/idle.png");
+#[cfg(not(target_os = "macos"))]
 const ICON_IN_ROOM_PNG: &[u8] = include_bytes!("../icons/tray/in_room.png");
+/* macOS: template-иконки (чёрный + альфа). Менюбар сам перекрашивает их под
+   светлую/тёмную тему и подсветку при клике; цветная виндовая иконка в
+   менюбаре выглядела бы чужой и терялась на светлой теме. */
+#[cfg(target_os = "macos")]
+const ICON_IDLE_PNG: &[u8] = include_bytes!("../icons/tray/mac_idle.png");
+#[cfg(target_os = "macos")]
+const ICON_IN_ROOM_PNG: &[u8] = include_bytes!("../icons/tray/mac_in_room.png");
+
+/// Язык нативных меню (macOS: меню приложения и значка в менюбаре) — по
+/// первому языку в системных настройках, как у остальных приложений мака,
+/// а не по языку интерфейса void. Читается один раз: смену языка система
+/// применяет к приложениям только после их перезапуска.
+#[cfg(target_os = "macos")]
+fn mac_menu_ru() -> bool {
+    static RU: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *RU.get_or_init(|| {
+        objc2_foundation::NSLocale::preferredLanguages()
+            .firstObject()
+            .map(|lang| lang.to_string().starts_with("ru"))
+            .unwrap_or(false)
+    })
+}
 
 static SHOWN_HIDE_TOAST: AtomicBool = AtomicBool::new(false);
 static CLOSE_TO_TRAY: AtomicBool = AtomicBool::new(true);
@@ -88,13 +119,16 @@ static ROOM_SHARE: Mutex<Option<(String, String)>> = Mutex::new(None);
 static PENDING_ROOM: Mutex<Option<String>> = Mutex::new(None);
 
 /// Label кастомного окна-меню трея (см. tray-menu.html / open_tray_menu).
+/// Только Windows: на macOS меню трея нативное (mac_tray_menu).
 const TRAY_MENU_LABEL: &str = "tray-menu";
 /// Ширина окна-меню в логических px. Высота считается tray_menu_height().
+#[cfg(not(target_os = "macos"))]
 const TRAY_MENU_W: f64 = 210.0;
 
 /// Высота окна-меню (логические px). Считается под фиксированные размеры из
 /// css/tray-menu.css: border 1px×2, padding 6px×2, item 32px, sep 9px.
 /// В комнате видны 2 копи-пункта + лишний разделитель → меню выше.
+#[cfg(not(target_os = "macos"))]
 fn tray_menu_height(in_room: bool) -> f64 {
     const BORDER: f64 = 1.0; // ×2 (верх/низ)
     const PAD: f64 = 6.0; // ×2
@@ -315,6 +349,26 @@ fn mark_from_internet(path: &std::path::Path) {
     }
 }
 
+/// macOS-аналог Mark-of-the-Web — атрибут `com.apple.quarantine`, который
+/// браузеры ставят на скачанное. По нему Gatekeeper спрашивает перед первым
+/// запуском программы, пришедшей из чата; без него она открывалась бы молча.
+/// Значение — формат браузеров: флаги;время;кто скачал. Ошибка (диск без
+/// расширенных атрибутов) не повод проваливать сохранение.
+#[cfg(target_os = "macos")]
+fn mark_from_internet(path: &std::path::Path) {
+    let ts = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let status = std::process::Command::new("/usr/bin/xattr")
+        .args(["-w", "com.apple.quarantine", &format!("0081;{ts:x};void;")])
+        .arg(path)
+        .status();
+    if !matches!(status, Ok(s) if s.success()) {
+        eprintln!("[save_file] quarantine mark failed: {status:?}");
+    }
+}
+
 /// Сохранить вложение чата: диалог «сохранить как» и запись — здесь, в Rust.
 /// JS передаёт только байты и имя по умолчанию, путь выбирает человек в
 /// системном окне. Раньше JS сам звал fs-плагин, и ACL разрешал запись в
@@ -348,7 +402,7 @@ async fn save_file(
     };
     let path = picked.into_path().map_err(|e| e.to_string())?;
     std::fs::write(&path, &data).map_err(|e| e.to_string())?;
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     mark_from_internet(&path);
     Ok(true)
 }
@@ -392,6 +446,7 @@ pub fn run() {
                 .with_handler(on_global_shortcut)
                 .build(),
         )
+        .on_menu_event(|app, event| run_app_menu_action(app, event.id().as_ref()))
         .manage(HotkeyMap::default())
         .manage(HeldShortcuts::default())
         .invoke_handler(tauri::generate_handler![
@@ -467,29 +522,47 @@ pub fn run() {
 
             // Кастомное окно-меню (вместо нативного Windows-меню) поднимаем
             // скрытым заранее — чтобы по правому клику открывалось мгновенно.
-            create_tray_menu_window(app.handle());
+            #[cfg(not(target_os = "macos"))]
+            {
+                create_tray_menu_window(app.handle());
 
-            // Без .menu(...) — нативное меню не всплывает. Левый клик → toggle
-            // окна; правый клик → наше кастомное меню (open_tray_menu).
+                // Без .menu(...) — нативное меню не всплывает. Левый клик → toggle
+                // окна; правый клик → наше кастомное меню (open_tray_menu).
+                TrayIconBuilder::with_id(TRAY_ID)
+                    .icon(decode_png_to_image(ICON_IDLE_PNG))
+                    .tooltip("void")
+                    .show_menu_on_left_click(false)
+                    .on_tray_icon_event(|tray, event| match event {
+                        TrayIconEvent::Click {
+                            button: MouseButton::Left,
+                            button_state: MouseButtonState::Up,
+                            ..
+                        } => toggle_main_window(tray.app_handle()),
+                        TrayIconEvent::Click {
+                            button: MouseButton::Right,
+                            button_state: MouseButtonState::Up,
+                            position,
+                            ..
+                        } => open_tray_menu(tray.app_handle(), position),
+                        _ => {}
+                    })
+                    .build(app)?;
+            }
+
+            // macOS: значок в менюбаре и обычное системное меню по клику — как у
+            // всех приложений там. Своё окно-меню рядом с системными выглядело
+            // бы подделкой.
+            #[cfg(target_os = "macos")]
             TrayIconBuilder::with_id(TRAY_ID)
                 .icon(decode_png_to_image(ICON_IDLE_PNG))
+                .icon_as_template(true)
                 .tooltip("void")
-                .show_menu_on_left_click(false)
-                .on_tray_icon_event(|tray, event| match event {
-                    TrayIconEvent::Click {
-                        button: MouseButton::Left,
-                        button_state: MouseButtonState::Up,
-                        ..
-                    } => toggle_main_window(tray.app_handle()),
-                    TrayIconEvent::Click {
-                        button: MouseButton::Right,
-                        button_state: MouseButtonState::Up,
-                        position,
-                        ..
-                    } => open_tray_menu(tray.app_handle(), position),
-                    _ => {}
-                })
+                .menu(&mac_tray_menu(app.handle(), false)?)
+                .show_menu_on_left_click(true)
+                .on_menu_event(|app, event| run_tray_action(app, event.id().as_ref()))
                 .build(app)?;
+
+            refresh_app_menu(app.handle());
 
             let initial_autostart = app.autolaunch().is_enabled().unwrap_or(false);
             let _ = app.emit("void:autostart-state", initial_autostart);
@@ -774,8 +847,18 @@ pub fn run() {
 
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running Void desktop");
+        .build(tauri::generate_context!())
+        .expect("error while building Void desktop")
+        .run(|app, event| {
+            // macOS: красная кнопка прячет окно, приложение остаётся в Dock.
+            // Клик по значку в Dock — вернуть окно (системный «reopen»).
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen { .. } = event {
+                show_main_window(app);
+            }
+            #[cfg(not(target_os = "macos"))]
+            let _ = (app, event);
+        });
 }
 
 // ============ Helpers ============
@@ -802,12 +885,19 @@ fn launch_main_window(app: &AppHandle) {
     // рабочую область монитора (fit_main_window_to_monitor) и только потом
     // показываем — иначе на FHD@125% и т.п. окно фикс-размера 1280×820
     // вылезало под таскбар и мелькало до репозиционирования.
+    // Перезапуск после тихого обновления в трее: человек нас не открывал,
+    // окно остаётся спрятанным, как было до установки.
+    let to_tray = take_relaunch_to_tray(app);
+
     let mut builder = WebviewWindowBuilder::new(app, "main", webview_url)
         .title("Void")
         .inner_size(1280.0, 820.0)
         .min_inner_size(900.0, 600.0)
         .resizable(true)
-        .decorations(false)
+        // Windows: свой титлбар (css/titlebar.css). macOS: нативный «светофор»
+        // поверх нашей полосы (Overlay, без заголовка) — кнопки окна на маке
+        // мышечная память, их место слева и вид системный.
+        .decorations(cfg!(target_os = "macos"))
         .background_color(APP_BG)
         // Отдаём HTML5 drag&drop вебвью. По умолчанию Tauri вешает нативный
         // OS-обработчик перетаскивания, который ПЕРЕХВАТЫВАЕТ file-drop раньше
@@ -817,6 +907,36 @@ fn launch_main_window(app: &AppHandle) {
         .disable_drag_drop_handler()
         .visible(false)
         .focused(true);
+
+    #[cfg(target_os = "macos")]
+    {
+        // WKWebView до первой отрисовки страницы показывает пустой серый
+        // слой — окно, показанное сразу после создания, на холодном старте
+        // мигало серым. Поэтому на маке окно открываем, когда страница
+        // загрузилась (и страховочно через 1.5с, если события не будет).
+        if !to_tray {
+            builder = builder.on_page_load(|w, payload| {
+                if payload.event() == tauri::webview::PageLoadEvent::Finished {
+                    reveal_main_window(&w);
+                }
+            });
+        }
+        builder = builder
+            .title_bar_style(tauri::TitleBarStyle::Overlay)
+            .hidden_title(true)
+            // Светофор — в верхнем левом углу, над логотипом (css/titlebar.css),
+            // с отступом чуть больше системного, как у крупных приложений:
+            // 14px и слева, и сверху. Числа подобраны замером: по x кнопка
+            // встаёт на 1px левее заданного, по y — на 10px выше (24 → верх
+            // 14, нижний край 28 = высота полосы --titlebar-h, ниже начинается
+            // шапка). Двигать их после создания окна Tauri не умеет.
+            .traffic_light_position(tauri::LogicalPosition::new(15.0, 24.0))
+            // Фича `devtools` включает инспектор и в release, а гейта клавиш, как
+            // на Windows (setup_dev_access_gate), у WKWebView нет: пункт «Inspect
+            // Element» в контекстном меню был бы у всех. Поэтому инспектор есть
+            // только там, где dev-режим разрешён флагом на машине.
+            .devtools(dev_mode_allowed(app));
+    }
 
     // Язык, выбранный в кастомном установщике, приходит один раз через файл-маркер
     // installer-lang рядом с exe. Инжектим в окно ДО загрузки страницы — settings.js
@@ -836,15 +956,20 @@ fn launch_main_window(app: &AppHandle) {
 
     // Подгоняем под рабочую область монитора (любой размер/любой OS-масштаб),
     // центрируем в ней, затем показываем (окно построено скрытым — без мелькания).
-    // Исключение — перезапуск после тихого обновления в трее: человек нас не
-    // открывал, окно остаётся спрятанным, как было до установки.
+    // После тихого обновления в трее (to_tray) не показываем вовсе; на маке
+    // показ ждёт загрузки страницы (on_page_load выше), тут — только страховка.
     fit_main_window_to_monitor(&window);
-    if take_relaunch_to_tray(app) {
+    if to_tray {
         note_main_hidden(true);
+    } else if cfg!(target_os = "macos") {
+        let w = window.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(1500));
+            let w2 = w.clone();
+            let _ = w.run_on_main_thread(move || reveal_main_window(&w2));
+        });
     } else {
-        let _ = window.show();
-        let _ = window.set_focus();
-        note_main_hidden(false);
+        reveal_main_window(&window);
     }
 
     #[cfg(windows)]
@@ -864,12 +989,19 @@ fn launch_main_window(app: &AppHandle) {
     let window_for_close = window.clone();
     let app_for_close = app.clone();
     window.on_window_event(move |event| {
+        // Пункт «открыть/показать void» в меню трея (macOS) следит за фокусом.
+        if let WindowEvent::Focused(_) = event {
+            refresh_tray_menu(&app_for_close);
+        }
         if let WindowEvent::CloseRequested { api, .. } = event {
             if CLOSE_TO_TRAY.load(Ordering::SeqCst) {
                 api.prevent_close();
                 let _ = window_for_close.hide();
                 note_main_hidden(true);
-                if !SHOWN_HIDE_TOAST.swap(true, Ordering::SeqCst) {
+                refresh_tray_menu(&app_for_close);
+                // На маке спрятанное окно — обычное поведение (значок остаётся
+                // в Dock и менюбаре), объяснять его уведомлением незачем.
+                if cfg!(not(target_os = "macos")) && !SHOWN_HIDE_TOAST.swap(true, Ordering::SeqCst) {
                     let _ = app_for_close
                         .notification()
                         .builder()
@@ -880,6 +1012,21 @@ fn launch_main_window(app: &AppHandle) {
             }
         }
     });
+}
+
+/// Первый показ главного окна после создания — ровно один раз: на маке его
+/// зовут и событие загрузки страницы, и страховочный таймер, а перезагрузка
+/// страницы не должна сама вытаскивать окно, которое человек спрятал.
+static MAIN_REVEALED: AtomicBool = AtomicBool::new(false);
+
+fn reveal_main_window(window: &tauri::WebviewWindow) {
+    if MAIN_REVEALED.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    let _ = window.show();
+    let _ = window.set_focus();
+    note_main_hidden(false);
+    refresh_tray_menu(window.app_handle());
 }
 
 /// Подгоняет главное окно под монитор: комфортный «общепринятый» размер
@@ -1368,6 +1515,7 @@ fn show_main_window(app: &AppHandle) {
         let _ = w.show();
         let _ = w.set_focus();
         note_main_hidden(false);
+        refresh_tray_menu(app);
     }
 }
 
@@ -1383,6 +1531,9 @@ fn toggle_main_window(app: &AppHandle) {
             let _ = w.set_focus();
             note_main_hidden(false);
         }
+        // Хоткей прячет окно, у которого фокуса могло и не быть, — тогда
+        // события Focused не придёт, и меню трея осталось бы прежним.
+        refresh_tray_menu(app);
     }
 }
 
@@ -1487,6 +1638,9 @@ fn update_tray_state(
     };
     if let Some(tray) = app.tray_by_id(TRAY_ID) {
         let _ = tray.set_icon(Some(decode_png_to_image(png)));
+        // Новая картинка сбрасывает template-флаг — ставим его заново.
+        #[cfg(target_os = "macos")]
+        let _ = tray.set_icon_as_template(true);
         let _ = tray.set_tooltip(Some(tooltip.as_str()));
     }
 
@@ -1507,11 +1661,253 @@ fn update_tray_state(
     if let Some(menu_win) = app.get_webview_window(TRAY_MENU_LABEL) {
         let _ = menu_win.emit("void:tray-menu-state", serde_json::json!({ "inRoom": in_room }));
     }
+    // macOS: нативные меню пересобираем целиком — под комнату.
+    refresh_tray_menu(app);
+    refresh_app_menu(app);
+}
+
+/// Нативное меню значка в менюбаре (macOS). Те же пункты, что у кастомного
+/// меню на Windows (tray-menu.html); копи-пункты есть только в комнате.
+#[cfg(target_os = "macos")]
+fn mac_tray_menu(app: &AppHandle, in_room: bool) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
+    use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+    let ru = mac_menu_ru();
+    let label = |ru_text: &'static str, en_text: &'static str| if ru { ru_text } else { en_text };
+    let item = |id: &str, text: &str| MenuItem::with_id(app, id, text, true, None::<&str>);
+
+    // Пункт про окно — по его состоянию: спрятано крестиком → «открыть»,
+    // открыто, но позади других окон (или свёрнуто) → «показать», уже на
+    // переднем плане → пункта нет, жать его незачем.
+    let window_item = match app.get_webview_window(MAIN_LABEL) {
+        Some(w) if w.is_visible().unwrap_or(false) => {
+            if w.is_minimized().unwrap_or(false) || !w.is_focused().unwrap_or(false) {
+                Some(label("показать void", "show void"))
+            } else {
+                None
+            }
+        }
+        _ => Some(label("открыть void", "open void")),
+    };
+
+    let menu = Menu::new(app)?;
+    if let Some(text) = window_item {
+        menu.append(&item("show", text)?)?;
+    }
+    if in_room {
+        if window_item.is_some() {
+            menu.append(&PredefinedMenuItem::separator(app)?)?;
+        }
+        menu.append(&item("copy-code", label("скопировать код", "copy code"))?)?;
+        menu.append(&item("copy-link", label("скопировать ссылку", "copy link"))?)?;
+    }
+    if window_item.is_some() || in_room {
+        menu.append(&PredefinedMenuItem::separator(app)?)?;
+    }
+    menu.append(&item("quit", label("выйти из void", "quit void"))?)?;
+    Ok(menu)
+}
+
+/// Пересобрать нативное меню трея под текущее состояние окна (macOS). Меню
+/// строится заранее, а не в момент клика, поэтому зовётся на каждое событие,
+/// которое меняет «спрятано / позади / впереди». На Windows меню — своя
+/// страница, там no-op.
+fn refresh_tray_menu(app: &AppHandle) {
+    #[cfg(target_os = "macos")]
+    {
+        let in_room = ROOM_SHARE.lock().map(|g| g.is_some()).unwrap_or(false);
+        if let (Some(tray), Ok(menu)) = (app.tray_by_id(TRAY_ID), mac_tray_menu(app, in_room)) {
+            let _ = tray.set_menu(Some(menu));
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    let _ = app;
+}
+
+/// Меню приложения в строке меню macOS (void / Правка / Комната / Вид / Окно).
+/// Своё вместо стандартного меню Tauri: тот английский всегда и без пунктов
+/// void. «Правка» обязательна — без неё в поле ввода не работают ⌘C/⌘V/⌘A.
+/// Системные пункты (скрыть, завершить, копировать…) — predefined: их
+/// поведение делает AppKit, от нас только подпись на нужном языке.
+/// Пересобирается при смене комнаты (update_tray_state).
+#[cfg(target_os = "macos")]
+fn mac_app_menu(app: &AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
+    use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu};
+    let ru = mac_menu_ru();
+    let l = |ru_text: &'static str, en_text: &'static str| if ru { ru_text } else { en_text };
+    let sep = || PredefinedMenuItem::separator(app);
+
+    // Окно «О программе» — коротко: иконка, имя, версия и подпись. В меню и
+    // здесь имя с большой буквы, как у приложений в системе (в самом
+    // интерфейсе бренд пишется строчными). Подпись — в поле copyright: если
+    // его не задать, AppKit подставит копирайт из Info.plist. Пустой
+    // short_version убирает «(1.7.0)» после версии — иначе номер дублируется.
+    // Строку «Версия X» AppKit форматирует сам; «vX.Y.Z» через credits
+    // пробовали — пустая строка версии оставляет некрасивый отступ.
+    let about = AboutMetadata {
+        name: Some("Void".into()),
+        version: Some(app.package_info().version.to_string()),
+        short_version: Some(String::new()),
+        copyright: Some("crafted by casheaterr".into()),
+        ..Default::default()
+    };
+    let app_menu = Submenu::with_items(
+        app,
+        "Void",
+        true,
+        &[
+            &PredefinedMenuItem::about(app, Some(l("О программе Void", "About Void")), Some(about))?,
+            &sep()?,
+            &MenuItem::with_id(app, "menu-settings", l("Настройки…", "Settings…"), true, Some("Cmd+,"))?,
+            &MenuItem::with_id(app, "menu-updates", l("Проверить обновления…", "Check for Updates…"), true, None::<&str>)?,
+            &sep()?,
+            &PredefinedMenuItem::services(app, Some(l("Службы", "Services")))?,
+            &sep()?,
+            &PredefinedMenuItem::hide(app, Some(l("Скрыть Void", "Hide Void")))?,
+            &PredefinedMenuItem::hide_others(app, Some(l("Скрыть остальные", "Hide Others")))?,
+            &PredefinedMenuItem::show_all(app, Some(l("Показать все", "Show All")))?,
+            &sep()?,
+            &PredefinedMenuItem::quit(app, Some(l("Завершить Void", "Quit Void")))?,
+        ],
+    )?;
+
+    let edit = Submenu::with_items(
+        app,
+        l("Правка", "Edit"),
+        true,
+        &[
+            &PredefinedMenuItem::undo(app, Some(l("Отменить", "Undo")))?,
+            &PredefinedMenuItem::redo(app, Some(l("Повторить", "Redo")))?,
+            &sep()?,
+            &PredefinedMenuItem::cut(app, Some(l("Вырезать", "Cut")))?,
+            &PredefinedMenuItem::copy(app, Some(l("Скопировать", "Copy")))?,
+            &PredefinedMenuItem::paste(app, Some(l("Вставить", "Paste")))?,
+            &PredefinedMenuItem::select_all(app, Some(l("Выбрать все", "Select All")))?,
+        ],
+    )?;
+
+    // Комната: код сверху просто подписью (некликабельный), ниже действия —
+    // доступны только в комнате.
+    let code = ROOM_SHARE.lock().ok().and_then(|g| g.as_ref().map(|(c, _)| c.clone()));
+    let in_room = code.is_some();
+    let title = match &code {
+        Some(c) => format!("{} #{c}", l("комната", "room")),
+        None => l("не в комнате", "not in a room").to_string(),
+    };
+    let room = Submenu::with_items(
+        app,
+        l("Комната", "Room"),
+        true,
+        &[
+            &MenuItem::with_id(app, "menu-room-code", title, false, None::<&str>)?,
+            &sep()?,
+            &MenuItem::with_id(app, "menu-copy-code", l("Скопировать код", "Copy Code"), in_room, None::<&str>)?,
+            &MenuItem::with_id(app, "menu-copy-link", l("Скопировать ссылку", "Copy Link"), in_room, None::<&str>)?,
+            &sep()?,
+            &MenuItem::with_id(app, "menu-leave-room", l("Выйти из комнаты", "Leave Room"), in_room, None::<&str>)?,
+        ],
+    )?;
+
+    let view = Submenu::with_items(
+        app,
+        l("Вид", "View"),
+        true,
+        &[&PredefinedMenuItem::fullscreen(app, Some(l("Во весь экран", "Enter Full Screen")))?],
+    )?;
+
+    let window = Submenu::with_items(
+        app,
+        l("Окно", "Window"),
+        true,
+        &[
+            &PredefinedMenuItem::minimize(app, Some(l("Свернуть", "Minimize")))?,
+            &PredefinedMenuItem::maximize(app, Some(l("Изменить масштаб", "Zoom")))?,
+            &sep()?,
+            &PredefinedMenuItem::close_window(app, Some(l("Закрыть окно", "Close Window")))?,
+        ],
+    )?;
+    // Системные пункты окна (список открытых окон, плитки) AppKit добавит сам.
+    let _ = window.set_as_windows_menu_for_nsapp();
+
+    Menu::with_items(app, &[&app_menu, &edit, &room, &view, &window])
+}
+
+/// Пересобрать меню приложения (macOS) — под текущую комнату. На других ОС
+/// меню приложения нет.
+fn refresh_app_menu(app: &AppHandle) {
+    #[cfg(target_os = "macos")]
+    if let Ok(menu) = mac_app_menu(app) {
+        let _ = app.set_menu(menu);
+    }
+    #[cfg(not(target_os = "macos"))]
+    let _ = app;
+}
+
+/// Пункты меню приложения (macOS). Id с префиксом `menu-`, чтобы не пересечься
+/// с пунктами меню значка в менюбаре (у того свой обработчик).
+fn run_app_menu_action(app: &AppHandle, id: &str) {
+    match id {
+        "menu-settings" => {
+            show_main_window(app);
+            let _ = app.emit("void:open-settings", ());
+        }
+        "menu-updates" => {
+            let h = app.clone();
+            tauri::async_runtime::spawn(async move { manual_update_check(h).await });
+        }
+        "menu-copy-code" => copy_room_share(app, true),
+        "menu-copy-link" => copy_room_share(app, false),
+        "menu-leave-room" => run_hotkey_action(app, "leaveRoom"),
+        _ => {}
+    }
+}
+
+/// «Проверить обновления…» из меню: есть новая версия — баннер (даже если
+/// человек его раньше отложил: он сам спросил), нет — системное окно с ответом,
+/// чтобы клик не уходил в тишину.
+async fn manual_update_check(app: AppHandle) {
+    use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
+    show_main_window(&app);
+    #[cfg(target_os = "macos")]
+    let ru = mac_menu_ru();
+    #[cfg(not(target_os = "macos"))]
+    let ru = true;
+    let (text, kind) = match check_update(&app).await {
+        UpdateCheck::Found(update) => {
+            let _ = app.emit(
+                "void:updater-available",
+                serde_json::json!({
+                    "version": update.version,
+                    "body": update.body.clone().unwrap_or_default(),
+                    "manual": true,
+                }),
+            );
+            return;
+        }
+        UpdateCheck::UpToDate => {
+            let v = app.package_info().version.to_string();
+            let text = if ru {
+                format!("У вас последняя версия Void — {v}.")
+            } else {
+                format!("You have the latest version of Void — {v}.")
+            };
+            (text, MessageDialogKind::Info)
+        }
+        UpdateCheck::Failed => {
+            let text = if ru {
+                "Не удалось проверить обновления. Проверьте интернет и попробуйте ещё раз."
+            } else {
+                "Couldn't check for updates. Check your connection and try again."
+            };
+            (text.to_string(), MessageDialogKind::Warning)
+        }
+    };
+    app.dialog().message(text).title("Void").kind(kind).show(|_| {});
 }
 
 /// Создаёт скрытое окно кастомного трей-меню (frameless, прозрачное,
 /// always-on-top, вне таскбара). Поднимается один раз на старте и
 /// переиспользуется (show/hide/reposition) — см. open_tray_menu.
+#[cfg(not(target_os = "macos"))]
 fn create_tray_menu_window(app: &AppHandle) {
     if app.get_webview_window(TRAY_MENU_LABEL).is_some() {
         return;
@@ -1560,6 +1956,7 @@ fn create_tray_menu_window(app: &AppHandle) {
 /// Показывает окно-меню у курсора (правый клик по трею). Размер/высота — под
 /// текущее состояние комнаты; позиция — якорь правым-нижним углом к курсору
 /// (трей в Windows внизу справа), с клампом к рабочей области монитора.
+#[cfg(not(target_os = "macos"))]
 fn open_tray_menu(app: &AppHandle, cursor: PhysicalPosition<f64>) {
     let in_room = ROOM_SHARE.lock().ok().map(|g| g.is_some()).unwrap_or(false);
     let Some(win) = app.get_webview_window(TRAY_MENU_LABEL) else {
@@ -1625,10 +2022,15 @@ fn tray_menu_action(app: AppHandle, window: tauri::WebviewWindow, action: String
     if let Some(w) = app.get_webview_window(TRAY_MENU_LABEL) {
         let _ = w.hide();
     }
-    match action.as_str() {
-        "show" => show_main_window(&app),
-        "copy-code" => copy_room_share(&app, true),
-        "copy-link" => copy_room_share(&app, false),
+    run_tray_action(&app, &action);
+}
+
+/// Пункт меню трея — общий для кастомного меню (Windows) и нативного (macOS).
+fn run_tray_action(app: &AppHandle, action: &str) {
+    match action {
+        "show" => show_main_window(app),
+        "copy-code" => copy_room_share(app, true),
+        "copy-link" => copy_room_share(app, false),
         "quit" => app.exit(0),
         _ => {}
     }

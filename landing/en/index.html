@@ -94,7 +94,7 @@
             "alternateName": "void-room",
             "url": "https://void-room.space/en/",
             "applicationCategory": "CommunicationApplication",
-            "operatingSystem": "Web Browser",
+            "operatingSystem": "Web Browser, Windows, macOS",
             "browserRequirements": "Requires a modern browser with WebRTC support (Chrome, Firefox, Safari, Edge).",
             "offers": {
               "@type": "Offer",
@@ -936,7 +936,7 @@
               </div>
             </div>
             <div class="plat-card">
-              <span class="index">— desktop · windows x64</span>
+              <span class="index">— desktop · windows · macos</span>
               <span class="name">desktop-app</span>
               <p class="desc">
                 a dedicated app, always within reach. faster launch, no browser
@@ -955,8 +955,10 @@
                       type="button"
                       class="btn primary dl-main"
                       data-dl-url="https://void-room.space/dl/void_installer.exe"
+                      aria-label="download for windows"
                     >
-                      <span>download for windows</span>
+                      <svg class="dl-os" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M0 3.4 9.8 2v9.4H0zM11 1.9 24 0v11.3H11zM0 12.6h9.8V22L0 20.6zM11 12.6h13V24l-13-1.9z"/></svg>
+                      <span>windows</span>
                     </button>
                     <button
                       type="button"
@@ -1024,9 +1026,15 @@
                     </button>
                   </div>
                 </div>
-                <a class="btn dl-soon" aria-disabled="true" tabindex="-1" href="#0">
-                  <span>macos · soon</span>
-                </a>
+                <button
+                  type="button"
+                  class="btn primary dl-mac"
+                  data-dl-url="https://void-room.space/dl/void.dmg"
+                  aria-label="download for macos"
+                >
+                  <svg class="dl-os" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701"/></svg>
+                  <span>macos</span>
+                </button>
               </div>
             </div>
           </div>
@@ -1045,7 +1053,7 @@
             >
               <span class="av-trigger-dot" aria-hidden="true"></span>
               <span data-i18n="av.trigger"
-                >antivirus blocking the install?</span
+                >system blocking the install?</span
               >
             </button>
           </p>
@@ -1184,97 +1192,195 @@
           </svg>
         </button>
 
-        <div class="av-head">
-          <div class="av-num">— windows smartscreen · defender</div>
-          <h2 id="av-title">antivirus blocking the install?</h2>
+        <h2 id="av-title" class="av-sr">windows or macos blocking the install?</h2>
+        <div class="av-tabs" role="tablist" aria-label="system">
+          <button type="button" class="av-tab" role="tab" id="av-tab-win" aria-controls="av-pane-win" aria-selected="true" data-av-tab="win">
+            <svg class="dl-os" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M0 3.4 9.8 2v9.4H0zM11 1.9 24 0v11.3H11zM0 12.6h9.8V22L0 20.6zM11 12.6h13V24l-13-1.9z"/></svg>
+            <span>windows</span>
+          </button>
+          <button type="button" class="av-tab" role="tab" id="av-tab-mac" aria-controls="av-pane-mac" aria-selected="false" tabindex="-1" data-av-tab="mac">
+            <svg class="dl-os" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701"/></svg>
+            <span>macos</span>
+          </button>
         </div>
 
-        <div class="av-body">
-          <p>
-            void was released only recently, so the installer isn't code-signed
-            yet — getting a developer certificate takes time. until then,
-            Windows relies on the file's <b>reputation</b> rather than its
-            contents: how many people have already downloaded and run it.
-          </p>
-          <p>
-            a fresh build simply has no reputation. that's why almost every new
-            exe gets a «virus detected» — even a perfectly clean one.
-          </p>
-          <p>you can verify it yourself:</p>
-        </div>
+        <section class="av-pane" id="av-pane-win" role="tabpanel" aria-labelledby="av-tab-win" data-av-pane="win">
+          <div class="av-head">
+            <div class="av-num">— windows smartscreen · defender</div>
+            <h2>antivirus blocking the install?</h2>
+          </div>
 
-        <div class="av-trust">
-          <a
-            class="btn"
-            href="https://www.virustotal.com/gui/file/6645d1454c23c57b091f40998e32b8a9616d7fa1815f8e8796f4843c2907d224/detection"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <span>virustotal report</span>
-            <svg
-              class="btn-arrow"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.4"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
+          <div class="av-body">
+            <p>
+              void was released only recently, so the installer isn't code-signed
+              yet — getting a developer certificate takes time. until then,
+              Windows relies on the file's <b>reputation</b> rather than its
+              contents: how many people have already downloaded and run it.
+            </p>
+            <p>
+              a fresh build simply has no reputation. that's why almost every new
+              exe gets a «virus detected» — even a perfectly clean one.
+            </p>
+            <p>you can verify it yourself:</p>
+          </div>
+
+          <div class="av-trust">
+            <a
+              class="btn"
+              href="https://www.virustotal.com/gui/file/6645d1454c23c57b091f40998e32b8a9616d7fa1815f8e8796f4843c2907d224/detection"
+              target="_blank"
+              rel="noopener noreferrer"
             >
-              <path d="M3 8h10" />
-              <path d="M9 4l4 4-4 4" />
-            </svg>
-          </a>
-          <a
-            class="btn"
-            href="https://github.com/jettsba/void"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <span>view on GitHub</span>
-            <svg
-              class="btn-arrow"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.4"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
+              <span>virustotal report</span>
+              <svg
+                class="btn-arrow"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.4"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M3 8h10" />
+                <path d="M9 4l4 4-4 4" />
+              </svg>
+            </a>
+            <a
+              class="btn"
+              href="https://github.com/jettsba/void"
+              target="_blank"
+              rel="noopener noreferrer"
             >
-              <path d="M3 8h10" />
-              <path d="M9 4l4 4-4 4" />
-            </svg>
-          </a>
-        </div>
-        <div class="av-steps">
-          <div class="av-steps-title">how to install</div>
-          <ol>
-            <li>
-              <span class="key">— 01</span>
-              <span class="what"
-                >the browser says «virus detected» → open the downloads list,
-                click «···» next to the file and choose
-                <b>«keep anyway»</b>.</span
+              <span>view on GitHub</span>
+              <svg
+                class="btn-arrow"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.4"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
               >
-            </li>
-            <li>
-              <span class="key">— 02</span>
-              <span class="what"
-                >the «windows protected your pc» window on launch → click
-                <b>«more info»</b>, then <b>«run anyway»</b>.</span
+                <path d="M3 8h10" />
+                <path d="M9 4l4 4-4 4" />
+              </svg>
+            </a>
+          </div>
+          <div class="av-steps">
+            <div class="av-steps-title">how to install</div>
+            <ol>
+              <li>
+                <span class="key">— 01</span>
+                <span class="what"
+                  >the browser says «virus detected» → open the downloads list,
+                  click «···» next to the file and choose
+                  <b>«keep anyway»</b>.</span
+                >
+              </li>
+              <li>
+                <span class="key">— 02</span>
+                <span class="what"
+                  >the «windows protected your pc» window on launch → click
+                  <b>«more info»</b>, then <b>«run anyway»</b>.</span
+                >
+              </li>
+              <li>
+                <span class="key">— 03</span>
+                <span class="what"
+                  >defender already deleted the file → «windows security» → «virus
+                  & threat protection» → «protection history» → find void and hit
+                  <b>«allow on device»</b>.</span
+                >
+              </li>
+            </ol>
+          </div>
+        </section>
+
+        <section class="av-pane" id="av-pane-mac" role="tabpanel" aria-labelledby="av-tab-mac" data-av-pane="mac" hidden>
+          <div class="av-head">
+            <div class="av-num">— macos gatekeeper</div>
+            <h2>macos won’t open void?</h2>
+          </div>
+
+          <div class="av-body">
+            <p>
+              void was released only recently, and it isn’t signed with an apple developer certificate yet — getting one takes time. without it macos can’t verify the signature and blocks the app on first launch.
+            </p>
+            <p>
+              it’s a one-time check: after it void opens as usual and <b>updates itself</b>. it stays safe all the same — you can verify it yourself:
+            </p>
+          </div>
+
+          <div class="av-trust">
+            <a
+              class="btn"
+              href="https://www.virustotal.com/gui/file/bfe535e6d50a5578ebb39173b6a9ec929491dead00bbee0f1fe6ad7d70c828eb/detection"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <span>virustotal report</span>
+              <svg
+                class="btn-arrow"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.4"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
               >
-            </li>
-            <li>
-              <span class="key">— 03</span>
-              <span class="what"
-                >defender already deleted the file → «windows security» → «virus
-                & threat protection» → «protection history» → find void and hit
-                <b>«allow on device»</b>.</span
+                <path d="M3 8h10" />
+                <path d="M9 4l4 4-4 4" />
+              </svg>
+            </a>
+            <a
+              class="btn"
+              href="https://github.com/jettsba/void"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <span>view on GitHub</span>
+              <svg
+                class="btn-arrow"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.4"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
               >
-            </li>
-          </ol>
-        </div>
+                <path d="M3 8h10" />
+                <path d="M9 4l4 4-4 4" />
+              </svg>
+            </a>
+          </div>
+          <div class="av-steps">
+            <div class="av-steps-title">how to install</div>
+            <ol>
+              <li>
+                <span class="key">— 01</span>
+                <span class="what">open <b>void.dmg</b> and drag void into the <b>applications</b> folder.</span>
+              </li>
+              <li>
+                <span class="key">— 02</span>
+                <span class="what">launch void → macos says it can’t verify the app. click <b>«done»</b> (not «move to trash»).</span>
+              </li>
+              <li>
+                <span class="key">— 03</span>
+                <span class="what">«system settings» → «privacy & security» → at the bottom, next to the message about void, click <b>«open anyway»</b> and confirm with your password.</span>
+              </li>
+              <li>
+                <span class="key">— 04</span>
+                <span class="what">on your first call allow <b>microphone</b> access. if macos asks for <b>screen recording</b> when you share — enable void there and restart it.</span>
+              </li>
+            </ol>
+            <p class="av-note">or with one terminal command, after step 01:</p>
+            <code class="av-cmd">xattr -dr com.apple.quarantine /Applications/Void.app</code>
+          </div>
+        </section>
       </div>
     </div>
 

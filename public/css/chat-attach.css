@@ -45,7 +45,15 @@
     min-width: 0;
 }
 
+.chat-attach-file-title {
+    display: flex;
+    align-items: center;
+    gap: 0.43rem;
+    min-width: 0;
+}
+
 .chat-attach-file-name {
+    min-width: 0;
     color: var(--fg);
     font-size: 0.86rem;
     overflow: hidden;
@@ -60,12 +68,66 @@
     text-transform: lowercase;
 }
 
-/* Исполняемый файл от собеседника: предупреждение под размером. */
-.chat-attach-file-warn {
+/* Исполняемый файл от собеседника: значок (!) после имени. Объяснение —
+   всплывашка .chat-exe-tip (chat.js initExeTips). */
+.chat-attach-file-exe {
+    flex-shrink: 0;
+    display: inline-flex;
+    width: 0.79rem;
+    height: 0.79rem;
     color: var(--signal-warn);
+    cursor: help;
+    border-radius: 50%;
+    outline: none;
+}
+
+.chat-attach-file-exe:focus-visible {
+    box-shadow: 0 0 0 2px rgba(184, 122, 90, 0.35);
+}
+
+.chat-attach-file-exe svg {
+    width: 100%;
+    height: 100%;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.3;
+    stroke-linecap: round;
+}
+
+.chat-attach-file-exe svg .dot {
+    fill: currentColor;
+}
+
+.chat-exe-tip {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 95;
+    /* Две строки задаёт сам текст (перенос \n в словаре), ширина — по
+       длинной строке: без пустого поля справа и без переноса посреди фразы. */
+    width: max-content;
+    max-width: calc(100vw - 16px);
+    white-space: pre-line;
+    padding: 0.5rem 0.71rem;
+    background: var(--bg-2);
+    border: 1px solid var(--fg-4);
+    border-radius: 4px;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+    color: var(--fg-2);
     font-size: 0.71rem;
-    letter-spacing: var(--tracking-wide);
+    line-height: 1.5;
+    letter-spacing: var(--tracking);
     text-transform: lowercase;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 120ms ease, visibility 0s linear 120ms;
+}
+
+.chat-exe-tip.is-visible {
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 120ms ease;
 }
 
 .chat-attach-file-dl {
@@ -219,6 +281,10 @@
     overflow: hidden;
     transition: height var(--t-fast), padding var(--t-fast);
     pointer-events: none;
+}
+
+.chat-toast.is-info {
+    color: var(--fg);
 }
 
 .chat-toast.is-visible {

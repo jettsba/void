@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "1.7.0";
+    const APP_VERSION = "1.8.0";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
@@ -142,7 +142,7 @@
             "chat.download": "скачать",
             "chat.download.saved": "файл сохранён",
             "chat.unknown": "неизвестный",
-            "chat.exe.badge": "программа — открывай, только если доверяешь",
+            "chat.exe.badge": "это исполняемый файл — запускай,\nтолько если доверяешь отправителю",
             "chat.exe.confirm": "это программа — нажми ещё раз, чтобы сохранить",
             "chat.download.failed": "не удалось сохранить",
             "chat.remove": "убрать",
@@ -179,6 +179,7 @@
             "errors.mic-blocked.body.android": "открой меню браузера → настройки сайта → разрешения → микрофон, разреши доступ и обнови страницу",
             "errors.mic-blocked.cta": "понятно",
             "hints.mic-permission-incoming": "сейчас браузер спросит разрешение на микрофон",
+            "hints.mic-permission-incoming.macos": "сейчас macos спросит доступ к микрофону",
             "errors.create-failed": "не удалось создать комнату",
             "errors.code-taken": "не удалось подобрать свободный код — попробуй ещё раз",
             "errors.join-session-invalid": "сессия недействительна — попробуй ещё раз",
@@ -190,10 +191,12 @@
             "errors.unknown": "что-то пошло не так",
             "errors.screencast.busy": "демонстрация уже идёт в этой комнате",
             "screencast.audio.macos": "на macos звук идёт только при выборе вкладки браузера — при захвате экрана или окна его не будет",
+            "screencast.audio.macosDesktop": "в приложении для macos демонстрация пока идёт без звука",
             "errors.mic-lost": "микрофон отключился — пробую восстановить",
             "errors.mic-lost.failed": "не удалось восстановить микрофон — попробуй перезайти",
             "errors.mic-device-gone": "выбранного микрофона нет — взял системный",
             "errors.screencast.macos-permission": "macos не пускает браузер к экрану — системные настройки → конфиденциальность и безопасность → запись экрана, включи браузер и перезапусти его",
+            "errors.screencast.macos-permission.desktop": "macos не пускает void к экрану — системные настройки → конфиденциальность и безопасность → запись экрана, включи void и перезапусти его",
 
             "screencast.watch": "смотреть",
             "screencast.screen": "экран",
@@ -391,7 +394,7 @@
             "chat.download": "download",
             "chat.download.saved": "file saved",
             "chat.unknown": "unknown",
-            "chat.exe.badge": "program — open only if you trust it",
+            "chat.exe.badge": "this is an executable file —\nrun it only if you trust the sender",
             "chat.exe.confirm": "this is a program — click again to save",
             "chat.download.failed": "save failed",
             "chat.remove": "remove",
@@ -428,6 +431,7 @@
             "errors.mic-blocked.body.android": "open browser menu → site settings → permissions → microphone, allow access and reload",
             "errors.mic-blocked.cta": "got it",
             "hints.mic-permission-incoming": "browser will ask for microphone access",
+            "hints.mic-permission-incoming.macos": "macos will ask for microphone access",
             "errors.create-failed": "could not create room",
             "errors.code-taken": "could not pick a free code — try again",
             "errors.join-session-invalid": "session invalid — try again",
@@ -439,10 +443,12 @@
             "errors.unknown": "something went wrong",
             "errors.screencast.busy": "screen share is already active in this room",
             "screencast.audio.macos": "on macos audio only comes through when you pick a browser tab — sharing a screen or window gives none",
+            "screencast.audio.macosDesktop": "in the macos app screen sharing has no sound yet",
             "errors.mic-lost": "mic disconnected — trying to restore",
             "errors.mic-lost.failed": "couldn't restore mic — try rejoining",
             "errors.mic-device-gone": "selected mic is gone — switched to the system one",
             "errors.screencast.macos-permission": "macos blocks screen capture for the browser — system settings → privacy & security → screen recording, enable your browser and restart it",
+            "errors.screencast.macos-permission.desktop": "macos blocks screen capture for void — system settings → privacy & security → screen recording, enable void and restart it",
 
             "screencast.watch": "watch",
             "screencast.screen": "screen",

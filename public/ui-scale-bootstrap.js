@@ -26,7 +26,15 @@
     }
 
     function computeAutoScale() {
-        var isDesktop = typeof window.__TAURI_INTERNALS__ !== "undefined";
+        /* Десктоп на маке считаем веб-формулой. Контр-масштаб 1.05/dpr ниже
+           существует потому, что Windows кладёт OS-масштаб и в screen.width, и
+           в devicePixelRatio — это двойной учёт. macOS в screen.width отдаёт
+           точки, а dpr 2 там — плотность retina, не выбор пользователя: деление
+           на него схлопывало интерфейс вдвое (0.525). */
+        var plat = (navigator.userAgentData && navigator.userAgentData.platform) ||
+            navigator.platform || navigator.userAgent || "";
+        var isDesktop = typeof window.__TAURI_INTERNALS__ !== "undefined" &&
+            !/mac/i.test(plat);
 
         /* Fluid-база по физической ширине монитора: FHD≈1.21, 2K≈1.86, 4K≈3.14,
            пегается 1.0..3.14 по краям. На web это финальный масштаб. */
@@ -58,7 +66,7 @@
             return base * (dprNow() >= 2 ? 1.2 : 1);
         }
 
-        /* DESKTOP (Tauri): окно фиксированного ЛОГИЧЕСКОГО размера (1280×820,
+        /* DESKTOP (Tauri, Windows): окно фиксированного ЛОГИЧЕСКОГО размера (1280×820,
            см. lib.rs). ОС уже домножает ВЕСЬ контент на DPI (devicePixelRatio =
            OS scale factor: 4K обычно @150%→1.5, 2K @125%→1.25). Контр-масштабируем
            fluid-базу множителем 1.05/dpr, чтобы hi-DPI не раздувал UI поверх

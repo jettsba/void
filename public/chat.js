@@ -984,26 +984,35 @@ function renderAttachment(msg, isSelf, attachState) {
         const meta = document.createElement("div");
         meta.className = "chat-attach-file-meta";
 
+        const title = document.createElement("div");
+        title.className = "chat-attach-file-title";
+
         const nm = document.createElement("div");
         nm.className = "chat-attach-file-name";
         nm.textContent = msg.name || "file";
+        title.appendChild(nm);
+
+        /* Программа или скрипт от собеседника — видно сразу, до скачивания:
+           значок (!) после имени, объяснение — всплывашкой при наведении
+           (initExeTips ниже). Строкой под размером оно растягивало карточку. */
+        if (!isSelf && isExecutableName(msg.name)) {
+            fi.classList.add("is-executable");
+            const warn = document.createElement("span");
+            warn.className = "chat-attach-file-exe";
+            warn.tabIndex = 0;
+            warn.setAttribute("role", "img");
+            warn.dataset.i18nAttr = "aria-label:chat.exe.badge";
+            warn.setAttribute("aria-label", _ct("chat.exe.badge"));
+            warn.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.4"/><path d="M8 4.6v4.2"/><circle class="dot" cx="8" cy="11.2" r=".55"/></svg>';
+            title.appendChild(warn);
+        }
 
         const sz = document.createElement("div");
         sz.className = "chat-attach-file-size";
         sz.textContent = formatSize(msg.size || 0);
 
-        meta.appendChild(nm);
+        meta.appendChild(title);
         meta.appendChild(sz);
-
-        /* Программа или скрипт от собеседника — видно сразу, до скачивания. */
-        if (!isSelf && isExecutableName(msg.name)) {
-            fi.classList.add("is-executable");
-            const warn = document.createElement("div");
-            warn.className = "chat-attach-file-warn";
-            warn.dataset.i18n = "chat.exe.badge";
-            warn.textContent = _ct("chat.exe.badge");
-            meta.appendChild(warn);
-        }
 
         const dl = document.createElement("a");
         dl.className = "chat-attach-file-dl";
@@ -1579,7 +1588,7 @@ async function saveBlobUrl(url, filename) {
         try {
             const saved = await window.VoidDesktop.saveFile(url, filename);
             /* saved === false → юзер отменил диалог сохранения, молчим. */
-            if (saved) showChatToast(_ct("chat.download.saved"));
+            if (saved) showChatToast(_ct("chat.download.saved"), "info");
         } catch (e) {
             log.warn("chat", "native save failed", { err: e?.message || String(e) });
             showChatToast(_ct("chat.download.failed"));
@@ -1595,7 +1604,7 @@ async function saveBlobUrl(url, filename) {
         document.body.appendChild(a);
         a.click();
         setTimeout(() => a.remove(), 1000);
-        showChatToast(_ct("chat.download.saved"));
+        showChatToast(_ct("chat.download.saved"), "info");
     } catch (e) {
         log.warn("chat", "save failed", { err: e?.message || String(e) });
         showChatToast(_ct("chat.download.failed"));
@@ -1706,6 +1715,12 @@ function addPendingAttachment(file, kind) {
 
     chatPendingAttachments.push(item);
     renderPendingAttachments();
+
+    /* Enter отправляет только из поля ввода, а после системного окна выбора
+       файла (и перетаскивания) фокуса в нём нет — прикреплённое уходило
+       только кликом по стрелке. Возвращаем фокус в поле, чтобы хватало Enter.
+       Не на тач-устройствах: там фокус открыл бы экранную клавиатуру. */
+    if (window.matchMedia?.("(pointer: fine)").matches) chatInputEl?.focus();
 }
 
 function removePendingAttachment(id) {
@@ -1984,9 +1999,12 @@ function autoResizeInput() {
     chatInputEl.style.overflowY = full > maxH ? "auto" : "hidden";
 }
 
-function showChatToast(text) {
+/* kind: "warn" (по умолчанию — сбой или предупреждение, тёплый цвет) или
+   "info" (просто сообщили, что всё получилось, нейтральный цвет). */
+function showChatToast(text, kind = "warn") {
     if (!chatToastEl) return;
     chatToastEl.textContent = text;
+    chatToastEl.classList.toggle("is-info", kind === "info");
     chatToastEl.classList.add("is-visible");
     if (chatToastTimer) clearTimeout(chatToastTimer);
     chatToastTimer = setTimeout(() => {
@@ -1994,6 +2012,56 @@ function showChatToast(text) {
         chatToastTimer = null;
     }, CHAT_TOAST_MS);
 }
+
+/* Всплывашка к значку (!) у исполняемого файла. Одна на документ, fixed и
+   в body: список сообщений прокручивается и обрезает всё, что торчит за его
+   край, — подсказка внутри карточки срезалась бы у верхнего сообщения.
+   Текст берём из aria-label значка (он же переводится вместе с языком). */
+(function initExeTips() {
+    let tip = null;
+    let anchor = null;
+
+    function show(el) {
+        if (!tip) {
+            tip = document.createElement("div");
+            tip.className = "chat-exe-tip";
+            tip.setAttribute("role", "tooltip");
+            document.body.appendChild(tip);
+        }
+        anchor = el;
+        tip.textContent = el.getAttribute("aria-label") || "";
+        tip.classList.add("is-visible");
+        const r = el.getBoundingClientRect();
+        const t = tip.getBoundingClientRect();
+        const gap = 8;
+        /* Над значком; не влезает сверху — под ним. По горизонтали по центру
+           значка, но в пределах окна. */
+        let top = r.top - t.height - gap;
+        if (top < gap) top = r.bottom + gap;
+        let left = r.left + r.width / 2 - t.width / 2;
+        left = Math.max(gap, Math.min(left, window.innerWidth - t.width - gap));
+        tip.style.top = `${Math.round(top)}px`;
+        tip.style.left = `${Math.round(left)}px`;
+    }
+
+    function hide(el) {
+        if (!tip || (el && el !== anchor)) return;
+        tip.classList.remove("is-visible");
+        anchor = null;
+    }
+
+    const exeOf = (e) => e.target instanceof Element ? e.target.closest(".chat-attach-file-exe") : null;
+    document.addEventListener("mouseover", (e) => { const el = exeOf(e); if (el) show(el); });
+    document.addEventListener("mouseout", (e) => {
+        const el = exeOf(e);
+        /* Переход между частями svg внутри значка — не уход с него. */
+        if (el && !(e.relatedTarget instanceof Node && el.contains(e.relatedTarget))) hide(el);
+    });
+    document.addEventListener("focusin", (e) => { const el = exeOf(e); if (el) show(el); });
+    document.addEventListener("focusout", (e) => { const el = exeOf(e); if (el) hide(el); });
+    /* Прокрутка уводит значок из-под всплывашки — прячем, а не тащим следом. */
+    document.addEventListener("scroll", () => hide(), true);
+})();
 
 function markUnread() {
     if (chatToggleBtn) chatToggleBtn.classList.add("has-unread");

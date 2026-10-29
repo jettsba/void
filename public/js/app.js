@@ -25,8 +25,17 @@ function init() {
     /* Пояснение про звук демки — только на маке: браузеры там отдают
        системный звук лишь при захвате вкладки, при выборе экрана или окна
        аудио-трека не будет вовсе (ограничение движка, не наше). Тумблер
-       оставляем как есть — на вкладке он работает. */
-    if (window.VoidIsMac) document.getElementById("scAudioNote")?.removeAttribute("hidden");
+       оставляем как есть — на вкладке он работает.
+       В десктопе на маке звука демки нет вовсе (webrtc.js startScreenShare) —
+       там тумблер прячем, а подпись говорит об этом прямо. */
+    if (window.VoidIsMac) {
+        const note = document.getElementById("scAudioNote");
+        note?.removeAttribute("hidden");
+        if (window.VoidPlatform === "desktop") {
+            document.getElementById("scAudio")?.closest(".sc-section")?.setAttribute("hidden", "");
+            note?.setAttribute("data-i18n", "screencast.audio.macosDesktop");
+        }
+    }
 
     screenOverlay = document.getElementById("screenOverlay");
     screenOverlayVideo = document.getElementById("screenOverlayVideo");

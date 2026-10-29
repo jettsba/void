@@ -131,8 +131,13 @@ window.VoidIsMac = IS_MAC;
      сама по себе крупная;
    - непрерывный поток (тачпад) копим в пикселях и отдаём щелчок на каждые
      NOTCH_PX. Пауза между жестами и смена направления сбрасывают накопитель,
-     чтобы хвост инерции не перетекал в следующий жест. */
-const WHEEL_NOTCH_PX = 100;
+     чтобы хвост инерции не перетекал в следующий жест.
+
+   Два порога, не один: DISCRETE_PX — «такая дельта бывает только у колеса»,
+   NOTCH_PX — скорость тачпада. Раньше это было одно число (100), и регулятор
+   на тачпаде ехал вяло: обычный свайп с инерцией давал 3-6 шагов. */
+const WHEEL_DISCRETE_PX = 100;
+const WHEEL_NOTCH_PX = 40;
 const WHEEL_GESTURE_GAP_MS = 220;
 const _wheelAccum = new WeakMap();
 let _wheelAccumFallback = { sum: 0, at: 0 };
@@ -141,7 +146,7 @@ function _wheelIsDiscrete(e) {
     if (e.deltaMode !== 0) return true;                    // строки/страницы = щелчки
     const legacy = e.wheelDeltaY;                          // Chrome/Safari, нет в Firefox
     if (typeof legacy === "number" && legacy !== 0 && Math.abs(legacy) % 120 === 0) return true;
-    return Math.abs(e.deltaY) >= WHEEL_NOTCH_PX;
+    return Math.abs(e.deltaY) >= WHEEL_DISCRETE_PX;
 }
 
 /* Направление жеста → направление значения.

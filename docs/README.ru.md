@@ -13,6 +13,7 @@
 <a href="https://void-room.space"><img alt="сайт" src="https://img.shields.io/badge/сайт-void--room.space-e6e6e8?style=flat-square&labelColor=101012"></a>
 <a href="https://app.void-room.space"><img alt="веб-версия" src="https://img.shields.io/badge/веб-открыть_↗-e6e6e8?style=flat-square&labelColor=101012"></a>
 <a href="https://github.com/jettsba/void/releases/latest/download/void_installer.exe"><img alt="windows" src="https://img.shields.io/badge/windows-скачать_↓-e6e6e8?style=flat-square&labelColor=101012"></a>
+<a href="https://github.com/jettsba/void/releases/latest/download/void.dmg"><img alt="macos" src="https://img.shields.io/badge/macos-скачать_↓-e6e6e8?style=flat-square&labelColor=101012"></a>
 
 <a href="https://github.com/jettsba/void/releases/latest"><img alt="release" src="https://img.shields.io/github/v/release/jettsba/void?style=flat-square&labelColor=101012&color=4d4d54&label=release"></a>
 <a href="https://github.com/jettsba/void/stargazers"><img alt="stars" src="https://img.shields.io/github/stars/jettsba/void?style=flat-square&labelColor=101012&color=4d4d54"></a>
@@ -161,7 +162,9 @@ JavaScript**, чтобы его можно
 
 **desktop приложение** — нативно: трей, глобальные хоткеи, автообновления
 
-**→ [скачать установщик](https://github.com/jettsba/void/releases/latest/download/void_installer.exe)**
+**→ [windows](https://github.com/jettsba/void/releases/latest/download/void_installer.exe) · [macos](https://github.com/jettsba/void/releases/latest/download/void.dmg)**
+
+<sub>macos-сборка пока без нотаризации — при первом запуске: системные настройки → конфиденциальность и безопасность → «всё равно открыть»</sub>
 
 </td>
 </tr>

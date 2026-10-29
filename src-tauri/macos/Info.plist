@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Без этой строки macOS не покажет запрос доступа к микрофону и молча
+         откажет getUserMedia. Камера и запись экрана своей строки не требуют:
+         камеру void не просит, а демонстрацию WebKit ведёт через системный
+         выбор экрана. -->
+    <key>NSMicrophoneUsageDescription</key>
+    <string>void uses the microphone for voice calls.</string>
+    <!-- Языки приложения. Свои пункты меню void переводит сам (lib.rs
+         mac_app_menu), а то, что AppKit дописывает в меню сам («Эмодзи и
+         символы», «Диктовка», пункты окна, системный запрос микрофона),
+         он берёт на языке системы, только если тот есть в этом списке. -->
+    <key>CFBundleLocalizations</key>
+    <array>
+        <string>en</string>
+        <string>ru</string>
+    </array>
+</dict>
+</plist>

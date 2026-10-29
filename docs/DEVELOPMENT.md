@@ -18,7 +18,7 @@
 аудио-потоке. Голос, текстовый чат, передача файлов и демонстрация экрана работают
 peer-to-peer поверх WebRTC; Node-сервер занимается только сигналингом (обмен
 offer/answer/ICE) и раздачей статики. Две поверхности, одна кодовая база: веб-приложение
-(`app.void-room.space`) и нативное десктоп-приложение под Windows (Tauri 2), которое
+(`app.void-room.space`) и нативное десктоп-приложение под Windows и macOS (Tauri 2), которое
 грузит тот же веб-клиент и добавляет трей, хоткеи, авто-обновление и deep-links. Комнаты
 живут в памяти и исчезают, когда уходит последний участник.
 
@@ -66,7 +66,7 @@ offer/answer/ICE) и раздачей статики. Две поверхнос�
 | чат / файлы | RTCDataChannel, бинарный chunked transfer |
 | Audio DSP | Web Audio API: RNNoise (WASM/AudioWorklet) → highpass → lowpass → compressor → gain → noise gate |
 | фронтенд | vanilla JS — без бандлеров, без React, без TypeScript |
-| десктоп | Tauri 2 (Rust + WebView2 на Windows), remote-only webview на прод-домен |
+| десктоп | Tauri 2 (Rust + WebView2 на Windows, WKWebView на macOS), интерфейс встроен в бинарь |
 | reverse proxy | Caddy (авто-HTTPS от Let's Encrypt) |
 | TURN-relay | coturn 4.6-alpine, опциональный compose-сервис (`--profile turn`), HMAC-credentials |
 | deploy (web) | Docker + docker-compose; CI `.github/workflows/deploy.yml` |
@@ -89,7 +89,7 @@ devDeps: `@tauri-apps/cli`, `@jitsi/rnnoise-wasm`, `nodemon`. Никаких ORM
 │   ├── security.js            — лимиты, валидаторы, origin-check, getClientIp (XFF anti-spoof), anti-bruteforce
 │   ├── stats.js               — daily/lifetime метрики, debounced JSON-persist (tmp+rename, retry)
 │   ├── admin-stats.js         — HTML-дашборд /adminstats (timing-safe auth, ICE-воронка, счётчик загрузок)
-│   ├── desktop-downloads.js   — поллинг GitHub Releases API → счётчики загрузок installer+portable
+│   ├── dl-beacon.js           — POST /api/dl-hit: клик-счётчик скачиваний с /dl (installer/portable/dmg)
 │   ├── bug-report.js          — POST /api/report-bug → Yandex SMTP (nodemailer)
 │   ├── leave-beacon.js        — POST /api/leave-room (navigator.sendBeacon на pagehide)
 │   ├── turn.js                — HMAC-SHA1 короткие creds для coturn: участнику в user-list / по turn-refresh; переходный GET /api/turn-credentials для старых десктопов (до 1.7.2)
@@ -143,8 +143,12 @@ npm start
 
 ```bash
 npm run tauri:dev      # dev-сборка, грузит локальный/dev URL
-npm run tauri:build    # прод-сборка → NSIS-установщик + portable
+npm run tauri:build    # прод-сборка (Windows) → NSIS-установщик + portable
 ```
+
+На маке `npm run tauri:build` не нужен (переименование бандлов там виндовое) —
+`npx tauri build` собирает `Void.app`; `src-tauri/tauri.macos.conf.json` Tauri
+подмешивает сам. DMG — отдельно, через `dmgbuild` (см. «деплой (desktop)»).
 
 ---
 
@@ -383,16 +387,32 @@ relay-портов из 1000; при росте одновременных по�
 
 ## деплой (desktop)
 
-- `npm run tauri:build` → NSIS (`void_setup.exe`) + portable (через `rename-bundles.mjs`).
-  CI дополнительно собирает кастомный `void_installer.exe` (installer-крейт вшивает
-  `void_setup.exe`) и `void-uninstaller.exe`.
+- CI: `release-check` → параллельно `build-windows` и `build-macos` → `publish-desktop`.
+  Релиз публикуется, только когда собрались ОБЕ платформы (у версии всегда полный набор).
+- **Windows:** `npm run tauri:build` → NSIS (`void_setup.exe`) + portable (через
+  `rename-bundles.mjs`). CI дополнительно собирает кастомный `void_installer.exe`
+  (installer-крейт вшивает `void_setup.exe`) и `void-uninstaller.exe`.
+- **macOS:** `npx tauri build --target universal-apple-darwin` (arm64 + x86_64 одним
+  бинарём) → `Void.app` + `Void.app.tar.gz(.sig)` для апдейтера; DMG собирает `dmgbuild`
+  по `src-tauri/macos/dmg-settings.py` (не bundler Tauri: тот оформляет окно через
+  AppleScript к Finder, а Finder без видимой сессии теряет фон и позиции иконок).
+  Файлы релиза: `void.dmg`, `void_macos.app.tar.gz(.sig)`. Фон окна DMG — исходник
+  `src-tauri/macos/dmg-background.py` (HTML), рендер в PNG — `scripts/render-dmg-background.mjs`.
+- **Подпись macOS — самоподписанный сертификат** (Apple Developer ID пока нет, нотаризации
+  нет — Gatekeeper на первом запуске спрашивает). Смысл подписи — стабильная «личность»
+  приложения: разрешения на микрофон и запись экрана macOS привязывает к ней, и у ad-hoc
+  подписи (личность = хеш бинаря) они слетали бы после каждого автообновления. Секреты:
+  `APPLE_CERTIFICATE` (base64 от .p12) и `APPLE_CERTIFICATE_PASSWORD`; CN сертификата —
+  `void desktop` (он же `APPLE_SIGNING_IDENTITY` в deploy.yml). Ключ живёт вне репо;
+  менять сертификат = у всех установленных копий разово слетят разрешения.
 - Релиз уходит в GitHub Releases основного репо `jettsba/void` И дублируется на свой
   домен `void-room.space/dl` (scp на VPS, перезаписью = всегда последняя версия) —
   GitHub в РФ нестабилен. `build-manifest.mjs` генерит `latest.json` в двух вариантах
   (url → GitHub и url → /dl). Апдейтер (`tauri-plugin-updater`) ходит по endpoints из
   `tauri.conf.json`: сперва `/dl`, GitHub как fallback.
-- Сборка десктопа **3-стадийная**: uninstaller → main app → installer. Требует заранее
-  собранный `src-tauri/bundled/void-uninstaller.exe` (его кладёт CI).
+- Windows-сборка **3-стадийная**: uninstaller → main app → installer. Требует заранее
+  собранный `src-tauri/bundled/void-uninstaller.exe` (его кладёт CI; на маке этот ресурс
+  выключен в `tauri.macos.conf.json`).
 - У апдейтера два режима: режим A (silent на старте, до главного окна, с окном прогресса;
   check timeout 2.5с) и режим B (in-app баннер; первая перепроверка ~40с, далее каждые
   15 мин, snooze 24ч). **Инвариант: не перезапускать во время живого звонка** — silent
@@ -438,8 +458,10 @@ user-agent и id текущей комнаты. Если баг воспроиз
 машине, где он разрешён руками:
 
 - **desktop:** создать пустой файл `%APPDATA%\space.void-room.app\dev-mode`
-  (или запустить приложение с переменной окружения `VOID_DEV=1`). Проверяет
-  Rust: без флага команды DevTools не работают, что бы ни прислал JS.
+  (macOS: `~/Library/Application Support/space.void-room.desktop/dev-mode`) или
+  запустить приложение с переменной окружения `VOID_DEV=1`. Проверяет Rust: без
+  флага команды DevTools не работают, что бы ни прислал JS. На маке инспектор
+  WKWebView включается при создании окна — после флага нужен перезапуск.
 - **web:** в консоли браузера `localStorage.setItem("void:dev", "1")`.
 
 ---
@@ -477,7 +499,10 @@ user-agent и id текущей комнаты. Если баг воспроиз
 - **Рестарт сервера:** комнаты in-memory by design (эфемерность), но с v1.1.0 они
   воскресают из `join-room {resume:true}` в первые 2 минуты после старта — разговор
   при выкатке не прерывается (медиа P2P). Закрытая комната воскресает закрытой.
-- **Desktop:** только Windows x64. Web и desktop настройки не шарятся (разный origin).
+- **Desktop:** Windows x64 и macOS 13+ (universal). На маке пока нет звука демонстрации
+  (нужен нативный захват системного звука без голосов void) и хоткеев на кнопки мыши
+  (нужен CGEventTap + разрешение «Мониторинг ввода»). Web и desktop настройки не
+  шарятся (разный origin).
   Интерфейс встроен в бинарь, но без сети звонить всё равно не с кем.
 - **Никаких пушей в браузере:** закрыта вкладка = ничего не услышишь (десктоп частично
   закрывает это через трей / мигание окна).

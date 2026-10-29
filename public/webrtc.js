@@ -2095,7 +2095,10 @@ function reportDisplayMediaFailure(err, askedAt) {
     if (!bySystem && !tooFastForHuman) return;   // человек просто закрыл пикер
     log.warn("rtc", "screen capture denied by OS", { err: err?.message || String(err) });
     try {
-        window.VoidToast?.showToast(_micT("errors.screencast.macos-permission"), {
+        const key = window.VoidPlatform === "desktop"
+            ? "errors.screencast.macos-permission.desktop"
+            : "errors.screencast.macos-permission";
+        window.VoidToast?.showToast(_micT(key), {
             priority: "warn",
             duration: 12000
         });
@@ -2108,6 +2111,10 @@ async function startScreenShare(height = 1080, fps = 30, captureAudio = false) {
        а нативным WASAPI loopback с исключением нашего процесс-дерева (чисто, без
        ducking). На web/нет-Tauri — старый путь через getDisplayMedia system audio. */
     const isDesktop = window.VoidPlatform === "desktop";
+    /* macOS-десктоп: нативного захвата системного звука пока нет (аналог
+       WASAPI loopback — отдельная задача), а WKWebView звук в getDisplayMedia
+       не отдаёт. Демка идёт без звука, тумблер там скрыт (js/app.js). */
+    if (isDesktop && window.VoidIsMac) captureAudio = false;
     const useNativeAudio = captureAudio && isDesktop;
     /* audioConstraints применяется ТОЛЬКО на web (на desktop звук берёт нативный
        loopback, см. useNativeAudio). По дефолту getDisplayMedia({audio:true}) даёт

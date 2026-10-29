@@ -103,6 +103,64 @@ html.desktop .void-titlebar-btn svg {
     pointer-events: none;
 }
 
+/* ============ macOS ============
+   Кнопки окна — нативный «светофор» (lib.rs: TitleBarStyle::Overlay). Он
+   стоит в левом верхнем углу НАД логотипом, как у крупных приложений: своя
+   прозрачная полоса высотой 28px (--titlebar-h, нижний край светофора) —
+   место под него и область перетаскивания, шапка с логотипом начинается
+   ниже. Своих кнопок окна нет. Полоса без фона и линии: звёзды и свечение
+   приложения идут до самого верха окна.
+
+   Кнопка чата — выше шапки, ближе к краю окна (центр на 43px); шапка панели
+   чата подтянута под неё, чтобы «закрыть» стояло по её центру: центр шапки
+   панели = padding-top + 3.57rem / 2 (высота .chat-header).
+
+   В полноэкранном режиме светофора нет (система показывает его со своей
+   шапкой при наведении к верху) — полоса убирается, раскладка обычная. */
+html.desktop.mac {
+    --titlebar-h: 28px;
+}
+
+html.desktop.mac .void-titlebar {
+    background: transparent;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    border-bottom: 0;
+}
+
+html.desktop.mac .void-titlebar-controls {
+    display: none;
+}
+
+/* Панель настроек — во всю высоту окна, как боковая панель нативных
+   приложений: светофор лежит поверх её угла, а содержимое начинается ниже
+   полосы под ним. */
+html.desktop.mac:not(.mac-fullscreen) .settings-panel {
+    top: 0;
+}
+
+html.desktop.mac:not(.mac-fullscreen) .settings-panel-inner {
+    padding-top: calc(1.71rem + var(--titlebar-h));
+}
+
+html.desktop.mac:not(.mac-fullscreen) .chat-toggle {
+    top: calc(43px - 1.145rem);   /* 2.29rem / 2 */
+}
+
+html.desktop.mac:not(.mac-fullscreen) .chat-panel {
+    top: 0;
+    margin-top: 0;
+    padding-top: calc(43px - 1.785rem);
+}
+
+html.desktop.mac.mac-fullscreen {
+    --titlebar-h: 0px;
+}
+
+html.desktop.mac.mac-fullscreen .void-titlebar {
+    display: none;
+}
+
 /* Maximize ↔ Restore: переключение иконки по is-maximized классу. */
 html.desktop .void-titlebar-max .void-titlebar-icon-restore { display: none; }
 html.desktop .void-titlebar-max.is-maximized .void-titlebar-icon-max { display: none; }

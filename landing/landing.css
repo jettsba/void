@@ -2430,11 +2430,11 @@ section.what {
   margin-top: auto;
 }
 
-/* Ряд «скачать для windows» + заглушка «macos · скоро». Отдельный модификатор,
-   а не правило на .actions: тот же класс носят CTA в других секциях, и делать
-   их все флексами ради одной карточки незачем. .dl внутри остаётся
-   inline-block со своим absolute-меню — обёртка только ставит две кнопки в
-   ряд и переносит их на узком экране. */
+/* Ряд загрузок: «windows» (split с меню installer/portable) + «macos» (dmg).
+   Отдельный модификатор, а не правило на .actions: тот же класс носят CTA в
+   других секциях, и делать их все флексами ради одной карточки незачем. .dl
+   внутри остаётся inline-block со своим absolute-меню — обёртка только ставит
+   кнопки в ряд и переносит их на узком экране. */
 .actions--dl {
   display: flex;
   flex-wrap: wrap;
@@ -2499,6 +2499,12 @@ section.what {
   bottom: 9px;
   width: 1px;
   background: rgba(0, 0, 0, 0.16);  /* hairline-делитель на светлой primary-заливке */
+}
+/* Логотип ОС слева от названия: заливкой, а не обводкой — так их узнают. */
+.dl-os {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
 }
 .dl-ico,
 .dl-chev {
@@ -3375,6 +3381,95 @@ body.av-lock {
   color: var(--fg-3);
   font-size: 11px;
   line-height: 1.7;
+}
+
+/* Вкладки windows / macos — segmented control из стайлгайда: общий контур,
+   активный сегмент залит --fg. */
+.av-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.av-tabs {
+  display: inline-flex;
+  margin-bottom: 26px;
+  border: 1px solid var(--fg-4);
+  border-radius: 2px;
+}
+.av-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 16px;
+  background: transparent;
+  border: 0;
+  color: var(--fg-2);
+  font-family: var(--font);
+  font-size: 11px;
+  letter-spacing: var(--tracking-wide);
+  text-transform: lowercase;
+  cursor: pointer;
+  transition:
+    background var(--t-fast),
+    color var(--t-fast);
+}
+.av-tab + .av-tab {
+  border-left: 1px solid var(--fg-4);
+}
+.av-tab .dl-os {
+  width: 12px;
+  height: 12px;
+}
+.av-tab:hover,
+.av-tab:focus-visible {
+  color: var(--fg);
+  outline: none;
+}
+.av-tab[aria-selected="true"] {
+  background: var(--fg);
+  color: var(--bg-0);
+}
+.av-pane[hidden] {
+  display: none;
+}
+/* Смена вкладки: высота панели едет плавно (landing.js animateHeight), а
+   новое содержимое проявляется. overflow на время перехода прячем, иначе
+   мелькнёт полоса прокрутки. */
+.av-panel.is-resizing {
+  overflow: hidden;
+  transition:
+    opacity var(--t-med),
+    transform var(--t-med),
+    height 320ms var(--ease);
+}
+.av-pane {
+  animation: av-pane-in 240ms var(--ease) both;
+}
+@keyframes av-pane-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .av-pane { animation: none; }
+}
+.av-cmd {
+  display: block;
+  margin-top: 10px;
+  padding: 12px 14px;
+  background: var(--bg-0);  /* панель модалки сама на --bg-1 */
+  border: 1px solid var(--fg-4);
+  border-radius: 2px;
+  color: var(--fg);
+  font-family: var(--font);
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  user-select: all;
+  -webkit-user-select: all;
 }
 
 @media (max-width: 720px) {
