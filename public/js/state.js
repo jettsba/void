@@ -64,6 +64,10 @@ let clientId = null;
    в createPeer (webrtc.js). Переключается тумблером в dev-настройках через
    window.__voidSetForceRelay — тест relay-пути без реального CG-NAT. */
 let forceRelay = false;
+/* Dev-журнал демки: «только напрямую» — пир собирается без TURN-серверов, а
+   relay-кандидаты собеседника отбрасываются (webrtc.js). Взаимоисключим с
+   forceRelay; переключает js/screen-lab.js через __voidSetForcePath. */
+let forceDirect = false;
 
 /**
  * Один раз на загрузку вкладки шлём серверу "hello" — это открытие приложения

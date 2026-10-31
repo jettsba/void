@@ -49,11 +49,17 @@
         return new Date().toISOString().slice(11, 19);
     }
 
+    /* Подписчик на ВСЕ записи любого уровня — журнал демки (js/screen-lab.js)
+       пишет их в свой файл, пока идёт запись. Один слот: подписчик ровно один. */
+    let tap = null;
+
     function emit(level, tag, msg, fields) {
         /* В буфер пишем всегда (полная история, любые уровни).
            В консоль — только то, что подходит по active. */
-        ring.push({ ts: Date.now(), level, tag, msg, fields });
+        const entry = { ts: Date.now(), level, tag, msg, fields };
+        ring.push(entry);
         if (ring.length > RING_CAP) ring.shift();
+        if (tap) { try { tap(entry); } catch (_) {} }
 
         if (LEVELS[level] > active) return;
         const prefix = `${ts()} [${tag}]`;
@@ -105,7 +111,8 @@
          *  Юзер прислал баг-репорт → "набери copy(log.dump())". */
         dump: () => ring.slice(),
         dumpString: () => ring.map(formatEntry).join("\n"),
-        clearBuffer: () => { ring.length = 0; }
+        clearBuffer: () => { ring.length = 0; },
+        setTap: (fn) => { tap = typeof fn === "function" ? fn : null; }
 
         /* dumpStats — биндится из webrtc.js при инициализации (L5). */
     };

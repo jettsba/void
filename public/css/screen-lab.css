@@ -1,0 +1,176 @@
+/* ===== Dev-журнал демки (js/screen-lab.js) =====
+   Плавающая панель поверх всего, включая оверлей демки: с ней работают
+   посреди звонка. Перетаскивается за шапку. Только в dev-режиме. */
+.lab-panel {
+    position: fixed;
+    top: 3.4rem;
+    right: 1rem;
+    z-index: 2147483000;
+    width: 25rem;
+    max-width: calc(100vw - 2rem);
+    max-height: calc(100vh - 4.4rem);
+    overflow-y: auto;
+    background: var(--bg-1);
+    border: 1px solid var(--fg-4);
+    border-radius: 2px;
+    font-family: var(--font);
+    font-size: 0.79rem;
+    color: var(--fg-2);
+    text-transform: lowercase;
+}
+
+.lab-panel[hidden] {
+    display: none;
+}
+
+.lab-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.43rem 0.71rem;
+    border-bottom: 1px solid var(--fg-4);
+    cursor: move;
+    user-select: none;
+    touch-action: none;
+}
+
+.lab-title {
+    color: var(--fg);
+    letter-spacing: 0.18em;
+    font-size: 0.71rem;
+}
+
+.lab-x {
+    background: none;
+    border: 0;
+    color: var(--fg-3);
+    font: inherit;
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 0.2rem;
+}
+
+.lab-x:hover:not(:disabled) {
+    color: var(--fg);
+}
+
+.lab-x:disabled {
+    opacity: 0.3;
+    cursor: default;
+}
+
+.lab-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.43rem;
+    padding: 0.57rem 0.71rem 0.71rem;
+}
+
+.lab-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.57rem;
+}
+
+.lab-rec {
+    justify-content: flex-start;
+    padding-bottom: 0.29rem;
+}
+
+.lab-btn {
+    background: transparent;
+    border: 1px solid var(--fg-4);
+    border-radius: 2px;
+    color: var(--fg);
+    font: inherit;
+    font-size: 0.71rem;
+    letter-spacing: 0.12em;
+    padding: 0.36rem 0.64rem;
+    cursor: pointer;
+    transition: background var(--t-fast), color var(--t-fast);
+}
+
+.lab-btn:hover:not(:disabled) {
+    background: var(--bg-2);
+}
+
+.lab-btn:disabled {
+    color: var(--fg-3);
+    cursor: default;
+}
+
+/* Идёт запись — единственный сигнал на панели. */
+.lab-btn.is-on {
+    border-color: var(--screen);
+    color: var(--screen);
+}
+
+.lab-meta {
+    color: var(--fg-3);
+    font-variant-numeric: tabular-nums;
+}
+
+.lab-timer {
+    margin-left: auto;
+    color: var(--screen);
+}
+
+.lab-label {
+    flex-shrink: 0;
+    color: var(--fg-2);
+}
+
+.lab-seg {
+    display: inline-flex;
+    border: 1px solid var(--fg-4);
+    border-radius: 2px;
+}
+
+.lab-seg-btn {
+    background: transparent;
+    border: 0;
+    border-left: 1px solid var(--fg-4);
+    color: var(--fg-2);
+    font: inherit;
+    font-size: 0.71rem;
+    padding: 0.29rem 0.5rem;
+    cursor: pointer;
+    transition: background var(--t-fast), color var(--t-fast);
+}
+
+.lab-seg-btn:first-child {
+    border-left: 0;
+}
+
+.lab-seg-btn:hover {
+    color: var(--fg);
+}
+
+.lab-seg-btn.is-active {
+    background: var(--fg);
+    color: var(--bg-0);
+}
+
+.lab-note {
+    color: var(--fg-3);
+    font-size: 0.71rem;
+    padding-top: 0.14rem;
+}
+
+.lab-status {
+    color: var(--fg-2);
+    font-size: 0.71rem;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    border-top: 1px solid var(--fg-4);
+    padding-top: 0.43rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.lab-flash {
+    color: var(--fg);
+    font-size: 0.71rem;
+    min-height: 1em;
+}

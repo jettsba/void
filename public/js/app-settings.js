@@ -161,6 +161,23 @@
 
     // -------------------- Initial Rust sync --------------------
 
+    /* Временные бинды поверх пользовательских — метка журнала демки
+       (js/screen-lab.js) на время записи. Регистрируются даже при выключенных
+       хоткеях: журнал — dev-инструмент, общий тумблер его не касается. */
+    let extraBindings = {};
+
+    function rustBindings(enabled) {
+        return { ...(enabled ? readHotkeys() : {}), ...extraBindings };
+    }
+
+    window.VoidHotkeys = {
+        setExtra(bindings) {
+            extraBindings = { ...(bindings || {}) };
+            if (!tauriEvent) return;
+            tauriEvent.emit("void:register-hotkeys", { bindings: rustBindings(readAppState().hotkeysEnabled) }).catch(() => {});
+        }
+    };
+
     function pushClientStateToRust() {
         if (!tauriEvent) return;
         const s = readAppState();
@@ -168,7 +185,7 @@
         tauriEvent.emit("void:set-autostart", { enabled: s.autoStart }).catch(() => {});
         /* Выключенные хоткеи = регистрируем пустой набор (Rust снимает все
            глобальные биндинги). Иначе шлём актуальные. */
-        tauriEvent.emit("void:register-hotkeys", { bindings: s.hotkeysEnabled ? readHotkeys() : {} }).catch(() => {});
+        tauriEvent.emit("void:register-hotkeys", { bindings: rustBindings(s.hotkeysEnabled) }).catch(() => {});
     }
 
     // -------------------- Modal infra --------------------
@@ -293,7 +310,7 @@
             applyEnabledUI(on);
             if (tauriEvent) {
                 /* Вкл — регистрируем актуальные биндинги; выкл — пустой набор. */
-                tauriEvent.emit("void:register-hotkeys", { bindings: on ? readHotkeys() : {} }).catch(() => {});
+                tauriEvent.emit("void:register-hotkeys", { bindings: rustBindings(on) }).catch(() => {});
             }
             window.VoidSettings?.refreshCats?.();
         });
@@ -324,7 +341,7 @@
             });
             highlightKeyboard(card, "");
             if (tauriEvent && readAppState().hotkeysEnabled) {
-                tauriEvent.emit("void:register-hotkeys", { bindings: readHotkeys() }).catch(() => {});
+                tauriEvent.emit("void:register-hotkeys", { bindings: rustBindings(true) }).catch(() => {});
             }
         });
     }
@@ -1003,6 +1020,9 @@
                 if (typeof leaveRoom === "function" && typeof isJoined !== "undefined" && isJoined) {
                     leaveRoom();
                 }
+                break;
+            case "labMark":
+                window.VoidScreenLab?.mark();
                 break;
             // toggleWindow обрабатывается напрямую в Rust — JS не получает event.
         }

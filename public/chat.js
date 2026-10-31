@@ -687,6 +687,13 @@ function handleIncoming(data, userId) {
             window.VoidSafety?.onMessage(json, userId);
             return;
         }
+        /* Dev-журнал демки (js/screen-lab.js): синхронизация часов для замера
+           задержки и состояние переключателей собеседника. Старые клиенты такой
+           type просто игнорируют. */
+        if (json.type === "lab") {
+            window.VoidScreenLab?.onPeerMessage(json, userId);
+            return;
+        }
         if (json.type !== "msg") return;
         if (!inboundAllowed(userId)) return;
 

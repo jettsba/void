@@ -441,6 +441,7 @@ function handleSocketMessage(data) {
             break;
 
         case "screencast-state":
+            try { window.VoidScreenLab?.event("peer-screencast-state", { userId: data.userId, screen: !!data.screen }); } catch (_) {}
             if (typeof handleScreencastStateMsg === "function") {
                 handleScreencastStateMsg(data);
             }

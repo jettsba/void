@@ -32,6 +32,8 @@ mod screen_indicator;
    вовсе — зарегистрировать мышь через плагин нельзя в принципе. */
 #[cfg(windows)]
 mod mouse_hook;
+/* Dev-only screen-share journal: CPU/power snapshot (lab_stats.rs). */
+mod lab_stats;
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -230,6 +232,30 @@ fn set_dev_access(app: tauri::AppHandle, window: tauri::WebviewWindow, enabled: 
         return;
     }
     DEV_ACCESS.store(enabled, Ordering::SeqCst);
+}
+
+/// Dev-only screen-share journal (public/js/screen-lab.js): CPU, memory and
+/// power snapshot, polled once a second while a journal records. Gated like
+/// the other dev tools — main window plus the machine's dev-mode flag.
+#[tauri::command]
+async fn lab_sys_stats(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+    power: bool,
+) -> std::result::Result<serde_json::Value, String> {
+    if !from_main(&window) || !dev_mode_allowed(&app) {
+        return Err("not allowed".into());
+    }
+    tauri::async_runtime::spawn_blocking(move || lab_stats::snapshot(power))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+fn lab_sys_reset(window: tauri::WebviewWindow) {
+    if from_main(&window) {
+        lab_stats::reset();
+    }
 }
 
 /// Dev-режим: явно открыть DevTools (кнопка в dev-настройках). Фича `devtools`
@@ -458,7 +484,9 @@ pub fn run() {
             set_dev_access,
             open_devtools,
             open_external,
-            save_file
+            save_file,
+            lab_sys_stats,
+            lab_sys_reset
         ])
         .setup(|app| {
             // Bundled-web архитектура (Phase 6 фикс, v0.10.48):

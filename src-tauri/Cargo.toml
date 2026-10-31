@@ -1,6 +1,6 @@
 [package]
 name = "void-desktop"
-version = "1.8.0"
+version = "1.8.1"
 description = "Void — эфемерные P2P голосовые комнаты"
 authors = ["Void"]
 edition = "2021"
@@ -28,6 +28,9 @@ tokio = { version = "1", features = ["time"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 image = { version = "0.25", default-features = false, features = ["png"] }
+# sysinfo — CPU/memory snapshot for the dev-only screen-share journal
+# (lab_stats.rs). Only system + process tables; no disks/networks/components.
+sysinfo = { version = "0.40", default-features = false, features = ["system"] }
 
 # Native Windows API для отключения communications-ducking (см. audio_session.rs).
 # Когда у юзера в Windows Control Panel → Sound → Communications стоит дефолтное
@@ -70,7 +73,7 @@ windows = { version = "0.59", features = [
 # NSLocale.preferredLanguages — язык нативных меню по системным настройкам
 # (lib.rs mac_menu_ru). Версия = та, что уже тянут tao/wry (Cargo.lock).
 [target.'cfg(target_os = "macos")'.dependencies]
-objc2-foundation = { version = "0.3", features = ["NSLocale", "NSArray", "NSString"] }
+objc2-foundation = { version = "0.3", features = ["NSLocale", "NSArray", "NSString", "NSProcessInfo"] }
 
 [features]
 custom-protocol = ["tauri/custom-protocol"]

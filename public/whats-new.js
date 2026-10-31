@@ -23,37 +23,7 @@
    Пример заполненного релиза:
 
        window.VoidWhatsNew = {
-           version: "1.0.1",
-           ru: [
-               "добавлены хоткеи на кнопки мыши",
-               "— в том числе на боковые и колесо",
-               "исправлен звук демонстрации экрана"
-           ],
-           en: [
-               "mouse-button hotkeys",
-               "— side buttons and the wheel included",
-               "fixed screen-share audio"
-           ]
-       };
-
-   Посмотреть, как это выглядит, ДО выкатки: `VoidWhatsNewPreview()` в консоли. */
-
-window.VoidWhatsNew = {
-    version: "1.8.0",
-    ru: [
-        "void теперь доступен на macos — скачать можно на void-room.space",
-        "снова сохраняются файлы и картинки из чата",
-        "прикреплённый файл можно отправить по enter",
-        "программы в чате помечены значком, пояснение — при наведении",
-        "регуляторы громкости на тачпаде крутятся быстрее",
-        "мелкие правки интерфейса"
-    ],
-    en: [
-        "void is now available on macos — get it at void-room.space",
-        "saving files and images from the chat works again",
-        "an attached file can now be sent with enter",
-        "programs in the chat are marked with an icon, hover it for details",
-        "volume sliders move faster on a touchpad",
-        "small interface fixes"
-    ]
+    version: "",
+    ru: [],
+    en: []
 };

@@ -28,6 +28,9 @@ let screenAudioChannel = null;
    например — re-join во время трансляции). Reset в stopScreenShare. */
 let screenTargetHeight = 1080;
 let screenTargetFps = 30;
+/* fps, выбранный человеком в окне демки, — до переопределения из dev-журнала.
+   Нужен, чтобы вернуть «авто» в панели журнала посреди трансляции. */
+let screenChosenFps = 30;
 /* Суммарный бюджет аплоада демки (бит/с), делится между зрителями (mesh: один
    video-track уходит N отдельными потоками, аплоад шарера иначе = N × потолок).
    28M подобран как СТРОГО без регресса для нынешних размеров комнаты: при ≤4
@@ -876,10 +879,27 @@ setInterval(ensureTurnCredentials, 60_000);
  * порядок вступления в комнату (тот, кто уже сидел и зовёт нового — он же
  * открывает чат-канал).
  */
+function stunOnlyServers(servers) {
+    const out = [];
+    for (const srv of servers || []) {
+        const urls = (Array.isArray(srv.urls) ? srv.urls : [srv.urls])
+            .filter(u => typeof u === "string" && /^stuns?:/i.test(u));
+        if (urls.length) out.push({ urls });
+    }
+    return out;
+}
+
+/* Relay-кандидат собеседника при «только напрямую» (dev-журнал демки). */
+function isDroppedRelayCandidate(c) {
+    return forceDirect && typeof c?.candidate === "string" && / typ relay/.test(c.candidate);
+}
+
 function createPeer(userId, isChatInitiator) {
 
     const peer = new RTCPeerConnection({
-        iceServers: _iceServersCached,
+        /* Dev-журнал «только напрямую»: без TURN-серверов relay-кандидатов
+           у нас нет, а чужие relay-кандидаты отбрасывает handleIce. */
+        iceServers: forceDirect ? stunOnlyServers(_iceServersCached) : _iceServersCached,
         /* Dev-режим force-relay: гоним медиа только через TURN — тест relay-пути
            и битрейт-капа без реального CG-NAT. Требует поднятый TURN (иначе
            кандидатов не будет — это ожидаемо для теста). Обычный режим — "all". */
@@ -1330,6 +1350,11 @@ async function handleIce(data) {
        таком случае бросает «remote description has not been set» —
        кандидат теряется. Поэтому копим в очередь, проливаем сразу
        после setRemoteDescription. */
+    if (isDroppedRelayCandidate(data.candidate)) {
+        log.debug("rtc", "remote relay candidate dropped (force direct)", { userId: data.from });
+        return;
+    }
+
     if (!peer.remoteDescription) {
         peer._pendingIceCandidates.push(data.candidate);
         return;
@@ -2105,8 +2130,33 @@ function reportDisplayMediaFailure(err, askedAt) {
     } catch (_) {}
 }
 
+/* ===== Dev-журнал демки (js/screen-lab.js) =====
+   Ручные переопределения настроек демки из панели журнала. null — переключатель
+   в «авто», работает обычная логика. Читаются в момент применения параметров. */
+function labOverride(name) {
+    const v = window.VoidScreenLab?.overrides?.[name];
+    return v == null ? null : v;
+}
+
+function labEvent(kind, data) {
+    try { window.VoidScreenLab?.event(kind, data); } catch (_) {}
+}
+
+function screenWidthFor(height) {
+    return height === 480 ? 854 : height === 720 ? 1280 : 1920;
+}
+
 async function startScreenShare(height = 1080, fps = 30, captureAudio = false) {
-    const width = height === 480 ? 854 : height === 720 ? 1280 : 1920;
+    screenChosenFps = fps;
+    const labFps = labOverride("fps");
+    if (labFps) fps = labFps;
+    const width = screenWidthFor(height);
+    /* Источник «генератор» (dev-журнал): вместо захвата экрана — синтетическая
+       картинка ровно N кадров/с со счётчиком кадров, зритель считывает его и
+       считает пропуски. Без пикера и без звука. */
+    const useGenerator = labOverride("source") === "generator"
+        && typeof window.VoidScreenLab?.createGenerator === "function";
+    if (useGenerator) captureAudio = false;
     /* На desktop звук демки берём НЕ из getDisplayMedia (он тащит голоса void),
        а нативным WASAPI loopback с исключением нашего процесс-дерева (чисто, без
        ducking). На web/нет-Tauri — старый путь через getDisplayMedia system audio. */
@@ -2144,7 +2194,9 @@ async function startScreenShare(height = 1080, fps = 30, captureAudio = false) {
     /* arming: desktop-сторона заранее ставит WinEvent-хук (до появления окна-
        индикатора), чтобы спрятать его без мелькания. На отмене пикера/ошибке/
        выходе из комнаты шлём active:false — снять хук. На web всё это no-op. */
-    try { window.__TAURI__?.event?.emit("void:screencast-arming", {}); } catch (_) {}
+    if (!useGenerator) {
+        try { window.__TAURI__?.event?.emit("void:screencast-arming", {}); } catch (_) {}
+    }
     const displayOptions = {
         video: {
             width: { ideal: width },
@@ -2164,7 +2216,9 @@ async function startScreenShare(height = 1080, fps = 30, captureAudio = false) {
     };
     let stream;
     const askedAt = performance.now();
-    try {
+    if (useGenerator) {
+        stream = window.VoidScreenLab.createGenerator(width, height, fps);
+    } else try {
         stream = await navigator.mediaDevices.getDisplayMedia(displayOptions);
     } catch (e) {
         /* Safari (macOS) захват системного звука через getDisplayMedia не
@@ -2209,7 +2263,7 @@ async function startScreenShare(height = 1080, fps = 30, captureAudio = false) {
        addTrack пирам, patchOpus, teardown в stopScreenShare) работает без изменений.
        Фейл нативного капта (старый Windows / ошибка) → демка без звука + warn,
        но видео не ломаем (population <Win10 2004 ничтожна). */
-    if (useNativeAudio) {
+    if (useNativeAudio && !useGenerator) {
         try {
             const nativeTrack = await startNativeScreenAudio();
             if (nativeTrack) screenStream.addTrack(nativeTrack);
@@ -2234,7 +2288,7 @@ async function startScreenShare(height = 1080, fps = 30, captureAudio = false) {
        congestion плавно проседают И fps, И разрешение (не 5fps и не 360p). Статика
        почти бесплатна по битрейту → detail держит её резкой. См. W3C MST § contentHint. */
     if (videoTrack) {
-        try { videoTrack.contentHint = "detail"; } catch (_) {}
+        try { videoTrack.contentHint = labOverride("hint") || "detail"; } catch (_) {}
         /* Констрейнты getDisplayMedia — только ХИНТ: спека запрещает min/exact и
            не обязывает выполнять ideal. На HiDPI (Retina) источник приходит в
            физическом разрешении (напр. 3024x1964 вместо запрошенного 1080p), и
@@ -2254,6 +2308,15 @@ async function startScreenShare(height = 1080, fps = 30, captureAudio = false) {
         log.info("rtc", "screen source", {
             srcW: st.width, srcH: st.height, srcFps: st.frameRate,
             targetH: height, targetFps: fps
+        });
+        labEvent("screen-start", {
+            source: useGenerator ? "generator" : "capture",
+            label: videoTrack.label, settings: st,
+            capabilities: videoTrack.getCapabilities?.() || null,
+            contentHint: videoTrack.contentHint,
+            targetH: height, chosenFps: screenChosenFps, targetFps: fps,
+            audio: !!screenStream.getAudioTracks()[0], nativeAudio: useNativeAudio,
+            codecPref: screenCodecPreference(), viewers: peers.size
         });
     }
     /* Запоминаем целевые параметры — applyDirectScreenVideoParams читает их
@@ -2536,13 +2599,15 @@ function screenViewerCount() {
    гонки setParameters, когда ранние пиры получили битрейт под неполный счёт.
    На стороне зрителя (не шарит) screenSenders пуст → безопасный no-op. */
 function reapplyScreenVideoBudget() {
-    if (!screenStream?.active || screenSenders.size === 0) return;
+    if (!screenStream?.active || screenSenders.size === 0) return Promise.resolve();
+    const jobs = [];
     for (const [userId, senders] of screenSenders) {
         const peer = peers.get(userId);
         if (!peer) continue;
-        if (peer._isRelay) applyRelayBitrateLimits(peer);
-        else applyDirectScreenVideoParams(senders, screenTargetHeight, screenTargetFps);
+        if (peer._isRelay) jobs.push(applyRelayBitrateLimits(peer));
+        else jobs.push(applyDirectScreenVideoParams(senders, screenTargetHeight, screenTargetFps));
     }
+    return Promise.all(jobs);
 }
 
 /**
@@ -2594,7 +2659,7 @@ async function applyDirectScreenVideoParams(senders, height, fps) {
        достигает лимита (min берёт ceiling → полное 1080p), при многих зрителях
        — режем, чтобы суммарный аплоад шарера держался около SCREEN_UPLOAD_BUDGET. */
     const viewers = screenViewerCount();
-    const maxBitrate = Math.min(ceiling, Math.round(SCREEN_UPLOAD_BUDGET / viewers));
+    const maxBitrate = labOverride("bitrate") || Math.min(ceiling, Math.round(SCREEN_UPLOAD_BUDGET / viewers));
     const downscale = screenDownscaleFactor(videoSender.track, height);
 
     const apply = async (withDegradation, withDownscale) => {
@@ -2605,7 +2670,7 @@ async function applyDirectScreenVideoParams(senders, height, fps) {
         enc.maxFramerate = fps;
         if (withDownscale) enc.scaleResolutionDownBy = downscale;
         enc.networkPriority = "high";
-        if (withDegradation) params.degradationPreference = "balanced";
+        if (withDegradation) params.degradationPreference = labOverride("degradation") || "balanced";
         await videoSender.setParameters(params);
     };
 
@@ -2654,6 +2719,43 @@ function stopScreenShare() {
     screenTargetHeight = 1080;
     screenTargetFps = 30;
     emitScreencastActive(false);
+    labEvent("screen-stop", {});
+}
+
+/* Переключатель в панели журнала поменялся посреди демки: дотянуть захват
+   (fps), подсказку контента и параметры энкодера на всех зрителях. Кодек и
+   источник так не меняются — они берутся при следующем запуске демки. */
+/* Переключения в панели идут очередью: два параллельных setParameters на
+   одном sender'е конфликтуют, второй падает и уходит в упрощённый заход
+   лесенки (без degradationPreference). */
+let _labReapplyQueue = Promise.resolve();
+
+function labReapplyScreen() {
+    _labReapplyQueue = _labReapplyQueue.then(labReapplyScreenNow, labReapplyScreenNow);
+    return _labReapplyQueue;
+}
+
+async function labReapplyScreenNow() {
+    if (!screenStream?.active) return;
+    const track = screenStream.getVideoTracks()[0];
+    const fps = labOverride("fps") || screenChosenFps;
+    if (track && fps !== screenTargetFps) {
+        screenTargetFps = fps;
+        try {
+            await track.applyConstraints({
+                width: { max: screenWidthFor(screenTargetHeight) },
+                height: { max: screenTargetHeight },
+                frameRate: { max: fps }
+            });
+        } catch (err) {
+            log.debug("rtc", "lab applyConstraints rejected", { err: err?.message || String(err) });
+        }
+    }
+    const hint = labOverride("hint") || "detail";
+    if (track && track.contentHint !== hint) {
+        try { track.contentHint = hint; } catch (_) {}
+    }
+    await reapplyScreenVideoBudget();
 }
 
 /* ===== DEV: peer-HUD (включается из dev-меню «оверлей статистики») =====
@@ -2773,7 +2875,24 @@ async function collectDiagReport() {
    применился (он читается в createPeer при создании peer'а). */
 function setForceRelay(on) {
     forceRelay = !!on;
-    if (peers) for (const userId of peers.keys()) rebuildPeer(userId);
+    if (on) forceDirect = false;
+    rebuildAllPeers();
+}
+
+/* Путь медиа для dev-журнала: "auto" | "relay" | "direct". */
+function setForcePath(mode) {
+    forceRelay = mode === "relay";
+    forceDirect = mode === "direct";
+    rebuildAllPeers();
+}
+
+/* Обход по СНИМКУ ключей: rebuildPeer удаляет userId из peers и тут же
+   кладёт обратно, а живой итератор Map заново посещает добавленный ключ —
+   цикл по peers.keys() крутился бесконечно, пока Chromium не упирался в
+   лимит 500 RTCPeerConnection («Cannot create so many PeerConnections»). */
+function rebuildAllPeers() {
+    if (!peers) return;
+    for (const userId of [...peers.keys()]) rebuildPeer(userId);
 }
 
 /* Экспорт для dev-настроек (settings.js). HUD включается ТОЛЬКО из dev-меню
@@ -2782,6 +2901,8 @@ if (typeof window !== "undefined") {
     window.__voidToggleHud = toggleDebugHud;
     window.__voidCollectDiag = collectDiagReport;
     window.__voidSetForceRelay = setForceRelay;
+    window.__voidSetForcePath = setForcePath;
+    window.__voidLabReapply = labReapplyScreen;
 }
 
 /**
@@ -3089,6 +3210,7 @@ async function reportConnectivity(peer) {
     peer._iceReported = true;
     const { result, via } = cls;
     sendSocket(via ? { type: "ice-report", result, via } : { type: "ice-report", result });
+    labEvent("conn-classified", { userId: peer._userId, result, via: via || null });
 
     if (result === "relay") {
         peer._isRelay = true;
@@ -3121,7 +3243,7 @@ async function applyRelayBitrateLimits(peer) {
        большом числе зрителей делённый бюджет опускает его ещё ниже (напр. 9
        зрителей → ~1.7 Mbps), удерживая суммарную relay-нагрузку coturn. */
     const viewers = screenViewerCount();
-    const videoCap = Math.min(3_000_000, Math.round(SCREEN_UPLOAD_BUDGET / viewers));
+    const videoCap = labOverride("bitrate") || Math.min(3_000_000, Math.round(SCREEN_UPLOAD_BUDGET / viewers));
     for (const sender of senders) {
         if (!sender.track) continue;
         if (sender.track.kind !== "video") continue;
@@ -3135,8 +3257,9 @@ async function applyRelayBitrateLimits(peer) {
             if (withDownscale) {
                 enc.scaleResolutionDownBy = screenDownscaleFactor(sender.track, screenTargetHeight);
             }
-            enc.maxFramerate = 30;
-            if (withDegradation) params.degradationPreference = "balanced";
+            /* 30 — потолок relay (нагрузка coturn); dev-журнал может поднять. */
+            enc.maxFramerate = labOverride("fps") || 30;
+            if (withDegradation) params.degradationPreference = labOverride("degradation") || "balanced";
             await sender.setParameters(params);
         };
         /* Лесенка та же, что в applyDirectScreenVideoParams: отказ от одного

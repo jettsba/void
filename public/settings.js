@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "1.8.0";
+    const APP_VERSION = "1.8.1";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
@@ -305,6 +305,7 @@
             "settings.admin": "админ-панель",
             "dev.devtools": "открыть devtools",
             "dev.hud": "оверлей статистики",
+            "dev.lab": "журнал демки",
             "dev.copyDiag": "скопировать диагностику",
             "dev.copyDiag.done": "скопировано",
             "dev.forceRelay": "принудительный relay",
@@ -557,6 +558,7 @@
             "settings.admin": "admin panel",
             "dev.devtools": "open devtools",
             "dev.hud": "stats overlay",
+            "dev.lab": "screen journal",
             "dev.copyDiag": "copy diagnostics",
             "dev.copyDiag.done": "copied",
             "dev.forceRelay": "force relay",
@@ -1978,6 +1980,10 @@
                     <svg class="dev-tile-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 20h8"/></svg>
                     <span class="dev-tile-label" data-i18n="dev.hud">${t("dev.hud")}</span>
                 </button>
+                <button type="button" class="dev-tile" id="devScreenLab">
+                    <svg class="dev-tile-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="12" rx="1.5"/><circle cx="12" cy="11" r="2.2"/><path d="M8 20h8"/></svg>
+                    <span class="dev-tile-label" data-i18n="dev.lab">${t("dev.lab")}</span>
+                </button>
                 <button type="button" class="dev-tile" id="devCopyDiag">
                     <svg class="dev-tile-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="1.4"/><path d="M5 15V5.5A1.5 1.5 0 0 1 6.5 4H15"/></svg>
                     <span class="dev-tile-label" data-i18n="dev.copyDiag">${t("dev.copyDiag")}</span>
@@ -2001,6 +2007,9 @@
         });
         devModalEl.querySelector("#devToggleHud")?.addEventListener("click", () => {
             try { window.__voidToggleHud?.(); } catch (_) {}
+        });
+        devModalEl.querySelector("#devScreenLab")?.addEventListener("click", () => {
+            try { window.VoidScreenLab?.togglePanel(); } catch (_) {}
         });
         devModalEl.querySelector("#devCopyDiag")?.addEventListener("click", copyDiagnostics);
         forceRelayEl = devModalEl.querySelector("#devForceRelay");
