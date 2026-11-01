@@ -251,6 +251,16 @@ async fn lab_sys_stats(
         .map_err(|e| e.to_string())?
 }
 
+/// Dev-only journal header: version of the system webview (WebView2 runtime /
+/// WKWebView) — HW video support differs between WebView2 and Edge builds.
+#[tauri::command]
+fn lab_webview_version(app: tauri::AppHandle, window: tauri::WebviewWindow) -> std::result::Result<String, String> {
+    if !from_main(&window) || !dev_mode_allowed(&app) {
+        return Err("not allowed".into());
+    }
+    tauri::webview_version().map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 fn lab_sys_reset(window: tauri::WebviewWindow) {
     if from_main(&window) {
@@ -486,7 +496,8 @@ pub fn run() {
             open_external,
             save_file,
             lab_sys_stats,
-            lab_sys_reset
+            lab_sys_reset,
+            lab_webview_version
         ])
         .setup(|app| {
             // Bundled-web архитектура (Phase 6 фикс, v0.10.48):

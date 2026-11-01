@@ -193,15 +193,6 @@ function init() {
     soundBtn.addEventListener("click", toggleSound);
     screencastBtn.addEventListener("click", handleScreencastBtnClick);
 
-    scModal.querySelectorAll(".sc-tiles").forEach(group => {
-        group.addEventListener("click", e => {
-            const tile = e.target.closest(".sc-tile");
-            if (!tile) return;
-            group.querySelectorAll(".sc-tile").forEach(t => t.classList.remove("sc-tile--active"));
-            tile.classList.add("sc-tile--active");
-        });
-    });
-
     scModal.querySelector(".sc-modal-backdrop").addEventListener("click", closeScModal);
 
     /* Повторный вход в старт демки: «next» можно успеть нажать дважды до
@@ -212,15 +203,15 @@ function init() {
     scNextBtn.addEventListener("click", async () => {
         if (_scStarting || isScreencasting) return;
         _scStarting = true;
-        const res = parseInt(scModal.querySelector("#scRes .sc-tile--active")?.dataset.val ?? "1080");
-        const fps = parseInt(scModal.querySelector("#scFps .sc-tile--active")?.dataset.val ?? "30");
         /* Тумблер «звук демки» (дефолт вкл). На desktop звук берёт нативный
            loopback, на web — getDisplayMedia. Выключен → демка без звука, без
            трансляции системных звуков стримера. */
         const captureAudio = document.getElementById("scAudio")?.checked ?? true;
         closeScModal();
         try {
-            await startScreenShare(res, fps, captureAudio);
+            /* Качество не выбирается: цель 1080p60, дальше автоподстройка
+               (webrtc.js, screenAdaptTick) под процессор и канал. */
+            await startScreenShare(1080, 60, captureAudio);
             isScreencasting = true;
             broadcastScreencastState(true);
             updateScreencastButton(true);

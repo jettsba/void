@@ -23,7 +23,31 @@
    Пример заполненного релиза:
 
        window.VoidWhatsNew = {
-    version: "",
-    ru: [],
-    en: []
+           version: "1.0.1",
+           ru: [
+               "добавлены хоткеи на кнопки мыши",
+               "— в том числе на боковые и колесо",
+               "исправлен звук демонстрации экрана"
+           ],
+           en: [
+               "mouse-button hotkeys",
+               "— side buttons and the wheel included",
+               "fixed screen-share audio"
+           ]
+       };
+
+   Посмотреть, как это выглядит, ДО выкатки: `VoidWhatsNewPreview()` в консоли. */
+
+window.VoidWhatsNew = {
+    version: "1.9.0",
+    ru: [
+        "демонстрация экрана стала плавнее",
+        "качество демонстрации подстраивается само — выбирать разрешение и частоту кадров больше не нужно",
+        "статус-бар не врет, если с кем-то из комнаты не удалось соединиться"
+    ],
+    en: [
+        "screen sharing is smoother now",
+        "screen share quality adjusts by itself — no need to pick resolution and frame rate anymore",
+        "if a participant can't be reached, the status bar shows «connecting…» instead of «connected»"
+    ]
 };

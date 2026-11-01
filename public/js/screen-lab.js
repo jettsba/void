@@ -42,7 +42,7 @@
     const TS_MASK = 0x7FFFFF; // 23 бита миллисекунд ≈ 2.3 ч до перехода через ноль
 
     const overrides = {
-        path: null, fps: null, bitrate: null, degradation: null, hint: null, source: null
+        path: null, fps: null, bitrate: null, degradation: null, hint: null, source: null, adapt: null
     };
 
     const TOGGLES = [
@@ -51,7 +51,10 @@
         { key: "bitrate", label: "битрейт", opts: [[null, "авто"], [1_500_000, "1.5м"], [3_000_000, "3м"], [6_000_000, "6м"], [10_000_000, "10м"]] },
         { key: "degradation", label: "просадка", opts: [[null, "авто"], ["balanced", "баланс"], ["maintain-resolution", "резкость"], ["maintain-framerate", "плавность"]] },
         { key: "hint", label: "контент", opts: [[null, "авто"], ["detail", "detail"], ["text", "text"], ["motion", "motion"]] },
-        { key: "codec", label: "кодек", opts: [["h264", "h264"], ["vp9", "vp9"], ["auto", "авто"]], nextDemo: true },
+        { key: "adapt", label: "автоподстройка", opts: [[null, "вкл"], ["off", "выкл"]] },
+        /* «движок» — НЕ дефолт: setCodecPreferences не зовётся, кодек выбирает
+           браузер. Дефолт Void — h264. */
+        { key: "codec", label: "кодек", opts: [["h264", "h264"], ["vp9", "vp9"], ["auto", "движок"]], nextDemo: true },
         { key: "source", label: "источник", opts: [[null, "экран"], ["generator", "генератор"]], nextDemo: true }
     ];
 
@@ -163,6 +166,7 @@
                 clientId: typeof clientId !== "undefined" ? clientId : null,
                 nick: typeof currentUsername !== "undefined" ? currentUsername : null
             },
+            webview: isDesktop() ? await invoke("lab_webview_version").catch(e => "err: " + (e?.message || e)) : null,
             room: typeof currentRoomCode !== "undefined" ? currentRoomCode : null,
             peers: peerList,
             ua: navigator.userAgent,

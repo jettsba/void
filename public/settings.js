@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "1.8.1";
+    const APP_VERSION = "1.9.0";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
@@ -163,6 +163,7 @@
             "footer.reconnecting": "переподключение",
             "footer.reconnecting.attempt": "переподключение {attempt}/{total}",
             "footer.unstable": "связь нестабильна",
+            "footer.nolink": "соединение…",
             "footer.error": "ошибка",
             "footer.copy.streamer": "пригласить",
             "footer.roomCode": "комната #{code}",
@@ -201,8 +202,7 @@
             "screencast.watch": "смотреть",
             "screencast.screen": "экран",
             "screencast.title": "демонстрация экрана",
-            "screencast.resolution": "разрешение",
-            "screencast.fps": "частота кадров",
+            "screencast.auto": "качество и плавность подстраиваются автоматически",
             "screencast.audio": "звук экрана",
             "screencast.next": "далее →",
             "screencast.fullscreen": "на весь экран",
@@ -416,6 +416,7 @@
             "footer.reconnecting": "reconnecting",
             "footer.reconnecting.attempt": "reconnecting {attempt}/{total}",
             "footer.unstable": "connection unstable",
+            "footer.nolink": "connecting…",
             "footer.error": "error",
             "footer.copy.streamer": "invite",
             "footer.roomCode": "room #{code}",
@@ -454,8 +455,7 @@
             "screencast.watch": "watch",
             "screencast.screen": "screen",
             "screencast.title": "screen share",
-            "screencast.resolution": "resolution",
-            "screencast.fps": "frame rate",
+            "screencast.auto": "quality and smoothness adjust automatically",
             "screencast.audio": "screen audio",
             "screencast.next": "next →",
             "screencast.fullscreen": "fullscreen",

@@ -440,10 +440,10 @@ function retryCreateRoomAfterCollision() {
    видел зелёное "connected" пока его на самом деле не слышно. На
    ws-уровни (reconnecting/error/ready) флаг не влияет — там свой
    рендер с приоритетом. Обновляется из webrtc.js через setPeerTrouble. */
-let _peerTrouble = false;
+let _peerTrouble = false; // false | "unstable" | "nolink"
 
 function setPeerTrouble(trouble) {
-    const next = !!trouble;
+    const next = trouble || false;
     if (next === _peerTrouble) return;
     _peerTrouble = next;
     if (_lastConnState === "connected") {
@@ -461,7 +461,7 @@ function setConnectionState(state, opts = {}) {
     if (state === "connected") {
         if (_peerTrouble) {
             connDot.classList.add("warn", "pulse");
-            connLabel.textContent = _t("footer.unstable");
+            connLabel.textContent = _t(_peerTrouble === "nolink" ? "footer.nolink" : "footer.unstable");
         } else {
             connDot.classList.add("live");
             connLabel.textContent = _t("footer.connected");

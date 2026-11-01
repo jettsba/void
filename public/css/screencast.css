@@ -211,65 +211,6 @@
     color: var(--fg-4);
 }
 
-.sc-tiles {
-    display: flex;
-    gap: 0.57rem;
-}
-
-.sc-tile {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 0.21rem;
-    padding: 1.14rem 0.71rem 1rem;
-    border: 1px solid var(--fg-4);
-    border-radius: 2px;
-    background: var(--bg-2);
-    cursor: pointer;
-    font-family: inherit;
-    transition:
-        border-color 0.14s ease,
-        background 0.14s ease,
-        box-shadow 0.14s ease;
-}
-
-.sc-tile:hover {
-    border-color: var(--fg-3);
-    background: rgba(230, 230, 232, 0.03);
-}
-
-.sc-tile--active {
-    border-color: var(--fg-2);
-    background: rgba(230, 230, 232, 0.05);
-}
-
-.sc-tile-num {
-    font-size: 1.86rem;
-    font-weight: 300;
-    letter-spacing: -0.03em;
-    line-height: 1;
-    color: var(--fg-3);
-    transition: color 0.14s ease;
-}
-
-.sc-tile--active .sc-tile-num {
-    color: var(--fg);
-}
-
-.sc-tile-sub {
-    font-size: 0.71rem;
-    letter-spacing: 0.1em;
-    text-transform: lowercase;
-    color: var(--fg-4);
-    transition: color 0.14s ease;
-}
-
-.sc-tile--active .sc-tile-sub {
-    color: var(--fg-3);
-}
-
 .sc-section--row {
     flex-direction: row;
     align-items: center;
@@ -280,8 +221,8 @@
     margin-bottom: 0;
 }
 
-/* Пояснение под тумблером звука (только macOS, см. index.html). Тон — как у
-   меты: тише подписи, без рамки, без иконки. */
+/* Пояснения в окне демки: «качество подстраивается само» и подпись под
+   тумблером звука (только macOS). Тон — как у меты: тише подписи, без рамки. */
 .sc-note {
     margin-top: -0.29rem;
     font-size: 0.79rem;

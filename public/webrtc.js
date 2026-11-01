@@ -41,6 +41,8 @@ let screenChosenFps = 30;
    3.0M-cap в applyRelayBitrateLimits; бюджет — прежде всего про direct-аплоад
    шарера (иначе 9 зр × 7M = 63M). См. screenViewerCount / reapplyScreenVideoBudget. */
 const SCREEN_UPLOAD_BUDGET = 28_000_000;
+/* Потолок video демки на relay-плече (на зрителя, до деления бюджета). */
+const RELAY_SCREEN_MAX_BITRATE = 8_000_000;
 const videoMap = new Map();
 const screenSenders = new Map();
 
@@ -97,6 +99,11 @@ const SIG_STUCK_TIMEOUT_MS = 12_000;
  *  За это время transient проблемы (NAT mapping refresh, кратковременная потеря
  *  пакетов) обычно сами рассасываются. */
 const PEER_DISCONNECT_GRACE_MS = 5000;
+
+/** Новый peer, не дошедший до connected за это время, — «нет связи» в футере.
+ *  Нормальная установка (в т.ч. через relay) укладывается в 1-3 с; без этого
+ *  футер честно показывал ws-«подключено», пока собеседника не было слышно. */
+const PEER_CONNECT_TROUBLE_MS = 6000;
 
 /** Сколько ждём результата ICE restart, прежде чем переходить к полному rebuild. */
 const PEER_ICE_RESTART_TIMEOUT_MS = 8000;
@@ -910,6 +917,10 @@ function createPeer(userId, isChatInitiator) {
     });
 
     peer._userId = userId;
+    peer._createdAt = Date.now();
+    /* Ни одно событие не придёт, пока ICE висит в checking — пересчитать
+       здоровье по таймеру (reevaluatePeerHealth смотрит на _createdAt). */
+    setTimeout(reevaluatePeerHealth, PEER_CONNECT_TROUBLE_MS + 50);
     /* polite/impolite — детерминированно для пары. Сравнение строк стабильно
        и симметрично: одна сторона видит clientId>userId, другая — наоборот.
        На случай теоретического equals-кейса (не может произойти при валидных
@@ -1485,11 +1496,11 @@ function handlePeerConnectionStateChange(userId) {
 
 /**
  * F20: пересчитать сводное здоровье mesh-связи и обновить футер-индикатор.
- * Trouble = есть хоть один peer в failed или в активной фазе recovery
- * (`restarting` / `passive-wait` — grace 5s пропускаем, это штатная
- * дребезга ICE, не повод пугать юзера). При пустом peers — ok (мы одни в
- * комнате). Если на странице нет setPeerTrouble (например, юнит-тест
- * webrtc.js в отрыве) — просто молчим. */
+ * "nolink" — есть peer, который так и не соединился за PEER_CONNECT_TROUBLE_MS
+ * (собеседника не слышно вообще). "unstable" — peer в failed или в активной
+ * фазе recovery (`restarting` / `passive-wait`; grace 5s пропускаем, это
+ * штатная дребезга ICE). При пустом peers — ok (мы одни в комнате). Если на
+ * странице нет setPeerTrouble (юнит-тест webrtc.js в отрыве) — молчим. */
 function reevaluatePeerHealth() {
     if (typeof setPeerTrouble !== "function") return;
     if (typeof isJoined === "undefined" || !isJoined) {
@@ -1497,11 +1508,16 @@ function reevaluatePeerHealth() {
         return;
     }
     let trouble = false;
+    const now = Date.now();
     for (const p of peers.values()) {
-        if (p.connectionState === "failed") { trouble = true; break; }
-        if (p._recoveryPhase === "restarting" || p._recoveryPhase === "passive-wait") {
-            trouble = true;
+        if (p.connectionState === "connected") continue;
+        if (!p._everConnected && now - (p._createdAt || now) >= PEER_CONNECT_TROUBLE_MS) {
+            trouble = "nolink";
             break;
+        }
+        if (p.connectionState === "failed"
+            || p._recoveryPhase === "restarting" || p._recoveryPhase === "passive-wait") {
+            trouble = "unstable";
         }
     }
     setPeerTrouble(trouble);
@@ -2146,7 +2162,7 @@ function screenWidthFor(height) {
     return height === 480 ? 854 : height === 720 ? 1280 : 1920;
 }
 
-async function startScreenShare(height = 1080, fps = 30, captureAudio = false) {
+async function startScreenShare(height = 1080, fps = 60, captureAudio = false) {
     screenChosenFps = fps;
     const labFps = labOverride("fps");
     if (labFps) fps = labFps;
@@ -2337,6 +2353,7 @@ async function startScreenShare(height = 1080, fps = 30, captureAudio = false) {
        заполнен: так каждый пир получает лимит под итоговое число зрителей
        (иначе ранние пиры считались бы под неполный счёт). relay/direct — внутри. */
     reapplyScreenVideoBudget();
+    startScreenAdapt();
     /* `ended` тут означает ровно одно: демку прекратили СНАРУЖИ — кнопкой
        «Остановить показ» браузера или системы. Собственный stopScreenShare()
        снимает этот обработчик до track.stop() (спека `ended` на stop() не
@@ -2579,6 +2596,13 @@ async function applyScreenAudioParams(senders) {
    4K-монитор при выбранном 720p): без него энкодер жмёт лишние пиксели в тот же
    битрейт и картинка расползается. Источник уже <= цели (обычный случай на
    Windows) → 1, поведение не меняется. */
+/* Высота кадра для конкретного зрителя: выбранная цель демки, но не выше
+   ступени автоподстройки этого зрителя (sender._adaptH, см. screenAdaptTick). */
+function screenSenderHeight(sender) {
+    const h = sender?._adaptH;
+    return h ? Math.min(screenTargetHeight, h) : screenTargetHeight;
+}
+
 function screenDownscaleFactor(track, targetHeight) {
     const srcH = track?.getSettings?.().height || 0;
     if (!srcH || !targetHeight || srcH <= targetHeight) return 1;
@@ -2598,7 +2622,22 @@ function screenViewerCount() {
    Идёт единым пасом (а не по одному пиру в цикле addTrack), чтобы избежать
    гонки setParameters, когда ранние пиры получили битрейт под неполный счёт.
    На стороне зрителя (не шарит) screenSenders пуст → безопасный no-op. */
+/* Все setParameters демки идут ОДНОЙ очередью: два параллельных вызова на
+   одном sender'е конфликтуют (второй падает и уходит в упрощённый заход
+   лесенки без degradationPreference). Источники вызовов: старт демки, вход/
+   выход зрителя, классификация relay, автоподстройка, dev-журнал. */
+let _screenParamsQueue = Promise.resolve();
+
+function enqueueScreenParams(job) {
+    _screenParamsQueue = _screenParamsQueue.then(job, job);
+    return _screenParamsQueue;
+}
+
 function reapplyScreenVideoBudget() {
+    return enqueueScreenParams(applyScreenVideoBudgetNow);
+}
+
+function applyScreenVideoBudgetNow() {
     if (!screenStream?.active || screenSenders.size === 0) return Promise.resolve();
     const jobs = [];
     for (const [userId, senders] of screenSenders) {
@@ -2660,7 +2699,7 @@ async function applyDirectScreenVideoParams(senders, height, fps) {
        — режем, чтобы суммарный аплоад шарера держался около SCREEN_UPLOAD_BUDGET. */
     const viewers = screenViewerCount();
     const maxBitrate = labOverride("bitrate") || Math.min(ceiling, Math.round(SCREEN_UPLOAD_BUDGET / viewers));
-    const downscale = screenDownscaleFactor(videoSender.track, height);
+    const downscale = screenDownscaleFactor(videoSender.track, screenSenderHeight(videoSender));
 
     const apply = async (withDegradation, withDownscale) => {
         const params = videoSender.getParameters();
@@ -2718,21 +2757,129 @@ function stopScreenShare() {
     stopNativeScreenAudio();
     screenTargetHeight = 1080;
     screenTargetFps = 30;
+    stopScreenAdapt();
     emitScreencastActive(false);
     labEvent("screen-stop", {});
+}
+
+/* ===== Автоподстройка демки (вместо ручного выбора качества) =====
+
+   Цель всегда 1080p60. Если энкодер не успевает (процессор) или упирается в
+   канал/потолок битрейта, libwebrtc для экранного контента режет КАДРЫ, а не
+   разрешение — журнал демки ловил 1080p@8 у программного OpenH264. Поэтому
+   разрешение снижаем сами, ступенями, отдельно для каждого зрителя (в mesh
+   у каждого свой энкодер): 1080 → 900 → 720 → 540. Вверх — только после
+   долгого запаса, а если после подъёма снова тяжело — подъём блокируется.
+
+   Оценка раз в ADAPT_TICK_MS по outbound-rtp: fps энкодера против того, что
+   отдаёт захват (media-source). Статичный экран (захват < 8 fps) не судим —
+   там малый fps нормален. Программный энкодер (OpenH264/libvpx или
+   powerEfficientEncoder=false) сразу стартует с ADAPT_SW_START_LEVEL. */
+const ADAPT_TICK_MS = 2000;
+const ADAPT_LEVELS = [1080, 900, 720, 540];
+const ADAPT_SW_START_LEVEL = 2;   // 720p
+const ADAPT_DOWN_AFTER = 2;       // тиков подряд «тяжело» → шаг вниз (4 с)
+const ADAPT_UP_AFTER = 8;         // тиков подряд «с запасом» → шаг вверх (16 с)
+const ADAPT_UP_BLOCK_MS = 60_000; // подъём не удержался → не пробуем минуту
+let _adaptTimer = null;
+const _adaptState = new Map();    // userId → { level, prev, bad, good, ... }
+
+function startScreenAdapt() {
+    stopScreenAdapt();
+    _adaptTimer = setInterval(screenAdaptTick, ADAPT_TICK_MS);
+}
+
+function stopScreenAdapt() {
+    if (_adaptTimer) clearInterval(_adaptTimer);
+    _adaptTimer = null;
+    _adaptState.clear();
+}
+
+function isSoftwareEncoder(out) {
+    if (out.powerEfficientEncoder === false) return true;
+    return /OpenH264|libvpx|libaom|SVT/i.test(out.encoderImplementation || "");
+}
+
+async function screenAdaptTick() {
+    if (!screenStream?.active) return;
+    if (labOverride("adapt") === "off") return;
+    for (const [userId, senders] of screenSenders) {
+        const sender = senders.find(s => s.track?.kind === "video");
+        const peer = peers.get(userId);
+        if (!sender || !peer) continue;
+        let st = _adaptState.get(userId);
+        if (!st || st.sender !== sender) {
+            st = { sender, level: 0, prev: null, bad: 0, good: 0, swChecked: false, upAt: 0, upBlockedUntil: 0 };
+            _adaptState.set(userId, st);
+        }
+        let stats;
+        try { stats = await sender.getStats(); } catch (_) { continue; }
+        let out = null, src = null;
+        stats.forEach(r => {
+            if (r.type === "outbound-rtp" && r.kind === "video") out = r;
+            else if (r.type === "media-source" && r.kind === "video") src = r;
+        });
+        if (!out) continue;
+        const now = performance.now();
+        const prev = st.prev;
+        st.prev = { now, frames: out.framesEncoded || 0 };
+        if (!prev) continue;
+
+        if (!st.swChecked && (out.encoderImplementation || out.powerEfficientEncoder != null)) {
+            st.swChecked = true;
+            if (isSoftwareEncoder(out) && st.level < ADAPT_SW_START_LEVEL) {
+                setScreenAdaptLevel(userId, st, ADAPT_SW_START_LEVEL, "software-encoder", out);
+                continue;
+            }
+        }
+
+        const encFps = (st.prev.frames - prev.frames) / ((now - prev.now) / 1000);
+        const srcFps = src?.framesPerSecond ?? encFps;
+        const want = Math.min(srcFps, screenTargetFps);
+        if (want < 8) { st.bad = 0; st.good = 0; continue; }
+        const limited = out.qualityLimitationReason === "cpu" || out.qualityLimitationReason === "bandwidth";
+        /* Нейтральный замер (лёгкий провал fps без лимита) серию «с запасом» не
+           обнуляет — иначе дрожание захвата не дало бы подняться никогда. */
+        if (limited && encFps < want * 0.8) { st.bad++; st.good = 0; }
+        else if (!limited && encFps >= want * 0.85) { st.good++; st.bad = 0; }
+        else st.bad = 0;
+
+        if (st.bad >= ADAPT_DOWN_AFTER && st.level < ADAPT_LEVELS.length - 1) {
+            /* Только что поднимались и снова тяжело — эта ступень не тянется. */
+            if (st.upAt && now - st.upAt < 20_000) st.upBlockedUntil = now + ADAPT_UP_BLOCK_MS;
+            setScreenAdaptLevel(userId, st, st.level + 1, out.qualityLimitationReason, out, encFps, srcFps);
+        } else if (st.good >= ADAPT_UP_AFTER && st.level > 0 && now >= st.upBlockedUntil) {
+            st.upAt = now;
+            setScreenAdaptLevel(userId, st, st.level - 1, "headroom", out, encFps, srcFps);
+        }
+    }
+}
+
+function setScreenAdaptLevel(userId, st, level, reason, out, encFps, srcFps) {
+    const from = ADAPT_LEVELS[st.level];
+    st.level = level;
+    st.bad = 0;
+    st.good = 0;
+    st.sender._adaptH = ADAPT_LEVELS[level];
+    log.info("rtc", "screen adapt", {
+        userId, from, to: ADAPT_LEVELS[level], reason,
+        encFps: encFps != null ? Math.round(encFps) : null,
+        srcFps: srcFps != null ? Math.round(srcFps) : null,
+        encoder: out?.encoderImplementation || null
+    });
+    const peer = peers.get(userId);
+    if (!peer) return;
+    const senders = screenSenders.get(userId);
+    enqueueScreenParams(() => peer._isRelay
+        ? applyRelayBitrateLimits(peer)
+        : applyDirectScreenVideoParams(senders || [], screenTargetHeight, screenTargetFps));
 }
 
 /* Переключатель в панели журнала поменялся посреди демки: дотянуть захват
    (fps), подсказку контента и параметры энкодера на всех зрителях. Кодек и
    источник так не меняются — они берутся при следующем запуске демки. */
-/* Переключения в панели идут очередью: два параллельных setParameters на
-   одном sender'е конфликтуют, второй падает и уходит в упрощённый заход
-   лесенки (без degradationPreference). */
-let _labReapplyQueue = Promise.resolve();
-
 function labReapplyScreen() {
-    _labReapplyQueue = _labReapplyQueue.then(labReapplyScreenNow, labReapplyScreenNow);
-    return _labReapplyQueue;
+    return enqueueScreenParams(labReapplyScreenNow);
 }
 
 async function labReapplyScreenNow() {
@@ -2755,7 +2902,7 @@ async function labReapplyScreenNow() {
     if (track && track.contentHint !== hint) {
         try { track.contentHint = hint; } catch (_) {}
     }
-    await reapplyScreenVideoBudget();
+    await applyScreenVideoBudgetNow();
 }
 
 /* ===== DEV: peer-HUD (включается из dev-меню «оверлей статистики») =====
@@ -3214,7 +3361,7 @@ async function reportConnectivity(peer) {
 
     if (result === "relay") {
         peer._isRelay = true;
-        await applyRelayBitrateLimits(peer);
+        await enqueueScreenParams(() => applyRelayBitrateLimits(peer));
     }
 }
 
@@ -3225,25 +3372,24 @@ async function reportConnectivity(peer) {
  * его не нужно. А screencast через relay идёт через VPS дважды (ingress от
  * стримера + egress зрителю), так что video лимитируем.
  *
- * Цифры: maxBitrate 3.0 Mbps (ПОТОЛОК на пик движения), старт с полного
- * разрешения (scaleResolutionDownBy 1), 30 fps, degradationPreference="balanced".
- * ВАЖНО про экономику: cap — это ПОТОЛОК, а не постоянный битрейт. Скрин-контент
- * взрывной: статика (чтение) почти бесплатна, к 3 Mbps подходит лишь на активном
- * движении. СРЕДНИЙ битрейт relay-зрителя ≪ cap → поднятие 2→3 Mbps даёт запас
- * резкости на движении, почти не меняя средний egress сервера. balanced: на пике
- * плавно проседают И fps, И разрешение (раньше "maintain-resolution" ронял fps в
- * пол 5-10 — это и были лаги). Трафик безлимитный, узкое место — 1 vCPU coturn.
+ * Цифры: maxBitrate RELAY_SCREEN_MAX_BITRATE (8 Mbps, ПОТОЛОК на пик движения),
+ * fps = цель демки (60), degradationPreference="balanced". Раньше было 3 Mbps /
+ * 30 fps «ради 1 vCPU coturn» — замер журналом демки (2026-10-31) это опроверг:
+ * при 3 Mbps relay-трафика CPU сервера 3-4 %, сам coturn ~2 %, ~1100 pps, ноль
+ * UDP-ошибок. Этот кап и был главным «локом на 30» у relay-пар (≈ треть звонков).
+ * Cap — потолок, не постоянный битрейт: статика экрана почти бесплатна, средний
+ * egress ≪ cap. Разрешение под нагрузкой снижает автоподстройка (screenAdaptTick).
  *
  * НЕ трогаем audio-sender'ы — ни mic (voice), ни screen-audio (music-mode
  * 256 kbps, критично для качества демки и в общем балансе это копейки).
  */
 async function applyRelayBitrateLimits(peer) {
     const senders = peer.getSenders ? peer.getSenders() : [];
-    /* Тот же бюджет-на-зрителя, что и для direct: relay-потолок 3.0 Mbps, но при
-       большом числе зрителей делённый бюджет опускает его ещё ниже (напр. 9
-       зрителей → ~1.7 Mbps), удерживая суммарную relay-нагрузку coturn. */
+    /* Тот же бюджет-на-зрителя, что и для direct: relay-потолок 8 Mbps, при
+       большом числе зрителей делённый бюджет опускает его ниже (6 зрителей →
+       ~4.7 Mbps, 9 → ~3.1 Mbps). */
     const viewers = screenViewerCount();
-    const videoCap = labOverride("bitrate") || Math.min(3_000_000, Math.round(SCREEN_UPLOAD_BUDGET / viewers));
+    const videoCap = labOverride("bitrate") || Math.min(RELAY_SCREEN_MAX_BITRATE, Math.round(SCREEN_UPLOAD_BUDGET / viewers));
     for (const sender of senders) {
         if (!sender.track) continue;
         if (sender.track.kind !== "video") continue;
@@ -3255,10 +3401,9 @@ async function applyRelayBitrateLimits(peer) {
             /* Даунскейл до выбранного разрешения (Retina/4K-источник крупнее
                цели), дальше balanced режет сам под congestion. */
             if (withDownscale) {
-                enc.scaleResolutionDownBy = screenDownscaleFactor(sender.track, screenTargetHeight);
+                enc.scaleResolutionDownBy = screenDownscaleFactor(sender.track, screenSenderHeight(sender));
             }
-            /* 30 — потолок relay (нагрузка coturn); dev-журнал может поднять. */
-            enc.maxFramerate = labOverride("fps") || 30;
+            enc.maxFramerate = labOverride("fps") || screenTargetFps;
             if (withDegradation) params.degradationPreference = labOverride("degradation") || "balanced";
             await sender.setParameters(params);
         };
