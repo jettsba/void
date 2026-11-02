@@ -39,15 +39,13 @@
    Посмотреть, как это выглядит, ДО выкатки: `VoidWhatsNewPreview()` в консоли. */
 
 window.VoidWhatsNew = {
-    version: "1.9.0",
+    version: "1.9.1",
     ru: [
-        "демонстрация экрана стала плавнее",
-        "качество демонстрации подстраивается само — выбирать разрешение и частоту кадров больше не нужно",
-        "статус-бар не врет, если с кем-то из комнаты не удалось соединиться"
+        "демонстрация экрана плавнее на компьютерах без аппаратного кодирования видео",
+        "меньше подтормаживаний у зрителя при резкой смене картинки"
     ],
     en: [
-        "screen sharing is smoother now",
-        "screen share quality adjusts by itself — no need to pick resolution and frame rate anymore",
-        "if a participant can't be reached, the status bar shows «connecting…» instead of «connected»"
+        "smoother screen sharing on computers without hardware video encoding",
+        "fewer stutters for viewers on sudden full-screen changes, like switching desktops"
     ]
 };

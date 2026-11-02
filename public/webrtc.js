@@ -2609,6 +2609,32 @@ function screenDownscaleFactor(track, targetHeight) {
     return Math.round((srcH / targetHeight) * 1000) / 1000;
 }
 
+/* Потолок битрейта по картинке, которую энкодер реально получает: пиксели
+   после даунскейла × fps захвата × SCREEN_BITS_PER_PIXEL. 1080p60 → 11.2M (как
+   раньше), 720p60 → 5M, мак 1440×932@30 → 3.6M. Раньше 1080-таблица давала маку
+   8M на relay: переключение рабочих столов выстреливало 6-7 Mbps, у зрителя в
+   России буфер рос до 250 мс (журнал 2026-11-01). */
+const SCREEN_BITS_PER_PIXEL = 0.09;
+
+function screenBitrateCeiling(sender) {
+    const st = sender?.track?.getSettings?.() || {};
+    const scale = screenDownscaleFactor(sender?.track, screenSenderHeight(sender));
+    const w = (st.width || 1920) / scale;
+    const h = (st.height || 1080) / scale;
+    const fps = Math.min(screenTargetFps, st.frameRate || screenTargetFps);
+    const bps = Math.round(w * h * fps * SCREEN_BITS_PER_PIXEL);
+    return Math.max(1_500_000, Math.min(11_200_000, bps));
+}
+
+/* Программный энкодер (sender._swEncoder, ставит автоподстройка) — режим
+   «держать плавность»: разрешение снижает наша лестница, а libwebrtc не режет
+   кадры. В balanced у OpenH264 ограничение fps, наложенное на низком стартовом
+   BWE, не снималось никогда (qp 26 между порогами quality scaler'а) → вечные
+   ~30 fps при свободном канале. HW-энкодеры остаются на balanced. */
+function screenDegradation(sender) {
+    return labOverride("degradation") || (sender?._swEncoder ? "maintain-framerate" : "balanced");
+}
+
 /* Число зрителей активной демки = сколько пиров сейчас получают screen-video.
    На это число делится SCREEN_UPLOAD_BUDGET в обоих video-сеттерах. max(1,…)
    защищает от деления на ноль (демка без пиров — теоретически, no-op). */
@@ -2690,10 +2716,7 @@ function applyScreenVideoBudgetNow() {
 async function applyDirectScreenVideoParams(senders, height, fps) {
     const videoSender = senders.find(s => s.track?.kind === "video");
     if (!videoSender) return;
-    const base = height >= 1080 ? 7_000_000
-                : height >= 720  ? 3_500_000
-                : 1_500_000;
-    const ceiling = fps >= 60 ? Math.round(base * 1.6) : base;
+    const ceiling = screenBitrateCeiling(videoSender);
     /* Делим бюджет аплоада на число зрителей: при 1-4 потолок качества не
        достигает лимита (min берёт ceiling → полное 1080p), при многих зрителях
        — режем, чтобы суммарный аплоад шарера держался около SCREEN_UPLOAD_BUDGET. */
@@ -2709,7 +2732,7 @@ async function applyDirectScreenVideoParams(senders, height, fps) {
         enc.maxFramerate = fps;
         if (withDownscale) enc.scaleResolutionDownBy = downscale;
         enc.networkPriority = "high";
-        if (withDegradation) params.degradationPreference = labOverride("degradation") || "balanced";
+        if (withDegradation) params.degradationPreference = screenDegradation(videoSender);
         await videoSender.setParameters(params);
     };
 
@@ -2809,7 +2832,7 @@ async function screenAdaptTick() {
         if (!sender || !peer) continue;
         let st = _adaptState.get(userId);
         if (!st || st.sender !== sender) {
-            st = { sender, level: 0, prev: null, bad: 0, good: 0, swChecked: false, upAt: 0, upBlockedUntil: 0 };
+            st = { sender, level: 0, prev: null, bad: 0, good: 0, swChecked: false, upAt: 0, upBlockedUntil: 0, stuck: 0, resetAt: 0 };
             _adaptState.set(userId, st);
         }
         let stats;
@@ -2822,22 +2845,43 @@ async function screenAdaptTick() {
         if (!out) continue;
         const now = performance.now();
         const prev = st.prev;
-        st.prev = { now, frames: out.framesEncoded || 0 };
+        st.prev = { now, frames: out.framesEncoded || 0, bytes: out.bytesSent || 0 };
         if (!prev) continue;
 
         if (!st.swChecked && (out.encoderImplementation || out.powerEfficientEncoder != null)) {
             st.swChecked = true;
-            if (isSoftwareEncoder(out) && st.level < ADAPT_SW_START_LEVEL) {
-                setScreenAdaptLevel(userId, st, ADAPT_SW_START_LEVEL, "software-encoder", out);
+            if (isSoftwareEncoder(out)) {
+                sender._swEncoder = true;
+                setScreenAdaptLevel(userId, st, Math.max(st.level, ADAPT_SW_START_LEVEL), "software-encoder", out);
                 continue;
             }
         }
 
-        const encFps = (st.prev.frames - prev.frames) / ((now - prev.now) / 1000);
+        const dt = (now - prev.now) / 1000;
+        const encFps = (st.prev.frames - prev.frames) / dt;
+        const sendBps = (st.prev.bytes - prev.bytes) * 8 / dt;
         const srcFps = src?.framesPerSecond ?? encFps;
+        const captureFps = Math.min(screenTargetFps, sender.track?.getSettings?.().frameRate || screenTargetFps);
+        /* "bandwidth" бывает двух сортов. Настоящий — энкодер упёрся в цель
+           BWE/потолка: шлёт почти столько, сколько разрешено. Ложный — внутреннее
+           ограничение libwebrtc осталось от старой низкой оценки канала: цель
+           уже мегабиты, а отправка крохи (журнал: tgt 4-5M, факт 0.2-3M, fps 30).
+           Ложный разрешение не лечит — его снимаем сменой degradationPreference. */
+        const target = out.targetBitrate;
+        const bwReal = out.qualityLimitationReason === "bandwidth"
+            && (!target || sendBps >= target * 0.7);
+        if (out.qualityLimitationReason === "bandwidth" && !bwReal && target > 1_000_000
+            && srcFps < captureFps * 0.6) {
+            if (++st.stuck >= 3 && now - st.resetAt > 30_000) {
+                st.stuck = 0;
+                st.resetAt = now;
+                resetScreenRestriction(userId, sender, { srcFps, captureFps, sendBps, target });
+            }
+        } else st.stuck = 0;
+
         const want = Math.min(srcFps, screenTargetFps);
         if (want < 8) { st.bad = 0; st.good = 0; continue; }
-        const limited = out.qualityLimitationReason === "cpu" || out.qualityLimitationReason === "bandwidth";
+        const limited = out.qualityLimitationReason === "cpu" || bwReal;
         /* Нейтральный замер (лёгкий провал fps без лимита) серию «с запасом» не
            обнуляет — иначе дрожание захвата не дало бы подняться никогда. */
         if (limited && encFps < want * 0.8) { st.bad++; st.good = 0; }
@@ -2853,6 +2897,29 @@ async function screenAdaptTick() {
             setScreenAdaptLevel(userId, st, st.level - 1, "headroom", out, encFps, srcFps);
         }
     }
+}
+
+/* Сбросить накопленные ограничения libwebrtc: смена degradationPreference
+   очищает restrictions адаптера. Туда и обратно — режим остаётся прежним. */
+function resetScreenRestriction(userId, sender, info) {
+    log.info("rtc", "screen adapt reset", {
+        userId, srcFps: Math.round(info.srcFps), captureFps: info.captureFps,
+        sendKbps: Math.round(info.sendBps / 1000), targetKbps: Math.round(info.target / 1000)
+    });
+    enqueueScreenParams(async () => {
+        const want = screenDegradation(sender);
+        const alt = want === "maintain-framerate" ? "balanced" : "maintain-framerate";
+        for (const pref of [alt, want]) {
+            try {
+                const params = sender.getParameters();
+                params.degradationPreference = pref;
+                await sender.setParameters(params);
+            } catch (err) {
+                log.debug("rtc", "screen adapt reset rejected", { err: err?.message || String(err) });
+                return;
+            }
+        }
+    });
 }
 
 function setScreenAdaptLevel(userId, st, level, reason, out, encFps, srcFps) {
@@ -3389,10 +3456,11 @@ async function applyRelayBitrateLimits(peer) {
        большом числе зрителей делённый бюджет опускает его ниже (6 зрителей →
        ~4.7 Mbps, 9 → ~3.1 Mbps). */
     const viewers = screenViewerCount();
-    const videoCap = labOverride("bitrate") || Math.min(RELAY_SCREEN_MAX_BITRATE, Math.round(SCREEN_UPLOAD_BUDGET / viewers));
     for (const sender of senders) {
         if (!sender.track) continue;
         if (sender.track.kind !== "video") continue;
+        const videoCap = labOverride("bitrate")
+            || Math.min(screenBitrateCeiling(sender), RELAY_SCREEN_MAX_BITRATE, Math.round(SCREEN_UPLOAD_BUDGET / viewers));
         const apply = async (withDegradation, withDownscale) => {
             const params = sender.getParameters();
             if (!params.encodings || !params.encodings.length) params.encodings = [{}];
@@ -3404,7 +3472,7 @@ async function applyRelayBitrateLimits(peer) {
                 enc.scaleResolutionDownBy = screenDownscaleFactor(sender.track, screenSenderHeight(sender));
             }
             enc.maxFramerate = labOverride("fps") || screenTargetFps;
-            if (withDegradation) params.degradationPreference = labOverride("degradation") || "balanced";
+            if (withDegradation) params.degradationPreference = screenDegradation(sender);
             await sender.setParameters(params);
         };
         /* Лесенка та же, что в applyDirectScreenVideoParams: отказ от одного
