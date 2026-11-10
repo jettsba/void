@@ -20,23 +20,6 @@ function init() {
     soundBtn = document.getElementById("soundBtn");
     screencastBtn = document.getElementById("screencastBtn");
 
-    scModal = document.getElementById("scModal");
-    scNextBtn = document.getElementById("scNextBtn");
-    /* Пояснение про звук демки — только на маке: браузеры там отдают
-       системный звук лишь при захвате вкладки, при выборе экрана или окна
-       аудио-трека не будет вовсе (ограничение движка, не наше). Тумблер
-       оставляем как есть — на вкладке он работает.
-       В десктопе на маке звука демки нет вовсе (webrtc.js startScreenShare) —
-       там тумблер прячем, а подпись говорит об этом прямо. */
-    if (window.VoidIsMac) {
-        const note = document.getElementById("scAudioNote");
-        note?.removeAttribute("hidden");
-        if (window.VoidPlatform === "desktop") {
-            document.getElementById("scAudio")?.closest(".sc-section")?.setAttribute("hidden", "");
-            note?.setAttribute("data-i18n", "screencast.audio.macosDesktop");
-        }
-    }
-
     screenOverlay = document.getElementById("screenOverlay");
     screenOverlayVideo = document.getElementById("screenOverlayVideo");
 
@@ -192,38 +175,6 @@ function init() {
     micBtn.addEventListener("click", toggleMic);
     soundBtn.addEventListener("click", toggleSound);
     screencastBtn.addEventListener("click", handleScreencastBtnClick);
-
-    scModal.querySelector(".sc-modal-backdrop").addEventListener("click", closeScModal);
-
-    /* Повторный вход в старт демки: «next» можно успеть нажать дважды до
-       появления системного пикера (на трекпаде мака лишний тап особенно
-       лёгок), и тогда пикер открывался бы дважды, а звук старта звучал бы
-       два раза. */
-    let _scStarting = false;
-    scNextBtn.addEventListener("click", async () => {
-        if (_scStarting || isScreencasting) return;
-        _scStarting = true;
-        /* Тумблер «звук демки» (дефолт вкл). На desktop звук берёт нативный
-           loopback, на web — getDisplayMedia. Выключен → демка без звука, без
-           трансляции системных звуков стримера. */
-        const captureAudio = document.getElementById("scAudio")?.checked ?? true;
-        closeScModal();
-        try {
-            /* Качество не выбирается: цель 1080p60, дальше автоподстройка
-               (webrtc.js, screenAdaptTick) под процессор и канал. */
-            await startScreenShare(1080, 60, captureAudio);
-            isScreencasting = true;
-            broadcastScreencastState(true);
-            updateScreencastButton(true);
-            updateParticipantScreenState(clientId, true);
-            // Звук старта скринкаста — слышат все (self здесь, остальные по WS).
-            if (window.VoidSounds) VoidSounds.screencast(true);
-        } catch (e) {
-            log.debug("rtc", "screen share cancelled", { err: e?.message || String(e) });
-        } finally {
-            _scStarting = false;
-        }
-    });
 
     document.getElementById("screenOverlayClose").addEventListener("click", closeScreenOverlay);
 

@@ -270,3 +270,57 @@ test("ice-report: per-socket limit protects the funnel and the failure log", asy
     for (let i = 0; i < 40; i++) H.handleIceReport(a.ws, { result: "direct" });
     assert.equal(stats.iceDirect - directBefore, 20, "30 reports per minute in total");
 });
+
+/* Обрыв WS ≠ уход: соседям «ушёл» объявляется с задержкой, вернулся раньше —
+   не объявляется вовсе (их P2P с ним всё это время жив). */
+test("WS drop: participant-left is deferred and cancelled by a token rejoin", (t) => {
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    const a = enter("ROOMW", "AAAA1111", { create: true });
+    const b = enter("ROOMW", "BBBB2222");
+    H.handleDisconnect(b.ws);
+    assert.ok(!a.ws.sent.some(m => m.type === "participant-left"), "no instant leave on a blip");
+
+    t.mock.timers.tick(5_000);
+    const back = enter("ROOMW", "BBBB2222", { token: b.list.leaveToken, resume: true });
+    assert.ok(back.list);
+    t.mock.timers.tick(60_000);
+    assert.ok(!a.ws.sent.some(m => m.type === "participant-left"), "came back in time — never announced");
+    assert.equal(a.ws.last("new-participant").userId, "BBBB2222");
+});
+
+test("WS drop: participant-left fires after the delay if they don't come back", (t) => {
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    const a = enter("ROOMX", "AAAA1111", { create: true });
+    const b = enter("ROOMX", "BBBB2222");
+    H.handleDisconnect(b.ws);
+    t.mock.timers.tick(19_000);
+    assert.ok(!a.ws.sent.some(m => m.type === "participant-left"));
+    t.mock.timers.tick(2_000);
+    assert.equal(a.ws.last("participant-left").userId, "BBBB2222");
+});
+
+test("WS drop then beacon with the owner token announces the leave at once", (t) => {
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    const a = enter("ROOMY", "AAAA1111", { create: true });
+    const b = enter("ROOMY", "BBBB2222");
+    H.handleDisconnect(b.ws);
+    H.handleBeaconLeave("ROOMY", "BBBB2222", a.list.leaveToken); // чужой токен
+    assert.ok(!a.ws.sent.some(m => m.type === "participant-left"));
+    H.handleBeaconLeave("ROOMY", "BBBB2222", b.list.leaveToken);
+    assert.equal(a.ws.sent.filter(m => m.type === "participant-left").length, 1);
+    t.mock.timers.tick(60_000);
+    assert.equal(a.ws.sent.filter(m => m.type === "participant-left").length, 1, "no second announce");
+});
+
+test("screen-share flag survives a signaling blip", (t) => {
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    const a = enter("ROOMZ", "AAAA1111", { create: true });
+    const b = enter("ROOMZ", "BBBB2222");
+    H.handleScreencastState(b.ws, { screen: true });
+    H.handleDisconnect(b.ws);
+    const back = enter("ROOMZ", "BBBB2222", { token: b.list.leaveToken, resume: true });
+    assert.ok(back.list);
+    assert.equal(rooms.get("ROOMZ").users.get("BBBB2222").screen, true);
+    H.handleScreencastState(a.ws, { screen: true });
+    assert.ok(a.ws.last("screencast-rejected"), "second sharer is still blocked");
+});

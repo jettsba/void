@@ -136,6 +136,25 @@ const PEER_REBUILD_WINDOW_MS = 60_000;
    раз (transient glitch), дальше он только жжёт CPU и плодит SDP-обмен. */
 const PEER_REBUILD_BACKOFF_MS = [0, 3000, 8000, 20_000];
 
+/* Детектор «тихо дохнущего direct» (журнал 2026-11-10, RU↔GE): прямой UDP
+   первые ~10 с летает, потом потери 14% → 98% → ноль пакетов, а ICE мигает
+   disconnected↔connected каждые ~8 с. Каждый флап короче grace (5 с), поэтому
+   recovery не стартовал ни разу — звонок 3+ минуты висел на мёртвом пути, хотя
+   relay на той же сети давал 0% потерь. Признаки дохлого direct:
+   - DIRECT_FLAP_LIMIT уходов в disconnected за DIRECT_FLAP_WINDOW_MS;
+   - входящие потери > DIRECT_LOSS_RATIO DIRECT_LOSS_TICKS тиков zombie-watchdog
+     подряд (2 с тик → ~6 с), при минимуме DIRECT_LOSS_MIN_PKTS потерь за тик.
+   Реакция — pinPeerToRelay: эта пара до конца сессии в комнате идёт только
+   через TURN. relayPinnedPeers переживает rebuild (createPeer читает его) и
+   чистится в closeAllConnections; peerDirectFlaps — userId → [ts]. */
+const relayPinnedPeers = new Set();
+const peerDirectFlaps = new Map();
+const DIRECT_FLAP_LIMIT = 3;
+const DIRECT_FLAP_WINDOW_MS = 45_000;
+const DIRECT_LOSS_RATIO = 0.3;
+const DIRECT_LOSS_TICKS = 3;
+const DIRECT_LOSS_MIN_PKTS = 10;
+
 function buildMicConstraints() {
     /* Если в настройках выбран конкретный микрофон — просим именно его.
        Иначе — системный default. Пустую строку в deviceId передавать
@@ -910,7 +929,7 @@ function createPeer(userId, isChatInitiator) {
         /* Dev-режим force-relay: гоним медиа только через TURN — тест relay-пути
            и битрейт-капа без реального CG-NAT. Требует поднятый TURN (иначе
            кандидатов не будет — это ожидаемо для теста). Обычный режим — "all". */
-        iceTransportPolicy: forceRelay ? "relay" : "all",
+        iceTransportPolicy: (forceRelay || relayPinnedPeers.has(userId)) ? "relay" : "all",
         /* Один DTLS-сертификат на все соединения вкладки — на нём держится
            код безопасности (js/safety-code.js): у участника один отпечаток. */
         certificates: window.VoidSafety?.certificates?.()
@@ -1192,6 +1211,7 @@ function createPeer(userId, isChatInitiator) {
         const at = screenStream.getAudioTracks()[0];
         if (at) senders.push(peer.addTrack(at, screenStream));
         if (senders.length) screenSenders.set(userId, senders);
+        markScreenBoot(senders);
         applyScreenAudioParams(senders);
         /* Video-битрейт этому новому зрителю И пересчёт всем остальным —
            единым пасом ниже, после peers.set (число зрителей выросло → всем
@@ -1253,6 +1273,12 @@ function looksLikeOfferSdp(offer) {
         && /\r?\na=fingerprint:/.test(sdp);
 }
 
+function sdpFingerprint(sdp) {
+    if (typeof sdp !== "string") return null;
+    const m = sdp.match(/a=fingerprint:(\S+ \S+)/i);
+    return m ? m[1].toUpperCase() : null;
+}
+
 async function handleOffer(data) {
 
     if (!looksLikeOfferSdp(data.offer)) {
@@ -1276,6 +1302,17 @@ async function handleOffer(data) {
        каналах. Сейчас они сидят в _pendingIceCandidates СТАРОГО локального
        peer'а, который мы сейчас закроем. Сохраняем перед cleanup, чтобы новый
        peer получил их сразу после setRemoteDescription. */
+    /* Offer со СВЕЖЕГО peer'а соседа без флага rebuild: он пересобрал свою
+       сторону (его сигналинг моргнул и mesh у него умер), а наш старый peer
+       ещё числится живым — сервер теперь не шлёт participant-left на короткий
+       обрыв WS. Новый DTLS fingerprint на старом peer'е = гарантированный
+       провал setRemoteDescription и тишина, поэтому это тот же rebuild. */
+    if (!rebuild && sdpFingerprint(peers.get(data.from)?.remoteDescription?.sdp)
+        && sdpFingerprint(data.offer?.sdp) !== sdpFingerprint(peers.get(data.from).remoteDescription.sdp)) {
+        log.debug("rtc", "offer from a fresh remote peer, rebuilding", { from: data.from });
+        rebuild = true;
+    }
+
     let carriedPendingIce = null;
     if (rebuild) {
         const oldPeer = peers.get(data.from);
@@ -1472,6 +1509,7 @@ function handlePeerConnectionStateChange(userId) {
            watchdog запустится заново. */
         stopZombieWatcher(userId);
         clearPeerHealthTimer(userId);
+        if (noteDirectFlap(userId)) return;
         peer._recoveryPhase = "grace";
         const t = setTimeout(() => {
             const p = peers.get(userId);
@@ -1600,6 +1638,73 @@ function attemptPeerRecovery(userId) {
     }
 }
 
+/** Peer сейчас на прямом пути (классифицирован как direct, не запинен). */
+function isPeerOnDirect(peer) {
+    return !!peer && peer._iceReported && !peer._isRelay
+        && !forceRelay && !forceDirect && !relayPinnedPeers.has(peer._userId);
+}
+
+/** TURN вообще есть в конфиге — иначе relay-only оставит пару без кандидатов. */
+function hasTurnServers() {
+    return (_iceServersCached || []).some(s =>
+        [].concat(s.urls || s.url || []).some(u => /^turns?:/.test(u)));
+}
+
+/**
+ * Учесть уход direct-пары в disconnected. true — флапов набралось, пара
+ * переведена на relay (вызывающему grace не нужен).
+ */
+function noteDirectFlap(userId) {
+    const peer = peers.get(userId);
+    if (!isPeerOnDirect(peer)) return false;
+    const now = Date.now();
+    const flaps = (peerDirectFlaps.get(userId) || []).filter(t => now - t <= DIRECT_FLAP_WINDOW_MS);
+    flaps.push(now);
+    peerDirectFlaps.set(userId, flaps);
+    if (flaps.length < DIRECT_FLAP_LIMIT) return false;
+    return pinPeerToRelay(userId, "flapping", { flaps: flaps.length });
+}
+
+/**
+ * Перевести пару на TURN до конца сессии в комнате: iceTransportPolicy="relay"
+ * + ICE restart на том же PC (без пересборки и без нового DTLS). Хватает одной
+ * стороны: у неё остаются только relay-кандидаты, значит любая пара идёт через
+ * TURN. Если движок не дал сменить политику — rebuild (createPeer прочитает
+ * relayPinnedPeers). Не помогло за PEER_ICE_RESTART_TIMEOUT_MS — штатный
+ * recovery (rebuild).
+ */
+function pinPeerToRelay(userId, reason, fields) {
+    const peer = peers.get(userId);
+    if (!peer || relayPinnedPeers.has(userId) || !hasTurnServers()) return false;
+    relayPinnedPeers.add(userId);
+    peerDirectFlaps.delete(userId);
+    log.warn("rtc", "direct path unstable, pinning to relay", { userId, reason, ...fields });
+    labEvent("relay-pinned", { userId, reason, ...fields });
+    stopZombieWatcher(userId);
+    clearPeerHealthTimer(userId);
+    try {
+        peer.setConfiguration({ ...peer.getConfiguration(), iceTransportPolicy: "relay" });
+        peer.restartIce();
+    } catch (err) {
+        log.warn("rtc", "relay pin via setConfiguration failed, rebuilding", { err: err?.message || String(err) });
+        rebuildPeer(userId);
+        return true;
+    }
+    /* Битрейт-капы relay — потолки, ставить заранее безопасно. */
+    peer._isRelay = true;
+    enqueueScreenParams(() => applyRelayBitrateLimits(peer));
+    peer._recoveryPhase = "restarting";
+    reevaluatePeerHealth();
+    const t = setTimeout(() => {
+        const p = peers.get(userId);
+        if (!p || p.connectionState === "connected") return;
+        log.warn("rtc", "relay pin restart didn't connect, rebuilding", { userId });
+        rebuildPeer(userId);
+    }, PEER_ICE_RESTART_TIMEOUT_MS);
+    peerHealthTimers.set(userId, t);
+    return true;
+}
+
 /**
  * Пересоздать peer полностью: закрыть старый, создать новый, пометить что
  * первый исходящий offer должен нести rebuild:true (сигнал той стороне тоже
@@ -1656,11 +1761,17 @@ function startZombieWatcher(userId) {
 
         let total = 0;
         let link = 0;
+        let rtpRecv = 0;
+        let rtpLost = 0;
         try {
             const stats = await p.getStats();
             stats.forEach(r => {
                 if (r.type === "inbound-rtp" && r.kind === "audio") {
                     total += r.packetsReceived || 0;
+                }
+                if (r.type === "inbound-rtp") {
+                    rtpRecv += r.packetsReceived || 0;
+                    rtpLost += Math.max(0, r.packetsLost || 0);
                 }
                 /* Транспортный слой: ICE consent-checks и RTCP тикают, пока
                    на том конце есть живой браузер, даже если аудио оттуда не
@@ -1684,6 +1795,21 @@ function startZombieWatcher(userId) {
             state.lastCount = total;
             state.lastLink = link;
             state.lastGrowthAt = now;
+            state.lastRecv = rtpRecv;
+            state.lastLost = rtpLost;
+            return;
+        }
+
+        /* Дохнущий direct: потери держатся выше порога несколько тиков подряд.
+           Счётчики кумулятивные с начала звонка — берём дельту за тик. */
+        const dLost = rtpLost - (state.lastLost ?? rtpLost);
+        const dRecv = rtpRecv - (state.lastRecv ?? rtpRecv);
+        state.lastRecv = rtpRecv;
+        state.lastLost = rtpLost;
+        const lossy = dLost >= DIRECT_LOSS_MIN_PKTS && dLost / (dLost + Math.max(0, dRecv)) > DIRECT_LOSS_RATIO;
+        state.lossyTicks = lossy ? (state.lossyTicks || 0) + 1 : 0;
+        if (state.lossyTicks >= DIRECT_LOSS_TICKS && isPeerOnDirect(p)
+            && pinPeerToRelay(userId, "loss", { lossPct: Math.round(100 * dLost / (dLost + Math.max(0, dRecv))) })) {
             return;
         }
 
@@ -1960,6 +2086,8 @@ function closeAllConnections() {
        провал новой сессии не попадёт в статистику как уже отчитанный. */
     peerRebuilds.clear();
     peerFailReports.clear();
+    relayPinnedPeers.clear();
+    peerDirectFlaps.clear();
 
     if (localStream) {
         localStream.getTracks().forEach(track => {
@@ -2266,7 +2394,7 @@ async function startScreenShare(height = 1080, fps = 60, captureAudio = false) {
     /* F13: пока юзер выбирал source в нативном промпте, он мог покинуть
        комнату. Tracks уже захвачены (OS-индикатор «вы шарите» горит),
        peer'ов нет — некому передавать. Останавливаем tracks и кидаем
-       ошибку, чтобы caller (scNextBtn click handler) обработал как cancel. */
+       ошибку, чтобы caller (beginScreenShare) обработал как cancel. */
     if (typeof isJoined !== "undefined" && !isJoined) {
         stream.getTracks().forEach(t => t.stop());
         emitScreencastActive(false); // вышел из комнаты пока выбирал → снять хук
@@ -2346,6 +2474,7 @@ async function startScreenShare(height = 1080, fps = 60, captureAudio = false) {
         if (videoTrack) senders.push(peer.addTrack(videoTrack, screenStream));
         if (audioTrack) senders.push(peer.addTrack(audioTrack, screenStream));
         if (senders.length) screenSenders.set(userId, senders);
+        markScreenBoot(senders);
         applyScreenAudioParams(senders);
         preferH264Video(peer);
     }
@@ -2599,8 +2728,65 @@ async function applyScreenAudioParams(senders) {
 /* Высота кадра для конкретного зрителя: выбранная цель демки, но не выше
    ступени автоподстройки этого зрителя (sender._adaptH, см. screenAdaptTick). */
 function screenSenderHeight(sender) {
-    const h = sender?._adaptH;
-    return h ? Math.min(screenTargetHeight, h) : screenTargetHeight;
+    let h = screenTargetHeight;
+    if (sender?._adaptH) h = Math.min(h, sender._adaptH);
+    if (sender?._bootH) h = Math.min(h, sender._bootH);
+    return h;
+}
+
+/* ===== Холодный старт демки =====
+   До демки по паре шёл только голос, и оценка канала (BWE) сидит на ~0.1-0.5
+   Мбит. Полноразмерный ключевой кадр экрана в такой бюджет не лезет: энкодер
+   отдаёт один кадр и 8-10 с молчит, пока оценка не подрастёт (журнал
+   2026-11-10, оба старта демки на relay). Зритель всё это время смотрит в
+   чёрное. Поэтому стартуем с SCREEN_BOOT_LEVELS[0] и каждый тик автоподстройки
+   поднимаем до ступени, которую тянет availableOutgoingBitrate пары. Добрались
+   до цели или прошло SCREEN_BOOT_MAX_MS — разгон окончен, дальше обычная
+   автоподстройка. На хорошем канале первый тик (через ~0.3 с) сразу прыгает на
+   полное разрешение. */
+const SCREEN_BOOT_LEVELS = [360, 540, 720, 900, 1080];
+const SCREEN_BOOT_NEED_BPS = { 540: 600_000, 720: 1_100_000, 900: 1_700_000, 1080: 2_400_000 };
+const SCREEN_BOOT_MAX_MS = 20_000;
+
+function markScreenBoot(senders) {
+    if (labOverride("adapt") === "off") return;
+    const v = senders.find(s => s.track?.kind === "video");
+    if (v) v._bootH = SCREEN_BOOT_LEVELS[0];
+}
+
+function screenBootTick(userId, st, sender, stats, now) {
+    if (!st.bootAt) st.bootAt = now;
+    const top = sender._adaptH ? Math.min(screenTargetHeight, sender._adaptH) : screenTargetHeight;
+    const avail = selectedCandidatePair(stats)?.availableOutgoingBitrate;
+    let h = sender._bootH;
+    if (now - st.bootAt >= SCREEN_BOOT_MAX_MS) {
+        h = null;
+    } else if (avail) {
+        for (const lvl of SCREEN_BOOT_LEVELS) {
+            if (lvl > h && avail >= SCREEN_BOOT_NEED_BPS[lvl]) h = lvl;
+        }
+    } else if (st.prev) {
+        /* Движок не отдал оценку канала — поднимаемся по ступени за тик. */
+        h = SCREEN_BOOT_LEVELS.find(l => l > h) || null;
+    }
+    if (h && h >= top) h = null;
+    if (h === sender._bootH) return;
+    log.info("rtc", "screen boot", {
+        userId, from: sender._bootH, to: h || top,
+        availKbps: avail ? Math.round(avail / 1000) : null
+    });
+    sender._bootH = h;
+    applyScreenSenderParams(userId);
+}
+
+/* Переприменить параметры энкодера демки одному зрителю (через общую очередь). */
+function applyScreenSenderParams(userId) {
+    const peer = peers.get(userId);
+    if (!peer) return;
+    const senders = screenSenders.get(userId);
+    enqueueScreenParams(() => peer._isRelay
+        ? applyRelayBitrateLimits(peer)
+        : applyDirectScreenVideoParams(senders || [], screenTargetHeight, screenTargetFps));
 }
 
 function screenDownscaleFactor(track, targetHeight) {
@@ -2805,16 +2991,22 @@ const ADAPT_DOWN_AFTER = 2;       // тиков подряд «тяжело» �
 const ADAPT_UP_AFTER = 8;         // тиков подряд «с запасом» → шаг вверх (16 с)
 const ADAPT_UP_BLOCK_MS = 60_000; // подъём не удержался → не пробуем минуту
 let _adaptTimer = null;
+let _adaptBootTimer = null;
 const _adaptState = new Map();    // userId → { level, prev, bad, good, ... }
 
 function startScreenAdapt() {
     stopScreenAdapt();
     _adaptTimer = setInterval(screenAdaptTick, ADAPT_TICK_MS);
+    /* Первый тик почти сразу: на хорошем канале разгон (screenBootTick) тут же
+       снимает стартовое малое разрешение, не дожидаясь ADAPT_TICK_MS. */
+    _adaptBootTimer = setTimeout(screenAdaptTick, 300);
 }
 
 function stopScreenAdapt() {
     if (_adaptTimer) clearInterval(_adaptTimer);
     _adaptTimer = null;
+    clearTimeout(_adaptBootTimer);
+    _adaptBootTimer = null;
     _adaptState.clear();
 }
 
@@ -2836,14 +3028,20 @@ async function screenAdaptTick() {
             _adaptState.set(userId, st);
         }
         let stats;
-        try { stats = await sender.getStats(); } catch (_) { continue; }
+        try {
+            /* Пара кандидатов (availableOutgoingBitrate) нужна только разгону;
+               sender.getStats её отдаёт не везде — тогда спрашиваем peer. */
+            stats = sender._bootH ? await peer.getStats() : await sender.getStats();
+        } catch (_) { continue; }
         let out = null, src = null;
         stats.forEach(r => {
+            /* video у нас — только демка, так что в снимке peer'а она одна. */
             if (r.type === "outbound-rtp" && r.kind === "video") out = r;
             else if (r.type === "media-source" && r.kind === "video") src = r;
         });
-        if (!out) continue;
         const now = performance.now();
+        if (sender._bootH) screenBootTick(userId, st, sender, stats, now);
+        if (!out) continue;
         const prev = st.prev;
         st.prev = { now, frames: out.framesEncoded || 0, bytes: out.bytesSent || 0 };
         if (!prev) continue;
@@ -2934,12 +3132,7 @@ function setScreenAdaptLevel(userId, st, level, reason, out, encFps, srcFps) {
         srcFps: srcFps != null ? Math.round(srcFps) : null,
         encoder: out?.encoderImplementation || null
     });
-    const peer = peers.get(userId);
-    if (!peer) return;
-    const senders = screenSenders.get(userId);
-    enqueueScreenParams(() => peer._isRelay
-        ? applyRelayBitrateLimits(peer)
-        : applyDirectScreenVideoParams(senders || [], screenTargetHeight, screenTargetFps));
+    applyScreenSenderParams(userId);
 }
 
 /* Переключатель в панели журнала поменялся посреди демки: дотянуть захват
@@ -2987,14 +3180,14 @@ async function _collectPeerHud() {
     for (const [userId, peer] of peers) {
         let stats;
         try { stats = await peer.getStats(); } catch (_) { continue; }
-        let vout = null, aout = null, vrin = null, arin = null, pair = null;
+        let vout = null, aout = null, vrin = null, arin = null;
         stats.forEach(r => {
             if (r.type === "outbound-rtp" && r.kind === "video") vout = r;
             else if (r.type === "outbound-rtp" && r.kind === "audio") aout = r;
             else if (r.type === "remote-inbound-rtp" && r.kind === "video") vrin = r;
             else if (r.type === "remote-inbound-rtp" && r.kind === "audio") arin = r;
-            else if (r.type === "candidate-pair" && r.nominated && r.state === "succeeded") pair = r;
         });
+        const pair = selectedCandidatePair(stats);
         const lc = pair && stats.get(pair.localCandidateId);
         const rc = pair && stats.get(pair.remoteCandidateId);
         const conn = (lc?.candidateType === "relay" || rc?.candidateType === "relay") ? "RELAY⚠" : "direct";
@@ -3259,27 +3452,39 @@ async function bugReport() {
  * сидит на TURN, "direct" если обе пробились напрямую, null — если статистику
  * прочитать не удалось (тогда отчёт не шлём, чтобы не врать в цифрах).
  */
+/* Активная candidate-pair из снимка getStats.
+   Раньше брали ТОЛЬКО пару с `nominated`. Флаг проставляется не в тот же
+   момент, что событие `connected`, и заполняется браузерами по-разному —
+   если номинированной пары в снимке ещё нет, отчёт direct/relay не уходил
+   ВООБЩЕ (Firefox давал 43% всех записей failure-лога). Плюс номинированных
+   пар бывает НЕСКОЛЬКО (журнал 2026-11-10: три nominated, байты шли по одной) —
+   peer-HUD брал первую попавшуюся и рисовал «direct UDP» на relay-звонке.
+   Порядок: transport.selectedCandidatePairId → самая нагруженная nominated →
+   любая succeeded → самая нагруженная вообще (WebKit держит активную пару без
+   nominated и не всегда в "succeeded" — тогда по ней хотя бы идут байты). */
+function selectedCandidatePair(stats) {
+    let nominated = null;
+    let succeeded = null;
+    let busiest = null;
+    let selectedId = null;
+    const load = r => (r.bytesReceived || 0) + (r.bytesSent || 0);
+    stats.forEach(report => {
+        if (report.type === "transport" && report.selectedCandidatePairId && !selectedId) {
+            selectedId = report.selectedCandidatePairId;
+        }
+        if (report.type !== "candidate-pair") return;
+        if (load(report) > 0 && (!busiest || load(report) > load(busiest))) busiest = report;
+        if (report.state !== "succeeded") return;
+        if (report.nominated && (!nominated || load(report) > load(nominated))) nominated = report;
+        if (!succeeded) succeeded = report;
+    });
+    return (selectedId && stats.get(selectedId)) || nominated || succeeded || busiest || null;
+}
+
 async function classifyConnection(peer) {
     try {
         const stats = await peer.getStats();
-        /* Раньше брали ТОЛЬКО пару с `nominated`. Флаг проставляется не в тот же
-           момент, что событие `connected`, и заполняется браузерами по-разному —
-           если номинированной пары в снимке ещё нет, функция возвращала null,
-           отчёт direct/relay не уходил ВООБЩЕ, а `_iceReported` оставался false,
-           из-за чего дальнейший обрыв этого живого звонка засчитывался в failed.
-           Firefox давал 43% всех записей failure-лога — ровно тот перекос,
-           которого ждёшь от такой хрупкой проверки.
-           Теперь: номинированная пара приоритетна, но при её отсутствии годится
-           любая succeeded — для нашего вопроса (direct или relay) этого хватает. */
-        let nominated = null;
-        let succeeded = null;
-        stats.forEach(report => {
-            if (report.type !== "candidate-pair") return;
-            if (report.state !== "succeeded") return;
-            if (report.nominated && !nominated) nominated = report;
-            if (!succeeded) succeeded = report;
-        });
-        const pair = nominated || succeeded;
+        const pair = selectedCandidatePair(stats);
         if (!pair) return null;
 
         const local = stats.get(pair.localCandidateId);
@@ -3408,8 +3613,10 @@ async function reportConnectivity(peer) {
        ни в relay, а его последующий обрыв засчитывался как провал установки.
        Даём второй шанс через секунду, прежде чем сдаться. */
     let cls = await classifyConnection(peer);
-    if (!cls) {
-        await new Promise(r => setTimeout(r, 1000));
+    /* WebKit заполняет статистику пар заметно позже Chromium — две попытки. */
+    for (const delay of [1000, 3000]) {
+        if (cls) break;
+        await new Promise(r => setTimeout(r, delay));
         if (peer._iceReported) return;
         if (peer.connectionState !== "connected") return;
         cls = await classifyConnection(peer);

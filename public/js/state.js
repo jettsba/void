@@ -23,7 +23,6 @@ let isSoundOn = true;
 let isScreencasting = false;
 let roomScreencasterId = null;
 
-let scModal, scNextBtn;
 let screenOverlay, screenOverlayVideo;
 
 let micBlockedModal, micBlockedCloseBtn, micBlockedBackdrop;

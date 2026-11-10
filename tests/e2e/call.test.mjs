@@ -240,3 +240,31 @@ test("invite link on a phone asks before joining; no mic, no join until the clic
     await waitFor(() => phone.evaluate(() => isJoined && !!localStream), { what: "joined after the click" });
     await waitFor(() => allConnected(a, 1), { what: "A3 sees the phone" });
 });
+
+/* Прод 2026-11-10: у собеседника сигналинг рвался раз в 30–60 s, сервер на
+   каждый обрыв сразу слал participant-left — и соседи сами сносили живой P2P.
+   Обрыв WS одного участника не должен трогать звонок у другого. */
+test("signaling blip: a neighbour's WS drop doesn't tear down the live call", async () => {
+    const a = await openClient("A");
+    await a.click("#createBtn");
+    const code = await waitFor(() => a.evaluate(() => isJoined && currentRoomCode), { what: "room created" });
+    const b = await openClient("B");
+    await joinByCode(b, code);
+    await waitFor(() => allConnected(a, 1), { what: "A connected" });
+    await waitFor(() => allConnected(b, 1), { what: "B connected" });
+
+    const bId = await b.evaluate(() => clientId);
+    await a.evaluate((id) => { window.__pcB = peers.get(id); }, bId);
+
+    // Обрыв без нашего ведома (не leave): сокет просто закрылся.
+    await b.evaluate(() => socket.close());
+    await waitFor(() => b.evaluate(() => socket && socket.readyState === 1), { what: "B reconnected" });
+    await new Promise(r => setTimeout(r, 1500));
+
+    assert.ok(await a.evaluate((id) => peers.get(id) === window.__pcB, bId), "A kept the same peer object");
+    assert.ok(await allConnected(a, 1), "A's call is still connected");
+    const p0 = await audioPackets(a);
+    await waitFor(async () => (await audioPackets(a)) > p0 + 20, { what: "audio still flowing to A" });
+    await a.context().close();
+    await b.context().close();
+});

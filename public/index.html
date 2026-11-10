@@ -433,32 +433,6 @@
         </div>
     </div>
 
-    <div class="sc-modal" id="scModal" aria-hidden="true" inert role="dialog" aria-label="screen sharing settings"
-        data-i18n-attr="aria-label:screencast.title">
-        <div class="sc-modal-backdrop"></div>
-        <div class="sc-modal-content">
-            <span class="sc-modal-title" data-i18n="screencast.title">screen share</span>
-
-            <p class="sc-note" data-i18n="screencast.auto">
-                quality and smoothness adjust automatically
-            </p>
-
-            <div class="sc-section sc-section--row">
-                <span class="sc-section-label" data-i18n="screencast.audio">screen audio</span>
-                <label class="sc-switch">
-                    <input type="checkbox" id="scAudio" checked />
-                    <span class="sc-switch-track"></span>
-                </label>
-            </div>
-
-            <p class="sc-note" id="scAudioNote" data-i18n="screencast.audio.macos" hidden>
-                on macos, audio only comes through when you share a browser tab
-            </p>
-
-            <button class="sc-next-btn" id="scNextBtn" data-i18n="screencast.next">next →</button>
-        </div>
-    </div>
-
     <div class="screen-overlay" id="screenOverlay" aria-hidden="true" inert role="dialog" aria-label="screen share"
         data-i18n-attr="aria-label:screencast.title">
         <button class="overlay-close screen-overlay-close" id="screenOverlayClose" aria-label="close"
@@ -469,6 +443,10 @@
             </svg>
         </button>
         <video class="screen-overlay-video" id="screenOverlayVideo" autoplay playsinline></video>
+        <div class="screen-overlay-loading" aria-hidden="true">
+            <span class="screen-overlay-loading-dots"><i></i><i></i><i></i></span>
+            <span class="screen-overlay-loading-label" data-i18n="screencast.loading">loading screen</span>
+        </div>
         <div class="screen-overlay-volume" id="screenOverlayVolume">
             <div class="screen-overlay-volslider" id="screenOverlayVolSlider" role="slider" aria-label="volume"
                 data-i18n-attr="aria-label:screencast.volume" aria-valuemin="0" aria-valuemax="100"

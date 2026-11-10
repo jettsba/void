@@ -39,13 +39,17 @@
    Посмотреть, как это выглядит, ДО выкатки: `VoidWhatsNewPreview()` в консоли. */
 
 window.VoidWhatsNew = {
-    version: "1.9.1",
+    version: "1.9.2",
     ru: [
-        "демонстрация экрана плавнее на компьютерах без аппаратного кодирования видео",
-        "меньше подтормаживаний у зрителя при резкой смене картинки"
+        "если прямое соединение с собеседником начинает сбоить, звонок сам переходит на резервный канал",
+        "звонок больше не рвется, когда у собеседника на секунду пропадает интернет",
+        "демонстрация экрана показывает картинку сразу, без черного экрана в первые секунды",
+        "кнопка демонстрации сразу открывает выбор экрана, без промежуточного окна"
     ],
     en: [
-        "smoother screen sharing on computers without hardware video encoding",
-        "fewer stutters for viewers on sudden full-screen changes, like switching desktops"
+        "when the direct connection to a peer starts failing, the call switches to a backup route on its own",
+        "calls no longer drop when a peer loses internet for a second",
+        "screen share shows the picture right away, no black screen in the first seconds",
+        "the screen share button opens the screen picker right away, no extra dialog"
     ]
 };

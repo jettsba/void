@@ -22,3 +22,13 @@ test("bug report: room code and every participant id are replaced with log refs"
     assert.match(out, /room:[0-9a-f]{6}/);
     assert.match(out, /user:[0-9a-f]{6}/);
 });
+
+test("bug report: ids of peers that already left are scrubbed from history too", () => {
+    const parsed = {
+        room: "KX7A2", userId: "SELF1234", peers: [],
+        history: [{ msg: "ice state", fields: { userId: "GONE4321", state: "connected" } }]
+    };
+    const out = scrubReport(JSON.stringify(parsed), parsed);
+    assert.ok(!out.includes("GONE4321"));
+    assert.ok(out.includes("\"connected\""), "other field values stay intact");
+});

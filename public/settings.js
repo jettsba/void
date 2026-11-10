@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "1.9.1";
+    const APP_VERSION = "1.9.2";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
@@ -191,8 +191,6 @@
             "errors.id-collision": "сессия с этим id уже активна — обнови страницу",
             "errors.unknown": "что-то пошло не так",
             "errors.screencast.busy": "демонстрация уже идёт в этой комнате",
-            "screencast.audio.macos": "на macos звук идёт только при выборе вкладки браузера — при захвате экрана или окна его не будет",
-            "screencast.audio.macosDesktop": "в приложении для macos демонстрация пока идёт без звука",
             "errors.mic-lost": "микрофон отключился — пробую восстановить",
             "errors.mic-lost.failed": "не удалось восстановить микрофон — попробуй перезайти",
             "errors.mic-device-gone": "выбранного микрофона нет — взял системный",
@@ -202,11 +200,9 @@
             "screencast.watch": "смотреть",
             "screencast.screen": "экран",
             "screencast.title": "демонстрация экрана",
-            "screencast.auto": "качество и плавность подстраиваются автоматически",
-            "screencast.audio": "звук экрана",
-            "screencast.next": "далее →",
             "screencast.fullscreen": "на весь экран",
             "screencast.volume": "громкость",
+            "screencast.loading": "загрузка демки",
 
             "settings.title": "настройки",
             "settings.cat.profile": "профиль",
@@ -444,8 +440,6 @@
             "errors.id-collision": "session id is already active — refresh the page",
             "errors.unknown": "something went wrong",
             "errors.screencast.busy": "screen share is already active in this room",
-            "screencast.audio.macos": "on macos audio only comes through when you pick a browser tab — sharing a screen or window gives none",
-            "screencast.audio.macosDesktop": "in the macos app screen sharing has no sound yet",
             "errors.mic-lost": "mic disconnected — trying to restore",
             "errors.mic-lost.failed": "couldn't restore mic — try rejoining",
             "errors.mic-device-gone": "selected mic is gone — switched to the system one",
@@ -455,11 +449,9 @@
             "screencast.watch": "watch",
             "screencast.screen": "screen",
             "screencast.title": "screen share",
-            "screencast.auto": "quality and smoothness adjust automatically",
-            "screencast.audio": "screen audio",
-            "screencast.next": "next →",
             "screencast.fullscreen": "fullscreen",
             "screencast.volume": "volume",
+            "screencast.loading": "loading screen",
 
             "settings.title": "settings",
             "settings.cat.profile": "profile",

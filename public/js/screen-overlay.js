@@ -16,41 +16,6 @@ function hideOverlayElement(el) {
     el.setAttribute("aria-hidden", "true");
 }
 
-/**
- * Tab/Shift+Tab внутри `el` циклится по interactive-элементам, не вылетает
- * наружу. Esc вызывает `onEscape`. Возвращает функцию-cleanup для unbind'а
- * на закрытии модалки.
- *
- * Слушатель висит на `el`, поэтому работает только когда фокус ВНУТРИ
- * элемента — поэтому модалка должна на open'е сама поставить фокус на
- * что-то внутри (иначе trap не подхватит Tab из «снаружи»).
- */
-function trapFocusWithin(el, onEscape) {
-    const sel = 'button:not([disabled]), [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
-    const onKey = (e) => {
-        if (e.key === "Escape") {
-            e.preventDefault();
-            onEscape?.();
-            return;
-        }
-        if (e.key !== "Tab") return;
-        const items = Array.from(el.querySelectorAll(sel))
-            .filter(n => !n.hasAttribute("disabled") && n.offsetParent !== null);
-        if (items.length === 0) return;
-        const first = items[0];
-        const last = items[items.length - 1];
-        if (e.shiftKey && document.activeElement === first) {
-            e.preventDefault();
-            last.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-            e.preventDefault();
-            first.focus();
-        }
-    };
-    el.addEventListener("keydown", onKey);
-    return () => el.removeEventListener("keydown", onKey);
-}
-
 function handleScreencastBtnClick() {
     if (roomScreencasterId && roomScreencasterId !== clientId) {
         showRoomToast(_t("errors.screencast.busy"));
@@ -64,31 +29,31 @@ function handleScreencastBtnClick() {
         if (window.VoidSounds) VoidSounds.screencast(false);
         return;
     }
-    openScModal();
+    beginScreenShare();
 }
 
-let _scModalTrapCleanup = null;
-
-function openScModal() {
-    scModal.removeAttribute("inert");
-    scModal.setAttribute("aria-hidden", "false");
-    scModal.classList.add("is-visible");
-    _scModalTrapCleanup = trapFocusWithin(scModal, closeScModal);
-    /* Кладём фокус внутрь модалки, иначе Tab из «снаружи» вылетит мимо
-       trap'а. Делаем это после rAF — ждём окончания CSS-перехода открытия,
-       чтобы браузер не споткнулся о display:none. preventScroll: лента
-       страницы под модалкой не должна дёргаться, если кнопка вне viewport. */
-    requestAnimationFrame(() => {
-        if (!scModal.classList.contains("is-visible")) return;
-        scNextBtn?.focus({ preventScroll: true });
-    });
-}
-
-function closeScModal() {
-    _scModalTrapCleanup?.();
-    _scModalTrapCleanup = null;
-    scModal.classList.remove("is-visible");
-    hideOverlayElement(scModal);
+/* Старт демки — сразу системный пикер, без промежуточного окна (качество
+   подстраивается само, звук всегда вкл; на web пользователь может снять
+   «звук» в самом пикере браузера). Повторный вход режем флагом: двойной клик
+   до появления пикера открыл бы его дважды и дважды проиграл звук старта. */
+let _scStarting = false;
+async function beginScreenShare() {
+    if (_scStarting || isScreencasting) return;
+    _scStarting = true;
+    try {
+        /* Цель 1080p60, дальше автоподстройка (webrtc.js, screenAdaptTick). */
+        await startScreenShare(1080, 60, true);
+        isScreencasting = true;
+        broadcastScreencastState(true);
+        updateScreencastButton(true);
+        updateParticipantScreenState(clientId, true);
+        // Звук старта скринкаста — слышат все (self здесь, остальные по WS).
+        if (window.VoidSounds) VoidSounds.screencast(true);
+    } catch (e) {
+        log.debug("rtc", "screen share cancelled", { err: e?.message || String(e) });
+    } finally {
+        _scStarting = false;
+    }
 }
 
 function broadcastScreencastState(isOn) {
@@ -351,12 +316,43 @@ function notifyScreenVideoReady(userId) {
  * новый stream висит в videoMap.get(userId).srcObject — но напрямую не
  * привязан к видимому элементу.
  */
+/* Лоадер первого кадра. После смены srcObject <video> пуст, пока декодер не
+   отдаст кадр; на статичном экране шарера следующий кадр может не прийти
+   секундами (журнал 2026-11-10: 8-10 с чёрного на старте демки). Держим
+   .is-waiting, пока у элемента нет размеров кадра; снимаем по первому кадру. */
+let _overlayWaitCleanup = null;
+function watchOverlayFirstFrame() {
+    _overlayWaitCleanup?.();
+    _overlayWaitCleanup = null;
+    const v = screenOverlayVideo;
+    if (!v || !screenOverlay) return;
+    const hasFrame = () => v.readyState >= 2 && v.videoWidth > 0;
+    if (hasFrame()) { screenOverlay.classList.remove("is-waiting"); return; }
+    screenOverlay.classList.add("is-waiting");
+    const done = () => {
+        if (!hasFrame()) return;
+        screenOverlay.classList.remove("is-waiting");
+        _overlayWaitCleanup?.();
+        _overlayWaitCleanup = null;
+    };
+    const events = ["loadeddata", "resize", "playing"];
+    events.forEach(e => v.addEventListener(e, done));
+    _overlayWaitCleanup = () => events.forEach(e => v.removeEventListener(e, done));
+}
+
+function stopOverlayFirstFrameWatch() {
+    _overlayWaitCleanup?.();
+    _overlayWaitCleanup = null;
+    screenOverlay?.classList.remove("is-waiting");
+}
+
 function refreshOverlayStreamIfOpen(userId, stream) {
     if (screenOverlayUserId !== userId) return;
     if (!screenOverlayVideo) return;
     if (screenOverlayVideo.srcObject === stream) return;
     log.info("rtc", "screen overlay hot-swap stream", { userId });
     screenOverlayVideo.srcObject = stream;
+    watchOverlayFirstFrame();
     applyMasterVolumeToScreenOverlay();
     applySinkIdToScreenOverlay();
     syncScreenOverlayMuted();
@@ -457,6 +453,7 @@ function openScreenOverlay(userId) {
     lastWatchedUserId = userId;
     lastWatchedExpiresAt = Date.now() + _AUTO_REOPEN_TTL_MS;
     screenOverlayVideo.srcObject = stream;
+    watchOverlayFirstFrame();
     /* Нативный playback аудио через video-элемент — попадает в Chrome WebRTC
        ducking opt-out (codereview 281814), Windows не дакает на 80% при
        активном mic'е. См. комментарий у setScreenOverlayAudioMuted выше.
@@ -519,6 +516,7 @@ function closeScreenOverlay(opts) {
         document.webkitExitFullscreen?.();
     }
     screenOverlay.classList.remove("is-visible");
+    stopOverlayFirstFrameWatch();
     stopScreenControlsIdle();
     hideOverlayElement(screenOverlay);
     if (screenOverlayVideo) {

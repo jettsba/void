@@ -145,172 +145,6 @@
 }
 
 
-.sc-modal {
-    position: fixed;
-    inset: 0;
-    z-index: 88;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.22s ease;
-}
-
-.sc-modal.is-visible {
-    opacity: 1;
-    pointer-events: auto;
-}
-
-.sc-modal-backdrop {
-    position: absolute;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.7);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
-}
-
-.sc-modal-content {
-    position: relative;
-    background: var(--bg-1);
-    border: 1px solid rgba(230, 230, 232, 0.07);
-    border-radius: 2px;
-    padding: 2rem 2rem 1.71rem;
-    width: 25.71rem;
-    display: flex;
-    flex-direction: column;
-    gap: 1.57rem;
-    box-shadow:
-        0 0 0 1px rgba(255, 255, 255, 0.03) inset,
-        0 32px 80px rgba(0, 0, 0, 0.7);
-    transform: translateY(0.43rem) scale(0.97);
-    transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.sc-modal.is-visible .sc-modal-content {
-    transform: translateY(0) scale(1);
-}
-
-.sc-modal-title {
-    font-size: 0.79rem;
-    letter-spacing: var(--tracking-wide);
-    text-transform: lowercase;
-    color: var(--fg-3);
-}
-
-.sc-section {
-    display: flex;
-    flex-direction: column;
-    gap: 0.71rem;
-}
-
-.sc-section-label {
-    font-size: 0.71rem;
-    letter-spacing: 0.12em;
-    text-transform: lowercase;
-    color: var(--fg-4);
-}
-
-.sc-section--row {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-}
-
-.sc-section--row .sc-section-label {
-    margin-bottom: 0;
-}
-
-/* Пояснения в окне демки: «качество подстраивается само» и подпись под
-   тумблером звука (только macOS). Тон — как у меты: тише подписи, без рамки. */
-.sc-note {
-    margin-top: -0.29rem;
-    font-size: 0.79rem;
-    line-height: 1.45;
-    letter-spacing: 0;
-    color: var(--fg-3);
-    text-transform: lowercase;
-}
-
-.sc-switch {
-    position: relative;
-    display: inline-block;
-    width: 2.43rem;
-    height: 1.29rem;
-    flex-shrink: 0;
-    cursor: pointer;
-}
-
-.sc-switch input {
-    opacity: 0;
-    width: 0;
-    height: 0;
-    position: absolute;
-}
-
-.sc-switch-track {
-    position: absolute;
-    inset: 0;
-    border-radius: 999px;
-    border: 1px solid var(--fg-4);
-    background: transparent;
-    transition: border-color 0.18s, background 0.18s;
-}
-
-.sc-switch-track::after {
-    content: '';
-    position: absolute;
-    top: 0.14rem;
-    left: 0.14rem;
-    width: 0.86rem;
-    height: 0.86rem;
-    border-radius: 50%;
-    background: var(--fg-4);
-    transition: transform 0.18s, background 0.18s;
-}
-
-.sc-switch input:checked+.sc-switch-track {
-    border-color: var(--screen);
-    background: rgba(95, 170, 122, 0.12);
-}
-
-.sc-switch input:checked+.sc-switch-track::after {
-    transform: translateX(1.14rem);
-    background: var(--screen);
-}
-
-/* Таб-фокус: тонкое кольцо вокруг трека — как у .vswitch/.settings-switch
-   (у тоггла нет hover-состояния, поэтому единый аккуратный фокус-ринг). */
-.sc-switch input:focus-visible+.sc-switch-track {
-    outline: 1px solid var(--fg-3);
-    outline-offset: 2px;
-}
-
-.sc-next-btn {
-    width: 100%;
-    padding: 0.86rem;
-    margin-top: 0.14rem;
-    border-radius: 2px;
-    border: 1px solid rgba(95, 170, 122, 0.4);
-    background: rgba(95, 170, 122, 0.06);
-    color: var(--screen);
-    font-size: 0.86rem;
-    font-family: inherit;
-    letter-spacing: 0.14em;
-    text-transform: lowercase;
-    cursor: pointer;
-    transition:
-        background 0.14s ease,
-        border-color 0.14s ease,
-        box-shadow 0.14s ease;
-}
-
-.sc-next-btn:hover {
-    background: rgba(95, 170, 122, 0.12);
-    border-color: var(--screen);
-    box-shadow: 0 0 24px rgba(95, 170, 122, 0.1);
-}
-
 .screen-overlay {
     position: fixed;
     inset: 0;
@@ -359,6 +193,57 @@ html.desktop.screen-native-fs .void-titlebar {
     /* Кликов по самому видео нет (нативных controls не показываем) — пропускаем
        сквозь, чтобы close/fullscreen-кнопки гарантированно ловили pointer. */
     pointer-events: none;
+}
+
+/* Лоадер «первого кадра»: висит, пока у <video> нет ни одного кадра (иначе
+   зритель смотрит в чёрный прямоугольник). Появляется с задержкой 300ms —
+   если кадр пришёл сразу, не мелькает. Точки дышат по opacity (guide §4). */
+.screen-overlay-loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 320ms cubic-bezier(.2, .6, .2, 1);
+}
+.screen-overlay.is-waiting .screen-overlay-loading {
+    opacity: 1;
+    transition-delay: 300ms;
+}
+.screen-overlay-loading-dots {
+    display: flex;
+    gap: 6px;
+}
+.screen-overlay-loading-dots i {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--fg-2);
+    opacity: 0.3;
+}
+.screen-overlay.is-waiting .screen-overlay-loading-dots i {
+    animation: screen-loading-breath 1.2s cubic-bezier(.2, .6, .2, 1) infinite;
+}
+.screen-overlay-loading-dots i:nth-child(2) { animation-delay: 0.2s; }
+.screen-overlay-loading-dots i:nth-child(3) { animation-delay: 0.4s; }
+.screen-overlay-loading-label {
+    font-size: 12px;
+    color: var(--fg-3);
+    letter-spacing: 0.02em;
+}
+@keyframes screen-loading-breath {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .screen-overlay.is-waiting .screen-overlay-loading-dots i {
+        animation: none;
+        opacity: 0.7;
+    }
 }
 
 /* Общий вид кнопок оверлея (крестик / fullscreen / контейнер громкости).
