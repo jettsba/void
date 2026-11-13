@@ -91,8 +91,9 @@
        глобальный хук (src-tauri/src/mouse_hook.rs). На маке-десктопе
        глобального хука пока нет (нужен CGEventTap и разрешение «Мониторинг
        ввода»), а бинд, который работает только в фокусе окна, — обман для
-       хоткея. Поэтому там мышь не предлагаем вовсе. */
-    const MOUSE_BINDS = !(IS_MAC && isDesktop);
+       хоткея. Поэтому на маке мышь не предлагаем вовсе — и в вебе тоже, чтобы
+       модалка на маке выглядела одинаково в браузере и в приложении. */
+    const MOUSE_BINDS = !IS_MAC;
 
     /* Tauri-unlisten'ы, привязанные к открытой модалке (напр. слушатели апдейтера
        в «настройках приложения»). Снимаются при закрытии модалки — чтобы не
@@ -399,6 +400,10 @@
         touchid: `<svg viewBox="0 0 24 24"><path d="M5 16.5v-3a7 7 0 0 1 14 0v3"/><path d="M8.6 17v-3.5a3.4 3.4 0 0 1 6.8 0V17"/><path d="M12 17.5v-4"/></svg>`
     };
 
+    /* Windows key — the logo (same mark as the landing download button),
+       filled rather than stroked, hence the kbd-fill class. */
+    const WIN_ICON = `<svg class="kbd-fill" viewBox="0 0 24 24"><path d="M0 3.4 9.8 2v9.4H0zM11 1.9 24 0v11.3H11zM0 12.6h9.8V22L0 20.6zM11 12.6h13V24l-13-1.9z"/></svg>`;
+
     const KB_LAYOUT_PC = [
         [K("esc", null), GAP(0.5),
          K("f1", "f1"), K("f2", "f2"), K("f3", "f3"), K("f4", "f4"), GAP(0.5),
@@ -431,7 +436,7 @@
          K(",", "comma"), K(".", "period"), K("/", "slash"),
          K("shift", "shift", 1.75), K(ARROW.up, "up"), K("pgdn", "pagedown")],
 
-        [K("ctrl", "ctrl", 1.25), K("win", "super", 1.25), K("alt", "alt", 1.25),
+        [K("ctrl", "ctrl", 1.25), K(WIN_ICON, "super", 1.25), K("alt", "alt", 1.25),
          K("", "space", 6.25),
          K("alt", "alt"), K("fn", null), K("ctrl", "ctrl"),
          K(ARROW.left, "left"), K(ARROW.down, "down"), K(ARROW.right, "right")]
@@ -533,7 +538,7 @@
             return `<div class="kbd-row">${keys}</div>`;
         }).join("");
         return `
-            <div class="kbd-visual" data-kbd aria-hidden="true">
+            <div class="kbd-visual${IS_MAC ? " kbd-visual--mac" : ""}" data-kbd aria-hidden="true">
                 <div class="kbd-stage">
                     <div class="kbd-board">${rows}</div>
                     ${MOUSE_BINDS ? KB_MOUSE : ""}
@@ -573,9 +578,12 @@
     /* Содержимое кэпа: на маке модификатор — значок (⌘⌥⌃⇧ как SVG), везде
        ещё — слово. Отдаём ГОТОВЫЙ html, поэтому текст экранируем здесь же:
        наружу не должно уйти ни одной неэкранированной подписи. */
+    function capIcon(part) {
+        if (IS_MAC) return MAC_ICON[String(part).toLowerCase()] || "";
+        return part === "Super" ? WIN_ICON : "";
+    }
     function capMarkup(part) {
-        const icon = IS_MAC && MAC_ICON[String(part).toLowerCase()];
-        return icon || escape(capLabel(part));
+        return capIcon(part) || escape(capLabel(part));
     }
 
     /* Порядок модификаторов на показ. Apple пишет их как ⌃⌥⇧⌘ — сортируем
@@ -593,7 +601,7 @@
     function accelToKeycaps(accel) {
         if (!accel) return `<span class="binding-empty">—</span>`;
         return orderPartsForDisplay(accel.split("+")).map((p, i) => {
-            const cls = (IS_MAC && MAC_ICON[String(p).toLowerCase()]) ? "binding-cap binding-cap--ic" : "binding-cap";
+            const cls = capIcon(p) ? "binding-cap binding-cap--ic" : "binding-cap";
             return `${i ? '<span class="binding-plus">+</span>' : ""}<span class="${cls}">${capMarkup(p)}</span>`;
         }).join("");
     }
@@ -845,7 +853,6 @@
                 </span>
                 <div class="app-modal-row-text">
                     <span class="app-modal-row-label">${escape(T("app.autostart.label"))}</span>
-                    <span class="app-modal-row-hint">${escape(T("app.autostart.hint"))}</span>
                 </div>
                 <label class="sc-switch">
                     <input type="checkbox" id="appAutoStartCheckbox" />

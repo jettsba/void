@@ -148,10 +148,6 @@
 .screen-overlay {
     position: fixed;
     inset: 0;
-    /* Верх оверлея — ПОД титлбаром (он fixed top:0, z-index:200), иначе верх
-       демки уезжает под него. На web --titlebar-h=0 → top:0 (титлбара нет).
-       В нативном fullscreen титлбар скрыт → top сбрасывается в 0 ниже. */
-    top: var(--titlebar-h);
     z-index: 90;
     /* Размер кнопок оверлея — из общего токена, чтобы крестик демки и крестик
        лайтбокса не разъезжались (см. .overlay-close в base.css). */
@@ -165,9 +161,30 @@
     transition: opacity 0.2s ease;
 }
 
-/* Нативный fullscreen демки — титлбара нет, оверлей до самого верха. */
-html.screen-native-fs .screen-overlay {
-    top: 0;
+/* Demo runs edge to edge, under the desktop titlebar too: while it is open
+   the bar loses its fill and floats over the video (window buttons stay
+   clickable above it), fading out with the demo controls when the mouse
+   is idle. The demo buttons drop by the bar height so they don't sit under
+   the window buttons / drag region. On macOS the native traffic lights
+   simply stay over the video's top-left corner. */
+html.desktop:has(.screen-overlay.is-visible) .void-titlebar {
+    background: transparent;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    border-bottom-color: transparent;
+    transition: opacity var(--t-med);
+}
+
+html.desktop:has(.screen-overlay.is-visible) .void-titlebar-btn:not(:hover) {
+    color: var(--fg-2);
+}
+
+html.desktop:has(.screen-overlay.is-visible:not(.controls-active)) .void-titlebar:not(:hover) {
+    opacity: 0;
+}
+
+html.desktop:not(.screen-native-fs) .screen-overlay-close {
+    top: calc(1.43rem + var(--titlebar-h));
 }
 
 .screen-overlay.is-visible {
@@ -290,10 +307,8 @@ html.desktop.screen-native-fs .void-titlebar {
 }
 
 .screen-overlay-close {
-    /* top совпадает с bottom у fullscreen — крестик и fullscreen симметричны.
-       Титлбар компенсировать НЕ нужно: сам .screen-overlay уже начинается с
-       top: var(--titlebar-h), и добавка сверху уводила крестик вниз на вторую
-       высоту титлбара (отступ сверху переставал совпадать с отступом справа). */
+    /* top mirrors the fullscreen button's bottom; on desktop it also drops
+       by the titlebar height (rule next to .screen-overlay). */
     top: 1.43rem;
     right: 1.43rem;
     /* opacity — для авто-скрытия контролов по бездействию (ниже по файлу). */

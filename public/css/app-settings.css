@@ -759,6 +759,26 @@ html:not(.desktop) #settingsAppBtn {
   height: 0.57rem;
 }
 
+/* Mac board: square keys like a real Mac keyboard (a 1-unit key is as tall
+   as it is wide), function row included. The board is
+   capped in width so the squares don't blow up in a wide window; the key
+   size comes from the board width: (board − 14 gaps) / 15 units. */
+.kbd-visual--mac .kbd-stage {
+  justify-content: center;
+  min-width: 26rem;
+}
+.kbd-visual--mac .kbd-board {
+  max-width: 38rem;
+  container-type: inline-size;
+}
+.kbd-visual--mac {
+  --kbd-u: calc((100cqw - 14 * 0.29rem) / 15);
+}
+.kbd-visual--mac .kbd-row > .kbd-key,
+.kbd-visual--mac .kbd-arrows {
+  height: var(--kbd-u);
+}
+
 /* Целевая клавиша бинда — залита; модификаторы — только подсвеченный контур:
    в комбинации важна цель, ctrl/shift лишь контекст. */
 .kbd-key.is-on {
@@ -893,6 +913,18 @@ html:not(.desktop) #settingsAppBtn {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+/* Windows logo is a filled mark, not a stroke icon. */
+.kbd-key--ic svg.kbd-fill,
+.binding-cap--ic svg.kbd-fill {
+  fill: currentColor;
+  stroke: none;
+  width: 0.64rem;
+  height: 0.64rem;
+}
+.binding-cap--ic svg.kbd-fill {
+  width: 0.71rem;
+  height: 0.71rem;
+}
 .hotkey-row:hover .binding-cap {
   border-color: var(--fg-2);
   color: var(--fg);
@@ -977,4 +1009,57 @@ html:not(.desktop) #settingsAppBtn {
   .app-modal-card {
     transition: none;
   }
+}
+
+/* Toggle used by the hotkeys master switch and autostart row. */
+.sc-switch {
+  position: relative;
+  display: inline-block;
+  width: 2.43rem;
+  height: 1.29rem;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.sc-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+
+.sc-switch-track {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  border: 1px solid var(--fg-4);
+  background: transparent;
+  transition: border-color 0.18s, background 0.18s;
+}
+
+.sc-switch-track::after {
+  content: '';
+  position: absolute;
+  top: 0.14rem;
+  left: 0.14rem;
+  width: 0.86rem;
+  height: 0.86rem;
+  border-radius: 50%;
+  background: var(--fg-4);
+  transition: transform 0.18s, background 0.18s;
+}
+
+.sc-switch input:checked + .sc-switch-track {
+  border-color: var(--screen);
+  background: rgba(95, 170, 122, 0.12);
+}
+
+.sc-switch input:checked + .sc-switch-track::after {
+  transform: translateX(1.14rem);
+  background: var(--screen);
+}
+
+.sc-switch input:focus-visible + .sc-switch-track {
+  outline: 1px solid var(--fg-3);
+  outline-offset: 2px;
 }

@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "1.9.3";
+    const APP_VERSION = "1.9.4";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
@@ -235,8 +235,7 @@
             "app.close.minimize.sub": "продолжит работать в фоне",
             "app.close.quit.title": "закрыть полностью",
             "app.close.quit.sub": "выход из приложения",
-            "app.autostart.label": "запускать при старте windows",
-            "app.autostart.hint": "откроется автоматически при входе в систему",
+            "app.autostart.label": "запускать void при старте системы",
             "app.updates.label": "обновления",
             "app.updates.current": "текущая версия",
             "app.updates.btn": "проверить обновления",
@@ -486,8 +485,7 @@
             "app.close.minimize.sub": "keeps running in the background",
             "app.close.quit.title": "quit completely",
             "app.close.quit.sub": "exits the app",
-            "app.autostart.label": "launch on windows startup",
-            "app.autostart.hint": "opens automatically on system login",
+            "app.autostart.label": "launch void on system startup",
             "app.updates.label": "updates",
             "app.updates.current": "current version",
             "app.updates.btn": "check for updates",

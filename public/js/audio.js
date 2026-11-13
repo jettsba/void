@@ -48,8 +48,22 @@ function _playRoomClip(kind) {
         const a = _roomClip(kind).cloneNode();
         a.volume = Math.max(0, Math.min(1, ROOM_CLIP_VOLUME * _master * eff));
         if (a.setSinkId && _sfxSink) a.setSinkId(_sfxSink).catch(() => {});
+        // Drop the source once played so the clip can't linger as the OS
+        // "now playing" item that a media key would replay.
+        a.addEventListener('ended', () => { a.removeAttribute('src'); a.load(); }, { once: true });
         a.play().catch(() => {});
     } catch (_) {}
+}
+
+/* Hardware media keys (F8 play/pause on a Mac keyboard, Play/Pause on
+   Windows) go to the page's media session, whose default action restarts the
+   last played <audio> (the join clip) or pauses a peer's voice. Claim every
+   action with a no-op so the keys do nothing here. */
+if (navigator.mediaSession && navigator.mediaSession.setActionHandler) {
+    ['play', 'pause', 'stop', 'previoustrack', 'nexttrack', 'seekbackward', 'seekforward', 'seekto']
+        .forEach((action) => {
+            try { navigator.mediaSession.setActionHandler(action, () => {}); } catch (_) {}
+        });
 }
 
 const VoidSounds = {

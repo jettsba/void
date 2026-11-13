@@ -39,17 +39,19 @@
    Посмотреть, как это выглядит, ДО выкатки: `VoidWhatsNewPreview()` в консоли. */
 
 window.VoidWhatsNew = {
-    version: "1.9.3",
+    version: "1.9.4",
     ru: [
-        "на маке демонстрация экрана теперь идет со звуком",
-        "— в демку попадает звук системы, но не голоса собеседников",
-        "— при первой демонстрации macos спросит доступ к записи звука системы",
-        "иконка вкладки в safari — светящееся кольцо без фона"
+        "демонстрация экрана теперь занимает окно целиком, вместе с верхней полосой",
+        "исправлен внешний вид клавиатуры в настройках для macos",
+        "— кнопка win на windows-раскладке теперь отображается логотипом",
+        "кнопки play/pause на клавиатуре больше не проигрывают звук входа в комнату",
+        "переключатели в настройках снова выглядят как переключатели",
     ],
     en: [
-        "on mac, screen share now has sound",
-        "— system audio goes into the demo, the voices of other people do not",
-        "— on the first share macos will ask for system audio recording access",
-        "tab icon in safari — a glowing ring with no background"
+        "screen share now fills the whole window, top strip included",
+        "the hotkeys keyboard on mac now looks like a real mac keyboard",
+        "— the win key on the windows layout now shows the logo",
+        "keyboard play/pause keys no longer play the room join sound",
+        "toggles in settings look like toggles again",
     ]
 };
