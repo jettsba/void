@@ -2231,6 +2231,22 @@ async function startNativeScreenAudio() {
     return dest.stream.getAudioTracks()[0] || null;
 }
 
+/* Нативный захват не поднялся. На Windows это population <Win10 2004 — молча
+   идём без звука (видео не трогаем). На маке причина ровно одна из двух, и
+   обе стоит сказать вслух: старая система (тапов нет до 14.2) либо человек не
+   дал «запись звука системы» — иначе демка просто молчит без объяснений.
+   Коды приходят из Rust (screen_audio_mac.rs): needs-macos-14-2 / tap-denied. */
+function reportNativeAudioFailure(err) {
+    if (!window.VoidIsMac) return;
+    const reason = String(err?.message || err || "");
+    const key = reason.includes("needs-macos-14-2")
+        ? "errors.screencast.macos-audio-unsupported"
+        : "errors.screencast.macos-audio-denied";
+    try {
+        window.VoidToast?.showToast(_micT(key), { priority: "warn", duration: 12000 });
+    } catch (_) {}
+}
+
 function stopNativeScreenAudio() {
     try { window.__TAURI__?.core?.invoke?.("stop_screen_audio"); } catch (_) {}
     screenAudioChannel = null;
@@ -2305,10 +2321,9 @@ async function startScreenShare(height = 1080, fps = 60, captureAudio = false) {
        а нативным WASAPI loopback с исключением нашего процесс-дерева (чисто, без
        ducking). На web/нет-Tauri — старый путь через getDisplayMedia system audio. */
     const isDesktop = window.VoidPlatform === "desktop";
-    /* macOS-десктоп: нативного захвата системного звука пока нет (аналог
-       WASAPI loopback — отдельная задача), а WKWebView звук в getDisplayMedia
-       не отдаёт. Демка идёт без звука, тумблер там скрыт (js/app.js). */
-    if (isDesktop && window.VoidIsMac) captureAudio = false;
+    /* На маке нативный путь — единственный: WKWebView звук в getDisplayMedia не
+       отдаёт вовсе, так что без Core Audio tap'а демка там молчит (на Windows
+       это выбор «чисто вместо mix с голосами», на маке — «есть или нет»). */
     const useNativeAudio = captureAudio && isDesktop;
     /* audioConstraints применяется ТОЛЬКО на web (на desktop звук берёт нативный
        loopback, см. useNativeAudio). По дефолту getDisplayMedia({audio:true}) даёт
@@ -2411,10 +2426,14 @@ async function startScreenShare(height = 1080, fps = 60, captureAudio = false) {
         try {
             const nativeTrack = await startNativeScreenAudio();
             if (nativeTrack) screenStream.addTrack(nativeTrack);
-            else log.warn("rtc", "native screen audio unavailable, demo without sound");
+            else {
+                log.warn("rtc", "native screen audio unavailable, demo without sound");
+                reportNativeAudioFailure(null);
+            }
         } catch (err) {
             log.warn("rtc", "native screen audio capture failed", { err: err?.message || String(err) });
             stopNativeScreenAudio();
+            reportNativeAudioFailure(err);
         }
     }
     const videoTrack = screenStream.getVideoTracks()[0];

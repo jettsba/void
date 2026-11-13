@@ -25,6 +25,9 @@ mod audio_session;
 mod proc_tree;
 #[cfg(windows)]
 mod screen_audio;
+/* Звук демки на маке: Core Audio process tap вместо WASAPI loopback. */
+#[cfg(target_os = "macos")]
+mod screen_audio_mac;
 #[cfg(windows)]
 mod screen_indicator;
 /* Хоткеи на кнопки мыши. Отдельно от tauri-plugin-global-shortcut, потому что
@@ -180,10 +183,14 @@ fn start_screen_audio(
     {
         screen_audio::start(channel)
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
+    {
+        screen_audio_mac::start(channel)
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
     {
         let _ = channel;
-        Err("screen audio loopback is windows-only".into())
+        Err("screen audio capture is not supported on this platform".into())
     }
 }
 
@@ -196,6 +203,10 @@ fn stop_screen_audio(window: tauri::WebviewWindow) {
     #[cfg(windows)]
     {
         screen_audio::stop();
+    }
+    #[cfg(target_os = "macos")]
+    {
+        screen_audio_mac::stop();
     }
 }
 
@@ -863,6 +874,21 @@ pub fn run() {
                     }
                 });
             }
+
+            // Бэкстоп нативного захвата звука демки на маке — на случай, если
+            // JS не дёрнул stop_screen_audio (идемпотентно: no-op, если захвата
+            // нет). Индикатора захвата на маке мы не прячем — там его рисует
+            // сама система в меню-баре.
+            #[cfg(target_os = "macos")]
+            app.listen("void:screencast-active", move |event| {
+                let active = serde_json::from_str::<serde_json::Value>(event.payload())
+                    .ok()
+                    .and_then(|v| v.get("active").and_then(|b| b.as_bool()))
+                    .unwrap_or(false);
+                if !active {
+                    screen_audio_mac::stop();
+                }
+            });
 
             let app_handle_hk = app.handle().clone();
             app.listen("void:register-hotkeys", move |event| {

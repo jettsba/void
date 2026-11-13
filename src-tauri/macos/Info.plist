@@ -8,6 +8,12 @@
          выбор экрана. -->
     <key>NSMicrophoneUsageDescription</key>
     <string>void uses the microphone for voice calls.</string>
+    <!-- Звук демонстрации: Core Audio process tap пишет системный звук (кроме
+         самого void), и без этой строки система не покажет запрос «запись звука
+         системы» — создание тапа просто вернёт ошибку. См.
+         src/screen_audio_mac.rs. -->
+    <key>NSAudioCaptureUsageDescription</key>
+    <string>void captures system audio so your screen share has sound.</string>
     <!-- Языки приложения. Свои пункты меню void переводит сам (lib.rs
          mac_app_menu), а то, что AppKit дописывает в меню сам («Эмодзи и
          символы», «Диктовка», пункты окна, системный запрос микрофона),

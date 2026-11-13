@@ -1,6 +1,6 @@
 [package]
 name = "void-desktop"
-version = "1.9.2"
+version = "1.9.3"
 description = "Void — эфемерные P2P голосовые комнаты"
 authors = ["Void"]
 edition = "2021"
@@ -73,7 +73,18 @@ windows = { version = "0.59", features = [
 # NSLocale.preferredLanguages — язык нативных меню по системным настройкам
 # (lib.rs mac_menu_ru). Версия = та, что уже тянут tao/wry (Cargo.lock).
 [target.'cfg(target_os = "macos")'.dependencies]
-objc2-foundation = { version = "0.3", features = ["NSLocale", "NSArray", "NSString", "NSProcessInfo"] }
+objc2-foundation = { version = "0.3", features = ["NSLocale", "NSArray", "NSDictionary", "NSString", "NSValue", "NSProcessInfo"] }
+# Core Audio process taps (macOS 14.2+) — чистый звук демки без голосов пиров,
+# аналог WASAPI process loopback на Windows. См. screen_audio_mac.rs.
+# Версии семейства objc2 держим те же, что уже тянут tao/wry (Cargo.lock).
+objc2 = "0.6"
+objc2-core-audio = "0.3"
+objc2-core-audio-types = "0.3"
+objc2-core-foundation = "0.3"
+block2 = "0.6"
+# dlsym для символов тапов (их нет на macOS < 14.2) и для
+# responsibility_get_pid_responsible_for_pid.
+libc = "0.2"
 
 [features]
 custom-protocol = ["tauri/custom-protocol"]

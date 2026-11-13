@@ -39,17 +39,17 @@
    Посмотреть, как это выглядит, ДО выкатки: `VoidWhatsNewPreview()` в консоли. */
 
 window.VoidWhatsNew = {
-    version: "1.9.2",
+    version: "1.9.3",
     ru: [
-        "если прямое соединение с собеседником начинает сбоить, звонок сам переходит на резервный канал",
-        "звонок больше не рвется, когда у собеседника на секунду пропадает интернет",
-        "демонстрация экрана показывает картинку сразу, без черного экрана в первые секунды",
-        "кнопка демонстрации сразу открывает выбор экрана, без промежуточного окна"
+        "на маке демонстрация экрана теперь идет со звуком",
+        "— в демку попадает звук системы, но не голоса собеседников",
+        "— при первой демонстрации macos спросит доступ к записи звука системы",
+        "иконка вкладки в safari — светящееся кольцо без фона"
     ],
     en: [
-        "when the direct connection to a peer starts failing, the call switches to a backup route on its own",
-        "calls no longer drop when a peer loses internet for a second",
-        "screen share shows the picture right away, no black screen in the first seconds",
-        "the screen share button opens the screen picker right away, no extra dialog"
+        "on mac, screen share now has sound",
+        "— system audio goes into the demo, the voices of other people do not",
+        "— on the first share macos will ask for system audio recording access",
+        "tab icon in safari — a glowing ring with no background"
     ]
 };

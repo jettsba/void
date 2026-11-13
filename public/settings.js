@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "1.9.2";
+    const APP_VERSION = "1.9.3";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
@@ -196,6 +196,8 @@
             "errors.mic-device-gone": "выбранного микрофона нет — взял системный",
             "errors.screencast.macos-permission": "macos не пускает браузер к экрану — системные настройки → конфиденциальность и безопасность → запись экрана, включи браузер и перезапусти его",
             "errors.screencast.macos-permission.desktop": "macos не пускает void к экрану — системные настройки → конфиденциальность и безопасность → запись экрана, включи void и перезапусти его",
+            "errors.screencast.macos-audio-denied": "macos не дал писать звук системы — демка идёт без звука. системные настройки → конфиденциальность и безопасность → запись звука системы, включи void",
+            "errors.screencast.macos-audio-unsupported": "звук демки на маке работает с macos 14.2 и новее — на этой системе демка идёт без звука",
 
             "screencast.watch": "смотреть",
             "screencast.screen": "экран",
@@ -445,6 +447,8 @@
             "errors.mic-device-gone": "selected mic is gone — switched to the system one",
             "errors.screencast.macos-permission": "macos blocks screen capture for the browser — system settings → privacy & security → screen recording, enable your browser and restart it",
             "errors.screencast.macos-permission.desktop": "macos blocks screen capture for void — system settings → privacy & security → screen recording, enable void and restart it",
+            "errors.screencast.macos-audio-denied": "macos denied system audio recording — the demo goes without sound. system settings → privacy & security → system audio recording, enable void",
+            "errors.screencast.macos-audio-unsupported": "demo sound on mac needs macos 14.2 or newer — this demo goes without sound",
 
             "screencast.watch": "watch",
             "screencast.screen": "screen",
