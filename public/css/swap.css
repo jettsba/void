@@ -1,0 +1,58 @@
+/* ===== Unified text swap =====
+   One motion for every "text turns into other text for a moment":
+   «скопировано» in the invite panel and support coins, «вход закрыт» on a
+   friend's lock, transfer code copy. The old text leaves upward and fades,
+   the new one comes from below after it is gone (no double exposure).
+
+   Markup: <span class="swap"><span class="swap-main">…</span><span class="swap-alt">…</span></span>
+   Trigger: .is-swapped on .swap itself or on any ancestor (VoidSwap.flash(el)).
+   Legacy rows (invite panel, support coins) use the same tokens below. */
+:root {
+    --swap-dy: 0.36rem;
+    --swap-out: opacity 120ms ease-in, transform 140ms ease-in;
+    --swap-in: opacity 200ms ease-out 110ms, transform 220ms cubic-bezier(.2, .6, .2, 1) 110ms;
+}
+
+.swap {
+    position: relative;
+    display: inline-grid;
+    max-width: 100%;
+}
+
+.swap > .swap-main,
+.swap > .swap-alt {
+    grid-area: 1 / 1;
+    min-width: 0;
+}
+
+.swap > .swap-main {
+    transition: var(--swap-in);
+}
+
+.swap > .swap-alt {
+    opacity: 0;
+    transform: translateY(var(--swap-dy));
+    pointer-events: none;
+    transition: var(--swap-out);
+}
+
+.is-swapped .swap > .swap-main,
+.swap.is-swapped > .swap-main {
+    opacity: 0;
+    transform: translateY(calc(-1 * var(--swap-dy)));
+    transition: var(--swap-out);
+}
+
+.is-swapped .swap > .swap-alt,
+.swap.is-swapped > .swap-alt {
+    opacity: 1;
+    transform: none;
+    transition: var(--swap-in);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .swap > .swap-main,
+    .swap > .swap-alt {
+        transform: none !important;
+    }
+}

@@ -27,6 +27,14 @@ import { mountTurnEndpoint } from "./lib/turn.js";
 import { mountLeaveBeaconEndpoint } from "./lib/leave-beacon.js";
 import { startGeo } from "./lib/privacy.js";
 import {
+    handleFriendPresence,
+    handleFriendRelay,
+    handleFriendInviteOpen,
+    handleFriendInviteClose,
+    handleFriendInviteUse,
+    handleFriendDisconnect,
+} from "./lib/friends.js";
+import {
     consumeToken,
     handleHello,
     handleCreateRoom,
@@ -490,6 +498,26 @@ wss.on("connection", (ws, req) => {
                     handleTurnRefresh(ws);
                     break;
 
+                case "fr-presence":
+                    handleFriendPresence(ws, data);
+                    break;
+
+                case "fr-relay":
+                    handleFriendRelay(ws, data);
+                    break;
+
+                case "fr-invite-open":
+                    handleFriendInviteOpen(ws, data);
+                    break;
+
+                case "fr-invite-close":
+                    handleFriendInviteClose(ws, data);
+                    break;
+
+                case "fr-invite-use":
+                    handleFriendInviteUse(ws, data);
+                    break;
+
                 default:
                     log.warn("ws", "unknown message type", { type: data.type, ip });
             }
@@ -513,6 +541,7 @@ wss.on("connection", (ws, req) => {
             log[level]("ws", "abnormal close", { ip, code, reason });
         }
         handleDisconnect(ws);
+        handleFriendDisconnect(ws);
     });
 });
 

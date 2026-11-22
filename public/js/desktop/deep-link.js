@@ -31,6 +31,23 @@
         });
     }
 
+    /* Приглашение в друзья (void://friend/<T>): тот же принцип — только
+       вопрос «принять?» (js/friends/ui.js), без клика ничего не уходит. */
+    function handleFriend(secret) {
+        if (!secret) return;
+        whenReady(() => window.VoidFriendsUI?.confirmFriendLink(secret));
+    }
+    if (window.__TAURI__.event) {
+        window.__TAURI__.event
+            .listen("void:deep-link-friend", (e) => handleFriend(e?.payload?.secret))
+            .catch((err) => console.warn("[deep-link] listen failed", err));
+    }
+    if (window.__TAURI__.core && window.__TAURI__.core.invoke) {
+        window.__TAURI__.core
+            .invoke("take_pending_friend_link")
+            .then((secret) => handleFriend(secret))
+            .catch((err) => console.warn("[deep-link] take pending friend failed", err));
+    }
     // Warm: ссылка прилетела во время работы приложения.
     if (window.__TAURI__.event) {
         window.__TAURI__.event

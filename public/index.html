@@ -49,6 +49,8 @@
     <link rel="stylesheet" href="css/titlebar.css">
     <link rel="stylesheet" href="css/updater-banner.css">
     <link rel="stylesheet" href="css/screen-lab.css">
+    <link rel="stylesheet" href="css/swap.css">
+    <link rel="stylesheet" href="css/friends.css">
 
 <link rel="icon" type="image/svg+xml" href="/static/favicon/favicon.svg" />
     <link rel="icon" type="image/png" href="/static/favicon/favicon-96x96.png" sizes="96x96" />
@@ -153,26 +155,17 @@
                     <span class="brand-mark">void</span>
                 </button>
             </div>
-            <button type="button" class="chat-toggle" id="chatToggleBtn" aria-pressed="false"
+            <button type="button" class="chat-toggle tbtn" id="chatToggleBtn" aria-pressed="false"
                 aria-expanded="false" aria-controls="chatPanel">
-                <span class="chat-toggle-stack" aria-hidden="true">
-                    <span class="chat-toggle-pane chat-toggle-pane--idle">
-                        <svg class="chat-toggle-icon-svg" viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M4 5h16v11H8l-4 4V5z" />
-                            <circle class="chat-toggle-dot" cx="9" cy="11" r="1.35" />
-                            <circle class="chat-toggle-dot" cx="13" cy="11" r="1.35" />
-                            <circle class="chat-toggle-dot" cx="17" cy="11" r="1.35" />
-                        </svg>
-                        <span class="chat-toggle-label" data-i18n="header.chat.label.idle">chat</span>
-                    </span>
-                    <span class="chat-toggle-pane chat-toggle-pane--open">
-                        <svg class="chat-toggle-icon-svg" viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M6 6l12 12" />
-                            <path d="M18 6L6 18" />
-                        </svg>
-                        <span class="chat-toggle-label" data-i18n="header.chat.label.open">close</span>
-                    </span>
+                <span class="tbtn-ic" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M4 5h16v11H8l-4 4V5z" />
+                        <circle class="chat-toggle-dot" cx="9" cy="10.5" r="1.1" />
+                        <circle class="chat-toggle-dot" cx="12" cy="10.5" r="1.1" />
+                        <circle class="chat-toggle-dot" cx="15" cy="10.5" r="1.1" />
+                    </svg>
                 </span>
+                <span aria-hidden="true" data-i18n="header.chat.label.idle">chat</span>
                 <span class="chat-toggle-badge" id="chatToggleBadge" aria-hidden="true"></span>
             </button>
         </header>
@@ -265,6 +258,10 @@
             <div class="chat-panel-inner">
                 <header class="chat-header">
                     <span class="chat-title" data-i18n="chat.title">chat</span>
+                    <button type="button" class="chat-close tbtn" id="chatCloseBtn" aria-label="close chat"
+                        data-i18n-attr="aria-label:header.chat.close">
+                        <span aria-hidden="true" data-i18n="chat.close">close</span>
+                    </button>
                 </header>
 
                 <div class="chat-messages" id="chatMessages" role="log" aria-live="polite"></div>
@@ -355,8 +352,14 @@
                 </svg>
                 <div class="invite-panel" id="invitePanel" aria-hidden="true" role="menu">
                     <div class="invite-code-row" id="inviteCopyCode" role="button" tabindex="0">
-                        <span class="invite-code-row-label" data-i18n="invite.code-label">комната:</span>
-                        <span class="invite-code-row-value" id="inviteCodeValue">XXXXX</span>
+                        <span class="invite-code-row-label" data-i18n="invite.code-label">комната</span>
+                        <span class="invite-code-row-copy">
+                            <svg class="invite-code-row-icon" viewBox="0 0 24 24" aria-hidden="true">
+                                <rect x="9" y="9" width="11" height="11" rx="1.4" />
+                                <path d="M5 15V5.5A1.5 1.5 0 0 1 6.5 4H15" />
+                            </svg>
+                            <span class="invite-code-row-value" id="inviteCodeValue">XXXXX</span>
+                        </span>
                         <span class="invite-row-copied" data-i18n="invite.copied">скопировано</span>
                     </div>
                     <button class="invite-link-btn" id="inviteCopyLink" type="button">
@@ -517,5 +520,9 @@
     <script defer src="js/app-settings.js"></script>
     <script defer src="js/desktop/updater.js"></script>
     <script defer src="js/desktop/whats-new.js"></script>
+    <script defer src="js/qr.js"></script>
+    <script defer src="js/friends/store.js"></script>
+    <script defer src="js/friends/net.js"></script>
+    <script defer src="js/friends/ui.js"></script>
 </body>
 </html>

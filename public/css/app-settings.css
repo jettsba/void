@@ -12,7 +12,7 @@
   padding: 0.71rem 0.86rem;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 0.57rem;
+  border-radius: 2px;
   color: var(--fg-2);
   font: inherit;
   font-size: 0.86rem;
@@ -78,7 +78,7 @@
   -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
   opacity: 0;
-  transition: opacity 180ms cubic-bezier(0.2, 0.6, 0.2, 1);
+  transition: opacity var(--t-med);
 }
 
 .app-modal-scrim.is-open {
@@ -91,12 +91,11 @@
   overflow-y: auto;
   background: var(--bg-1);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 0.71rem;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  border-radius: 2px;
   color: var(--fg);
   font-size: 0.86rem;
-  transform: translateY(8px) scale(0.98);
-  transition: transform 180ms cubic-bezier(0.2, 0.6, 0.2, 1);
+  transform: translateY(0.57rem);
+  transition: transform var(--t-med);
 }
 
 .app-modal-scrim.is-open .app-modal-card {
@@ -195,7 +194,7 @@
   align-items: center;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 0.43rem;
+  border-radius: 2px;
   padding: 2px;
   flex-shrink: 0;
 }
@@ -209,7 +208,7 @@
   text-transform: lowercase;
   color: var(--fg-3);
   cursor: pointer;
-  border-radius: 0.29rem;
+  border-radius: 2px;
   transition:
     background var(--t-fast),
     color var(--t-fast);
@@ -287,7 +286,7 @@
   padding: 0.43rem 0.71rem;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 0.36rem;
+  border-radius: 2px;
   color: var(--fg);
   font: inherit;
   font-size: 0.78rem;
@@ -325,7 +324,7 @@
   padding: 0.71rem 0.86rem;
   background: rgba(184, 122, 90, 0.08);
   border: 1px solid rgba(184, 122, 90, 0.2);
-  border-radius: 0.43rem;
+  border-radius: 2px;
   display: flex;
   align-items: flex-start;
   gap: 0.57rem;
@@ -1034,7 +1033,7 @@ html:not(.desktop) #settingsAppBtn {
   border-radius: 999px;
   border: 1px solid var(--fg-4);
   background: transparent;
-  transition: border-color 0.18s, background 0.18s;
+  transition: border-color var(--t-fast), background var(--t-fast);
 }
 
 .sc-switch-track::after {
@@ -1046,7 +1045,7 @@ html:not(.desktop) #settingsAppBtn {
   height: 0.86rem;
   border-radius: 50%;
   background: var(--fg-4);
-  transition: transform 0.18s, background 0.18s;
+  transition: transform var(--t-fast), background var(--t-fast);
 }
 
 .sc-switch input:checked + .sc-switch-track {

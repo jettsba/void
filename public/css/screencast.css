@@ -84,7 +84,7 @@
     opacity: 0;
     user-select: none;
     -webkit-user-select: none;
-    transition: opacity 0.2s ease;
+    transition: opacity var(--t-fast);
     white-space: nowrap;
 }
 
@@ -94,7 +94,7 @@
 }
 
 .participant-name {
-    transition: opacity 0.2s ease;
+    transition: opacity var(--t-fast);
 }
 
 .participant.screensharing.blob-active .participant-name {
@@ -158,7 +158,7 @@
     justify-content: center;
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.2s ease;
+    transition: opacity var(--t-fast);
 }
 
 /* Demo runs edge to edge, under the desktop titlebar too: while it is open
@@ -225,7 +225,7 @@ html.desktop.screen-native-fs .void-titlebar {
     gap: 12px;
     pointer-events: none;
     opacity: 0;
-    transition: opacity 320ms cubic-bezier(.2, .6, .2, 1);
+    transition: opacity var(--t-med);
 }
 .screen-overlay.is-waiting .screen-overlay-loading {
     opacity: 1;

@@ -219,7 +219,11 @@
         `;
         scrim.appendChild(card);
         document.body.appendChild(scrim);
-        requestAnimationFrame(() => scrim.classList.add("is-open"));
+        /* Force the closed state to be styled first: a modal opened from a
+           click that also changes other styles (blob → profile) otherwise
+           gets is-open in the same style pass and pops in with no fade. */
+        void scrim.offsetWidth;
+        scrim.classList.add("is-open");
 
         scrim.addEventListener("click", (e) => {
             if (e.target === scrim) closeModalIfAny();
@@ -232,11 +236,15 @@
     function closeModalIfAny() {
         const scrim = document.getElementById("appModalScrim");
         if (!scrim) return;
+        /* The fading scrim gives up its id at once: a modal opened right
+           after (profile → profile) must not be mistaken for this one. */
+        scrim.removeAttribute("id");
+        scrim.style.pointerEvents = "none";
         scrim.classList.remove("is-open");
         document.removeEventListener("keydown", escClose);
         appModalCleanups.forEach((un) => { try { un(); } catch (_) {} });
         appModalCleanups = [];
-        setTimeout(() => scrim.remove(), 180);
+        setTimeout(() => scrim.remove(), 320);
     }
 
     function escClose(e) {
@@ -246,7 +254,12 @@
     /* Генерик-шелл модалки наружу: им же пользуется «что нового»
        (js/desktop/whats-new.js). Один шелл на всех потребителей — один
        визуальный стандарт и одна реализация Esc/клика по scrim'у. */
-    window.VoidAppModal = { open: openModal, close: closeModalIfAny };
+    window.VoidAppModal = {
+        open: openModal,
+        close: closeModalIfAny,
+        /* Run fn when the current modal closes (once). */
+        onClose: (fn) => appModalCleanups.push(fn),
+    };
 
     // -------------------- Hotkeys modal --------------------
 

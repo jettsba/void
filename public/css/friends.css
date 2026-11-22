@@ -1,0 +1,1745 @@
+/* ===== Friends: bottom bar, panel / bottom sheet, rows, .sx choice, modals =====
+   Design guide (rules/VOID_STYLE_GUIDE.md): grayscale, 2px radius on
+   rectangles, round only for blobs and status dots, no shadows, motion =
+   fades and ≤ 8px shifts on one axis, one curve. Everything that moves
+   together uses var(--t-med), so it starts and finishes together. */
+
+.friends {
+    --fbar-w: 21.43rem;
+    --fhead-h: 2.29rem;
+    /* The icon's ink starts 0.11rem inside the button box (svg padding,
+       measured): the box steps out by it, so the INK stands --edge-btn from
+       the left. Its bottom: the footer row height (app.css). */
+    --fic-x: 0.11rem;
+    position: absolute;
+    left: calc(var(--edge-btn) - var(--fic-x));
+    bottom: 0;
+    height: var(--footer-row-h);
+    display: flex;
+    align-items: center;
+    z-index: 6;
+}
+
+.fbar-wrap {
+    position: relative;
+}
+
+/* ---------- footer label «друзья · N» (.tbtn, base.css) ----------
+   Open, it fades out under the panel, which fades in with its own tabs. */
+.fbar-pill {
+    position: relative;
+    z-index: 2;
+    transition: color var(--t-fast), opacity var(--t-med);
+}
+
+.friends.is-open .fbar-pill {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.fbar-tab-friends .fbar-count {
+    display: none;
+}
+
+.fbar-count {
+    margin-left: 0.43rem;
+}
+
+.fbar-count:empty {
+    display: none;
+}
+
+.fbar-dot {
+    position: absolute;
+    top: 0.43rem;
+    left: 0.9rem;
+    width: 5px;
+    height: 5px;
+    border-radius: 999px;
+    background: var(--fg);
+    opacity: 0;
+    transition: opacity var(--t-fast);
+}
+
+.friends.has-requests:not(.is-open) .fbar-dot {
+    opacity: 1;
+}
+
+/* ---------- tab row at the bottom of the panel: [друзья | заявки] + "+" ----------
+   It lies exactly over the footer label (same height, same text, same x), so
+   opening reads as "the label became a tab and the panel grew above it".
+   Active tab = a quiet bg-2 field with white text: a full white fill on
+   segments this wide is too loud. */
+.friends-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) var(--fhead-h);
+    height: var(--fhead-h);
+    border-top: 1px solid var(--fg-4);
+    box-sizing: content-box;
+}
+
+.fbar-seg {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    padding: 0 0.43rem;
+    background: transparent;
+    border: 0;
+    border-left: 1px solid var(--fg-4);
+    color: var(--fg-3);
+    font: inherit;
+    font-size: 0.79rem;
+    letter-spacing: var(--tracking-wide);
+    text-transform: lowercase;
+    white-space: nowrap;
+    overflow: hidden;
+    cursor: pointer;
+    transition: color var(--t-fast), background var(--t-fast);
+}
+
+/* Centre the ink, not the box: drop the trailing letter-spacing. */
+.fbar-seg .fbar-label {
+    margin-right: calc(-1 * var(--tracking-wide));
+}
+
+.fbar-seg:first-child {
+    border-left: 0;
+}
+
+.fbar-seg:hover,
+.fbar-seg:focus-visible {
+    outline: none;
+    color: var(--fg);
+}
+
+.fbar-seg[aria-selected="true"] {
+    background: var(--bg-2);
+    color: var(--fg);
+}
+
+.fbar-seg:active {
+    background: var(--bg-2);
+}
+
+.fbar-add {
+    justify-content: center;
+    padding: 0;
+}
+
+.fbar-add svg {
+    flex: 0 0 auto;
+    width: 1.07rem;
+    height: 1.07rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.4;
+    stroke-linecap: round;
+}
+
+.fbar-badge {
+    margin-left: calc(0.43rem + 0.18em);
+    letter-spacing: 0;
+}
+
+.fbar-badge:empty {
+    display: none;
+}
+
+/* ---------- panel ----------
+   Mirror of the chat panel: fade + an 8px glide in from the left edge it is
+   pinned to (chat glides in from the right), over the label fading out. */
+.friends-pop {
+    position: absolute;
+    z-index: 1;
+    /* --edge from the left (= the label's own x) and from the bottom of the
+       window: the label row is centred in the footer row, so the panel's
+       bottom is set against it. */
+    /* The panel keeps --edge (a step nearer the edge than the label). */
+    left: calc(var(--edge) - var(--edge-btn) + var(--fic-x));
+    bottom: calc(var(--edge) - (var(--footer-row-h) - var(--fhead-h)) / 2);
+    width: var(--fbar-w);
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-1);
+    border: 1px solid var(--fg-4);
+    border-radius: 2px;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(-0.57rem);
+    transition: opacity var(--t-med), transform var(--t-med);
+    text-transform: none;
+    letter-spacing: var(--tracking);
+}
+
+.friends.is-open .friends-pop {
+    opacity: 1;
+    pointer-events: auto;
+    transform: none;
+}
+
+.friends-scrim,
+.friends-grip {
+    display: none;
+}
+
+/* Both panes are stacked; the box height follows the active one. */
+.friends-panes {
+    position: relative;
+    height: 6rem;
+    max-height: min(26rem, calc(100vh - var(--hdr-h) - var(--footer-row-h) - 1.5rem));
+    overflow: hidden;
+    transition: height var(--t-med);
+}
+
+.friends-panes.is-instant,
+.friends-panes.is-instant .friends-pane {
+    transition: none;
+}
+
+.friends-pane {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    max-height: inherit;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--fg-4) transparent;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition:
+        opacity var(--t-med),
+        transform var(--t-med),
+        visibility 0s linear var(--t-med);
+}
+
+/* Friends lies left of requests: switching slides 8px the way the tabs lie. */
+.friends-pane[data-pane="friends"] { transform: translateX(-0.57rem); }
+.friends-pane[data-pane="requests"] { transform: translateX(0.57rem); }
+
+.friends[data-tab="friends"] .friends-pane[data-pane="friends"],
+.friends[data-tab="requests"] .friends-pane[data-pane="requests"] {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: none;
+    transition: opacity var(--t-med), transform var(--t-med), visibility 0s;
+}
+
+.friends-list,
+.fr-req-list {
+    list-style: none;
+    margin: 0;
+    padding: 0.29rem;
+}
+
+.friends-empty {
+    display: flex;
+    flex-direction: column;
+    gap: 0.29rem;
+    padding: 1.14rem 1.14rem 1.29rem;
+    color: var(--fg-2);
+    font-size: 0.86rem;
+    line-height: 1.5;
+}
+
+.friends-empty-hint {
+    color: var(--fg-3);
+    font-size: 0.79rem;
+}
+
+/* ---------- rows: flat lines, hover = one background step ---------- */
+.fr-row,
+.fr-req {
+    display: flex;
+    align-items: center;
+    gap: 0.29rem;
+    border-radius: 2px;
+    transition: background var(--t-fast);
+}
+
+.fr-row:hover,
+.fr-row:focus-within {
+    background: var(--bg-2);
+}
+
+.fr-row {
+    padding-right: 0.43rem;
+}
+
+.fr-req {
+    gap: 0.71rem;
+    padding: 0.5rem 0.43rem 0.5rem 0.71rem;
+}
+
+.fr-main {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.71rem;
+    padding: 0.5rem 0.71rem;
+    background: none;
+    border: 0;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.fr-main:focus-visible {
+    outline: none;
+}
+
+.fr-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.14rem;
+}
+
+.fr-name {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    color: var(--fg-2);
+    font-size: 0.86rem;
+}
+
+.fr-row.is-online .fr-name,
+.fr-req:not(.is-out) .fr-name {
+    color: var(--fg);
+}
+
+.fr-status {
+    color: var(--fg-3);
+    font-size: 0.71rem;
+    letter-spacing: var(--tracking);
+    white-space: nowrap;
+}
+
+.fr-status .swap-main,
+.fr-status .swap-alt {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.fr-row.is-swapped .fr-status .swap-alt {
+    color: var(--fg-2);
+}
+
+/* Mini blob: the room's participant blob in small. Offline = dimmed out. */
+.fr-blob {
+    position: relative;
+    flex: 0 0 auto;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    border: 1px solid rgba(230, 230, 232, 0.16);
+    background: radial-gradient(circle at 50% 50%, rgba(230, 230, 232, 0.07) 0%, rgba(230, 230, 232, 0.02) 55%, transparent 75%);
+    opacity: 0.32;
+    transition: opacity var(--t-med), border-color var(--t-med);
+}
+
+.fr-blob::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 18%;
+    height: 18%;
+    border-radius: 50%;
+    background: var(--fg-3);
+    transform: translate(-50%, -50%);
+    transition: background var(--t-med);
+}
+
+.fr-blob.is-online {
+    opacity: 1;
+    border-color: rgba(230, 230, 232, 0.26);
+}
+
+.fr-blob.is-online::before {
+    background: var(--fg-2);
+}
+
+.fr-blob--big {
+    width: 3.43rem;
+    height: 3.43rem;
+}
+
+.fr-blob--big::before {
+    width: 16%;
+    height: 16%;
+}
+
+/* Icon buttons: join / lock / accept / decline. */
+.fr-act {
+    flex: 0 0 auto;
+    width: 2.29rem;
+    height: 2.29rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 1px solid var(--fg-4);
+    border-radius: 2px;
+    color: var(--fg-2);
+    cursor: pointer;
+    transition: color var(--t-fast), border-color var(--t-fast), background var(--t-fast);
+}
+
+.fr-act svg,
+.fr-btn > svg,
+.sx-sq svg,
+.fr-mytag > svg {
+    flex: 0 0 auto;
+    width: 1.07rem;
+    height: 1.07rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.fr-act:hover,
+.fr-act:focus-visible {
+    color: var(--fg);
+    border-color: var(--fg-2);
+    outline: none;
+}
+
+.fr-act:active {
+    background: var(--bg-1);
+}
+
+.fr-act.is-locked {
+    opacity: 0.4;
+    cursor: default;
+}
+
+.fr-act.is-locked:hover {
+    color: var(--fg-2);
+    border-color: var(--fg-4);
+}
+
+.fr-act.is-warn:hover,
+.fr-act.is-warn:focus-visible {
+    color: var(--signal-warn);
+    border-color: var(--signal-warn);
+}
+
+.fr-act.is-static {
+    border-color: transparent;
+    color: var(--fg-3);
+    cursor: default;
+}
+
+.fr-req-head {
+    padding: 0.86rem 1rem 0.14rem;
+    color: var(--fg-3);
+    font-size: 0.71rem;
+    letter-spacing: var(--tracking-wide);
+    text-transform: lowercase;
+}
+
+.fr-req-head + .fr-req-list {
+    padding-top: 0.14rem;
+}
+
+/* ---------- buttons (guide: 36px, 12px / 0.18em, lowercase) ---------- */
+.fr-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.57rem;
+    min-height: 2.57rem;
+    padding: 0 1.29rem;
+    background: transparent;
+    border: 1px solid var(--fg-4);
+    border-radius: 2px;
+    color: var(--fg);
+    font: inherit;
+    font-size: 0.79rem;
+    letter-spacing: var(--tracking-wide);
+    text-transform: lowercase;
+    cursor: pointer;
+    transition: border-color var(--t-fast), color var(--t-fast), background var(--t-fast);
+}
+
+.fr-btn:hover,
+.fr-btn:focus-visible {
+    border-color: var(--fg-2);
+    outline: none;
+}
+
+.fr-btn:active {
+    background: var(--bg-1);
+}
+
+.fr-btn:disabled {
+    color: var(--fg-3);
+    border-color: var(--fg-4);
+    background: transparent;
+    cursor: default;
+}
+
+.fr-btn.is-primary {
+    background: var(--fg);
+    border-color: var(--fg);
+    color: var(--bg-0);
+}
+
+.fr-btn.is-primary:hover,
+.fr-btn.is-primary:focus-visible {
+    background: #fff;
+}
+
+.fr-btn.is-ghost {
+    border-color: transparent;
+    color: var(--fg-3);
+}
+
+.fr-btn.is-ghost:hover,
+.fr-btn.is-ghost:focus-visible {
+    color: var(--fg-2);
+    background: transparent;
+}
+
+.fr-btn.is-warn {
+    color: var(--fg-2);
+}
+
+.fr-btn.is-warn:hover,
+.fr-btn.is-warn:focus-visible,
+.fr-btn.is-warn.is-swapped {
+    color: var(--signal-warn);
+    border-color: var(--signal-warn);
+}
+
+.fr-btn--wide {
+    width: 100%;
+}
+
+/* ---------- .sx: equal buttons → the chosen one grows into a field ----------
+   Columns are written inline by sxColumns(): minmax(0, 1fr) each, 0fr for the
+   ones that give way, the last one is the square action (0 → --sx-h). */
+.sx {
+    --sx-h: 2.86rem;
+    --sx-gap: 0.57rem;
+    display: flex;
+    flex-direction: column;
+}
+
+.sx-line {
+    display: grid;
+    height: var(--sx-h);
+    transition: grid-template-columns var(--t-med), height var(--t-med);
+}
+
+.sx-cell {
+    position: relative;
+    min-width: 0;
+    margin-left: var(--sx-gap);
+    border: 1px solid var(--fg-4);
+    border-radius: 2px;
+    background: transparent;
+    overflow: hidden;
+    transition:
+        margin var(--t-med),
+        border-color var(--t-fast),
+        background var(--t-med),
+        opacity var(--t-med);
+}
+
+.sx-cell:first-child,
+.sx:not([data-mode=""]) .sx-cell {
+    margin-left: 0;
+}
+
+.sx-cell[data-state="gone"] {
+    opacity: 0;
+    pointer-events: none;
+    transition:
+        margin var(--t-med),
+        border-color var(--t-fast),
+        background var(--t-med),
+        opacity var(--t-fast);
+}
+
+.sx:not([data-mode]) .sx-cell:hover,
+.sx[data-mode=""] .sx-cell:hover,
+.sx[data-mode=""] .sx-cell:focus-within {
+    border-color: var(--fg-2);
+}
+
+.sx-cell[data-state="open"] {
+    background: var(--bg-1);
+}
+
+.sx-cell[data-state="open"]:focus-within {
+    border-color: var(--fg-2);
+    background: var(--bg-2);
+}
+
+.sx-btn,
+.sx-face {
+    position: absolute;
+    inset: 0;
+}
+
+.sx-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 0.86rem;
+    background: none;
+    border: 0;
+    color: var(--fg);
+    font: inherit;
+    cursor: pointer;
+    transition: var(--swap-in);
+}
+
+.sx-btn:focus-visible {
+    outline: none;
+}
+
+.sx-btn:active {
+    background: var(--bg-1);
+}
+
+.sx-btn-in {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.57rem;
+    min-width: 0;
+    font-size: 0.79rem;
+    letter-spacing: var(--tracking-wide);
+    text-transform: lowercase;
+    white-space: nowrap;
+}
+
+.sx-ic {
+    display: inline-flex;
+    flex: 0 0 auto;
+    color: var(--fg-2);
+    transition: color var(--t-fast);
+}
+
+.sx-ic svg {
+    width: 1.14rem;
+    height: 1.14rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.sx-cell:hover .sx-btn .sx-ic {
+    color: var(--fg);
+}
+
+.sx-hint {
+    display: none;
+}
+
+/* The idle face leaves the way the cell grows; the field arrives from the
+   opposite side — the eye reads it as one thing stretching. */
+.sx-cell[data-state="open"] .sx-btn,
+.sx-cell[data-state="gone"] .sx-btn {
+    opacity: 0;
+    pointer-events: none;
+    transition: var(--swap-out);
+}
+
+.sx[data-dir="right"] .sx-cell[data-state="open"] .sx-btn { transform: translateX(-0.57rem); }
+.sx[data-dir="left"] .sx-cell[data-state="open"] .sx-btn { transform: translateX(0.57rem); }
+.sx[data-dir="both"] .sx-cell[data-state="open"] .sx-btn { transform: translateY(calc(-1 * var(--swap-dy))); }
+
+.sx-face {
+    display: flex;
+    align-items: center;
+    opacity: 0;
+    transform: translateY(var(--swap-dy));
+    pointer-events: none;
+    transition: var(--swap-out);
+}
+
+.sx-cell[data-state="open"] .sx-face {
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+    transition: var(--swap-in);
+}
+
+.sx-input,
+.sx-text {
+    width: 100%;
+    height: 100%;
+    padding: 0 0.86rem;
+    background: transparent;
+    border: 0;
+    color: var(--fg);
+    font: inherit;
+    font-size: 0.93rem;
+    letter-spacing: 0.06em;
+}
+
+.sx-input:focus {
+    outline: none;
+}
+
+.sx-input::placeholder {
+    color: var(--fg-3);
+}
+
+.sx-text {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.57rem;
+    min-width: 0;
+    text-align: center;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.sx-text:focus-visible {
+    outline: none;
+}
+
+.sx-text .swap {
+    min-width: 0;
+    justify-items: center;
+    /* The track may shrink below the text: a long link ends in «…» inside
+       the field's padding instead of running to its edges. */
+    grid-template-columns: minmax(0, auto);
+}
+
+.sx-text .swap {
+    position: relative;
+}
+
+.sx-copy-ic {
+    position: absolute;
+    top: 50%;
+    right: calc(100% + 0.57rem);
+    transform: translateY(-50%);
+    display: inline-flex;
+    flex: 0 0 auto;
+    color: var(--fg-3);
+    transition: color var(--t-fast), opacity var(--t-fast);
+}
+
+.sx-copy-ic svg {
+    width: 0.93rem;
+    height: 0.93rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.sx-text:hover .sx-copy-ic,
+.sx-text:focus-visible .sx-copy-ic {
+    color: var(--fg-2);
+}
+
+.sx-text.is-swapped .sx-copy-ic {
+    opacity: 0;
+}
+
+/* Masked code field: typed characters replace the grey X one by one. The
+   input text is transparent (caret and selection stay native); the view
+   under it draws the same characters in the same metrics. */
+.sx-mask {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.sx-mask .sx-input,
+.sx-mask-view {
+    position: absolute;
+    inset: 0;
+    padding: 0 calc(50% - 10.5ch);
+    font: inherit;
+    font-size: 0.93rem;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.06em;
+    white-space: pre;
+}
+
+.sx-mask .sx-input {
+    color: transparent;
+    caret-color: var(--fg);
+}
+
+.sx-mask .sx-input::selection {
+    background: var(--fg-4);
+}
+
+.sx-mask-view {
+    display: flex;
+    align-items: center;
+    pointer-events: none;
+}
+
+.sx-mask-typed { color: var(--fg); }
+.sx-mask-rest { color: var(--fg-3); }
+
+.sx-note.sx-err {
+    color: var(--signal-warn);
+}
+
+/* Code error: folds open (rows 0fr → 1fr + fade, one duration). Folded, its
+   negative bottom margin eats the pane gap, so nothing below moves; open, it
+   pulls up a little so the air above and below the line is the same. */
+.sx-err-wrap {
+    display: grid;
+    grid-template-rows: 0fr;
+    margin-bottom: -0.86rem;
+    opacity: 0;
+    transition:
+        grid-template-rows var(--t-med),
+        margin var(--t-med),
+        opacity var(--t-med);
+}
+
+.sx-err-wrap > .sx-err {
+    min-height: 0;
+    overflow: hidden;
+}
+
+.sx-err-wrap.is-shown {
+    grid-template-rows: 1fr;
+    margin-top: -0.29rem;
+    margin-bottom: 0;
+    opacity: 1;
+}
+
+.fr-prof-status.is-warn {
+    color: var(--signal-warn);
+}
+
+.sx-text .swap-main {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sx-text .swap-alt {
+    font-size: 0.79rem;
+    letter-spacing: var(--tracking-wide);
+}
+
+.sx-flabel {
+    display: flex;
+    align-items: center;
+    gap: 0.57rem;
+    width: 100%;
+    min-width: 0;
+    padding: 0 0.86rem;
+    font-size: 0.79rem;
+    letter-spacing: var(--tracking-wide);
+    text-transform: lowercase;
+    white-space: nowrap;
+}
+
+.sx-flabel-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--fg);
+}
+
+.sx-fmeta {
+    flex: 0 0 auto;
+    color: var(--fg-3);
+    font-size: 0.71rem;
+    letter-spacing: var(--tracking);
+}
+
+.sx-sq {
+    min-width: 0;
+    height: var(--sx-h);
+    margin-left: 0;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 2px;
+    color: var(--fg-2);
+    opacity: 0;
+    pointer-events: none;
+    cursor: pointer;
+    transition:
+        margin var(--t-med),
+        opacity var(--t-med),
+        border-color var(--t-med),
+        color var(--t-fast),
+        background var(--t-fast);
+}
+
+.sx-sq[tabindex="0"] {
+    margin-left: var(--sx-gap);
+    border-color: var(--fg-4);
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.sx-sq:hover,
+.sx-sq:focus-visible {
+    color: var(--fg);
+    border-color: var(--fg-2);
+    outline: none;
+}
+
+.sx-sq:active {
+    background: var(--bg-1);
+}
+
+.sx-sq.is-on {
+    color: var(--fg);
+    border-color: var(--fg-3);
+}
+
+.sx-panel {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows var(--t-med);
+}
+
+.sx:not([data-mode=""]) .sx-panel {
+    grid-template-rows: 1fr;
+}
+
+.sx-panel-inner {
+    min-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    transform: translateY(-0.29rem);
+    transition: opacity var(--t-med), transform var(--t-med);
+}
+
+.sx:not([data-mode=""]) .sx-panel-inner {
+    opacity: 1;
+    transform: none;
+}
+
+.sx-pane {
+    display: none;
+}
+
+.sx-pane.is-shown {
+    display: flex;
+    flex-direction: column;
+    gap: 0.86rem;
+    padding-top: 1.14rem;
+}
+
+.sx-pane:empty {
+    padding-top: 0;
+}
+
+/* Cancel sits right under the content: no box of empty air below it. */
+.sx-cancel {
+    display: flex;
+    justify-content: center;
+    padding-top: 0.57rem;
+    /* The card's bottom padding already sits under it: pull into it so the
+       air above and below the word is the same. */
+    margin-bottom: -0.57rem;
+}
+
+.sx-cancel .fr-btn {
+    min-height: 2.29rem;
+}
+
+.sx-note {
+    margin: 0;
+    color: var(--fg-3);
+    font-size: 0.71rem;
+    line-height: 1.55;
+    letter-spacing: var(--tracking);
+}
+
+.sx-note:empty {
+    display: none;
+}
+
+.sx-note.is-center {
+    text-align: center;
+}
+
+/* Tiles: taller cards with icon, label and hint — the add modal. The row
+   shrinks to field height while the chosen tile stretches over the others. */
+.sx--tiles .sx-line {
+    height: 7.14rem;
+}
+
+.sx--tiles:not([data-mode=""]) .sx-line {
+    height: var(--sx-h);
+}
+
+.sx--tiles .sx-btn-in {
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.sx--tiles .sx-ic svg {
+    width: 1.43rem;
+    height: 1.43rem;
+}
+
+.sx--tiles .sx-label {
+    margin-top: 0.29rem;
+    color: var(--fg);
+}
+
+.sx--tiles .sx-hint {
+    display: block;
+    color: var(--fg-3);
+    font-size: 0.71rem;
+    letter-spacing: var(--tracking);
+}
+
+.sx--tiles .sx-face {
+    align-items: center;
+}
+
+/* ---------- add modal panes ---------- */
+.fr-mine {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.86rem;
+    padding: 0.71rem 0.86rem;
+    border: 1px solid var(--fg-4);
+    border-radius: 2px;
+}
+
+.fr-mine-label {
+    color: var(--fg-3);
+    font-size: 0.71rem;
+    letter-spacing: var(--tracking-wide);
+    text-transform: lowercase;
+}
+
+.fr-mytag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+    padding: 0;
+    background: none;
+    border: 0;
+    color: var(--fg);
+    font: inherit;
+    font-size: 0.86rem;
+    cursor: pointer;
+}
+
+.fr-mytag > svg {
+    width: 0.93rem;
+    height: 0.93rem;
+    color: var(--fg-3);
+    transition: color var(--t-fast), opacity var(--t-fast);
+}
+
+.fr-mytag:hover > svg,
+.fr-mytag:focus-visible > svg {
+    color: var(--fg-2);
+}
+
+.fr-mytag.is-swapped > svg {
+    opacity: 0;
+}
+
+.fr-mytag:focus-visible {
+    outline: none;
+}
+
+.fr-mytag .swap-alt,
+.fr-prof-tag .swap-alt {
+    color: var(--fg-2);
+    font-size: 0.79rem;
+    letter-spacing: var(--tracking-wide);
+}
+
+/* "nick#0198": the code a step paler. */
+.fr-tag {
+    display: inline-flex;
+    align-items: baseline;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.fr-tag-nick {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.fr-tag-code {
+    flex: 0 0 auto;
+    color: var(--fg-3);
+    transition: color var(--t-fast);
+}
+
+/* ---------- qr: drawn top-down behind a scan line ---------- */
+.fr-qr {
+    position: relative;
+    width: min(13rem, 100%);
+    aspect-ratio: 1;
+    margin: 0 auto;
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.fr-qr-inner {
+    width: 100%;
+    height: 100%;
+    clip-path: inset(0 0 100% 0);
+    transition: clip-path var(--t-slow);
+}
+
+.fr-qr.is-drawn .fr-qr-inner {
+    clip-path: inset(0 0 0 0);
+}
+
+.fr-qr-svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+
+.fr-qr-scanline {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 1px;
+    background: var(--fg);
+    opacity: 0;
+    transition: top var(--t-slow);
+}
+
+.fr-qr.is-drawn .fr-qr-scanline {
+    top: 100%;
+    animation: fr-scanline-fade 800ms cubic-bezier(.2, .6, .2, 1);
+}
+
+@keyframes fr-scanline-fade {
+    0% { opacity: 1; }
+    80% { opacity: 1; }
+    100% { opacity: 0; }
+}
+
+/* Transfer qr folds out under the code on the square button. */
+.fr-qr-wrap {
+    display: grid;
+    grid-template-rows: 0fr;
+    overflow: hidden;
+    pointer-events: none;
+    transition: grid-template-rows var(--t-med);
+}
+
+.fr-qr-wrap > .fr-qr {
+    min-height: 0;
+}
+
+.fr-qr-wrap.is-open {
+    grid-template-rows: 1fr;
+    pointer-events: auto;
+}
+
+.sx-pane .fr-qr-wrap:not(.is-open) {
+    margin-top: -0.86rem;
+}
+
+/* ---------- camera scanner ---------- */
+.fr-scan {
+    position: fixed;
+    inset: 0;
+    z-index: 400;
+    background: #000;
+    opacity: 0;
+    transition: opacity var(--t-med);
+}
+
+.fr-scan.is-open {
+    opacity: 1;
+}
+
+.fr-scan-video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.fr-scan-frame {
+    position: absolute;
+    left: 50%;
+    top: 46%;
+    width: min(64vmin, 18rem);
+    aspect-ratio: 1;
+    transform: translate(-50%, -50%);
+}
+
+.fr-scan-frame i {
+    position: absolute;
+    width: 1.43rem;
+    height: 1.43rem;
+    border: 0 solid var(--fg);
+}
+
+.fr-scan-frame i:nth-child(1) { left: 0; top: 0; border-width: 1px 0 0 1px; }
+.fr-scan-frame i:nth-child(2) { right: 0; top: 0; border-width: 1px 1px 0 0; }
+.fr-scan-frame i:nth-child(3) { left: 0; bottom: 0; border-width: 0 0 1px 1px; }
+.fr-scan-frame i:nth-child(4) { right: 0; bottom: 0; border-width: 0 1px 1px 0; }
+
+.fr-scan-line {
+    position: absolute;
+    left: 6%;
+    right: 6%;
+    top: 8%;
+    height: 1px;
+    background: var(--fg);
+    opacity: 0.6;
+    animation: fr-scan-sweep 2.4s cubic-bezier(.2, .6, .2, 1) infinite alternate;
+}
+
+@keyframes fr-scan-sweep {
+    to { top: 92%; }
+}
+
+.fr-scan-hint {
+    position: absolute;
+    left: 1rem;
+    right: 1rem;
+    bottom: calc(2.29rem + env(safe-area-inset-bottom, 0px));
+    margin: 0;
+    color: var(--fg);
+    font-size: 0.79rem;
+    letter-spacing: var(--tracking-wide);
+    text-align: center;
+    text-transform: lowercase;
+}
+
+.fr-scan-close {
+    position: absolute;
+    top: calc(1rem + env(safe-area-inset-top, 0px));
+    right: 1rem;
+    width: 2.57rem;
+    height: 2.57rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(10, 10, 11, 0.6);
+    border: 1px solid var(--fg-4);
+    border-radius: 2px;
+    color: var(--fg);
+    cursor: pointer;
+}
+
+.fr-scan-close svg {
+    width: 1.07rem;
+    height: 1.07rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.4;
+    stroke-linecap: round;
+}
+
+/* ---------- participant blob: "more" dots ----------
+   Active blob (volume arc open): the centre dot gives a little and splits
+   into three in a row — "click again for more" (= profile). Closing folds
+   them back into the dot along the same path. */
+.blob-more {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+}
+
+.blob-more i {
+    position: absolute;
+    left: -0.21rem;
+    top: -0.21rem;
+    width: 0.43rem;
+    height: 0.43rem;
+    border-radius: 50%;
+    background: var(--fg-2);
+    opacity: 0;
+    transform: none;
+    transition: transform var(--t-med), opacity var(--t-med);
+}
+
+.participant.blob-active .blob-more i {
+    opacity: 1;
+}
+
+.participant.blob-active .blob-more i:nth-child(1) { transform: translateX(-0.86rem); }
+.participant.blob-active .blob-more i:nth-child(3) { transform: translateX(0.86rem); }
+
+.participant-avatar::before {
+    transition: transform var(--t-med), background var(--t-fast), box-shadow var(--t-med), opacity var(--t-med);
+}
+
+.participant.blob-active .participant-avatar::before {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.6);
+}
+
+/* A muted / deaf blob shows its state icon in the centre: it shrinks into the
+   middle while the dots spread, and grows back as they fold in. On a muted
+   blob the dots fade quicker on the way back, so the icon and the dots never
+   overlap at full strength in the centre. */
+.participant .participant-state-icon {
+    transition: opacity var(--t-med), transform var(--t-med);
+}
+
+.participant.blob-active .participant-state-icon {
+    opacity: 0 !important;
+    transform: translate(-50%, -50%) scale(0.5) !important;
+}
+
+.participant.muted:not(.blob-active) .blob-more i {
+    transition: transform var(--t-med), opacity var(--t-fast);
+}
+
+/* ---------- modals (VoidAppModal shell; body already has the padding) ---------- */
+.fr-modal--small {
+    width: min(26rem, 100%);
+}
+
+.fr-modal .app-modal-body {
+    gap: 0;
+}
+
+.fr-prof,
+.fr-confirm {
+    display: flex;
+    flex-direction: column;
+    gap: 1.43rem;
+}
+
+.fr-prof-top {
+    display: flex;
+    align-items: center;
+    gap: 1.14rem;
+    padding: 1.29rem;
+    background: var(--bg-1);
+    border: 1px solid var(--fg-4);
+    border-radius: 2px;
+}
+
+.fr-prof-top .fr-blob--big {
+    width: 4.29rem;
+    height: 4.29rem;
+}
+
+.fr-prof-id {
+    display: flex;
+    flex-direction: column;
+    gap: 0.36rem;
+    min-width: 0;
+    transition: var(--swap-in);
+}
+
+/* Label change: same motion as the own nick in settings (.profile-name). */
+.fr-prof-id.is-swapping {
+    opacity: 0;
+    transform: translateY(calc(-1 * var(--swap-dy)));
+    transition: var(--swap-out);
+}
+
+.fr-prof-name {
+    min-width: 0;
+    color: var(--fg);
+    font-size: 1.29rem;
+    letter-spacing: var(--tracking);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.fr-prof-sub {
+    display: flex;
+    align-items: baseline;
+    gap: 0.43rem;
+    min-width: 0;
+    color: var(--fg-3);
+    font-size: 0.79rem;
+    letter-spacing: var(--tracking);
+    white-space: nowrap;
+}
+
+.fr-prof-status {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.fr-prof-tag {
+    min-width: 0;
+    max-width: 100%;
+    padding: 0;
+    background: none;
+    border: 0;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.fr-prof-tag.is-static {
+    cursor: default;
+}
+
+.fr-prof-tag:focus-visible {
+    outline: none;
+}
+
+.fr-prof-tag .swap {
+    min-width: 0;
+}
+
+/* «скопировано» sits on the middle of the nick, not on its left edge: a
+   zero-width box centred in the nick's track, the word spills out evenly. */
+.fr-prof-tag .swap-alt {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    justify-self: center;
+    /* Vertically on the middle of the nick line, as in the own profile
+       (.profile-tag .swap-alt): the grid row is the 1.29rem nick's height. */
+    align-self: center;
+    width: 0;
+    white-space: nowrap;
+}
+
+/* As in the own profile: a hair of air before "#0198", the code a size
+   smaller than the nick. */
+/* Bottom-aligned, not flex «baseline» — see .profile-tag-line (settings.css). */
+.fr-prof-name .fr-tag {
+    align-items: flex-end;
+}
+
+.fr-prof-name .fr-tag-nick,
+.fr-prof-name .fr-tag-code {
+    line-height: normal;
+}
+
+.fr-prof-name .fr-tag-code {
+    margin-left: 0.29rem;
+    margin-bottom: calc((1.29rem - 1.07rem) * 0.3);
+    font-size: 1.07rem;
+}
+
+.fr-prof-tag:hover .fr-tag-code,
+.fr-prof-tag:focus-visible .fr-tag-code {
+    color: var(--fg-2);
+}
+
+.fr-prof-tag.is-sub {
+    flex-shrink: 0;
+    max-width: 60%;
+    color: var(--fg-3);
+}
+
+/* Nick and code are one colour here and change as one: the code inherits
+   the button's (already transitioning) colour, with no transition of its
+   own — two transitions in a row made it trail behind the nick. */
+.fr-prof-tag.is-sub .fr-tag-code {
+    color: inherit;
+    transition: none;
+}
+
+.fr-prof-tag.is-sub:hover,
+.fr-prof-tag.is-sub:focus-visible {
+    color: var(--fg-2);
+}
+
+.fr-prof-tag.is-sub {
+    transition: color var(--t-fast);
+}
+
+/* Friendship code: a settings-style row (.settings-cat) — label left, the
+   five symbols as the value, chevron = "opens a dialog". */
+.fr-pair-row {
+    gap: 0.86rem;
+}
+
+/* Hover lights only the symbols: the row itself stays as it is. */
+.fr-pair-row.settings-cat:hover,
+.fr-pair-row.settings-cat:focus-visible {
+    background: transparent;
+    border-color: var(--fg-4);
+}
+
+.fr-pair-row .settings-cat-arrow {
+    transition: transform var(--t-med), stroke var(--t-med);
+}
+
+.fr-pair-row:hover .settings-cat-arrow,
+.fr-pair-row:focus-visible .settings-cat-arrow {
+    stroke: var(--fg-3);
+}
+
+.fr-pair-icons {
+    display: inline-flex;
+    gap: 0.43rem;
+    color: var(--fg-2);
+    transition: color var(--t-fast);
+}
+
+.fr-pair-icons svg {
+    width: 1.07rem;
+    height: 1.07rem;
+}
+
+.fr-pair-row:hover .fr-pair-icons,
+.fr-pair-row:focus-visible .fr-pair-icons {
+    color: var(--fg);
+}
+
+/* Over the profile modal (app modal = 250). */
+.fr-pair-modal {
+    z-index: 1000;
+}
+
+.fr-pair-modal .sas-hint {
+    max-width: 24rem;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.fr-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.fr-field-label {
+    color: var(--fg);
+    font-size: 0.86rem;
+    letter-spacing: var(--tracking);
+    text-transform: lowercase;
+}
+
+.fr-input {
+    height: 2.86rem;
+    padding: 0 0.86rem;
+    background: var(--bg-1);
+    border: 1px solid var(--fg-4);
+    border-radius: 2px;
+    color: var(--fg);
+    font: inherit;
+    font-size: 0.93rem;
+    transition: border-color var(--t-fast), background var(--t-fast);
+}
+
+.fr-input:focus {
+    outline: none;
+    border-color: var(--fg-2);
+    background: var(--bg-2);
+}
+
+.fr-input::placeholder {
+    color: var(--fg-3);
+}
+
+.fr-add-btn {
+    width: 100%;
+}
+
+.fr-add-ic {
+    display: inline-flex;
+}
+
+.fr-add-ic svg {
+    width: 1.07rem;
+    height: 1.07rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.fr-remove {
+    width: 100%;
+}
+
+.fr-confirm-text {
+    margin: 0;
+    color: var(--fg-2);
+    font-size: 0.93rem;
+    line-height: 1.55;
+}
+
+.fr-confirm-hint {
+    margin: -0.71rem 0 0;
+    color: var(--fg-3);
+    font-size: 0.71rem;
+    line-height: 1.5;
+}
+
+.fr-confirm-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.57rem;
+}
+
+.fr-confirm-actions .fr-btn {
+    flex: 1 1 0;
+}
+
+/* ---------- settings profile ---------- */
+/* Slot sits inside .cat-modal-body (flex column, gap 1.43rem): repeat its rhythm. */
+.profile-friends {
+    display: flex;
+    flex-direction: column;
+    gap: 1.43rem;
+}
+
+.profile-friends:empty {
+    display: none;
+}
+
+.fr-transfer {
+    display: flex;
+    flex-direction: column;
+    gap: 0.86rem;
+}
+
+.fr-ios-hint {
+    margin: 0;
+    color: var(--fg-3);
+    font-size: 0.71rem;
+    line-height: 1.45;
+}
+
+/* ---------- phones: icon-only closed, bar + bottom sheet open ---------- */
+@media (max-width: 640px) {
+    .friends {
+        left: 0.57rem;
+    }
+
+    .fbar-label--pill {
+        display: none;
+    }
+
+    .fbar-pill .tbtn-ic {
+        margin-right: 0;
+    }
+
+    .friends-scrim {
+        display: block;
+        position: fixed;
+        inset: 0;
+        z-index: 59;
+        background: rgba(0, 0, 0, 0.55);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity var(--t-med);
+    }
+
+    .friends.is-open .friends-scrim {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    .friends {
+        --fhead-h: 2.86rem;
+    }
+
+    .friends-pop {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 60;
+        width: auto;
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+        border-width: 1px 0 0;
+        border-radius: 2px 2px 0 0;
+        transform: translateY(100%);
+        opacity: 1;
+    }
+
+    .friends.is-open .friends-pop {
+        transform: none;
+    }
+
+    .friends-panes {
+        max-height: min(62dvh, 32rem);
+    }
+
+    .friends-grip {
+        display: block;
+        width: 2.29rem;
+        height: 3px;
+        margin: 0.57rem auto 0.29rem;
+        border-radius: 999px;
+        background: var(--fg-4);
+    }
+
+    .fr-act {
+        width: 2.71rem;
+        height: 2.71rem;
+    }
+
+    .fr-main {
+        padding: 0.71rem 0.57rem;
+    }
+
+    .sx--tiles .sx-line {
+        height: 6.43rem;
+    }
+
+    .sx--tiles .sx-hint {
+        display: none;
+    }
+
+    body.chat-open .friends {
+        visibility: hidden;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .friends *,
+    .blob-more i,
+    .sx,
+    .sx * {
+        transition-duration: 0.01ms !important;
+        animation: none !important;
+    }
+}
+
+/* "scan a friend's qr": its own width, a little air above. */
+.fr-scan-btn {
+    align-self: center;
+    margin-top: 0.29rem;
+}

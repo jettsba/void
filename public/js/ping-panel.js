@@ -65,9 +65,13 @@ function renderPingPanelSkeleton() {
     }
 
     const rows = [...peers.keys()].map(userId => {
-        const nick = nicknameMap.get(userId) || "—";
+        /* Same name the blob shows: friend's label if set, else the nick —
+           always in the one display form (displayNick). */
+        const nickname = nicknameMap.get(userId) || "";
+        const nick = nickname ? displayNick(participantLabel(userId, nickname)) : "—";
+        const gold = isPremiumNickname(nickname) ? " nick-gold" : "";
         return `<div class="ping-row" data-uid="${escapeAttr(userId)}">
-            <span class="ping-name">${escapeHtml(nick)}</span>
+            <span class="ping-name${gold}">${escapeHtml(nick)}</span>
             <span class="ping-value ping-na">—</span>
         </div>`;
     });

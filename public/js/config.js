@@ -93,6 +93,25 @@ const PREMIUM_NICKNAMES = new Set([
     "garik"
 ]);
 
+/* ========= MOTION =========
+   JS twin of the CSS tokens (--ease, --d-fast/med/slow in base.css). Any
+   el.animate() / timer that follows a CSS transition takes its numbers from
+   here — never its own. */
+const MOTION = Object.freeze({
+    ease: "cubic-bezier(.2, .6, .2, 1)",
+    fast: 120,
+    med: 320,
+    slow: 800,
+});
+
+/* One rule for how a nick is SHOWN, everywhere (room, chat, friends,
+   profiles, toasts): spaces collapsed, lowercase — the same form the friend
+   tag nick#0000 is built from. The nick itself is stored and sent as typed;
+   only the display goes through here. */
+function displayNick(nickname) {
+    return typeof nickname === "string" ? nickname.replace(/\s+/g, " ").trim().toLowerCase() : "";
+}
+
 function isPremiumNickname(nickname) {
     if (typeof nickname !== "string") return false;
     return PREMIUM_NICKNAMES.has(nickname.trim().toLowerCase());

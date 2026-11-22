@@ -123,6 +123,10 @@ static ROOM_SHARE: Mutex<Option<(String, String)>> = Mutex::new(None);
 /// take_pending_deep_link и входит. Warm-случай идёт через live-emit.
 static PENDING_ROOM: Mutex<Option<String>> = Mutex::new(None);
 
+/// Секрет приглашения в друзья из `void://friend/<T>`, пойманный до готовности
+/// окна. JS забирает через take_pending_friend_link и спрашивает «принять?».
+static PENDING_FRIEND: Mutex<Option<String>> = Mutex::new(None);
+
 /// Label кастомного окна-меню трея (см. tray-menu.html / open_tray_menu).
 /// Только Windows: на macOS меню трея нативное (mac_tray_menu).
 const TRAY_MENU_LABEL: &str = "tray-menu";
@@ -498,6 +502,7 @@ pub fn run() {
         .manage(HeldShortcuts::default())
         .invoke_handler(tauri::generate_handler![
             take_pending_deep_link,
+            take_pending_friend_link,
             tray_menu_action,
             start_screen_audio,
             stop_screen_audio,
@@ -2120,9 +2125,29 @@ fn parse_room_code(url: &str) -> Option<String> {
     }
 }
 
+/// Секрет приглашения в друзья из `void://friend/<T>`: ровно 22 символа
+/// base64url (16 байт). Всё прочее — не наша ссылка.
+fn parse_friend_secret(url: &str) -> Option<String> {
+    let rest = url.strip_prefix("void://")?.trim_start_matches('/');
+    let after = rest.strip_prefix("friend/")?;
+    let secret: String = after
+        .chars()
+        .take_while(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
+        .collect();
+    (secret.len() == 22).then_some(secret)
+}
+
 /// Маршрутизация пойманного deep-link'а: сохранить код (cold-start pull),
 /// показать/сфокусировать окно и live-эмитнуть в webview (warm-случай).
 fn route_deep_link(app: &AppHandle, url: &str) {
+    if let Some(secret) = parse_friend_secret(url) {
+        if let Ok(mut guard) = PENDING_FRIEND.lock() {
+            *guard = Some(secret.clone());
+        }
+        show_main_window(app);
+        let _ = app.emit("void:deep-link-friend", serde_json::json!({ "secret": secret }));
+        return;
+    }
     let Some(code) = parse_room_code(url) else {
         return;
     };
@@ -2141,6 +2166,15 @@ fn take_pending_deep_link(window: tauri::WebviewWindow) -> Option<String> {
         return None;
     }
     PENDING_ROOM.lock().ok().and_then(|mut g| g.take())
+}
+
+/// Забирает (и очищает) приглашение в друзья, пойманное до готовности окна.
+#[tauri::command]
+fn take_pending_friend_link(window: tauri::WebviewWindow) -> Option<String> {
+    if !from_main(&window) {
+        return None;
+    }
+    PENDING_FRIEND.lock().ok().and_then(|mut g| g.take())
 }
 
 /// Копирует в буфер код комнаты (`code=true`) или share-ссылку (`code=false`).

@@ -20,8 +20,8 @@
     opacity: 0;
     transform: translateY(8px);
     pointer-events: none;
-    transition: opacity 200ms cubic-bezier(.2, .6, .2, 1),
-                transform 200ms cubic-bezier(.2, .6, .2, 1);
+    transition: opacity var(--t-med),
+                transform var(--t-med);
 }
 
 .updater-banner.is-visible {
@@ -46,7 +46,7 @@
     gap: 0.21rem;
     min-width: 0;
     /* плавная подмена текста при смене состояния (idle → confirm) */
-    transition: opacity 140ms ease, transform 140ms ease;
+    transition: opacity var(--t-fast), transform var(--t-fast);
 }
 
 .updater-banner-text.is-swapping {

@@ -16,9 +16,29 @@
     --font: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
     --tracking: 0.02em;
     --tracking-wide: 0.18em;
-    --t-fast: 120ms cubic-bezier(.2, .6, .2, 1);
-    --t-med: 320ms cubic-bezier(.2, .6, .2, 1);
-    --t-slow: 800ms cubic-bezier(.2, .6, .2, 1);
+    /* === Motion (rules/VOID_STYLE_GUIDE.md §4) — the only timings in the app ===
+       One curve, three durations. --t-* are "duration curve" pairs for
+       transition/animation shorthands; --ease / --d-* for the rare place that
+       needs them apart (delays, keyframe animations with extra params). JS
+       mirrors them in MOTION (js/config.js). */
+    --ease: cubic-bezier(.2, .6, .2, 1);
+    /* The page padding (desktop), two steps:
+       --edge      open windows: the chat panel (top, right, bottom) and the
+                   friends panel (left, bottom).
+       --edge-btn  the corner controls, a step further in: the «void» eclipse
+                   (top, left), «чат» (top, right), «друзья» (bottom, left). */
+    --edge: 1.43rem;
+    --edge-btn: calc(var(--edge) + 0.57rem);
+    /* The header axis = the eclipse's middle when its top is at --edge-btn
+       (1.86rem tall, header.css). */
+    --hdr-axis: calc(var(--edge-btn) + 0.93rem);
+
+    --d-fast: 120ms;
+    --d-med: 320ms;
+    --d-slow: 800ms;
+    --t-fast: var(--d-fast) var(--ease);
+    --t-med: var(--d-med) var(--ease);
+    --t-slow: var(--d-slow) var(--ease);
 
     /* === UI scaling ===
        Корневой font-size = 14px * --auto-scale * --ui-scale. Всё, что должно
@@ -135,7 +155,7 @@ input {
 
 body {
     opacity: 0;
-    transition: opacity 0.3s ease;
+    transition: opacity var(--t-med);
 }
 
 /* Выделение текста — инверсия в стиле primary-кнопки (grayscale), вместо
@@ -156,7 +176,7 @@ body {
     /* Smooth crossfade при смене темы фона: background.js на время свопа
        ставит на <html> класс `bg-switching`, мы гасим opacity → меняем
        тему → отпускаем класс → новая тема плавно появляется. */
-    transition: opacity 280ms cubic-bezier(.4, 0, .2, 1);
+    transition: opacity var(--t-med);
 }
 
 html.bg-switching #background-gl,
@@ -302,4 +322,75 @@ body::after {
    объявлен display: flex/grid (наш bug-view, например). */
 [hidden] {
     display: none !important;
+}
+
+/* QR in the void style (js/qr.js): soft light card, dark dots. */
+.vqr { display: block; width: 100%; height: 100%; }
+.vqr-bg { fill: var(--fg); }
+.vqr-mod { fill: var(--bg-0); }
+
+/* ===== Text button (.tbtn): the header/footer controls «чат» and «друзья» =====
+   No fill, no frame: an icon and a word. It never morphs into the window it
+   opens: the window fades in on its own and carries its own controls. */
+.tbtn {
+    display: inline-flex;
+    align-items: center;
+    height: 2.29rem;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    color: var(--fg-3);
+    font: inherit;
+    font-size: 0.79rem;
+    line-height: 1;
+    letter-spacing: var(--tracking-wide);
+    text-transform: lowercase;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: color var(--t-fast);
+}
+
+.tbtn:hover,
+.tbtn:focus-visible {
+    outline: none;
+    color: var(--fg);
+}
+
+.tbtn-ic {
+    display: inline-flex;
+    flex: 0 0 auto;
+    width: 1.14rem;
+    margin-right: 0.5rem;
+    overflow: hidden;
+}
+
+.tbtn-ic svg {
+    display: block;
+    flex: 0 0 auto;
+    width: 1.14rem;
+    height: 1.14rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    /* Optical centring: the word is lowercase, its x-height middle sits
+       ~0.06em below the line box middle (measured). Box-centred, the icon
+       read as riding high next to it. */
+    transform: translateY(0.06em);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .tbtn,
+    .tbtn * {
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* Phones keep their own header (64px row, 6rem header box, responsive.css). */
+@media (max-width: 640px) {
+    :root {
+        --hdr-axis: 3rem;
+        --edge-btn: var(--edge);
+    }
 }

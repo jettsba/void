@@ -9,6 +9,11 @@
         padding: 0 16px;
     }
 
+    /* The phone header keeps its box-centred axis (--hdr-axis, base.css). */
+    .chat-toggle {
+        top: calc(var(--hdr-axis) - 1.145rem);
+    }
+
     .footer-meta {
         padding: 0 16px;
         box-sizing: border-box;

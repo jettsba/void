@@ -111,6 +111,17 @@
     transform: rotate(0deg) scale(1);
 }
 
+@media (min-width: 641px) {
+    .header {
+        height: var(--hdr-h);
+        padding-left: var(--edge-btn);
+    }
+
+    .brand-lockup {
+        transform: none;
+    }
+}
+
 @media (prefers-reduced-motion: reduce) {
     .brand-gear {
         transition: opacity var(--t-fast);

@@ -84,8 +84,8 @@
     opacity: 0;
     transform: translateY(0.86rem);
     transition:
-        opacity 0.38s cubic-bezier(.2, .6, .2, 1),
-        transform 0.38s cubic-bezier(.2, .6, .2, 1);
+        opacity var(--t-med),
+        transform var(--t-med);
 }
 
 .entry-error-toast.is-visible {
@@ -515,7 +515,7 @@
     padding: 0.71rem 0.86rem 0.86rem;
     background: var(--bg-1);
     border: 1px solid var(--fg-4);
-    border-radius: 3px;
+    border-radius: 2px;
     display: flex;
     flex-direction: column;
     gap: 1rem;
@@ -542,7 +542,9 @@
 .invite-code-row {
     position: relative;
     display: flex;
-    align-items: baseline;
+    /* Not baseline: the code block starts with an icon (no baseline of its
+       own), which pushed the label below the code. */
+    align-items: center;
     justify-content: space-between;
     gap: 0.86rem;
     padding: 0.29rem 0.14rem;
@@ -560,6 +562,35 @@
     color: var(--fg-3);
 }
 
+/* Copy glyph right before the code: people did not guess the code itself
+   copies on click. It lives and leaves together with the code. */
+.invite-code-row-copy {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.43rem;
+}
+
+.invite-code-row-icon {
+    width: 0.86rem;
+    height: 0.86rem;
+    align-self: center;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    color: var(--fg-3);
+    transition:
+        color var(--t-fast),
+        var(--swap-in);
+}
+
+.invite-code-row:hover .invite-code-row-icon,
+.invite-code-row:focus-visible .invite-code-row-icon {
+    color: var(--fg-2);
+}
+
 .invite-code-row-value {
     flex-shrink: 0;
     color: var(--fg-2);
@@ -567,8 +598,7 @@
     letter-spacing: 0.04em;
     transition:
         color var(--t-fast),
-        opacity 200ms ease-out 110ms,
-        transform 220ms cubic-bezier(.2, .6, .2, 1) 110ms;
+        var(--swap-in);
 }
 
 .invite-code-row:hover .invite-code-row-value,
@@ -653,11 +683,9 @@
     border-radius: 2px;
     color: var(--fg);
     opacity: 0;
-    transform: translateY(0.36rem);
+    transform: translateY(var(--swap-dy));
     pointer-events: none;
-    transition:
-        opacity 120ms ease-in,
-        transform 140ms ease-in;
+    transition: var(--swap-out);
 }
 
 /* Уходящий текст гаснет за 120 мс, входящий стартует с задержкой 110 мс —
@@ -666,27 +694,21 @@
 .invite-link-btn.is-copied .invite-row-copied {
     opacity: 1;
     transform: translateY(0);
-    transition:
-        opacity 200ms ease-out 110ms,
-        transform 220ms cubic-bezier(.2, .6, .2, 1) 110ms;
+    transition: var(--swap-in);
 }
 
 .invite-code-row-label,
 .invite-link-btn-inner {
-    transition:
-        opacity 200ms ease-out 110ms,
-        transform 220ms cubic-bezier(.2, .6, .2, 1) 110ms;
+    transition: var(--swap-in);
 }
 
 .invite-code-row.is-copied .invite-code-row-label,
 .invite-code-row.is-copied .invite-code-row-value,
+.invite-code-row.is-copied .invite-code-row-icon,
 .invite-link-btn.is-copied .invite-link-btn-inner {
     opacity: 0;
-    transform: translateY(-0.36rem);
-    transition:
-        color var(--t-fast),
-        opacity 120ms ease-in,
-        transform 140ms ease-in;
+    transform: translateY(calc(-1 * var(--swap-dy)));
+    transition: color var(--t-fast), var(--swap-out);
 }
 
 /* ===== «Закрыть вход» (js/room-close.js): кнопка + кружки голосов. =====
@@ -737,7 +759,7 @@
 .room-close-reveal {
     display: grid;
     grid-template-rows: 0fr;
-    transition: grid-template-rows 280ms cubic-bezier(.2, .6, .2, 1);
+    transition: grid-template-rows var(--t-med);
 }
 
 .room-close-reveal-inner {
@@ -780,7 +802,7 @@
 /* Всплытие ряда: пока раскрывается место, кружки по очереди проявляются
    из точки. Сдвига нет — ряд и так едет, второе движение давало «дрожь». */
 .room-close-dot.is-entering {
-    animation: rc-dot-in 300ms cubic-bezier(.2, .6, .2, 1) both;
+    animation: rc-dot-in var(--t-med) both;
     animation-delay: calc(var(--i, 0) * 50ms + 120ms);
 }
 
@@ -789,21 +811,21 @@
     opacity: 0;
     transform: scale(0.5);
     transition:
-        opacity 160ms ease-in,
-        transform 160ms ease-in;
+        opacity var(--t-fast),
+        transform var(--t-fast);
 }
 
 /* Загорание — короткий «пульс» наружу; потухание — сжатие. */
 .room-close-dot.is-lighting {
-    animation: rc-dot-on 420ms cubic-bezier(.2, .6, .2, 1);
+    animation: rc-dot-on var(--t-med);
 }
 
 .room-close-dot.is-dimming {
-    animation: rc-dot-off 360ms ease-out;
+    animation: rc-dot-off var(--t-med);
 }
 
 .room-close-dot.is-leaving {
-    animation: rc-dot-out 240ms ease-in forwards;
+    animation: rc-dot-out var(--t-med) forwards;
 }
 
 @keyframes rc-dot-in {
@@ -884,6 +906,7 @@
     .invite-row-copied,
     .invite-code-row-label,
     .invite-code-row-value,
+    .invite-code-row-icon,
     .invite-link-btn-inner,
     .invite-link-btn {
         transition-duration: 0.01ms;

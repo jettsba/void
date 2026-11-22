@@ -1,69 +1,23 @@
 /* ===== Chat ===== */
 
+/* «чат» — a text button (.tbtn, base.css), the twin of «друзья» in the
+   footer. Shown only in a room; anchored to the right, so the word ends on
+   the same spot whatever it says. */
 .chat-toggle {
     position: fixed;
-    top: calc((var(--hdr-h) - 1rem) / 2);
-    right: max(1rem, env(safe-area-inset-right));
+    /* .tbtn is inline-flex; the badge is placed against the button. */
+    /* The icon's INK top (not the 2.29rem box) stands --edge-btn from the top,
+       level with the «void» eclipse: the ink starts 0.83rem below the box
+       top (svg padding + centring, measured). */
+    top: calc(var(--edge-btn) - 0.83rem);
+    /* Mirror of the «void» eclipse on the left; the negative margin drops
+       the trailing letter-spacing, so the ink (not the box) ends at --edge-btn. */
+    right: max(var(--edge-btn), env(safe-area-inset-right));
+    margin-right: calc(-1 * var(--tracking-wide));
     z-index: 56;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0;
-    box-sizing: border-box;
-    min-width: 7.14rem;
-    height: 2.29rem;
-    margin: 0 0.86rem 0 0;
-    padding: 0 1rem;
-    background: transparent;
-    border: 1px solid var(--fg-4);
-    border-radius: 2px;
-    color: var(--fg-2);
-    cursor: pointer;
     opacity: 0;
     pointer-events: none;
-    transition:
-        opacity var(--t-med),
-        color var(--t-fast),
-        border-color var(--t-fast),
-        background var(--t-fast),
-        box-shadow var(--t-fast);
-}
-
-/* Кнопка всегда в одном месте (строчка приложения справа) — только смена chat/close, без переезда top/right. */
-
-.chat-toggle-stack {
-    display: grid;
-    place-items: center;
-}
-
-.chat-toggle-pane {
-    grid-area: 1 / 1;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.57rem;
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
-    transition:
-        opacity 180ms cubic-bezier(.2, .6, .2, 1),
-        visibility 0s linear 180ms;
-}
-
-.chat-toggle:not(.is-open) .chat-toggle-pane--idle {
-    opacity: 1;
-    visibility: visible;
-    transition:
-        opacity 180ms cubic-bezier(.2, .6, .2, 1),
-        visibility 0s linear 0s;
-}
-
-.chat-toggle.is-open .chat-toggle-pane--open {
-    opacity: 1;
-    visibility: visible;
-    transition:
-        opacity 180ms cubic-bezier(.2, .6, .2, 1),
-        visibility 0s linear 0s;
+    transition: opacity var(--t-med), color var(--t-fast);
 }
 
 .app[data-mode="room"] .chat-toggle {
@@ -71,93 +25,70 @@
     pointer-events: auto;
 }
 
-.chat-toggle:hover,
-.chat-toggle:focus-visible {
-    color: var(--fg);
-    border-color: var(--fg-2);
-    outline: none;
+/* Open, the toggle steps aside: the panel fades in over its corner and
+   closes from its own header («закрыть», .chat-close). */
+body.chat-open .app .chat-toggle {
+    opacity: 0;
+    pointer-events: none;
 }
 
-.chat-toggle.is-open {
-    color: var(--fg);
-    border-color: rgba(230, 230, 232, 0.32);
-    background: rgba(16, 16, 18, 0.88);
-}
-
-.chat-toggle-icon-svg {
-    width: 1rem;
-    height: 1rem;
-}
-
-.chat-toggle-icon-svg path {
-    stroke: currentColor;
-    stroke-width: 1.4;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    fill: none;
-    vector-effect: non-scaling-stroke;
-}
-
-.chat-toggle-icon-svg circle.chat-toggle-dot {
+.chat-toggle .chat-toggle-dot {
     fill: currentColor;
     stroke: none;
 }
 
-.chat-toggle-label {
-    font-size: 0.79rem;
-    letter-spacing: var(--tracking-wide);
-    text-transform: lowercase;
-    white-space: nowrap;
-    line-height: 1;
-}
-
+/* Unread: the same small dot as «друзья» has for requests, on the icon. */
 .chat-toggle-badge {
-    pointer-events: none;
-    display: none;
     position: absolute;
-    top: -3px;
-    right: -3px;
-    width: 0.36rem;
-    height: 0.36rem;
-    border-radius: 50%;
-    background: var(--signal);
-    box-shadow: 0 0 6px rgba(200, 200, 204, 0.55);
+    top: 0.43rem;
+    left: 0.9rem;
+    width: 5px;
+    height: 5px;
+    border-radius: 999px;
+    background: var(--fg);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--t-fast);
 }
 
 .chat-toggle.has-unread .chat-toggle-badge {
-    display: block;
+    opacity: 1;
 }
 
+/* Open / close are mirror images: fade + an 8px glide in from the edge it
+   is pinned to, one duration, one curve — the room makes way (padding-right
+   on .stage / footer, app.css) in the same motion. */
 .chat-panel {
     position: fixed;
+    /* Above .header (52), whose full-width box would eat clicks on the
+       panel header; below the toggle (56). */
     top: 0;
     bottom: 0;
     width: var(--chat-panel-w);
     max-width: calc(100vw - 2.29rem);
-    right: calc(-1 * var(--chat-panel-w) - 3.14rem);
-    z-index: 46;
+    right: max(var(--edge), env(safe-area-inset-right));
+    z-index: 54;
     box-sizing: border-box;
-    padding-top: max(var(--chat-v-inset), env(safe-area-inset-top));
-    padding-bottom: max(var(--chat-v-inset), env(safe-area-inset-bottom));
+    padding-top: max(var(--edge), env(safe-area-inset-top));
+    padding-bottom: max(var(--edge), env(safe-area-inset-bottom));
     opacity: 0;
-    margin: 0.57rem 0;
     visibility: hidden;
     pointer-events: none;
-    transform: none;
+    transform: translateX(0.57rem);
     transition:
         opacity var(--t-med),
-        right 380ms cubic-bezier(0.32, 0.72, 0, 1),
-        visibility 0s linear var(--t-med);
+        transform var(--t-med),
+        visibility 0s linear var(--d-med);
 }
 
 .chat-panel.is-open {
     opacity: 1;
     visibility: visible;
     pointer-events: auto;
-    right: max(1.14rem, env(safe-area-inset-right));
+    transform: none;
     transition:
         opacity var(--t-med),
-        right 380ms cubic-bezier(0.32, 0.72, 0, 1),
+        transform var(--t-med),
         visibility 0s linear 0s;
 }
 
@@ -169,8 +100,7 @@
     /* Фон выровнен с панелью настроек (.settings-panel). */
     background: rgba(16, 16, 18, 0.96);
     border: 1px solid var(--fg-4);
-    border-radius: 4px;
-    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.45);
+    border-radius: 2px;
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     overflow: hidden;
@@ -182,19 +112,22 @@
     justify-content: flex-start;
     gap: 1rem;
     padding: 0 1rem;
-    padding-right: calc(1rem + 7.86rem);
     border-bottom: 1px solid var(--fg-4);
     color: var(--fg-2);
     font-size: 0.79rem;
     letter-spacing: var(--tracking-wide);
     text-transform: lowercase;
-    height: 3.57rem;
+    height: 3.14rem;
     box-sizing: border-box;
     flex-shrink: 0;
 }
 
 .chat-title {
     line-height: 1;
+}
+
+.chat-close {
+    margin-left: auto;
 }
 
 .chat-messages {
@@ -256,7 +189,6 @@
     transform: translate(-50%, 0.86rem);
     pointer-events: none;
     cursor: pointer;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
     transition:
         opacity var(--t-med),
         transform var(--t-med),
@@ -322,8 +254,8 @@
     padding: 0.43rem 0.71rem 0.57rem;
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: 0.57rem;
-    animation: chat-msg-in 220ms cubic-bezier(0.22, 1, 0.36, 1);
+    border-radius: 2px;
+    animation: chat-msg-in var(--t-med);
 }
 
 /* Бейдж реакций выезжает за нижний край бабла — даём дополнительный
@@ -440,7 +372,7 @@
     user-select: none;
     -webkit-user-select: none;
     transform-origin: 50% 50%;
-    animation: like-badge-in 280ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    animation: like-badge-in var(--t-med) both;
     transition:
         border-color var(--t-fast),
         background var(--t-fast);
@@ -456,7 +388,7 @@
    перебивала like-badge-in при быстрой серии реакций. */
 .chat-msg-likes.is-pulsing,
 .chat-msg-dislikes.is-pulsing {
-    animation: like-badge-pulse 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    animation: like-badge-pulse var(--t-med);
 }
 
 @keyframes like-badge-pulse {
@@ -541,8 +473,7 @@
     padding: 0.29rem;
     background: var(--bg-1);
     border: 1px solid var(--fg-4);
-    border-radius: 3px;
-    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
+    border-radius: 2px;
     opacity: 0;
     pointer-events: none;
     transform: translateY(0.29rem) scale(0.98);

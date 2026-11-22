@@ -12,7 +12,7 @@
     height: auto;
     max-height: 20rem;
     object-fit: cover;
-    border-radius: 4px;
+    border-radius: 2px;
     background: var(--bg-1);
     cursor: pointer;
     transition: opacity var(--t-fast);
@@ -30,7 +30,7 @@
     padding: 0.57rem 0.71rem;
     background: var(--bg-1);
     border: 1px solid var(--fg-4);
-    border-radius: 4px;
+    border-radius: 2px;
 }
 
 .chat-attach-file-ico {
@@ -111,8 +111,7 @@
     padding: 0.5rem 0.71rem;
     background: var(--bg-2);
     border: 1px solid var(--fg-4);
-    border-radius: 4px;
-    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+    border-radius: 2px;
     color: var(--fg-2);
     font-size: 0.71rem;
     line-height: 1.5;
@@ -121,13 +120,13 @@
     pointer-events: none;
     opacity: 0;
     visibility: hidden;
-    transition: opacity 120ms ease, visibility 0s linear 120ms;
+    transition: opacity var(--t-fast), visibility 0s linear var(--d-fast);
 }
 
 .chat-exe-tip.is-visible {
     opacity: 1;
     visibility: visible;
-    transition: opacity 120ms ease;
+    transition: opacity var(--t-fast);
 }
 
 .chat-attach-file-dl {
@@ -216,7 +215,7 @@
     padding: 0.29rem 0.29rem 0.29rem 0.43rem;
     background: var(--bg-2);
     border: 1px solid var(--fg-4);
-    border-radius: 3px;
+    border-radius: 2px;
     color: var(--fg-2);
     font-size: 0.79rem;
     max-width: 12.86rem;

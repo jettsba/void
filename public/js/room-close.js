@@ -106,7 +106,7 @@ function _swapLabel(el, text) {
              { opacity: 1, transform: "translateY(0)" }],
             { duration: 220, easing: ease });
         if (Math.abs(w1 - w0) > 0.5) {
-            el.animate([{ width: `${w0}px` }, { width: `${w1}px` }], { duration: 240, easing: ease });
+            el.animate([{ width: `${w0}px` }, { width: `${w1}px` }], { duration: 320, easing: ease });
         }
         el._swapping = false;
     };

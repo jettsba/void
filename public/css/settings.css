@@ -26,7 +26,6 @@
     width: min(25.71rem, 88vw);
     background: rgba(16, 16, 18, 0.96);
     border-right: 1px solid rgba(255, 255, 255, 0.06);
-    box-shadow: 0 0 60px rgba(0, 0, 0, 0.65);
     transform: translateX(-105%);
     transition: transform var(--t-med);
     display: flex;
@@ -72,7 +71,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border-radius: 0.43rem;
+    border-radius: 2px;
     transition: color var(--t-fast), background var(--t-fast);
 }
 
@@ -139,7 +138,7 @@
 .settings-seg {
     display: inline-flex;
     border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 0.57rem;
+    border-radius: 2px;
     overflow: hidden;
     background: rgba(255, 255, 255, 0.02);
 }
@@ -479,28 +478,6 @@
     border-radius: 2px;
 }
 
-.profile-avatar {
-    flex-shrink: 0;
-    width: 4.29rem;
-    height: 4.29rem;
-    border-radius: 999px;
-    border: 1px solid var(--fg-4);
-    background: var(--bg-0);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.43rem;
-    color: var(--fg);
-    text-transform: lowercase;
-}
-
-.profile-ident {
-    display: flex;
-    flex-direction: column;
-    gap: 0.43rem;
-    min-width: 0;
-}
-
 .profile-name {
     font-size: 1.29rem;
     font-weight: 400;
@@ -511,14 +488,15 @@
     white-space: nowrap;
     /* Анимированная «замена» ника (updateProfileName в settings.js). transition,
        НЕ animation — иначе конфликт с premium-shimmer, занимающим animation. */
-    transition: opacity 160ms ease, transform 160ms ease;
+    transition: var(--swap-in);
 }
 
 /* Фаза выхода старого ника: гаснет и уезжает вверх; после смены текста класс
    снимается — новый плавно возвращается. */
 .profile-name.is-swapping {
     opacity: 0;
-    transform: translateY(-0.28rem);
+    transform: translateY(calc(-1 * var(--swap-dy)));
+    transition: var(--swap-out);
 }
 
 /* Контрибьюторский ник — золотое сияние, как в комнате (stage.css .premium). */
@@ -541,60 +519,72 @@
     .profile-name { transition-duration: 0.01ms; }
 }
 
-.profile-uid {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    align-self: flex-start;
-    max-width: 100%;
-    padding: 0.14rem 0;
-    background: transparent;
+/* «ник#0198» одной строкой: код бледнее, клик копирует всё (js/friends/ui.js). */
+.profile-tag {
+    min-width: 0;
+    padding: 0;
+    background: none;
     border: 0;
-    cursor: pointer;
-    color: var(--fg-3);
+    color: inherit;
     font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.profile-tag .swap {
+    min-width: 0;
+}
+
+/* Nick and the smaller #code sit on one bottom line. Not via flex
+   «baseline»: the nick clips (overflow, ellipsis) and engines disagree on
+   the baseline of a clipped flex item (WebKit, i.e. the mac app, centred
+   the code). Both boxes are line-height: normal and bottom-aligned; the
+   code is lifted by the difference of the font's descent (0.3em in
+   JetBrains Mono) between the two sizes — the same result everywhere. */
+.profile-tag-line {
+    display: flex;
+    align-items: flex-end;
+    min-width: 0;
+}
+
+.profile-tag-line > .profile-name,
+.profile-tag-line > .profile-code {
+    line-height: normal;
+}
+
+.profile-tag-line > .profile-code {
+    margin-bottom: calc((1.29rem - 1.07rem) * 0.3);
+}
+
+.profile-tag .swap-alt {
+    align-self: center;
+    color: var(--fg-2);
     font-size: 0.79rem;
+    letter-spacing: var(--tracking-wide);
+}
+
+.profile-code {
+    flex-shrink: 0;
+    margin-left: 0.29rem;
+    color: var(--fg-3);
+    font-size: 1.07rem;
     letter-spacing: var(--tracking);
     transition: color var(--t-fast);
 }
 
-.profile-uid:hover,
-.profile-uid:focus-visible { color: var(--fg-2); outline: none; }
-
-.profile-uid-text {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+.profile-tag:hover .profile-code,
+.profile-tag:focus-visible .profile-code {
+    color: var(--fg-2);
 }
 
-.profile-uid-icon {
-    width: 0.93rem;
-    height: 0.93rem;
-    flex-shrink: 0;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.4;
-    stroke-linecap: round;
-    stroke-linejoin: round;
+.profile-tag:focus-visible {
+    outline: none;
 }
 
-.profile-uid-copied {
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    display: flex;
-    align-items: center;
-    color: var(--fg);
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity var(--t-fast);
+.profile-blob {
+    width: 4.29rem;
+    height: 4.29rem;
 }
-
-.profile-uid.is-copied .profile-uid-text,
-.profile-uid.is-copied .profile-uid-icon { opacity: 0; }
-.profile-uid.is-copied .profile-uid-copied { opacity: 1; }
 
 .field-block {
     display: flex;
@@ -943,7 +933,7 @@
     inset: 0;
     border-radius: 999px;
     background: var(--fg-4);
-    transition: background 200ms ease;
+    transition: background var(--t-fast);
 }
 
 .vswitch-track::after {
@@ -956,7 +946,7 @@
     border-radius: 50%;
     background: var(--bg-0);
     transform: translateY(-50%);
-    transition: transform 200ms ease;
+    transition: transform var(--t-fast);
 }
 
 .vswitch input:checked + .vswitch-track { background: var(--fg); }
@@ -1314,7 +1304,7 @@
     min-width: 0;
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 0.43rem;
+    border-radius: 2px;
     padding: 0.57rem 0.86rem;
     color: var(--fg);
     font-size: 0.93rem;
@@ -1337,7 +1327,7 @@
     width: 2.43rem;
     height: 2.43rem;
     border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 0.43rem;
+    border-radius: 2px;
     background: rgba(255, 255, 255, 0.02);
     color: var(--fg-2);
     cursor: pointer;
@@ -1456,7 +1446,7 @@
     width: 1.86rem;
     height: 1.86rem;
     border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 0.36rem;
+    border-radius: 2px;
     background: rgba(255, 255, 255, 0.02);
     color: var(--fg-2);
     cursor: pointer;
@@ -1464,7 +1454,7 @@
     align-items: center;
     justify-content: center;
     transition: color var(--t-fast), background var(--t-fast), border-color var(--t-fast),
-                transform 140ms ease;
+                transform var(--t-fast);
 }
 
 .settings-test-btn:hover,
@@ -1509,7 +1499,7 @@
     width: 100%;
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 0.43rem;
+    border-radius: 2px;
     padding: 0.57rem 0.86rem;
     color: var(--fg);
     font-family: inherit;
@@ -1575,8 +1565,7 @@
     list-style: none;
     background: var(--bg-1);
     border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 0.43rem;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+    border-radius: 2px;
     max-height: 17.14rem;
     overflow-y: auto;
     opacity: 0;
@@ -1593,7 +1582,7 @@
 
 .settings-dropdown-option {
     padding: 0.5rem 0.71rem;
-    border-radius: 4px;
+    border-radius: 2px;
     font-size: 0.86rem;
     letter-spacing: var(--tracking);
     color: var(--fg-2);
@@ -1904,7 +1893,7 @@
     gap: 0.21rem;
     padding: 0.43rem 0.86rem;
     min-height: 3.14rem;
-    border-radius: 0.57rem;
+    border-radius: 2px;
     border: 1px solid rgba(226, 107, 122, 0.45);
     background: rgba(226, 107, 122, 0.06);
     color: #e26b7a;
@@ -1986,8 +1975,7 @@
     overflow: hidden;
     background: rgba(18, 18, 21, 0.98);
     border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 1rem;
-    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+    border-radius: 2px;
     transform: scale(0.96);
     transition: transform var(--t-med);
 }
@@ -2017,7 +2005,7 @@
     justify-content: center;
     background: transparent;
     border: 0;
-    border-radius: 0.5rem;
+    border-radius: 2px;
     cursor: pointer;
     color: var(--fg-3);
     transition: color var(--t-fast), background var(--t-fast);
@@ -2106,7 +2094,7 @@
     padding: 0.57rem 0.86rem;
     border: 1px solid rgba(255, 255, 255, 0.08);
     background: rgba(255, 255, 255, 0.03);
-    border-radius: 0.57rem;
+    border-radius: 2px;
     color: var(--fg-2);
     font: inherit;
     font-size: 0.82rem;
@@ -2129,7 +2117,7 @@
     white-space: nowrap;
     font-family: "JetBrains Mono", monospace;
     letter-spacing: 0;
-    transition: opacity 160ms ease, transform 160ms ease;
+    transition: var(--swap-in);
     width: 100%;
 }
 
@@ -2144,18 +2132,20 @@
     letter-spacing: var(--tracking-wide);
     font-size: 0.82rem;
     opacity: 0;
-    transform: translateY(0.36rem);
+    transform: translateY(var(--swap-dy));
     pointer-events: none;
-    transition: opacity 160ms ease, transform 160ms ease;
+    transition: var(--swap-out);
 }
 
 .support-coin-addr.is-copied .support-coin-addr-text {
     opacity: 0;
-    transform: translateY(-0.36rem);
+    transform: translateY(calc(-1 * var(--swap-dy)));
+    transition: var(--swap-out);
 }
 .support-coin-addr.is-copied .support-coin-copied {
     opacity: 1;
     transform: translateY(0);
+    transition: var(--swap-in);
 }
 
 .support-coin-qr {
@@ -2166,7 +2156,7 @@
     justify-content: center;
     border: 1px solid rgba(255, 255, 255, 0.08);
     background: rgba(255, 255, 255, 0.03);
-    border-radius: 0.57rem;
+    border-radius: 2px;
     color: var(--fg-2);
     cursor: pointer;
     transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
@@ -2183,7 +2173,11 @@
 .support-coin-qr svg {
     width: 1.14rem;
     height: 1.14rem;
-    fill: currentColor;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
 }
 
 /* ========= QR sub-modal ========= */
@@ -2198,8 +2192,7 @@
     padding: 1.71rem 1.57rem 1.43rem 1.57rem;
     background: rgba(18, 18, 21, 0.98);
     border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 1rem;
-    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+    border-radius: 2px;
     max-width: min(21.43rem, 100%);
     transform: scale(0.96);
     transition: transform var(--t-med);
@@ -2218,7 +2211,7 @@
     justify-content: center;
     background: transparent;
     border: 0;
-    border-radius: 0.43rem;
+    border-radius: 2px;
     cursor: pointer;
     color: var(--fg-3);
     transition: color var(--t-fast), background var(--t-fast);
@@ -2252,9 +2245,8 @@
 .support-qr-figure {
     width: 15.71rem;
     height: 15.71rem;
-    background: #ffffff;
-    border-radius: 0.57rem;
-    padding: 0.57rem;
+    border-radius: 2px;
+    overflow: hidden;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -2304,7 +2296,7 @@
     padding: 0.71rem 0.86rem;
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 0.57rem;
+    border-radius: 2px;
     color: var(--fg-2);
     font: inherit;
     font-size: 0.86rem;
@@ -2379,8 +2371,7 @@
     padding: 2rem 1.71rem 1.57rem 1.71rem;
     background: rgba(18, 18, 21, 0.98);
     border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 1rem;
-    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+    border-radius: 2px;
     transform: scale(0.96);
     transition: transform var(--t-med);
 }
@@ -2399,7 +2390,7 @@
     justify-content: center;
     background: transparent;
     border: 0;
-    border-radius: 0.5rem;
+    border-radius: 2px;
     cursor: pointer;
     color: var(--fg-3);
     transition: color var(--t-fast), background var(--t-fast);
@@ -2472,7 +2463,7 @@
     padding: 0.71rem 0.86rem;
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 0.57rem;
+    border-radius: 2px;
     color: var(--fg);
     font: inherit;
     font-size: 0.89rem;
@@ -2535,7 +2526,7 @@
     background: var(--fg);
     color: #0a0a0b;
     border: 0;
-    border-radius: 0.57rem;
+    border-radius: 2px;
     font: inherit;
     font-size: 0.89rem;
     font-weight: 500;
@@ -2559,7 +2550,7 @@
     height: 3rem;
     fill: #e26b7a;
     margin-bottom: 0.29rem;
-    animation: bug-heart-pop 360ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    animation: bug-heart-pop var(--t-med);
 }
 
 @keyframes bug-heart-pop {
@@ -2573,7 +2564,7 @@
     padding: 0.64rem 1.57rem;
     background: transparent;
     border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 0.57rem;
+    border-radius: 2px;
     color: var(--fg-2);
     font: inherit;
     font-size: 0.86rem;
@@ -2593,13 +2584,12 @@
 
 /* ===== settings hint ===== */
 
-/* Стрелка хинта должна стоять РОВНО под центром логотипа-эклипса в шапке.
-   Считаем на десктопе:  padding 24 + translateX brand-lockup 12 + halfLogo 13 = 49px.
-   Минус halfArrow 5px = left: 44px. На мобиле header.padding 16px → 41-5 = 36px. */
+/* Стрелка хинта — ровно под центром эклипса: эклипс 1.86rem стоит на --edge-btn
+   сверху и слева (base.css), стрелка 0.71rem шириной, под эклипсом 1.07rem. */
 .settings-hint {
     position: fixed;
-    top: 5rem;
-    left: 3.14rem;
+    top: calc(var(--edge-btn) + 1.86rem + 1.07rem);
+    left: calc(var(--edge-btn) + 0.93rem - 0.355rem);
     z-index: 50;
     display: flex;
     align-items: center;
@@ -2607,7 +2597,7 @@
     pointer-events: none;
     opacity: 0;
     transform: translateY(-0.29rem);
-    transition: opacity 400ms ease, transform 400ms ease;
+    transition: opacity var(--t-med), transform var(--t-med);
 }
 
 .settings-hint.is-visible {
@@ -2777,3 +2767,64 @@
 .bug-input:focus,
 .bug-input:focus-visible { background: var(--bg-2); border-color: var(--fg-2); }
 .bug-submit { background: var(--fg); color: var(--bg-0); }
+
+/* Same shell as the app modals (profile, audio, add friend): a header bar
+   with the title and the close button on one line, a hairline under it,
+   fade + 8px rise instead of a scale. */
+.support-card,
+.bug-card {
+    border-color: var(--fg-4);
+    transform: translateY(0.57rem);
+}
+.support-modal.is-open .support-card,
+.bug-modal.is-open .bug-card { transform: none; }
+
+.support-content { padding-top: 0; }
+.bug-card { padding-top: 0; }
+
+.support-head,
+.bug-head {
+    display: flex;
+    align-items: center;
+    gap: 0.71rem;
+    min-height: 4.29rem;
+    box-sizing: border-box;
+    margin: 0 -1.71rem;
+    padding: 0 3.43rem 0 1.43rem;
+    border-bottom: 1px solid var(--fg-4);
+}
+.bug-view--success { padding-top: 2rem; }
+
+.support-title,
+.bug-title {
+    font-size: 0.93rem;
+    font-weight: 400;
+    line-height: 1.2;
+}
+
+.support-head-heart {
+    width: 1.14rem;
+    height: 1.14rem;
+}
+
+/* Header → body: the same air as .app-modal-body (1.71rem). */
+.support-head { margin-bottom: 0.57rem; }
+.bug-head { margin-bottom: 0.71rem; }
+
+.bug-head-ic {
+    flex-shrink: 0;
+    width: 1.14rem;
+    height: 1.14rem;
+    fill: none;
+    stroke: var(--fg-2);
+    stroke-width: 1.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.bug-head .bug-title { padding-right: 0; }
+
+.support-close,
+.bug-close {
+    top: calc((4.29rem - 2.14rem) / 2);
+    right: 1.14rem;
+}

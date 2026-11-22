@@ -39,19 +39,25 @@
    Посмотреть, как это выглядит, ДО выкатки: `VoidWhatsNewPreview()` в консоли. */
 
 window.VoidWhatsNew = {
-    version: "1.9.4",
+    version: "1.10.0",
     ru: [
-        "демонстрация экрана теперь занимает окно целиком, вместе с верхней полосой",
-        "исправлен внешний вид клавиатуры в настройках для macos",
-        "— кнопка win на windows-раскладке теперь отображается логотипом",
-        "кнопки play/pause на клавиатуре больше не проигрывают звук входа в комнату",
-        "переключатели в настройках снова выглядят как переключатели",
+        "теперь в void есть друзья. добавляй людей из комнаты, по qr, ссылке или по нику",
+        "— все по-прежнему приватно: void ничего не знает о твоих друзьях. список хранится только на твоем устройстве, у каждой дружбы свой секретный ключ",
+        "— видно, кто из друзей онлайн и в какой он комнате, зайти к нему можно в один клик",
+        "режим невидимки и перенос списка друзей на другое устройство через qr",
+        "профиль человека открывается двойным кликом по нему в комнате",
+        "обновлён внешний вид: окна, кнопки, отступы и анимации приведены к одному стилю",
+        "у кода комнаты появилась кнопка копирования",
+        "длинные уведомления на телефоне больше не обрезаются",
     ],
     en: [
-        "screen share now fills the whole window, top strip included",
-        "the hotkeys keyboard on mac now looks like a real mac keyboard",
-        "— the win key on the windows layout now shows the logo",
-        "keyboard play/pause keys no longer play the room join sound",
-        "toggles in settings look like toggles again",
+        "void now has friends. add people from a room, by qr, by link or by a nick#0000 code",
+        "— still private: void knows nothing about your friends. the list lives only on your device, every friendship has its own key",
+        "— see which friends are online and in which room, and join them in one click",
+        "invisible mode and moving your friends list to another device via qr",
+        "double-click someone in a room to open their profile",
+        "refreshed look: windows, buttons, spacing and animations now share one style",
+        "the room code got a copy button",
+        "long notifications on phones no longer get cut off",
     ]
 };

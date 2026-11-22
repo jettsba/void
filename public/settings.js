@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "1.9.4";
+    const APP_VERSION = "1.10.0";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
@@ -279,7 +279,97 @@
             "settings.audio.testMic.fail": "нет доступа к микрофону",
             "settings.audio.device": "устройство",
             "settings.uiScale.apply": "применить",
-            "settings.profile.copy": "скопировать id",
+            "friends.title": "друзья",
+            "friends.add.qr.hint.desk": "покажи другу",
+            "friends.add.qr.face": "твой qr-код",
+            "friends.add.once": "одноразовый",
+            "friends.add.qr.note": "друг сканирует его в void или просто камерой телефона",
+            "friends.add.qr.note.desk": "друг наводит камеру телефона — у него откроется приглашение",
+            "friends.scan.friend": "сканировать qr друга",
+            "friends.add.code.hint": "ник#0000",
+            "friends.add.link.hint": "в любой чат",
+            "friends.req.from": "зовёт тебя в друзья",
+            "friends.req.sent": "заявка отправлена",
+            "friends.pair.body": "это отпечаток вашей дружбы. его вычисляют ваши устройства из ключей, которыми вы обменялись, когда добавили друг друга.",
+            "friends.pair.hint": "у тебя и у {nick} символы должны совпасть.\nкод не меняется, пока вы друзья",
+            "friends.transfer.enter.note": "код — на другом устройстве: профиль → перенос → показать код",
+            "friends.toast.tag-not-found": "нет такого кода или человек не в сети",
+            "friends.toast.tag-invalid": "нужен код вида ник#0000",
+            "friends.transfer.question": "перенести друзей с другого устройства на это?",
+            "friends.transfer.qr": "показать qr",
+            "friends.code.copy": "скопировать {tag}",
+            "friends.pair.title": "код дружбы",
+            "friends.scan.unknown": "это не qr-код void",
+            "friends.scan.nocam": "камера недоступна",
+            "friends.scan.hint": "наведи камеру на qr-код",
+            "friends.scan": "сканировать qr",
+            "friends.link.copy": "скопировать ссылку",
+            "friends.add.link": "ссылка",
+            "friends.add.code.mine": "твой код",
+            "friends.add.code.placeholder": "ник#0000",
+            "friends.add.code": "по коду",
+            "friends.add.qr.hint": "свой или друга",
+            "friends.add.qr": "qr-код",
+            "friends.req.empty.hint": "добавить друга — кнопка «+» справа внизу",
+            "friends.via.code": "по коду",
+            "friends.pill.aria": "друзья: в сети {online}, заявок {requests}",
+            "friends.tab.friends": "друзья",
+            "friends.tab.requests": "заявки",
+            "friends.status.online": "в сети",
+            "friends.status.offline": "не в сети",
+            "friends.status.room": "в комнате #{code}",
+            "friends.status.here": "в этой комнате",
+            "friends.closed": "вход закрыт",
+            "friends.join": "войти в #{code}",
+            "friends.empty": "друзей пока нет",
+            "friends.empty.hint": "нажми на человека в комнате дважды — откроется его профиль. или «+» справа внизу",
+            "friends.req.incoming": "входящие",
+            "friends.req.outgoing": "отправленные",
+            "friends.req.waiting": "ждём ответа",
+            "friends.req.empty": "заявок нет",
+            "friends.via.room": "из комнаты",
+            "friends.via.link": "по ссылке",
+            "friends.someone": "кто-то",
+            "friends.accept": "принять",
+            "friends.decline": "отклонить",
+            "friends.link.hint": "ссылка одноразовая и работает, пока ты в сети",
+            "friends.profile": "профиль",
+            "friends.alias": "как подписать",
+            "friends.remove": "удалить из друзей",
+            "friends.remove.confirm": "точно удалить?",
+            "friends.not-friend": "не в друзьях",
+            "friends.add": "добавить в друзья",
+            "friends.add.open": "открыть профиль",
+            "friends.tag.own": "это твой же код",
+            "friends.cancel": "отмена",
+            "friends.invisible": "невидимка",
+            "friends.invisible.hint": "друзья видят тебя не в сети, а ты их — как обычно",
+            "friends.transfer": "перенос на другое устройство",
+            "friends.transfer.hint": "друзья хранятся только на этом устройстве. перенос объединит списки на обоих",
+            "friends.transfer.show": "показать код",
+            "friends.transfer.enter": "ввести код",
+            "friends.transfer.go": "перенести",
+            "friends.transfer.wait": "введи этот код на другом устройстве · {time}",
+            "friends.ios.hint": "safari может стереть данные сайта, если не заходить неделю. добавь void на экран «домой» или перенеси друзей в приложение",
+            "friends.link.title": "приглашение в друзья",
+            "friends.link.question": "тебя зовут в друзья по ссылке. принять?",
+            "friends.link.accept": "принять",
+            "friends.link.app": "открыть в приложении",
+            "friends.link.app.hint": "друзья в браузере и в приложении — разные списки",
+            "friends.toast.incoming": "{nick} хочет добавить тебя в друзья",
+            "friends.toast.added": "{nick} теперь в друзьях",
+            "friends.toast.declined": "заявку отклонили",
+            "friends.toast.unreachable": "не получилось отправить заявку",
+            "friends.toast.limit": "в списке уже 100 друзей",
+            "friends.toast.link-dead": "ссылка уже не работает",
+            "friends.toast.link-own": "это твоя же ссылка",
+            "friends.toast.link-sent": "заявка отправлена — ждём ответа",
+            "friends.toast.offline": "нет связи с сервером",
+            "friends.toast.transfer-source": "готово — друзья теперь и на другом устройстве",
+            "friends.toast.transfer-target": "готово — друзья перенесены сюда",
+            "friends.toast.transfer-not-found": "код не найден или устарел",
+            "friends.toast.transfer-own": "это код с этого же устройства",
+            "friends.toast.transfer-failed": "перенос не удался",
 
             "settings.bg": "фон",
             "settings.uiScale": "масштаб интерфейса",
@@ -323,7 +413,7 @@
 
             "invite.hint": "нажми на код внизу — там код и ссылка для друзей",
             "invite.button-title": "пригласить",
-            "invite.code-label": "комната:",
+            "invite.code-label": "комната",
             "invite.copy-link": "скопировать ссылку",
             "invite.copied": "скопировано",
             "roomClose.close": "закрыть вход",
@@ -529,7 +619,97 @@
             "settings.audio.testMic.fail": "no microphone access",
             "settings.audio.device": "device",
             "settings.uiScale.apply": "apply",
-            "settings.profile.copy": "copy id",
+            "friends.title": "friends",
+            "friends.add.qr.hint.desk": "show it to a friend",
+            "friends.add.qr.face": "your qr code",
+            "friends.add.once": "single use",
+            "friends.add.qr.note": "a friend scans it in void or just with a phone camera",
+            "friends.add.qr.note.desk": "a friend points a phone camera at it and gets the invite",
+            "friends.scan.friend": "scan a friend's qr",
+            "friends.add.code.hint": "nick#0000",
+            "friends.add.link.hint": "for any chat",
+            "friends.req.from": "wants to be friends",
+            "friends.req.sent": "request sent",
+            "friends.pair.body": "this is the fingerprint of your friendship. your devices compute it from the keys you exchanged when you added each other.",
+            "friends.pair.hint": "you and {nick} should see the same symbols.\nthe code stays the same while you are friends",
+            "friends.transfer.enter.note": "the code is on the other device: profile → transfer → show code",
+            "friends.toast.tag-not-found": "no such code, or they are offline",
+            "friends.toast.tag-invalid": "use the nick#0000 format",
+            "friends.transfer.question": "move friends from the other device to this one?",
+            "friends.transfer.qr": "show qr",
+            "friends.code.copy": "copy {tag}",
+            "friends.pair.title": "friendship code",
+            "friends.scan.unknown": "not a void qr code",
+            "friends.scan.nocam": "camera unavailable",
+            "friends.scan.hint": "point the camera at a qr code",
+            "friends.scan": "scan qr",
+            "friends.link.copy": "copy link",
+            "friends.add.link": "link",
+            "friends.add.code.mine": "your code",
+            "friends.add.code.placeholder": "nick#0000",
+            "friends.add.code": "by code",
+            "friends.add.qr.hint": "yours or a friend's",
+            "friends.add.qr": "qr code",
+            "friends.req.empty.hint": "to add a friend — the «+» button at the bottom right",
+            "friends.via.code": "via code",
+            "friends.pill.aria": "friends: {online} online, {requests} requests",
+            "friends.tab.friends": "friends",
+            "friends.tab.requests": "requests",
+            "friends.status.online": "online",
+            "friends.status.offline": "offline",
+            "friends.status.room": "in room #{code}",
+            "friends.status.here": "in this room",
+            "friends.closed": "room is closed",
+            "friends.join": "join #{code}",
+            "friends.empty": "no friends yet",
+            "friends.empty.hint": "tap someone in a room twice to open their profile. or «+» at the bottom right",
+            "friends.req.incoming": "incoming",
+            "friends.req.outgoing": "sent",
+            "friends.req.waiting": "waiting for an answer",
+            "friends.req.empty": "no requests",
+            "friends.via.room": "from a room",
+            "friends.via.link": "via link",
+            "friends.someone": "someone",
+            "friends.accept": "accept",
+            "friends.decline": "decline",
+            "friends.link.hint": "single use, works while you are online",
+            "friends.profile": "profile",
+            "friends.alias": "your label",
+            "friends.remove": "remove friend",
+            "friends.remove.confirm": "remove for sure?",
+            "friends.not-friend": "not a friend",
+            "friends.add": "add friend",
+            "friends.add.open": "open profile",
+            "friends.tag.own": "this is your own code",
+            "friends.cancel": "cancel",
+            "friends.invisible": "invisible",
+            "friends.invisible.hint": "friends see you offline, you still see them",
+            "friends.transfer": "move to another device",
+            "friends.transfer.hint": "friends live only on this device. moving merges the lists on both",
+            "friends.transfer.show": "show code",
+            "friends.transfer.enter": "enter code",
+            "friends.transfer.go": "move",
+            "friends.transfer.wait": "enter this code on the other device · {time}",
+            "friends.ios.hint": "safari may wipe site data after a week without visits. add void to the home screen or move friends to the app",
+            "friends.link.title": "friend invite",
+            "friends.link.question": "you were invited to be friends. accept?",
+            "friends.link.accept": "accept",
+            "friends.link.app": "open in the app",
+            "friends.link.app.hint": "friends in the browser and in the app are separate lists",
+            "friends.toast.incoming": "{nick} wants to be friends",
+            "friends.toast.added": "{nick} is now your friend",
+            "friends.toast.declined": "request declined",
+            "friends.toast.unreachable": "could not send the request",
+            "friends.toast.limit": "you already have 100 friends",
+            "friends.toast.link-dead": "this link no longer works",
+            "friends.toast.link-own": "this is your own link",
+            "friends.toast.link-sent": "request sent — waiting for an answer",
+            "friends.toast.offline": "no connection to the server",
+            "friends.toast.transfer-source": "done — your friends are on the other device too",
+            "friends.toast.transfer-target": "done — friends moved to this device",
+            "friends.toast.transfer-not-found": "code not found or expired",
+            "friends.toast.transfer-own": "this code is from this device",
+            "friends.toast.transfer-failed": "transfer failed",
 
             "settings.bg": "background",
             "settings.uiScale": "interface scale",
@@ -573,7 +753,7 @@
 
             "invite.hint": "tap the code below — share it or copy a link",
             "invite.button-title": "invite",
-            "invite.code-label": "room code:",
+            "invite.code-label": "room code",
             "invite.copy-link": "copy link",
             "invite.copied": "copied",
             "roomClose.close": "close the room",
@@ -1237,20 +1417,13 @@
 
         profileModalEl = buildCatModalShell("catModalProfile", "settings.cat.profile", `
             <div class="profile-card">
-                <div class="profile-avatar" id="profileAvatar" aria-hidden="true">—</div>
-                <div class="profile-ident">
-                    <span class="profile-name" id="profileName">—</span>
-                    <button type="button" class="profile-uid" id="profileUidCopy"
-                        data-i18n-attr="aria-label:settings.profile.copy"
-                        aria-label="${t("settings.profile.copy")}">
-                        <span class="profile-uid-text" id="profileUid">uid-····-····</span>
-                        <svg class="profile-uid-icon" viewBox="0 0 24 24" aria-hidden="true">
-                            <rect x="9" y="9" width="11" height="11" rx="1.4"/>
-                            <path d="M5 15V5.5A1.5 1.5 0 0 1 6.5 4H15"/>
-                        </svg>
-                        <span class="profile-uid-copied" data-i18n="support.copied">${t("support.copied")}</span>
-                    </button>
-                </div>
+                <span class="fr-blob fr-blob--big is-online profile-blob" aria-hidden="true"></span>
+                <button type="button" class="profile-tag" id="profileTag">
+                    <span class="swap">
+                        <span class="swap-main profile-tag-line"><span class="profile-name" id="profileName">—</span><span class="profile-code" id="profileCode"></span></span>
+                        <span class="swap-alt" data-i18n="invite.copied">${t("invite.copied")}</span>
+                    </span>
+                </button>
             </div>
 
             <div class="iface-divider"></div>
@@ -1282,6 +1455,8 @@
                     <span class="settings-nick-saved" id="settingsNickSaved" aria-live="polite" data-i18n="settings.nick.saved">${t("settings.nick.saved")}</span>
                 </form>
             </div>
+
+            <div class="profile-friends" id="profileFriendsSlot"></div>
         `, `<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20.5c0-3.6 3.4-5.5 7.5-5.5s7.5 1.9 7.5 5.5"/></svg>`);
 
         audioModalEl = buildCatModalShell("catModalAudio", "settings.cat.audio", `
@@ -1496,25 +1671,6 @@
             </div>
         `, `<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="1.4"/><path d="M3 9.5h18M7 13.5h7"/></svg>`);
 
-        /* Копирование UID из карточки профиля. */
-        const uidCopyBtn = profileModalEl.querySelector("#profileUidCopy");
-        uidCopyBtn?.addEventListener("click", async () => {
-            const uid = profileModalEl.querySelector("#profileUid")?.textContent || "";
-            if (!uid) return;
-            try {
-                await navigator.clipboard.writeText(uid);
-            } catch (_) {
-                try {
-                    const ta = document.createElement("textarea");
-                    ta.value = uid; ta.style.position = "fixed"; ta.style.opacity = "0";
-                    document.body.appendChild(ta); ta.select();
-                    document.execCommand("copy"); document.body.removeChild(ta);
-                } catch (_) { return; }
-            }
-            uidCopyBtn.classList.add("is-copied");
-            clearTimeout(uidCopyBtn._copyT);
-            uidCopyBtn._copyT = setTimeout(() => uidCopyBtn.classList.remove("is-copied"), 1200);
-        });
 
         applyI18n(profileModalEl);
         applyI18n(audioModalEl);
@@ -1581,57 +1737,28 @@
     }
 
     /* Короткий UID (FNV-1a → 8 hex). Технический ID — UPPERCASE по гайду. */
-    function shortUid(seed) {
-        const s = String(seed || "void");
-        let h = 0x811c9dc5;
-        for (let i = 0; i < s.length; i++) {
-            h ^= s.charCodeAt(i);
-            h = (h * 0x01000193) >>> 0;
-        }
-        const hex = h.toString(16).toUpperCase().padStart(8, "0");
-        return `UID-${hex.slice(0, 4)}-${hex.slice(4, 8)}`;
-    }
-
-    /* Постоянный UID устройства. clientId генерируется заново каждую сессию,
-       поэтому для «личного айди» в профиле храним стабильный seed в localStorage —
-       так ID не меняется между запусками */
-    const UID_KEY = "void:uid";
-    function getStableUid() {
-        try {
-            let u = localStorage.getItem(UID_KEY);
-            if (!u) {
-                u = shortUid(String(Date.now()) + ":" + Math.random());
-                localStorage.setItem(UID_KEY, u);
-            }
-            return u;
-        } catch {
-            return shortUid(window.currentClientId || "void");
-        }
-    }
-
     function populateProfileCard() {
         const name = state.nickname || window.currentUsername || "";
-        const uidEl = document.getElementById("profileUid");
         updateProfileName(name, false);
-        if (uidEl) uidEl.textContent = getStableUid();
+        window.VoidFriendsUI?.mountProfile(
+            document.getElementById("profileFriendsSlot"),
+            document.getElementById("profileTag"));
     }
 
     function updateProfileName(name, animate) {
         const nameEl = document.getElementById("profileName");
-        const avatarEl = document.getElementById("profileAvatar");
         if (!nameEl) return;
         const apply = () => {
-            nameEl.textContent = name || "—";
+            nameEl.textContent = (typeof displayNick === "function" ? displayNick(name) : name) || "—";
             const premium = typeof isPremiumNickname === "function" && isPremiumNickname(name);
             nameEl.classList.toggle("premium", !!premium);
-            if (avatarEl) avatarEl.textContent = profileInitials(name);
         };
         if (!animate) { apply(); return; }
         nameEl.classList.add("is-swapping");
         setTimeout(() => {
             apply();
             nameEl.classList.remove("is-swapping");
-        }, 160);
+        }, 140);
     }
 
     /* Ник поменялся (в поле профиля / из комнаты) — обновляем карточку профиля
@@ -1689,8 +1816,8 @@
                         data-i18n-attr="aria-label:support.qr.show"
                         aria-label="${t("support.qr.show")}">
                         <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4z"/>
-                            <path d="M14 14h2v2h-2zM18 14h2v2h-2zM14 18h2v2h-2zM18 18h2v2h-2z"/>
+                            <rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/>
+                            <path d="M14 14h2.5v2.5H14zM17.5 17.5H20V20h-2.5zM14 19h1M20 14v1.5"/>
                         </svg>
                     </button>
                 </div>
@@ -1791,11 +1918,13 @@
         if (!supportQrModalEl || !supportQrFigureEl) return;
         const src = qrSrc || "";
         const alt = coinLabel || t("support.qr.title");
-        /* Картинки 1500×1500 — CSS даст object-fit:contain в 220×220 контейнер.
-           Браузер сам отресемплит, оставаясь в quiet-zone PNG. */
-        supportQrFigureEl.innerHTML = src
-            ? `<img src="${src}" alt="${alt}" draggable="false">`
-            : "";
+        /* QR рисуется из адреса общим рендером (js/qr.js) — в стиле войда.
+           PNG из static/qr — запасной вариант, если рендер не загрузился. */
+        supportQrFigureEl.innerHTML = "";
+        const fig = supportQrFigureEl;
+        const fallback = () => { if (src) fig.innerHTML = `<img src="${src}" alt="${alt}" draggable="false">`; };
+        if (window.VoidQR) window.VoidQR.svg(address).then(svg => { fig.innerHTML = svg; }).catch(fallback);
+        else fallback();
         if (supportQrLabelEl) supportQrLabelEl.textContent = address;
         const titleEl = supportQrModalEl.querySelector("#supportQrLabel");
         if (titleEl) titleEl.textContent = alt;
@@ -1861,7 +1990,13 @@
                 </button>
 
                 <div class="bug-view bug-view--form" id="bugFormView">
-                    <h2 class="bug-title" id="bugTitle" data-i18n="bug.title">${t("bug.title")}</h2>
+                    <div class="bug-head">
+                        <svg class="bug-head-ic" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M5 3v18"/>
+                            <path d="M5 4h12l-2 3 2 3H5"/>
+                        </svg>
+                        <h2 class="bug-title" id="bugTitle" data-i18n="bug.title">${t("bug.title")}</h2>
+                    </div>
                     <p class="bug-body" data-i18n="bug.body">${t("bug.body")}</p>
 
                     <form class="bug-form" id="bugForm" autocomplete="off">

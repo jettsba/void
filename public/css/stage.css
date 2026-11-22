@@ -19,7 +19,7 @@
     box-sizing: border-box;
     transition:
         padding-right var(--t-med),
-        padding-bottom 0.44s cubic-bezier(0.32, 0.72, 0, 1);
+        padding-bottom var(--t-med);
 }
 
 .stage-stack {
@@ -143,11 +143,11 @@
 /* Вход/выход: участник несёт позиционный transform, поэтому pop-scale живёт на
    аватаре (иначе перетёр бы позицию). Участник — только фейд. */
 .participant.pop-in {
-    animation: participant-fade-in 520ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    animation: participant-fade-in var(--t-med) forwards;
 }
 
 .participant.pop-in .participant-avatar {
-    animation: avatar-pop-in 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation: avatar-pop-in var(--t-med) both;
 }
 
 /* Вход отыграл: .pop-in снимается (_markMounted в js/participants.js), а
@@ -171,11 +171,11 @@
 }
 
 .participant.pop-out {
-    animation: participant-fade-out 260ms ease forwards;
+    animation: participant-fade-out var(--t-med) forwards;
 }
 
 .participant.pop-out .participant-avatar {
-    animation: avatar-pop-out 260ms ease both;
+    animation: avatar-pop-out var(--t-med) both;
 }
 
 @keyframes participant-fade-in { to { opacity: 1; } }
@@ -304,7 +304,8 @@
    через drop-shadow на filter — text-shadow не работает поверх
    background-clip:text. Анимация 7s + cubic-bezier чтобы блик ощущался
    живым, но не отвлекал в комнате на пять человек. */
-.participant-name.premium {
+.participant-name.premium,
+.nick-gold {
     background: linear-gradient(
         110deg,
         #b89254 0%,
@@ -339,7 +340,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .participant-name.premium {
+    .participant-name.premium,
+    .nick-gold {
         animation: none;
         background-position: 50% 50%;
     }
@@ -458,6 +460,16 @@
     z-index: 1;
 }
 
+/* На телефоне длинный тост (ник + «хочет добавить тебя в друзья») не влезал
+   в строку и уезжал за край экрана — переносим, ширина по тексту. */
+@media (max-width: 640px) {
+    .toast-host {
+        width: max-content;
+        white-space: normal;
+        line-height: 1.45;
+    }
+}
+
 .toast-host.is-visible {
     opacity: 1;
     transform: translateX(calc(-50% - var(--chat-rail, 0px) / 2)) translateY(0);
@@ -539,7 +551,7 @@
     letter-spacing: var(--tracking);
     text-transform: lowercase;
     text-align: center;
-    transition: opacity 170ms ease;
+    transition: opacity var(--t-fast);
 }
 
 /* Промежуточное состояние при смене текста (fade out перед подменой). */

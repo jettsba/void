@@ -2034,6 +2034,86 @@ section.what {
   margin-top: 2px;
 }
 
+/* ----- friends viz — mini friends list ----- */
+.fr-vis {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.fr-vis-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 2px;
+}
+.fr-vis-row:first-child {
+  background: var(--bg-2);
+}
+.fr-vis-ava {
+  position: relative;
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  border: 1px solid hsl(var(--h) 28% 62%);
+  color: hsl(var(--h) 28% 62%);
+  font-size: 12px;
+}
+.fr-vis-row:not(.off) .fr-vis-ava::after {
+  content: "";
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--fg-2);
+  border: 2px solid var(--bg-1);
+}
+.fr-vis-row.off {
+  opacity: 0.45;
+}
+.fr-vis-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.fr-vis-name {
+  color: var(--fg);
+  font-size: 12px;
+}
+.fr-vis-st {
+  color: var(--fg-3);
+  font-size: 10px;
+  letter-spacing: var(--tracking);
+}
+.fr-vis-act {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--fg-4);
+  border-radius: 2px;
+  color: var(--fg-2);
+}
+.fr-vis-act.lock {
+  opacity: 0.4;
+}
+.fr-vis-act svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 /* ----- screen share viz — mock window with code + cursor ----- */
 .screen-vis {
   height: 100%;

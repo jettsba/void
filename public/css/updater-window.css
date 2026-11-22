@@ -36,6 +36,7 @@
     --screen: #5faa7a;
     --warn: #b87a5a;
     --ease: cubic-bezier(.2, .6, .2, 1);
+    --t-fast: 120ms var(--ease);
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -88,7 +89,7 @@ body {
     border-radius: 2px;
     color: var(--fg-3);
     cursor: pointer;
-    transition: color 120ms var(--ease), background 120ms var(--ease);
+    transition: color var(--t-fast), background var(--t-fast);
 }
 .uw-wbtn svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.2; stroke-linecap: round; }
 .uw-wbtn:hover { color: var(--fg-2); }

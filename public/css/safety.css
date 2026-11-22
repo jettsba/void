@@ -106,12 +106,12 @@
     background: var(--bg-1);
     border: 1px solid var(--fg-4);
     text-align: center;
-    transform: translateY(0.57rem) scale(0.98);
+    transform: translateY(0.57rem);
     transition: transform var(--t-med);
 }
 
 .sas-modal.is-open .sas-card {
-    transform: translateY(0) scale(1);
+    transform: none;
 }
 
 /* Схема «ты — замок — собеседник»: линия дорисовывается, по ней в замок и
@@ -154,7 +154,7 @@
 }
 
 .sas-modal.is-open .sas-node {
-    animation: sas-fade 0.4s ease-out forwards;
+    animation: sas-fade var(--t-med) forwards;
 }
 
 .sas-modal.is-open .sas-node-b {
@@ -162,7 +162,7 @@
 }
 
 .sas-modal.is-open .sas-link {
-    animation: sas-draw 0.6s cubic-bezier(.2, .6, .2, 1) 0.15s forwards;
+    animation: sas-draw var(--t-slow) 0.15s forwards;
 }
 
 .sas-modal.is-open .sas-link-r {
@@ -171,7 +171,7 @@
 
 .sas-modal.is-open .sas-lock {
     animation:
-        sas-fade 0.4s ease-out 0.5s forwards,
+        sas-fade var(--t-med) 0.5s forwards,
         sas-breathe 3.2s ease-in-out 1s infinite;
 }
 
@@ -211,7 +211,7 @@
 }
 
 .sas-modal.is-open .sas-big-cell {
-    animation: sas-icon-in 0.55s cubic-bezier(.2, .6, .2, 1) forwards;
+    animation: sas-icon-in var(--t-med) forwards;
     animation-delay: calc(0.75s + var(--k) * 0.12s);
 }
 
@@ -269,6 +269,8 @@
     line-height: 1.5;
     letter-spacing: var(--tracking);
     text-transform: lowercase;
+    /* "\n" in the copy = a deliberate line break (friends.pair.hint). */
+    white-space: pre-line;
 }
 
 @keyframes sas-fade {

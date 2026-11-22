@@ -191,6 +191,8 @@ function createVolumeArc(participant, userId) {
     const onOutsideClick = (e) => {
         if (dragging) return;
         if (participant.contains(e.target)) return;
+        // The profile opened from this blob holds the arc until it closes.
+        if (e.target.closest?.(".app-modal-scrim")) return;
         closeVolumeArc(wrapper);
     };
 

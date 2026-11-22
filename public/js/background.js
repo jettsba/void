@@ -992,7 +992,7 @@ const THEMES = {
 };
 
 const DEFAULT_THEME = "silence";
-const CROSSFADE_MS = 280;
+const CROSSFADE_MS = 320; // = --d-med (base.css), the bg crossfade transition
 
 function _resolveTheme(name) {
     return THEMES[name] ? name : DEFAULT_THEME;

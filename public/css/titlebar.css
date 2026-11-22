@@ -111,9 +111,7 @@ html.desktop .void-titlebar-btn svg {
    ниже. Своих кнопок окна нет. Полоса без фона и линии: звёзды и свечение
    приложения идут до самого верха окна.
 
-   Кнопка чата — выше шапки, ближе к краю окна (центр на 43px); шапка панели
-   чата подтянута под неё, чтобы «закрыть» стояло по её центру: центр шапки
-   панели = padding-top + 3.57rem / 2 (высота .chat-header).
+   Кнопка чата и панель чата — как везде: --edge ниже полосы светофора.
 
    В полноэкранном режиме светофора нет (система показывает его со своей
    шапкой при наведении к верху) — полоса убирается, раскладка обычная. */
@@ -143,16 +141,6 @@ html.desktop.mac:not(.mac-fullscreen) .settings-panel-inner {
     padding-top: calc(1.71rem + var(--titlebar-h));
 }
 
-html.desktop.mac:not(.mac-fullscreen) .chat-toggle {
-    top: calc(43px - 1.145rem);   /* 2.29rem / 2 */
-}
-
-html.desktop.mac:not(.mac-fullscreen) .chat-panel {
-    top: 0;
-    margin-top: 0;
-    padding-top: calc(43px - 1.785rem);
-}
-
 html.desktop.mac.mac-fullscreen {
     --titlebar-h: 0px;
 }
@@ -180,7 +168,7 @@ html.desktop .chat-panel {
 }
 
 html.desktop .chat-toggle {
-    top: calc((var(--hdr-h) - 1rem) / 2 + var(--titlebar-h));
+    top: calc(var(--edge-btn) - 0.83rem + var(--titlebar-h));
 }
 
 html.desktop .settings-panel {
@@ -191,7 +179,7 @@ html.desktop .settings-panel {
    viewport, наш titlebar поверх. Без поправки hint попадает ПОД titlebar и
    стрелка не указывает на лого. Сдвигаем вниз ровно на высоту титлбара. */
 html.desktop .settings-hint {
-    top: calc(5rem + var(--titlebar-h));
+    top: calc(var(--edge-btn) + 1.86rem + 1.07rem + var(--titlebar-h));
 }
 
 /* Close-кнопка лайтбокса (картинка из чата). Оверлей растянут inset:0, то есть

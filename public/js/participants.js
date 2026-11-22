@@ -127,6 +127,7 @@ function resetInviteHint() {
 function removeAllParticipants() {
 
     participantElements.clear();
+    window.dispatchEvent(new Event("void:participants-changed"));
     const all = document.querySelectorAll(".participant");
 
     all.forEach(el => {
@@ -140,6 +141,38 @@ function removeAllParticipants() {
         el.classList.add("pop-out");
 
         _onAnimationEndOrFallback(el);
+    });
+}
+
+/* What the room shows under a blob: the label you gave this friend (only for
+   a friend whose keys proved who they are — friends/net.js), else their nick.
+   The label never leaves this device; premium gold follows the real nick. */
+function participantLabel(userId, nickname) {
+    const friend = window.VoidFriends?.friendByUid?.(userId);
+    return (friend && friend.alias) || nickname;
+}
+
+/* Friends list / labels changed: rewrite the names under the blobs in place,
+   with the same soft swap as the profile name. */
+function refreshParticipantLabels() {
+    if (!participantsContainer) return;
+    participantsContainer.querySelectorAll(".participant[data-user-id]:not(.pop-out)").forEach(el => {
+        const userId = el.dataset.userId;
+        const nickname = nicknameMap.get(userId);
+        if (!nickname) return;
+        const [w1, w2] = splitNicknameLines(participantLabel(userId, nickname));
+        const lines = el.querySelectorAll(".participant-name-line");
+        if (!lines[0] || (lines[0].textContent === w1 && lines[1]?.textContent === (w2 || "\u00a0"))) return;
+        const nameEl = el.querySelector(".participant-name");
+        const apply = () => {
+            lines[0].textContent = w1;
+            if (lines[1]) lines[1].textContent = w2 || "\u00a0";
+        };
+        if (!nameEl || matchMedia("(prefers-reduced-motion: reduce)").matches) { apply(); return; }
+        nameEl.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 120, easing: "ease-in" }).onfinish = () => {
+            apply();
+            nameEl.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: "ease-out" });
+        };
     });
 }
 
@@ -158,7 +191,7 @@ function addParticipant(userId, nickname) {
     );
     if (exists) {
         const lines = exists.querySelectorAll(".participant-name-line");
-        const [w1, w2] = splitNicknameLines(nickname);
+        const [w1, w2] = splitNicknameLines(participantLabel(userId, nickname));
         if (lines[0]) lines[0].textContent = w1;
         if (lines[1]) lines[1].textContent = w2 || " ";
         const nameEl = exists.querySelector(".participant-name");
@@ -177,13 +210,18 @@ function addParticipant(userId, nickname) {
     const avatar = document.createElement("div");
     avatar.classList.add("participant-avatar");
     avatar.innerHTML = PARTICIPANT_STATE_ICONS;
+    /* «Ещё»: на активном блобе центральная точка расходится в троеточие —
+       подсказка, что повторный клик откроет профиль (css/friends.css). */
+    if (userId !== clientId) {
+        avatar.insertAdjacentHTML("beforeend", '<span class="blob-more" aria-hidden="true"><i></i><i></i><i></i></span>');
+    }
 
     const name = document.createElement("div");
     name.classList.add("participant-name");
     if (isPremiumNickname(nickname)) {
         name.classList.add("premium");
     }
-    const [word1, word2] = splitNicknameLines(nickname);
+    const [word1, word2] = splitNicknameLines(participantLabel(userId, nickname));
     const line1 = document.createElement("span");
     line1.className = "participant-name-line";
     line1.textContent = word1;
@@ -218,6 +256,16 @@ function addParticipant(userId, nickname) {
         participant.addEventListener("click", e => {
             if (e.target.closest(".watch-screen-btn")) {
                 openScreenOverlay(userId);
+                return;
+            }
+            /* Повторный клик по блобу с открытой аркой — профиль человека
+               (js/friends/ui.js). Арку (и троеточие) держим, пока профиль
+               открыт: иначе под проявляющимся окном мелькает иконка mute. */
+            const arc = participant.querySelector(".volume-arc");
+            if (arc && arc.dataset.closing !== "1" && window.VoidFriendsUI) {
+                window.VoidFriendsUI.openPersonProfile(userId);
+                if (window.VoidAppModal?.onClose) window.VoidAppModal.onClose(() => closeVolumeArc(arc));
+                else closeVolumeArc(arc);
                 return;
             }
             toggleVolumeControl(participant, userId);

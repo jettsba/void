@@ -147,6 +147,7 @@ function initChat() {
     if (!chatPanel || !chatToggleBtn) return;
 
     chatToggleBtn.addEventListener("click", toggleChat);
+    document.getElementById("chatCloseBtn")?.addEventListener("click", () => setChatOpen(false));
     chatJumpBtn?.addEventListener("click", () => {
         scrollChatToBottom(true);
         refreshChatJumpButton();
@@ -274,7 +275,6 @@ function setChatOpen(open) {
     // an element with focused descendant").
     chatPanel.toggleAttribute("inert", !chatOpen);
     chatPanel.setAttribute("aria-hidden", chatOpen ? "false" : "true");
-    chatToggleBtn.classList.toggle("is-open", chatOpen);
     chatToggleBtn.setAttribute("aria-pressed", chatOpen ? "true" : "false");
     document.body.classList.toggle("chat-open", chatOpen);
     syncChatToggleLabel();
@@ -694,6 +694,11 @@ function handleIncoming(data, userId) {
             window.VoidScreenLab?.onPeerMessage(json, userId);
             return;
         }
+        /* Заявка в друзья (js/friends/net.js): владелец канала = отправитель. */
+        if (json.type === "fr") {
+            if (inboundAllowed(userId)) window.VoidFriends?.onRoomMessage(userId, json);
+            return;
+        }
         if (json.type !== "msg") return;
         if (!inboundAllowed(userId)) return;
 
@@ -837,7 +842,15 @@ function chatAuthorName(userId) {
             if (id !== userId && typeof other === "string" && other.toLowerCase() === key) { dup = true; break; }
         }
     }
-    return { text: dup ? `${nick} #${String(userId).slice(0, 4)}` : nick, unverified: false };
+    /* A friend you labelled shows under your label (local only, see
+       participantLabel); the rest — one display form (displayNick). */
+    const friend = window.VoidFriends?.friendByUid?.(userId);
+    const shown = displayNick(friend?.alias || nick);
+    return {
+        text: dup && !friend?.alias ? `${shown} #${String(userId).slice(0, 4)}` : shown,
+        unverified: false,
+        premium: isPremiumNickname(nick),
+    };
 }
 
 /* Звук и бейдж непрочитанного — не чаще раза в секунду, даже если сообщения
@@ -878,6 +891,7 @@ function appendMessage(msg, isSelf, attachState = null) {
         const author = chatAuthorName(msg.from);
         nick.textContent = author.text;
         if (author.unverified) nick.classList.add("is-unverified");
+        if (author.premium) nick.classList.add("nick-gold");
     }
 
     const time = document.createElement("span");
