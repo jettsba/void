@@ -1878,16 +1878,29 @@
 .settings-footer-pill {
     color: var(--fg-2);
     font-variant-numeric: tabular-nums;
-    padding: 0.14rem 0.57rem;
+    padding: 0.21rem 0.64rem;
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 2px;
     background: transparent;
     letter-spacing: var(--tracking-wide);
-    line-height: 1.4;
+    /* <button>: шрифт и размер — от футера, а не UA-дефолт. line-height ПОСЛЕ
+       font: шорткат сбрасывает его в футеровский 1, и пилюля сплющивалась. */
+    font: inherit;
+    line-height: 1.5;
+    cursor: pointer;
+    transition: color var(--t-fast);
 }
 
-/* Ряд «пилюля версии + галочка dev-режима». Пилюля — секретный триггер
-   dev-режима (10 кликов при нике casheaterr); cursor намеренно НЕ pointer. */
+/* Пилюля — кнопка «история изменений». На hover светлеет только текст,
+   рамка остаётся прежней. */
+.settings-footer-pill:hover,
+.settings-footer-pill:focus-visible {
+    color: var(--fg);
+    outline: none;
+}
+
+/* Ряд «пилюля версии + галочка dev-режима». Пилюля открывает «историю
+   изменений»; жест dev-режима — 10 кликов по заголовку этого окна. */
 .settings-footer-pillrow {
     display: inline-flex;
     align-items: center;

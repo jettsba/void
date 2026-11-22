@@ -247,7 +247,7 @@
   margin-bottom: 0;
 }
 
-/* Список пунктов в теле модалки (changelog «что нового»). Нижний отступ даёт
+/* Список пунктов в теле модалки («что нового», «история изменений»). Нижний отступ даёт
    padding самого .app-modal-body — свой не нужен. */
 .app-modal-bullets {
   list-style: none;
@@ -267,6 +267,138 @@
   position: absolute;
   left: 0;
   color: var(--fg-3);
+}
+
+/* Подпункты («- текст» в public/changelog.js): вложенный список под пунктом.
+   От точки родителя вниз идёт тонкая ветка и уголком заходит в каждую строку;
+   у не последнего подпункта ветка тянется дальше вниз. Текст бледнее. */
+.app-modal-bullets .notes-sub {
+  list-style: none;
+  margin: 0.14rem 0 0 -0.86rem; /* назад к колонке точки родителя */
+  padding: 0;
+}
+
+.app-modal-bullets .notes-sub li {
+  padding: 0.14rem 0 0.14rem 1.5rem;
+  color: var(--fg-2);
+  font-size: 0.93em;
+}
+
+.app-modal-bullets .notes-sub li::before {
+  content: "";
+  left: 0.24em;
+  top: 0;
+  height: 0.93em;
+  width: 0.6rem;
+  border-left: 1px solid var(--fg-4);
+  border-bottom: 1px solid var(--fg-4);
+  border-bottom-left-radius: 3px;
+}
+
+.app-modal-bullets .notes-sub li:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  left: 0.24em;
+  top: 0;
+  bottom: 0;
+  border-left: 1px solid var(--fg-4);
+}
+
+/* Первый подпункт дотягивает ветку вверх, к самой точке родителя. */
+.app-modal-bullets .notes-sub li:first-child::before {
+  top: -0.55rem;
+  height: calc(0.93em + 0.55rem);
+}
+
+.app-modal-bullets .notes-sub li:first-child:not(:last-child)::after {
+  top: -0.55rem;
+}
+
+/* «что нового» → ссылка на всю историю: просто текст по центру внизу. */
+.whats-new-history {
+  align-self: center;
+  padding: 0.21rem 0.43rem;
+  background: transparent;
+  border: 0;
+  font: inherit;
+  font-size: 0.79rem;
+  letter-spacing: var(--tracking);
+  text-transform: lowercase;
+  color: var(--fg-3);
+  cursor: pointer;
+  transition: color var(--t-fast);
+}
+
+.whats-new-history:hover,
+.whats-new-history:focus-visible {
+  color: var(--fg);
+  outline: none;
+}
+
+/* «что нового» и «история изменений» — чуть шире базовых 35rem: длинные
+   пункты меньше переносятся. Два класса — чтобы перебить shell ниже по файлу. */
+.app-modal-card.notes-card {
+  width: min(40rem, 100%);
+}
+
+/* ----- «история изменений» (js/changelog.js) -----
+   Скроллится сама карточка (на телефоне на ней висит свайп-закрытие, ему нужен
+   её scrollTop), поэтому шапку держим sticky, а не уводим скролл в body. */
+.changelog-card .app-modal-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg-0);
+}
+
+.changelog-card .app-modal-title {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.changelog-card .app-modal-body {
+  gap: 0;
+  padding-top: 0.57rem;
+}
+
+.changelog-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 0.43rem;
+  padding: 1.14rem 0;
+}
+
+.changelog-entry:last-child {
+  padding-bottom: 0;
+}
+
+.changelog-entry + .changelog-entry {
+  border-top: 1px solid var(--fg-4);
+}
+
+.changelog-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.86rem;
+}
+
+.changelog-ver {
+  color: var(--fg);
+  letter-spacing: var(--tracking-wide);
+  font-variant-numeric: tabular-nums;
+}
+
+.changelog-now,
+.changelog-date {
+  color: var(--fg-3);
+  font-size: 0.79rem;
+  letter-spacing: var(--tracking);
+  font-variant-numeric: tabular-nums;
+}
+
+.changelog-now {
+  margin-left: 0.71rem;
 }
 
 /* Обёртка над списком биндингов — общий тумблер хоткеев гасит её целиком. */

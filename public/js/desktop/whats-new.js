@@ -2,7 +2,9 @@
    Пара к updater.js: тот показывает «доступно обновление» ДО установки, этот —
    «обновлён до vX.Y.Z» ПОСЛЕ, на первом запуске новой версии. Тот же угол, тот
    же шелл (.updater-banner), внутри — заголовок + текст-кнопка «что нового»,
-   она открывает модалку со списком изменений из public/whats-new.js.
+   она открывает модалку со списком изменений — запись этой версии из
+   public/changelog.js. Внизу модалки — ссылка «история изменений»: она
+   заменяет модалку окном истории (js/changelog.js).
 
    Как понимаем, что «только что обновились»:
      localStorage["void:seen-version"] — версия, о которой уже отчитались.
@@ -18,9 +20,9 @@
    и по версии страницы можно было бы соврать «обновлён» тому, кто ещё сидит на
    старом бинаре. APP_VERSION — только фоллбэк.
 
-   Гейт контента: заметки показываем, ТОЛЬКО если whats-new.js объявляет ровно
-   текущую версию и в нём есть непустые строки. Иначе баннера нет вообще — это
-   штатный режим для микрофиксов (см. шапку public/whats-new.js).
+   Гейт контента: заметки показываем, ТОЛЬКО если в changelog.js есть запись
+   ровно текущей версии с непустыми строками. Иначе баннера нет вообще — это
+   штатный режим для микрофиксов (см. шапку public/changelog.js).
 
    Скрывается: по таймеру (12s, тикает только пока окно видно и на баннере нет
    курсора), по крестику, по открытию модалки, и уступает место апдейт-баннеру. */
@@ -50,21 +52,10 @@
         })[c]);
     }
 
-    /** Строки релиза для языка интерфейса. Пустой массив = показывать нечего. */
+    /** Строки релиза для языка интерфейса (из public/changelog.js). Пустой
+     *  массив = показывать нечего: записи для этой версии нет (микрофикс). */
     function itemsFor(version) {
-        const data = window.VoidWhatsNew;
-        if (!data || typeof data !== "object") return [];
-        if (String(data.version || "").trim() !== version) return [];
-        const clean = (lang) =>
-            (Array.isArray(data[lang]) ? data[lang] : [])
-                .map((s) => String(s == null ? "" : s).trim())
-                .filter(Boolean);
-        const primary = clean((window.VoidI18n && window.VoidI18n.getLang && window.VoidI18n.getLang()) || "ru");
-        if (primary.length) return primary;
-        /* Списка на языке интерфейса нет — отдаём русский (или английский):
-           показать заметки не на том языке лучше, чем проглотить релиз молча. */
-        const ru = clean("ru");
-        return ru.length ? ru : clean("en");
+        return window.VoidNotes ? window.VoidNotes.itemsFor(version) : [];
     }
 
     // -------------------- Banner --------------------
@@ -134,7 +125,7 @@
     // -------------------- Modal --------------------
 
     function listHtml(items) {
-        return items.map((it) => `<li>${esc(it)}</li>`).join("");
+        return window.VoidNotes ? window.VoidNotes.listHtml(items) : "";
     }
 
     function openNotes() {
@@ -144,16 +135,21 @@
         const modal = window.VoidAppModal;
         if (!modal) return;
         /* Заголовок — сама версия: технический ID, регистр не трогаем (гайд §2). */
-        modal.open(
+        const card = modal.open(
             "v" + esc(shownVersion),
             `
             <div class="app-section">
                 <span class="app-section-label" data-wn-heading>${esc(T("whatsnew.heading"))}</span>
                 <ul class="app-modal-bullets" data-wn-list>${listHtml(items)}</ul>
             </div>
+            <button type="button" class="whats-new-history" data-wn-history>${esc(T("changelog.title"))}</button>
             `,
-            ICON_NOTES
+            ICON_NOTES,
+            "notes-card"
         );
+        /* Замена, а не стопка: VoidAppModal.open сам закрывает текущую модалку. */
+        card.querySelector("[data-wn-history]")
+            ?.addEventListener("click", () => window.VoidChangelogModal?.open());
     }
 
     // -------------------- Wiring --------------------
@@ -174,7 +170,9 @@
         renderBanner();
         const heading = document.querySelector("[data-wn-heading]");
         const list = document.querySelector("[data-wn-list]");
+        const history = document.querySelector("[data-wn-history]");
         if (heading) heading.textContent = T("whatsnew.heading");
+        if (history) history.textContent = T("changelog.title");
         if (list) list.innerHTML = listHtml(itemsFor(shownVersion));
     });
 
@@ -202,11 +200,12 @@
         setTimeout(() => show(version), SHOW_DELAY_MS);
     }
 
-    /** Предпросмотр вёрстки перед выкаткой: `VoidWhatsNewPreview()` в консоли.
-     *  Берёт версию из whats-new.js, seen-версию не трогает — можно звать сколько
-     *  угодно раз и на любой платформе. */
+    /** Предпросмотр вёрстки перед выкаткой: `VoidWhatsNewPreview("1.12.0")` в
+     *  консоли. Без аргумента — самая свежая запись changelog.js. seen-версию не
+     *  трогает — можно звать сколько угодно раз и на любой платформе. */
     window.VoidWhatsNewPreview = function (version) {
-        show(String(version || (window.VoidWhatsNew && window.VoidWhatsNew.version) || window.VoidVersion || ""));
+        const top = Array.isArray(window.VoidChangelog) && window.VoidChangelog[0];
+        show(String(version || (top && top.version) || window.VoidVersion || ""));
     };
 
     /* Авто-показ — только desktop: в вебе «обновления приложения» нет, страница

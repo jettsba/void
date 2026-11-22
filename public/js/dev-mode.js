@@ -1,6 +1,6 @@
 /* ===== Dev-режим (админ-режим) — сессионный флаг + негласная активация =====
-   Включается жестом: 10 кликов по пилюле версии в настройках
-   (.settings-footer-pill), но ТОЛЬКО на машине, где dev-режим разрешён руками:
+   Включается жестом: 10 кликов по заголовку окна «история изменений»
+   (js/changelog.js; окно открывает пилюля версии в настройках), но ТОЛЬКО на машине, где dev-режим разрешён руками:
      - desktop: файл `dev-mode` в папке данных приложения
        (%APPDATA%\space.void-room.app\dev-mode) или env VOID_DEV=1 — проверяет
        Rust (команда dev_mode_available), он же держит гейт на set_dev_access и
@@ -55,8 +55,8 @@
         try { window.log?.info?.("boot", "dev mode enabled"); } catch (_) {}
     }
 
-    /* Вызывается из settings.js на каждый клик по пилюле версии. */
-    async function registerPillClick() {
+    /* Вызывается из js/changelog.js на каждый клик по заголовку «история изменений». */
+    async function registerTriggerClick() {
         if (devMode) return;
         const now = Date.now();
         clicks = (now - lastClickTs > CLICK_RESET_MS) ? 1 : clicks + 1;
@@ -75,5 +75,5 @@
         });
     }
 
-    window.VoidDev = { isEnabled, registerPillClick };
+    window.VoidDev = { isEnabled, registerTriggerClick };
 })();

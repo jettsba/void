@@ -19,15 +19,33 @@ test("tauri.conf.json takes the version from package.json", () => {
     assert.equal(conf.version, "../package.json");
 });
 
-test("whats-new version is either empty or the current one", () => {
+test("changelog is well-formed and never ahead of the app", () => {
     const pkg = JSON.parse(read("package.json")).version;
-    /* Файл именно выполняем, а не ищем строку регэкспом: незакрытый комментарий
-       (так было в 1.8.1) превращал весь файл в комментарий — регэксп этого не
-       видел, а VoidWhatsNew просто не появлялся. */
+    /* Файл именно выполняем, а не ищем строки регэкспом: незакрытый комментарий
+       (так было в 1.8.1 с whats-new.js) превращал весь файл в комментарий —
+       регэксп этого не видел, а данные просто не появлялись. */
     const sandbox = { window: {} };
-    vm.runInNewContext(read("public/whats-new.js"), sandbox);
-    const notes = sandbox.window.VoidWhatsNew;
-    assert.ok(notes && typeof notes === "object", "public/whats-new.js must define window.VoidWhatsNew");
-    assert.ok(Array.isArray(notes.ru) && Array.isArray(notes.en), "ru/en must be arrays");
-    if (notes.version) assert.equal(notes.version, pkg, "public/whats-new.js shows notes for another version");
+    vm.runInNewContext(read("public/changelog.js"), sandbox);
+    const log = sandbox.window.VoidChangelog;
+    assert.ok(Array.isArray(log) && log.length, "public/changelog.js must define a non-empty window.VoidChangelog");
+    const cmp = (a, b) => {
+        const pa = a.split(".").map(Number), pb = b.split(".").map(Number);
+        for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+            const d = (pa[i] || 0) - (pb[i] || 0);
+            if (d) return d;
+        }
+        return 0;
+    };
+    log.forEach((e, i) => {
+        const at = `changelog entry #${i} (${e.version})`;
+        assert.match(String(e.version), /^\d+\.\d+(\.\d+)?$/, `${at}: bad version`);
+        assert.match(String(e.date), /^\d{4}-\d{2}-\d{2}$/, `${at}: date must be YYYY-MM-DD`);
+        assert.ok(Array.isArray(e.ru) && e.ru.length, `${at}: ru must be a non-empty array`);
+        assert.ok(!e.en || Array.isArray(e.en), `${at}: en must be an array`);
+        for (const line of [...e.ru, ...(e.en || [])]) {
+            assert.ok(!/^—/.test(line), `${at}: sub-items start with "- ", not "—": ${line}`);
+        }
+        if (i) assert.ok(cmp(log[i - 1].version, e.version) > 0, `${at}: entries must go newest first, no duplicates`);
+    });
+    assert.ok(cmp(log[0].version, pkg) <= 0, `newest changelog entry ${log[0].version} is ahead of package.json ${pkg}`);
 });

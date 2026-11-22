@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "1.11.0";
+    const APP_VERSION = "1.12.0";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
@@ -59,7 +59,7 @@
            дефолтные комбинации пересекались с внутриигровыми биндами. Никакой
            миграции «старым оставим включёнными» тут нет намеренно — жаловались
            как раз действующие пользователи, а про смену дефолта им рассказывает
-           баннер «что нового» (public/whats-new.js). */
+           баннер «что нового» (public/changelog.js). */
         hotkeysEnabled: false,
         /* Громкость звуков приложения (тоглы/сообщения/вход-выход). Множитель
            поверх базы синтеза; 0..1.5, дефолт 1.0. sfxEnabled — общий
@@ -251,6 +251,8 @@
             "whatsnew.cta": "что нового",
             "whatsnew.heading": "что нового:",
             "whatsnew.close": "закрыть",
+            "changelog.title": "история изменений",
+            "changelog.current": "текущая",
 
             "settings.lang": "язык интерфейса",
             "settings.streamer": "режим стримера",
@@ -622,6 +624,8 @@
             "whatsnew.cta": "what's new",
             "whatsnew.heading": "what's new:",
             "whatsnew.close": "close",
+            "changelog.title": "changelog",
+            "changelog.current": "current",
 
             "settings.lang": "interface language",
             "settings.streamer": "streamer mode",
@@ -1350,7 +1354,7 @@
                 <footer class="settings-footer">
                     <div class="settings-footer-meta">
                         <span class="settings-footer-pillrow">
-                            <span class="settings-footer-pill">void v${APP_VERSION}</span>
+                            <button type="button" class="settings-footer-pill">void v${APP_VERSION}</button>
                             <span class="settings-devmode-check" aria-hidden="true">
                                 <svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-11"/></svg>
                             </span>
@@ -1478,7 +1482,7 @@
         devCatBtnEl = panelEl.querySelector("#settingsCatDev");
         devCatBtnEl?.addEventListener("click", () => openCatModal(devModalEl, onDevModalOpen));
         panelEl.querySelector(".settings-footer-pill")
-            ?.addEventListener("click", () => window.VoidDev?.registerPillClick());
+            ?.addEventListener("click", () => window.VoidChangelogModal?.open());
         panelEl.querySelector(".settings-footer-author")
             ?.addEventListener("click", (e) => {
                 e.preventDefault();

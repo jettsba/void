@@ -195,10 +195,22 @@
        общий: клавиатурная карта требует широкой модалки, а «настройки
        приложения» и «что нового» на такой ширине разъезжаются. */
     function openModal(title, contentHTML, iconSvg, cardClass) {
-        closeModalIfAny();
-        const scrim = document.createElement("div");
-        scrim.className = "app-modal-scrim";
-        scrim.id = "appModalScrim";
+        /* Модалка поверх уже открытой («что нового» → «история изменений»,
+           профиль → профиль): НЕ закрываем и не открываем заново. Кроссфейд
+           двух scrim'ов в середине давал два полупрозрачных затемнения — сквозь
+           них просвечивала и ловила hover комната под окном. Вместо этого тот же
+           scrim остаётся, а карточка перетекает в новую на месте (morphCard). */
+        const prevScrim = document.getElementById("appModalScrim");
+        const prevCard = prevScrim && prevScrim.classList.contains("is-open")
+            ? prevScrim.querySelector(".app-modal-card") : null;
+        if (prevCard) {
+            /* Для прежней модалки это закрытие: её onClose-хуки — сейчас. */
+            appModalCleanups.forEach((un) => { try { un(); } catch (_) {} });
+            appModalCleanups = [];
+        } else {
+            closeModalIfAny();
+        }
+        const scrim = prevCard ? prevScrim : document.createElement("div");
         const card = document.createElement("div");
         card.className = "app-modal-card" + (cardClass ? " " + cardClass : "");
         card.setAttribute("role", "dialog");
@@ -217,24 +229,56 @@
             </header>
             <div class="app-modal-body">${contentHTML}</div>
         `;
-        scrim.appendChild(card);
-        document.body.appendChild(scrim);
-        /* Force the closed state to be styled first: a modal opened from a
-           click that also changes other styles (blob → profile) otherwise
-           gets is-open in the same style pass and pops in with no fade. */
-        void scrim.offsetWidth;
-        scrim.classList.add("is-open");
 
-        scrim.addEventListener("click", (e) => {
-            if (e.target === scrim) closeModalIfAny();
-        });
+        if (prevCard) {
+            morphCard(prevCard, card);
+        } else {
+            scrim.className = "app-modal-scrim";
+            scrim.id = "appModalScrim";
+            scrim.appendChild(card);
+            document.body.appendChild(scrim);
+            /* Force the closed state to be styled first: a modal opened from a
+               click that also changes other styles (blob → profile) otherwise
+               gets is-open in the same style pass and pops in with no fade. */
+            void scrim.offsetWidth;
+            scrim.classList.add("is-open");
+            scrim.addEventListener("click", (e) => {
+                if (e.target === scrim) closeModalIfAny();
+            });
+            document.addEventListener("keydown", escClose);
+        }
+
         card.querySelector(".app-modal-close").addEventListener("click", closeModalIfAny);
-        document.addEventListener("keydown", escClose);
         /* Phones show it as a bottom sheet (app-settings.css): swipe it away. */
         if (typeof bindSheetSwipe === "function") {
             bindSheetSwipe(card, card, () => scrim.classList.contains("is-open"), closeModalIfAny);
         }
         return card;
+    }
+
+    /* Смена содержимого открытого окна: карточка подменяется на месте, её
+       размер плавно доезжает от старого к новому, а новое содержимое
+       проявляется — всё одним --t-med (motion bible §3: что двигается вместе —
+       одной длительностью). Затемнение под окном не мигает ни на кадр. */
+    function morphCard(oldCard, newCard) {
+        const from = oldCard.getBoundingClientRect();
+        oldCard.replaceWith(newCard);
+        const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+        if (reduce || typeof newCard.animate !== "function") return;
+        const to = newCard.getBoundingClientRect();
+        const timing = { duration: MOTION.med, easing: MOTION.ease };
+        /* Пока растёт — без скроллбара, иначе он мигнёт на промежуточной высоте. */
+        newCard.style.overflow = "hidden";
+        newCard.animate(
+            [
+                { width: from.width + "px", height: from.height + "px" },
+                { width: to.width + "px", height: to.height + "px" },
+            ],
+            timing
+        ).finished.finally(() => { newCard.style.overflow = ""; });
+        for (const part of newCard.children) {
+            part.animate([{ opacity: 0 }, { opacity: 1 }], timing);
+        }
     }
 
     function closeModalIfAny() {
