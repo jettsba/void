@@ -126,8 +126,22 @@
     vector-effect: non-scaling-stroke;
 }
 
-#screencastBtn:not(.active) .sc-btn-icon--stop {
+#screencastBtn:not(.active) .sc-btn-icon--stop,
+.sc-btn-icon--cam {
     display: none;
+}
+
+/* Touch devices can't share a screen: the slot is the camera, a disabled
+   stub until it ships (js/room.js keeps .control-btn-stub on). */
+@media (hover: none) and (pointer: coarse) {
+    #screencastBtn .sc-btn-icon--idle,
+    #screencastBtn .sc-btn-icon--stop {
+        display: none;
+    }
+
+    #screencastBtn .sc-btn-icon--cam {
+        display: inline-flex;
+    }
 }
 
 #screencastBtn.active .sc-btn-icon--idle {

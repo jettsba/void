@@ -230,6 +230,10 @@
         });
         card.querySelector(".app-modal-close").addEventListener("click", closeModalIfAny);
         document.addEventListener("keydown", escClose);
+        /* Phones show it as a bottom sheet (app-settings.css): swipe it away. */
+        if (typeof bindSheetSwipe === "function") {
+            bindSheetSwipe(card, card, () => scrim.classList.contains("is-open"), closeModalIfAny);
+        }
         return card;
     }
 

@@ -135,91 +135,82 @@
     }
 }
 
+/* Phones: the chat is a bottom sheet (motion bible §4, rule 4). The stage
+   does NOT reflow under it: the controls fade out in place and the blobs
+   glide into the band between the header and the sheet top on their own
+   transform transition (participants.js, rows mode) — one --t-med for the
+   sheet, the fade and the glide, started together. Nothing collapses, so the
+   anchor the blobs are laid out from never moves. */
 @media (max-width: 740px) {
-    body {
-        --chat-sheet-motion-dur: var(--d-med);
-        --chat-sheet-motion-ease: var(--ease);
-    }
-
-    /*
-     * ВАЖНО: один и тот же transition у .stage в открытом и закрытом состоянии.
-     * Если переход задан разными селекторами (body.chat-open / body:not),
-     * браузер рвёт интерполяцию padding — выглядит как прыжок без анимации.
-     */
-    .stage {
-        transition:
-            padding-right var(--t-med) ease,
-            padding-top var(--chat-sheet-motion-dur) var(--chat-sheet-motion-ease),
-            padding-bottom var(--chat-sheet-motion-dur) var(--chat-sheet-motion-ease);
-    }
-
-    body.chat-open .app {
+    .app {
         --chat-rail: 0px;
         --chat-sheet-h: min(55.71rem, calc(68dvh + env(safe-area-inset-bottom, 0px)));
     }
 
-    body.chat-open .stage {
-        padding-bottom: min(var(--chat-sheet-h),
-                calc(100dvh - var(--hdr-h) - var(--footer-row-h)));
+    body.chat-open .app {
+        --chat-rail: 0px;
     }
 
-    body.chat-open .app[data-mode="room"] .panel-area {
-        display: none;
+    .app .panel-area {
+        transition: opacity var(--t-med), visibility var(--t-med);
+    }
+
+    body.chat-open .app .panel-area {
+        opacity: 0;
+        visibility: hidden;
     }
 
     .chat-toggle {
         margin: 0;
     }
 
+    /* Same head as the room sheet (room-sheet.css): 1.43rem gutter, the
+       cross 0.86rem from the edge, ~4rem tall. */
     .chat-header {
-        height: 3.57rem;
+        height: 4rem;
+        padding: 0 0.86rem 0 1.43rem;
     }
 
-    .chat-panel {
+    .chat-close { margin-right: 0; }
+
+    .chat-panel,
+    .chat-panel.is-open {
         top: auto;
         bottom: 0;
         left: 0;
         right: 0;
-
-        height: var(--chat-sheet-h);
-        max-height: none;
         width: 100%;
         max-width: none;
-
-        padding-top: 0;
-        padding-bottom: 0;
+        height: var(--chat-sheet-h);
+        max-height: none;
+        padding: 0;
         margin: 0;
-
         z-index: 46;
-
         opacity: 1;
-        visibility: visible;
-        pointer-events: none;
-
-        transform: translate3d(0, calc(100% + 36px), 0);
-        will-change: transform;
-        transition:
-            transform var(--chat-sheet-motion-dur) var(--chat-sheet-motion-ease);
-
-        border-radius: 0;
-
         overscroll-behavior: contain;
+        transition: transform var(--t-med), visibility 0s linear var(--d-med);
+    }
+
+    .chat-panel {
+        transform: translateY(100%);
     }
 
     .chat-panel.is-open {
-        pointer-events: auto;
-        transform: translate3d(0, 0, 0);
-
-        transition:
-            transform var(--chat-sheet-motion-dur) var(--chat-sheet-motion-ease);
+        transform: none;
+        transition: transform var(--t-med), visibility 0s;
     }
 
     .chat-panel-inner {
-        height: 100%;
-        border-radius: 14px 14px 0 0;
-        box-shadow:
-            0 -12px 40px rgba(0, 0, 0, 0.52),
-            0 -1px 0 rgba(230, 230, 232, 0.04) inset;
+        background: var(--bg-1);
+        border-width: 1px 0 0;
+        border-radius: 2px 2px 0 0;
+    }
+
+    /* Messages and the input row sit close to the edges: the same 0.71rem
+       gutter the input row keeps under the field. */
+    .chat-messages {
+        padding-left: 0.71rem;
+        padding-right: 0.71rem;
     }
 
     .chat-input-row {

@@ -36,6 +36,7 @@
     <link rel="stylesheet" href="css/header.css">
     <link rel="stylesheet" href="css/stage.css">
     <link rel="stylesheet" href="css/panel.css">
+    <link rel="stylesheet" href="css/room-sheet.css">
     <link rel="stylesheet" href="css/volume-arc.css">
     <link rel="stylesheet" href="css/ping.css">
     <link rel="stylesheet" href="css/safety.css">
@@ -198,7 +199,13 @@
                                     autocomplete="off" spellcheck="false"
                                     inputmode="text" enterkeyhint="go" />
                             </div>
-                            <button type="submit" class="btn primary" id="joinBtn" data-i18n="entry.join">join</button>
+                            <button type="submit" class="btn primary entry-go" id="joinBtn" aria-label="join"
+                                data-i18n-attr="aria-label:entry.join">
+                                <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M5 12h14" />
+                                    <path d="M13 6l6 6-6 6" />
+                                </svg>
+                            </button>
                         </form>
                     </div>
 
@@ -241,6 +248,12 @@
                                     <line x1="14.5" y1="8" x2="9.5" y2="13" />
                                 </svg>
                             </span>
+                            <span class="sc-btn-icon sc-btn-icon--cam" aria-hidden="true">
+                                <svg viewBox="0 0 24 24">
+                                    <rect x="3" y="6.5" width="13" height="11" rx="2" />
+                                    <path d="M16 10.5 L21 7.5 V16.5 L16 13.5" />
+                                </svg>
+                            </span>
                         </button>
                         <button type="button" class="leave-btn" id="leaveBtn" data-i18n="controls.leave">leave</button>
                     </div>
@@ -258,9 +271,9 @@
             <div class="chat-panel-inner">
                 <header class="chat-header">
                     <span class="chat-title" data-i18n="chat.title">chat</span>
-                    <button type="button" class="chat-close tbtn" id="chatCloseBtn" aria-label="close chat"
+                    <button type="button" class="chat-close" id="chatCloseBtn" aria-label="close chat"
                         data-i18n-attr="aria-label:header.chat.close">
-                        <span aria-hidden="true" data-i18n="chat.close">close</span>
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12" /><path d="M18 6L6 18" /></svg>
                     </button>
                 </header>
 
@@ -393,6 +406,32 @@
         </footer>
     </div>
 
+    <!-- Phones: the footer is one «● #CODE» button; it opens this sheet with
+         the ping list, the safety code and the invite panel moved in
+         (js/room-sheet.js) — the same live nodes, no second copy. -->
+    <div class="room-sheet" id="roomSheet" aria-hidden="true" inert>
+        <div class="room-sheet-scrim" data-rs-close></div>
+        <section class="room-sheet-pop" role="dialog" aria-modal="true"
+            aria-label="комната" data-i18n-attr="aria-label:invite.code-label">
+            <header class="room-sheet-head">
+                <span class="room-sheet-status"><i class="conn-dot"></i><span class="room-sheet-status-label"></span></span>
+                <button type="button" class="room-sheet-close" data-rs-close
+                    aria-label="закрыть" data-i18n-attr="aria-label:chat.close">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12" /><path d="M18 6L6 18" /></svg>
+                </button>
+            </header>
+            <div class="room-sheet-body">
+                <div class="room-sheet-sec" data-rs="invite"></div>
+                <div class="room-sheet-sec" data-rs="ping">
+                    <span class="room-sheet-label" data-i18n="room.sheet.peers">участники</span>
+                </div>
+                <div class="room-sheet-sec" data-rs="sas">
+                    <span class="room-sheet-label" data-i18n="sas.label">код безопасности</span>
+                </div>
+            </div>
+        </section>
+    </div>
+
     <div class="mic-blocked-modal" id="micBlockedModal" aria-hidden="true" inert role="dialog"
         aria-labelledby="micBlockedTitle">
         <div class="mic-blocked-backdrop" id="micBlockedBackdrop"></div>
@@ -509,6 +548,7 @@
     <script defer src="js/intro.js"></script>
     <script defer src="js/room.js"></script>
     <script defer src="js/room-close.js"></script>
+    <script defer src="js/room-sheet.js"></script>
     <script defer src="js/safety-code.js"></script>
     <script defer src="js/app.js"></script>
     <script defer src="js/desktop/titlebar.js"></script>
@@ -521,6 +561,7 @@
     <script defer src="js/desktop/updater.js"></script>
     <script defer src="js/desktop/whats-new.js"></script>
     <script defer src="js/qr.js"></script>
+    <script defer src="js/friends/merge.js"></script>
     <script defer src="js/friends/store.js"></script>
     <script defer src="js/friends/net.js"></script>
     <script defer src="js/friends/ui.js"></script>

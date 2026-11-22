@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>void · lab · device link</title>
+<!-- same --auto-scale as the app, so sizes here match prod -->
+<script src="/ui-scale-bootstrap.js"></script>
+<link rel="stylesheet" href="/css/base.css">
+<link rel="stylesheet" href="/css/swap.css">
+<link rel="stylesheet" href="/css/safety.css">
+<style>
+/* ===== Lab: "link devices" confirm → linked modal + profile device list =====
+   Mock only. Reuses the security-code modal shell (.sas-*) and the unified
+   swap motion. Phases on the modal: ask → linking → done | fail.
+   Center: padlock, ajar on ask, snaps shut on link. */
+html, body { background: var(--bg-0); color: var(--fg); font-family: var(--font); }
+body { opacity: 1 !important; overflow: auto !important; min-height: 100vh; margin: 0; padding: 2.29rem 1.14rem; box-sizing: border-box; }
+
+.lab { max-width: 34rem; margin: 0 auto; display: grid; gap: 1.71rem; }
+.lab h1 { margin: 0; font-size: 0.86rem; font-weight: 500; letter-spacing: var(--tracking-wide); color: var(--fg-2); }
+.lab-row { display: flex; flex-wrap: wrap; gap: 0.57rem; align-items: center; }
+.lab-label { color: var(--fg-3); font-size: 0.71rem; letter-spacing: var(--tracking-wide); width: 100%; }
+.lab-btn, .dl-btn {
+    padding: 0.57rem 1.29rem; background: transparent; color: var(--fg);
+    border: 1px solid var(--fg-4); border-radius: 2px; font: inherit; font-size: 0.79rem;
+    letter-spacing: var(--tracking-wide); text-transform: lowercase; cursor: pointer;
+    transition: border-color var(--t-fast), color var(--t-fast), opacity var(--t-med);
+}
+.lab-btn:hover, .dl-btn:hover, .lab-btn:focus-visible, .dl-btn:focus-visible { border-color: var(--fg-2); outline: none; }
+.lab-btn.is-on { border-color: var(--fg-2); }
+.lab-btn.is-primary { border-color: var(--fg-3); }
+
+/* ----- stacked swap grids: titles above the scheme, copy below ----- */
+.dl-swap { display: grid; }
+.dl-swap > .s { grid-area: 1 / 1; opacity: 0; transform: translateY(var(--swap-dy));
+    pointer-events: none; transition: var(--swap-out); }
+.sas-modal[data-phase="ask"] .s-ask,
+.sas-modal[data-phase="linking"] .s-ask,
+.sas-modal[data-phase="done"] .s-done,
+.sas-modal[data-phase="fail"] .s-fail { opacity: 1; transform: none; pointer-events: auto; transition: var(--swap-in); }
+.dl-titles .sas-title { margin: 0 0 1.43rem; }
+/* Height follows the visible state (JS sets it): the card resizes with the
+   text swap instead of reserving room for the tallest state. */
+.dl-copy { align-items: start; transition: height var(--t-med); }
+.s-fail.sas-title, .s-fail .dl-status { color: var(--signal-warn); }
+.dl-status { margin: 0 0 0.71rem; color: var(--fg); font-size: 0.86rem; line-height: 1.55; letter-spacing: var(--tracking); }
+.sas-body b { color: var(--fg); font-weight: 400; }
+.sas-body.dl-last { margin-bottom: 1.57rem; }
+.dl-actions { display: flex; gap: 0.57rem; justify-content: center; }
+.dl-btn.is-quiet { color: var(--fg-2); }
+.dl-btn.is-main { border-color: var(--fg-3); }
+.sas-modal[data-phase="linking"] .dl-btn.is-quiet { opacity: 0.3; pointer-events: none; }
+.sas-modal[data-phase="linking"] #confirm { pointer-events: none; }
+#confirm .swap-alt { color: var(--fg-2); }
+.sas-modal[data-phase="linking"] #confirm .swap { }
+
+/* ----- scheme: shared parts ----- */
+.dl-scheme { width: 16.57rem; margin: 0 auto 1.43rem; }
+.dl-scheme svg { display: block; width: 100%; overflow: visible; }
+.dl-dev { fill: none; stroke: var(--fg-2); stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round;
+    opacity: 0; transition: stroke var(--t-med); }
+.dl-names { position: relative; height: 1.1rem; margin-top: 0.29rem; color: var(--fg-3);
+    font-size: 0.64rem; letter-spacing: var(--tracking); white-space: nowrap; }
+.dl-names span { position: absolute; top: 0; transform: translateX(-50%); transition: color var(--t-med); }
+.dl-names .a { left: 9.2%; }
+.dl-names .b { left: 90.4%; }
+.dl-pkt { fill: var(--fg); opacity: 0; }
+
+.sas-modal.is-open .dl-dev { animation: sas-fade var(--t-med) forwards; }
+.sas-modal.is-open .dl-dev-b { animation-delay: 0.1s; }
+.sas-modal.is-open .dl-in { opacity: 0; animation: sas-fade var(--t-med) 0.3s forwards; }
+
+.sas-modal[data-phase="done"] .dl-dev { stroke: var(--fg); }
+.sas-modal[data-phase="done"] .dl-names span { color: var(--fg-2); }
+.sas-modal[data-phase="done"] .dl-pkt-f { animation: dl-fwd 3s linear infinite; animation-delay: calc(0.2s + var(--k) * 1.5s); }
+.sas-modal[data-phase="done"] .dl-pkt-b { animation: dl-back 3s linear infinite; animation-delay: calc(0.95s + var(--k) * 1.5s); }
+.sas-modal[data-phase="fail"] .dl-dev-b { stroke: var(--fg-3); }
+
+/* Lines that "grow from each device": --len in px = user units. */
+.dl-line { stroke: var(--fg-3); stroke-width: 1.2; stroke-linecap: round;
+    stroke-dasharray: var(--len); stroke-dashoffset: var(--len);
+    transition: stroke-dashoffset var(--t-slow), stroke var(--t-med), opacity var(--t-med); }
+.dl-ghost { stroke: var(--fg-4); stroke-width: 1.2; stroke-linecap: round; stroke-dasharray: 1.5 4; }
+.sas-modal.is-open .dl-ghost { animation: sas-fade var(--t-med) 0.15s forwards, dl-flow 1.2s linear infinite; }
+.sas-modal.is-open[data-phase="ask"] .dl-line { stroke-dashoffset: calc(var(--len) * 0.45); transition-delay: 0.2s; }
+.sas-modal[data-phase="linking"] .dl-line,
+.sas-modal[data-phase="done"] .dl-line { stroke-dashoffset: 0; stroke: var(--fg-2); }
+.sas-modal[data-phase="done"] .dl-ghost { animation: none; opacity: 0; }
+.sas-modal[data-phase="fail"] .dl-line { stroke-dashoffset: calc(var(--len) * 0.8); stroke: var(--signal-warn); opacity: 0.6; }
+.sas-modal[data-phase="fail"] .dl-ghost { animation: none; opacity: 0.5; }
+.dl-tip { fill: var(--fg-2); opacity: 0; transition: opacity var(--t-fast); }
+.sas-modal.is-open[data-phase="ask"] .dl-tip { animation: sas-pulse 1.6s ease-in-out 1s infinite; }
+.sas-modal.is-open[data-phase="ask"] .dl-tip-r { animation-delay: 1.8s; }
+
+
+/* ===== variant: lock — open padlock closes ===== */
+.dl-lock-body { fill: var(--bg-1); stroke: var(--fg-2); stroke-width: 1.3; stroke-linejoin: round; transition: stroke var(--t-med); }
+.dl-shackle { fill: none; stroke: var(--fg-2); stroke-width: 1.3; stroke-linecap: round;
+    transform: translateY(-4px); transition: transform var(--t-med), stroke var(--t-med); }
+.dl-keyhole { fill: var(--fg); opacity: 0; transition: opacity var(--t-med); }
+.sas-modal[data-phase="linking"] .dl-shackle,
+.sas-modal[data-phase="done"] .dl-shackle { transform: none; stroke: var(--fg); transition-delay: 0.55s; }
+.sas-modal[data-phase="linking"] .dl-lock-body,
+.sas-modal[data-phase="done"] .dl-lock-body { stroke: var(--fg); transition-delay: 0.55s; }
+.sas-modal[data-phase="done"] .dl-keyhole { opacity: 1; }
+.sas-modal[data-phase="fail"] .dl-shackle { transform: translateY(-6px); stroke: var(--signal-warn); }
+.sas-modal[data-phase="fail"] .dl-lock-body { stroke: var(--signal-warn); }
+
+
+/* click ring at the junction (all variants) */
+.dl-ring { fill: none; stroke: var(--fg); stroke-width: 1; opacity: 0; transform-box: fill-box; transform-origin: center; }
+.sas-modal[data-phase="linking"] .dl-ring { animation: dl-ring var(--t-slow) 0.75s forwards; }
+
+@keyframes dl-flow { to { stroke-dashoffset: -11; } }
+@keyframes dl-ring { 0% { opacity: 0.6; transform: scale(0.5); } 100% { opacity: 0; transform: scale(1.8); } }
+@keyframes dl-fwd { 0% { opacity: 0; transform: translateX(0); } 8%, 92% { opacity: 1; } 100% { opacity: 0; transform: translateX(168px); } }
+@keyframes dl-back { 0% { opacity: 0; transform: translateX(0); } 8%, 92% { opacity: 0.5; } 100% { opacity: 0; transform: translateX(-168px); } }
+
+/* ----- profile mock: linked devices ----- */
+.pf { border: 1px solid var(--fg-4); border-radius: 2px; background: var(--bg-1); padding: 1.14rem 1.29rem; }
+.pf-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.86rem; }
+.pf-title { font-size: 0.71rem; letter-spacing: var(--tracking-wide); color: var(--fg-2); }
+.pf-add { background: none; border: 0; color: var(--fg-2); font: inherit; font-size: 0.71rem;
+    letter-spacing: var(--tracking-wide); cursor: pointer; padding: 0; transition: color var(--t-fast); }
+.pf-add:hover { color: var(--fg); }
+.pf-list { list-style: none; margin: 0; padding: 0; }
+/* Row grows/collapses like .sx: grid-template-rows 0fr ↔ 1fr + fade, --t-med. */
+.pf-item { display: grid; grid-template-rows: 1fr; border-top: 1px solid var(--fg-4);
+    transition: grid-template-rows var(--t-med), opacity var(--t-med), border-color var(--t-med); }
+.pf-item:first-child { border-top-color: transparent; }
+.pf-item.is-gone { grid-template-rows: 0fr; opacity: 0; border-top-color: transparent; }
+.pf-row { min-height: 0; overflow: hidden; display: grid; grid-template-columns: 1.43rem 1fr auto;
+    gap: 0.71rem; align-items: center; }
+.pf-row > * { margin: 0.64rem 0; }
+.pf-act { display: flex; justify-content: flex-end; }
+.pf-act .swap { justify-items: end; }
+.pf-ask { display: flex; gap: 0.57rem; align-items: center; font-size: 0.64rem; color: var(--fg-2); letter-spacing: var(--tracking-wide); white-space: nowrap; }
+.pf-x.is-yes { color: var(--signal-warn); }
+.pf-x.is-yes:hover { color: var(--fg); }
+.pf-empty { display: grid; grid-template-rows: 0fr; opacity: 0;
+    transition: grid-template-rows var(--t-med), opacity var(--t-med); }
+.pf-empty.is-on { grid-template-rows: 1fr; opacity: 1; }
+.pf-empty > p { min-height: 0; overflow: hidden; margin: 0; padding-top: 0; color: var(--fg-3); font-size: 0.71rem; letter-spacing: var(--tracking); }
+.pf-empty.is-on > p { padding: 0.43rem 0 0.14rem; }
+.pf-ic { width: 1.29rem; height: 1.29rem; fill: none; stroke: var(--fg-2); stroke-width: 1.3; stroke-linejoin: round; stroke-linecap: round; }
+.pf-name { font-size: 0.79rem; color: var(--fg); letter-spacing: var(--tracking); }
+.pf-sub { font-size: 0.64rem; color: var(--fg-3); margin-top: 0.14rem; display: flex; align-items: center; gap: 0.36rem; }
+.pf-dot { width: 0.36rem; height: 0.36rem; border-radius: 999px; background: var(--fg-4); }
+.pf-dot.on { background: var(--screen); }
+.pf-tag { font-size: 0.64rem; color: var(--fg-3); letter-spacing: var(--tracking-wide); }
+.pf-x { background: none; border: 0; color: var(--fg-3); font: inherit; font-size: 0.64rem; letter-spacing: var(--tracking-wide);
+    cursor: pointer; padding: 0.29rem 0; transition: color var(--t-fast); }
+.pf-x:hover { color: var(--signal-warn); }
+.pf-note { margin: 0.86rem 0 0; color: var(--fg-3); font-size: 0.64rem; line-height: 1.55; letter-spacing: var(--tracking); }
+
+@media (prefers-reduced-motion: reduce) {
+    .sas-modal.is-open .dl-dev, .sas-modal.is-open .dl-ghost, .sas-modal.is-open .dl-in { animation: none; opacity: 1; }
+    .dl-line, .dl-shackle, .dl-lock-body { transition-duration: 0.01ms !important; transition-delay: 0s !important; }
+    .sas-modal .dl-pkt, .sas-modal .dl-ring, .sas-modal .dl-tip { animation: none !important; }
+}
+@media (max-width: 480px) { .dl-scheme { width: 14.29rem; } }
+</style>
+</head>
+<body>
+<main class="lab">
+    <h1>lab · связка устройств</h1>
+
+    <div class="lab-row">
+        <span class="lab-label">пара</span>
+        <button class="lab-btn is-on" data-pair="0">desktop ← телефон (qr)</button>
+        <button class="lab-btn" data-pair="1">веб → desktop (код)</button>
+    </div>
+    <div class="lab-row">
+        <span class="lab-label">исход</span>
+        <button class="lab-btn is-on" data-out="ok">успех</button>
+        <button class="lab-btn" data-out="fail">сбой (второй ушёл офлайн)</button>
+    </div>
+    <div class="lab-row">
+        <button class="lab-btn is-primary" id="run">имитировать связь</button>
+    </div>
+
+    <section class="pf" aria-label="мои устройства (мокап профиля)">
+        <div class="pf-head">
+            <span class="pf-title">мои устройства</span>
+            <button class="pf-add" type="button">+ связать ещё</button>
+        </div>
+        <ul class="pf-list" id="pfList"></ul>
+        <div class="pf-empty" id="pfEmpty"><p>других устройств пока нет</p></div>
+        <p class="pf-note">сервер ничего не хранит. данные синхронизируются напрямую, когда два устройства онлайн одновременно.</p>
+    </section>
+</main>
+
+<div class="sas-modal dl-modal" id="dl" role="dialog" aria-hidden="true" inert data-phase="ask" >
+    <div class="sas-backdrop" data-close></div>
+    <div class="sas-card">
+        <div class="dl-swap dl-titles">
+            <h2 class="sas-title s s-ask">связать устройства?</h2>
+            <h2 class="sas-title s s-done">устройства связаны</h2>
+            <h2 class="sas-title s s-fail">не удалось связать</h2>
+        </div>
+
+        <div class="dl-scheme">
+            <svg viewBox="0 12 260 36" aria-hidden="true">
+                <g class="dl-dev dl-dev-a" id="devA"></g>
+                <g class="dl-dev dl-dev-b" id="devB"></g>
+
+                <!-- data packets go first: center icons (bg fill) pass over them -->
+                <circle class="dl-pkt dl-pkt-f" style="--k:0" cx="46" cy="30" r="1.5" />
+                <circle class="dl-pkt dl-pkt-f" style="--k:1" cx="46" cy="30" r="1.5" />
+                <circle class="dl-pkt dl-pkt-b" style="--k:0" cx="214" cy="30" r="1.5" />
+                <circle class="dl-pkt dl-pkt-b" style="--k:1" cx="214" cy="30" r="1.5" />
+
+
+                <!-- B · lock: lines grow toward an open padlock, it snaps shut -->
+                <g>
+                    <line class="dl-ghost" x1="46" y1="30" x2="118" y2="30" opacity="0" />
+                    <line class="dl-ghost" x1="214" y1="30" x2="142" y2="30" opacity="0" />
+                    <line class="dl-line" style="--len:72px" x1="46" y1="30" x2="118" y2="30" />
+                    <line class="dl-line" style="--len:72px" x1="214" y1="30" x2="142" y2="30" />
+                    <circle class="dl-tip" cx="85.6" cy="30" r="1.4" />
+                    <circle class="dl-tip dl-tip-r" cx="174.4" cy="30" r="1.4" />
+                    <g class="dl-in">
+                        <!-- long left leg stays inside the body (hidden by its fill): lifted, only the right leg comes out = ajar -->
+                        <path class="dl-shackle" d="M125.5 36v-10a4.5 4.5 0 0 1 9 0v4" />
+                        <rect class="dl-lock-body" x="122.5" y="29.5" width="15" height="11" rx="1.5" />
+                        <circle class="dl-keyhole" cx="130" cy="35" r="1.3" />
+                    </g>
+                </g>
+
+
+                <circle class="dl-ring" cx="130" cy="30" r="9" />
+            </svg>
+            <div class="dl-names"><span class="a" id="nameA"></span><span class="b" id="nameB"></span></div>
+        </div>
+
+        <div class="dl-swap dl-copy">
+            <div class="s s-ask">
+                <p class="sas-body" id="askBody"></p>
+                <p class="sas-hint">сервер ничего не хранит — данные идут напрямую между вашими устройствами</p>
+                <div class="dl-actions">
+                    <button type="button" class="dl-btn is-quiet" data-close>отмена</button>
+                    <button type="button" class="dl-btn is-main" id="confirm"><span class="swap"><span class="swap-main">связать</span><span class="swap-alt">связываем…</span></span></button>
+                </div>
+            </div>
+            <div class="s s-done">
+                <p class="dl-status">профиль, друзья и настройки уже синхронизированы.</p>
+                <p class="sas-body dl-last">дальше всё обновляется само в момент, когда на обоих устройствах запущен void. изменения, сделанные офлайн, обновятся при следующей встрече устройств.</p>
+                <div class="dl-actions"><button type="button" class="dl-btn is-main" data-close>понятно</button></div>
+            </div>
+            <div class="s s-fail">
+                <p class="dl-status">второе устройство ушло офлайн</p>
+                <p class="sas-body">откройте void на обоих устройствах и попробуйте ещё раз.</p>
+                <p class="sas-hint">ключи не передавались — ничего не утекло</p>
+                <div class="dl-actions">
+                    <button type="button" class="dl-btn is-quiet" data-close>закрыть</button>
+                    <button type="button" class="dl-btn is-main" id="retry">ещё раз</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(() => {
+    const LAPTOP_L = '<rect x="12" y="20" width="24" height="15" rx="1.5"/><path d="M7 39h34"/>';
+    const BROWSER_L = '<rect x="10" y="18" width="28" height="22" rx="1.5"/><path d="M10 23h28M13.5 20.5h.01M16 20.5h.01"/>';
+    const PHONE_R = '<rect x="227" y="15" width="16" height="30" rx="2.6"/><path d="M233 41h4"/>';
+    const LAPTOP_R = '<rect x="223" y="20" width="24" height="15" rx="1.5"/><path d="M218 39h34"/>';
+    /* "this" device is always on the left; `between` is in the instrumental case */
+    const PAIRS = [
+        { a: LAPTOP_L, b: PHONE_R, na: "этот mac", nb: "iphone", between: ["этим mac", "iphone"],
+          dev: { id: "iphone", ic: "phone", name: "iphone · safari", sub: "онлайн · синхронизировано", on: true } },
+        { a: BROWSER_L, b: LAPTOP_R, na: "этот браузер", nb: "void для mac", between: ["этим браузером", "void для mac"],
+          dev: { id: "web", ic: "laptop", name: "mac · браузер", sub: "онлайн · синхронизировано", on: true } },
+    ];
+    const $ = (s) => document.querySelector(s);
+    function esc(s) { return s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c])); }
+    const m = $("#dl");
+    let pair = 0, out = "ok", timers = [];
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    function pick(attr, set) {
+        document.querySelectorAll(`[data-${attr}]:not(#dl)`).forEach((b) => b.onclick = () => {
+            set(b.dataset[attr]);
+            document.querySelectorAll(`.lab-btn[data-${attr}]`).forEach((x) => x.classList.toggle("is-on", x === b));
+        });
+    }
+    pick("pair", (v) => { pair = +v; });
+    pick("out", (v) => { out = v; });
+
+    /* ----- profile: linked devices ----- */
+    const IC = {
+        laptop: '<rect x="4" y="6" width="16" height="10" rx="1"/><path d="M2 19h20"/>',
+        phone: '<rect x="7.5" y="3" width="9" height="18" rx="1.6"/><path d="M11 18h2"/>',
+    };
+    const list = $("#pfList"), empty = $("#pfEmpty");
+    function row(d) {
+        const li = document.createElement("li");
+        li.className = "pf-item";
+        li.dataset.id = d.id;
+        const sub = d.self ? "это устройство" : `<i class="pf-dot${d.on ? " on" : ""}"></i>${esc(d.sub)}`;
+        const act = d.self ? '<span class="pf-tag">вы здесь</span>'
+            : `<span class="swap"><span class="swap-main"><button class="pf-x" type="button" data-unlink>отвязать</button></span>
+               <span class="swap-alt pf-ask">отвязать?<button class="pf-x is-yes" type="button" data-yes>да</button><button class="pf-x" type="button" data-no>нет</button></span></span>`;
+        li.innerHTML = `<div class="pf-row"><svg class="pf-ic" viewBox="0 0 24 24">${IC[d.ic]}</svg>
+            <div><div class="pf-name">${esc(d.name)}</div><div class="pf-sub">${sub}</div></div>
+            <div class="pf-act">${act}</div></div>`;
+        return li;
+    }
+    function syncEmpty() {
+        empty.classList.toggle("is-on", !list.querySelector(".pf-item:not(.is-gone):not([data-self])"));
+    }
+    [
+        { id: "mac", ic: "laptop", name: "mac · приложение", self: true },
+        { id: "iphone", ic: "phone", name: "iphone · safari", sub: "онлайн · синхронизировано", on: true },
+        { id: "win", ic: "laptop", name: "windows · приложение", sub: "был 3 дня назад" },
+    ].forEach((d) => { const li = row(d); if (d.self) li.dataset.self = ""; list.append(li); });
+
+    /* new row: start collapsed, open on the next frame */
+    function addDevice(d) {
+        if (list.querySelector(`[data-id="${d.id}"]`)) return;
+        const li = row(d);
+        li.classList.add("is-gone");
+        list.append(li);
+        void li.offsetHeight;
+        li.classList.remove("is-gone");
+        syncEmpty();
+    }
+    let askTimer = 0;
+    function cancelAsk() {
+        clearTimeout(askTimer);
+        list.querySelectorAll(".pf-item.is-swapped").forEach((x) => x.classList.remove("is-swapped"));
+    }
+    list.addEventListener("click", (e) => {
+        const li = e.target.closest(".pf-item");
+        if (e.target.closest("[data-unlink]")) {
+            cancelAsk();
+            li.classList.add("is-swapped");
+            setTimeout(() => li.querySelector("[data-no]").focus(), 120);
+            askTimer = setTimeout(cancelAsk, 5000); // forgotten confirm folds back
+        } else if (e.target.closest("[data-no]")) {
+            cancelAsk();
+        } else if (e.target.closest("[data-yes]")) {
+            clearTimeout(askTimer);
+            li.classList.add("is-gone");
+            syncEmpty();
+            const done = () => li.remove();
+            reduce ? done() : li.addEventListener("transitionend", (ev) => {
+                if (ev.propertyName === "grid-template-rows") done();
+            });
+        }
+    });
+    document.addEventListener("click", (e) => { if (!e.target.closest(".pf-item")) cancelAsk(); });
+    $(".pf-add").onclick = open;
+
+    const copy = $(".dl-copy");
+    function setPhase(ph, instant) {
+        m.dataset.phase = ph;
+        const s = copy.querySelector(`.s-${ph === "linking" ? "ask" : ph}`);
+        if (instant) copy.style.transition = "none";
+        copy.style.height = s.offsetHeight + "px";
+        if (instant) { void copy.offsetHeight; copy.style.transition = ""; }
+    }
+    function clear() { timers.forEach(clearTimeout); timers = []; }
+    function later(fn, ms) { timers.push(setTimeout(fn, reduce ? 0 : ms)); }
+
+    function open() {
+        clear();
+        const p = PAIRS[pair];
+        $("#devA").innerHTML = p.a; $("#devB").innerHTML = p.b;
+        $("#nameA").textContent = p.na; $("#nameB").textContent = p.nb;
+        $("#askBody").innerHTML = `профиль, список друзей и настройки будут синхронизированы между <b>${esc(p.between[0])}</b> и <b>${esc(p.between[1])}</b>.`;
+        $("#confirm").classList.remove("is-swapped");
+        setPhase("ask", true);
+        m.classList.remove("is-open"); void m.offsetWidth;
+        m.classList.add("is-open");
+        m.removeAttribute("inert"); m.setAttribute("aria-hidden", "false");
+        later(() => $("#confirm").focus(), 60);
+    }
+    function close() {
+        clear();
+        m.classList.remove("is-open");
+        m.setAttribute("inert", ""); m.setAttribute("aria-hidden", "true");
+    }
+    function confirm() {
+        setPhase("linking");
+        $("#confirm").classList.add("is-swapped");
+        later(() => {
+            setPhase(out === "ok" ? "done" : "fail");
+            if (out === "ok") {
+                const p = PAIRS[pair];
+                addDevice(p.dev);
+            }
+            later(() => m.querySelector(`.s-${m.dataset.phase} .is-main`)?.focus(), 360);
+        }, out === "ok" ? 1500 : 1100);
+    }
+
+    $("#run").onclick = open;
+    $("#confirm").onclick = confirm;
+    $("#retry").onclick = open;
+    m.addEventListener("click", (e) => { if (e.target.closest("[data-close]")) close(); });
+    document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && m.classList.contains("is-open")) close();
+    });
+})();
+</script>
+</body>
+</html>

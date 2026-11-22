@@ -259,8 +259,13 @@ function init() {
     leaveBtn.addEventListener("click", () => {
         if (isJoined) leaveRoom();
     });
+    /* Codes are Latin-only: a Russian layout types by key position
+       (Й→Q, Ц→W …), so the user never has to switch layouts. */
+    const RU_KEYS = "ЙЦУКЕНГШЩЗФЫВАПРОЛДЯЧСМИТЬ", EN_KEYS = "QWERTYUIOPASDFGHJKLZXCVBNM";
     codeInput.addEventListener("input", () => {
-        codeInput.value = codeInput.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+        codeInput.value = codeInput.value.toUpperCase()
+            .replace(/[А-ЯЁ]/g, ch => EN_KEYS[RU_KEYS.indexOf(ch)] || "")
+            .replace(/[^A-Z0-9]/g, "");
         applyCodeInputLimit();
         codeInput.closest(".entry-code-field")?.classList.toggle("has-value", codeInput.value.length > 0);
         hideEntryError();

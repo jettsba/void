@@ -255,7 +255,7 @@
         const fr = s.match(/#friend=([A-Za-z0-9_-]{22})/);
         if (fr) { window.VoidAppModal?.close(); F.useLink(fr[1]); return; }
         const tr = s.match(/#transfer=([0-9A-Za-z]{16})/);
-        if (tr) { F.joinTransfer(tr[1]); return; }
+        if (tr) { window.VoidAppModal?.close(); openLinkModal({ phase: "ask", code: tr[1] }); return; }
         window.VoidToast?.showToast(t("friends.scan.unknown"), { priority: "warn" });
     }
 
@@ -366,7 +366,6 @@
             <div class="friends-scrim" aria-hidden="true"></div>
             <div class="fbar-wrap">
                 <div class="friends-pop" id="friendsPop" role="dialog" aria-hidden="true" inert>
-                    <div class="friends-grip" aria-hidden="true"></div>
                     <div class="friends-panes">
                         <div class="friends-pane" data-pane="friends"><ul class="friends-list"></ul></div>
                         <div class="friends-pane" data-pane="requests"><div class="friends-req"></div></div>
@@ -939,8 +938,8 @@
         document.removeEventListener("keydown", pairEsc, true);
     }
 
-    /* ---------- settings profile ---------- */
-    let profileSlot = null, profileTagEl = null, transferTimer = null, transferCode = null, transferExp = 0;
+    /* ---------- settings profile: invisible + my devices ---------- */
+    let profileSlot = null, profileTagEl = null, transferTimer = null, transferCode = null, transferExp = 0, xferGroup = null;
 
     function mountProfile(slot, tagEl) {
         profileSlot = slot;
@@ -966,18 +965,10 @@
         if (!profileSlot.firstElementChild) buildProfileSlot();
         const inv = profileSlot.querySelector("#frInvisible");
         if (inv) inv.checked = F.invisible;
+        renderDevices();
     }
 
     function buildProfileSlot() {
-        const opts = [
-            { id: "show", icon: ICON.eye, label: t("friends.transfer.show"), face: "text", copyIcon: true,
-              sq: { icon: ICON.qr, label: t("friends.transfer.qr") },
-              pane: `<p class="sx-note fr-transfer-meta"></p><div class="fr-qr-wrap"><div class="fr-qr"></div></div>` },
-            { id: "enter", icon: ICON.keys, label: t("friends.transfer.enter"), face: "input", mask: true,
-              inputAttrs: 'maxlength="19" autocapitalize="characters" inputmode="text"',
-              sq: CAN_SCAN ? { icon: ICON.scan, label: t("friends.scan") } : null,
-              pane: `<p class="sx-note">${esc(t("friends.transfer.enter.note"))}</p>` },
-        ];
         profileSlot.innerHTML = `
             <div class="iface-divider"></div>
             <div class="iface-row">
@@ -991,19 +982,139 @@
                 </label>
             </div>
             <div class="iface-divider"></div>
-            <div class="fr-transfer">
-                <span class="iface-text">
-                    <span class="iface-label">${esc(t("friends.transfer"))}</span>
-                    <span class="iface-hint">${esc(t("friends.transfer.hint"))}</span>
-                </span>
-                ${sxHtml(opts)}
-            </div>
+            <section class="fr-devs" aria-label="${esc(t("friends.devices"))}">
+                <div class="fr-devs-head">
+                    <span class="iface-label">${esc(t("friends.devices"))}</span>
+                    <button type="button" class="fr-devs-add" data-dev-add>${ICON.plus}<span>${esc(t("friends.devices.add"))}</span></button>
+                </div>
+                <ul class="fr-devs-list"></ul>
+                <div class="fr-devs-note"><p>${esc(t("friends.devices.note"))}</p></div>
+            </section>
             ${/iP(hone|ad|od)/.test(navigator.userAgent) && !IS_DESKTOP
                 ? `<p class="fr-ios-hint">${esc(t("friends.ios.hint"))}</p>` : ""}`;
         profileSlot.querySelector("#frInvisible").addEventListener("change", (e) => F.setInvisible(e.target.checked));
-        const group = profileSlot.querySelector(".sx");
+        profileSlot.querySelector("[data-dev-add]").addEventListener("click", openDeviceAdd);
+        profileSlot.querySelector(".fr-devs-list").addEventListener("click", onDeviceListClick);
+    }
+
+    /* ----- device rows ----- */
+    const DEV_IC = {
+        laptop: svg('<rect x="4" y="6" width="16" height="10" rx="1"/><path d="M2 19h20"/>'),
+        phone: svg('<rect x="7.5" y="3" width="9" height="18" rx="1.6"/><path d="M11 18h2"/>'),
+    };
+    const isPhone = (d) => d && (d.os === "iphone" || d.os === "ipad" || d.os === "android");
+    const OS_NAME = { mac: "mac", windows: "windows", linux: "linux", iphone: "iphone", ipad: "ipad", android: "android" };
+    function devName(d) {
+        const os = OS_NAME[d.os] || t("friends.devices.os.other");
+        const app = d.app === "app" || d.app === "web" ? t("friends.devices.app." + d.app) : d.app;
+        return `${os} · ${app}`;
+    }
+    function seenText(at) {
+        if (!at) return "";
+        const lang = window.VoidSettings?.getLang?.() === "en" ? "en" : "ru";
+        const rtf = new Intl.RelativeTimeFormat(lang, { numeric: "auto" });
+        const s = (at - Date.now()) / 1000;
+        const [v, u] = Math.abs(s) < 60 ? [0, "minute"] : Math.abs(s) < 3600 ? [s / 60, "minute"]
+            : Math.abs(s) < 86400 ? [s / 3600, "hour"] : Math.abs(s) < 86400 * 30 ? [s / 86400, "day"] : [s / (86400 * 30), "month"];
+        return t("friends.devices.seen", { time: rtf.format(Math.round(v), u) });
+    }
+
+    function devRowHtml(d) {
+        const sub = d.self ? esc(t("friends.devices.this"))
+            : `<i class="fr-dev-dot${d.online ? " is-on" : ""}"></i>${esc(d.online ? t("friends.devices.online") : seenText(d.seen))}`;
+        const act = d.self ? `<span class="fr-dev-tag">${esc(t("friends.devices.here"))}</span>`
+            : `<button type="button" class="fr-dev-x" data-unlink><span class="swap"><span class="swap-main">${esc(t("friends.devices.unlink"))}</span><span class="swap-alt">${esc(t("friends.devices.sure"))}</span></span></button>`;
+        return `<div class="fr-dev-row"><span class="fr-dev-ic">${isPhone(d) ? DEV_IC.phone : DEV_IC.laptop}</span>
+            <div class="fr-dev-text"><div class="fr-dev-name">${esc(devName(d))}</div><div class="fr-dev-sub">${sub}</div></div>
+            <div class="fr-dev-act">${act}</div></div>`;
+    }
+
+    /* Keyed: rows that stay keep their node (an armed "sure?" survives a
+       re-render); new rows unfold, removed ones fold away. */
+    function renderDevices() {
+        const list = profileSlot?.querySelector(".fr-devs-list");
+        if (!list) return;
+        const devs = F.deviceList();
+        const seen = new Set();
+        let prev = null;
+        for (const d of devs) {
+            seen.add(d.id);
+            let li = list.querySelector(`.fr-dev[data-id="${d.id}"]`);
+            const html = devRowHtml(d);
+            if (!li) {
+                li = document.createElement("li");
+                li.className = "fr-dev is-gone";
+                li.dataset.id = d.id;
+                if (d.self) li.dataset.self = "";
+                li.innerHTML = html;
+                li._html = html;
+                prev ? prev.after(li) : list.prepend(li);
+                void li.offsetHeight;
+                li.classList.remove("is-gone");
+            } else if (li._html !== html && !li.classList.contains("is-armed")) {
+                li._html = html;
+                li.innerHTML = html;
+            }
+            if (prev && prev.nextElementSibling !== li && !li.classList.contains("is-leaving")) prev.after(li);
+            prev = li;
+        }
+        list.querySelectorAll(".fr-dev:not(.is-leaving)").forEach(li => { if (!seen.has(li.dataset.id)) foldAway(li); });
+        /* Alone: no "no devices yet", no sync note — the table speaks for itself. */
+        profileSlot.querySelector(".fr-devs-note").classList.toggle("is-on", devs.some(d => !d.self));
+    }
+
+    function foldAway(li) {
+        li.classList.add("is-gone", "is-leaving");
+        const done = () => li.remove();
+        if (reduced()) { done(); return; }
+        li.addEventListener("transitionend", (e) => { if (e.propertyName === "grid-template-rows") done(); });
+        setTimeout(done, MED_MS + 200);
+    }
+
+    /* Unlink: first click turns the button into "sure?", the second one
+       unlinks. Forgotten for 4 s, or a click anywhere else → folds back. */
+    let armedLi = null, armTimer = 0;
+    function disarm() {
+        clearTimeout(armTimer);
+        if (armedLi) armedLi.classList.remove("is-armed", "is-swapped");
+        armedLi = null;
+        document.removeEventListener("pointerdown", onOutside, true);
+    }
+    function onOutside(e) { if (armedLi && !armedLi.contains(e.target)) disarm(); }
+    function onDeviceListClick(e) {
+        const btn = e.target.closest("[data-unlink]");
+        if (!btn) return;
+        const li = btn.closest(".fr-dev");
+        if (armedLi === li) {
+            disarm();
+            foldAway(li);
+            F.unlinkDevice(li.dataset.id);
+            return;
+        }
+        disarm();
+        armedLi = li;
+        li.classList.add("is-armed", "is-swapped");
+        armTimer = setTimeout(disarm, 4000);
+        document.addEventListener("pointerdown", onOutside, true);
+    }
+
+    /* ----- "add" — the transfer code, in its own modal ----- */
+    function openDeviceAdd() {
+        const opts = [
+            { id: "show", icon: ICON.eye, label: t("friends.transfer.show"), hint: t("friends.devices.show.hint"), face: "text", copyIcon: true,
+              sq: { icon: ICON.qr, label: t("friends.transfer.qr") },
+              pane: `<p class="sx-note fr-transfer-meta"></p><div class="fr-qr-wrap"><div class="fr-qr"></div></div>` },
+            { id: "enter", icon: ICON.keys, label: t("friends.transfer.enter"), hint: t("friends.devices.enter.hint"), face: "input", mask: true,
+              inputAttrs: 'maxlength="19" autocapitalize="characters" inputmode="text"',
+              sq: CAN_SCAN ? { icon: ICON.scan, label: t("friends.scan") } : null,
+              pane: `<p class="sx-note">${esc(t("friends.transfer.enter.note"))}</p>` },
+        ];
+        const card = modalShell(t("friends.devices.add.title"), `<div class="fr-add">${sxHtml(opts, { tiles: true })}</div>`, "fr-modal--add", ICON.plus);
+        if (!card) return;
+        const group = xferGroup = card.querySelector(".sx");
         sxMount(group, opts);
         group.addEventListener("click", onTransferClick);
+        window.VoidAppModal.onClose(() => { resetTransfer(true); xferGroup = null; });
         const input = group.querySelector('[data-sx="enter"] .sx-input');
         const view = group.querySelector('[data-sx="enter"] .sx-mask-view');
         /* Typed characters replace the grey X one by one: S29H-XXXX-XXXX-XXXX. */
@@ -1020,20 +1131,19 @@
             return raw;
         };
         paintMask();
-        input.addEventListener("input", () => {
-            paintMask();
+        const tryJoin = () => {
             const c = window.VoidFriendStore?.normalizeTransferCode(input.value);
-            if (c) F.joinTransfer(c);
-        });
-        input.addEventListener("keydown", (e) => { if (e.key === "Enter") F.joinTransfer(input.value); });
+            if (c) { window.VoidAppModal.close(); linkAndJoin(c); }
+        };
+        input.addEventListener("input", () => { paintMask(); tryJoin(); });
+        input.addEventListener("keydown", (e) => { if (e.key === "Enter") tryJoin(); });
     }
 
     function fmtCode(c) { return c.replace(/(.{4})(?=.)/g, "$1-"); }
 
     function transferMeta() {
-        const meta = profileSlot?.querySelector(".fr-transfer-meta");
-        if (!meta) return;
-        if (!transferCode) return;
+        const meta = xferGroup?.querySelector(".fr-transfer-meta");
+        if (!meta || !transferCode) return;
         const left = Math.max(0, Math.ceil((transferExp - Date.now()) / 1000));
         meta.textContent = t("friends.transfer.wait", { time: `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}` });
         if (!left) resetTransfer(true);
@@ -1043,8 +1153,8 @@
         if (cancel && transferCode) F.cancelTransfer();
         clearInterval(transferTimer);
         transferCode = null;
-        const group = profileSlot?.querySelector(".sx");
-        if (group) {
+        const group = xferGroup;
+        if (group?.isConnected) {
             sxSetMode(group, "");
             group.querySelector(".fr-qr-wrap")?.classList.remove("is-open");
             const input = group.querySelector(".sx-input");
@@ -1081,9 +1191,6 @@
                 wrap.classList.toggle("is-open", on);
                 sq.classList.toggle("is-on", on);
                 if (on) {
-                    /* The qr unfolds below the fold of the settings card; once
-                       it has (the card grows first, so there is nothing to
-                       scroll before that), the window glides to its very end. */
                     clearTimeout(wrap._scrollT);
                     wrap._scrollT = setTimeout(() => { if (wrap.classList.contains("is-open")) scrollToEnd(wrap); }, MED_MS);
                     await showQr(wrap.querySelector(".fr-qr"), `${appBase()}/#transfer=${transferCode}`);
@@ -1100,6 +1207,176 @@
     function appBase() {
         return IS_DESKTOP || location.hostname === "tauri.localhost" ? "https://app.void-room.space" : location.origin;
     }
+
+    /* ----- "link devices" dialog (security-code shell, phases ask → linking → done | fail) ----- */
+    const DL = {
+        laptopL: '<rect x="12" y="20" width="24" height="15" rx="1.5"/><path d="M7 39h34"/>',
+        browserL: '<rect x="10" y="18" width="28" height="22" rx="1.5"/><path d="M10 23h28M13.5 20.5h.01M16 20.5h.01"/>',
+        phoneL: '<rect x="16" y="15" width="16" height="30" rx="2.6"/><path d="M22 41h4"/>',
+        laptopR: '<rect x="223" y="20" width="24" height="15" rx="1.5"/><path d="M218 39h34"/>',
+        browserR: '<rect x="221" y="18" width="28" height="22" rx="1.5"/><path d="M221 23h28M224.5 20.5h.01M227 20.5h.01"/>',
+        phoneR: '<rect x="227" y="15" width="16" height="30" rx="2.6"/><path d="M233 41h4"/>',
+    };
+    const devShape = (d) => isPhone(d) ? "phone" : d?.app === "app" ? "laptop" : "browser";
+    const LINK_WAIT_MS = 20_000;
+    let dlModal = null, dlCode = null, dlTimer = 0, dlTimers = [], dlStale = false;
+
+    function buildLinkModal() {
+        dlModal = document.createElement("div");
+        dlModal.className = "sas-modal dl-modal";
+        dlModal.setAttribute("role", "dialog");
+        dlModal.setAttribute("aria-hidden", "true");
+        dlModal.setAttribute("inert", "");
+        dlModal.dataset.phase = "ask";
+        dlModal.innerHTML = `
+            <div class="sas-backdrop" data-dl-close></div>
+            <div class="sas-card">
+                <div class="dl-swap dl-titles">
+                    <h2 class="sas-title s s-ask">${esc(t("friends.dl.ask"))}</h2>
+                    <h2 class="sas-title s s-done">${esc(t("friends.dl.done"))}</h2>
+                    <h2 class="sas-title s s-fail">${esc(t("friends.dl.fail"))}</h2>
+                </div>
+                <div class="dl-scheme">
+                    <svg viewBox="0 12 260 36" aria-hidden="true">
+                        <g class="dl-dev dl-dev-a"></g>
+                        <g class="dl-dev dl-dev-b"></g>
+                        <circle class="dl-pkt dl-pkt-f" style="--k:0" cx="46" cy="30" r="1.5" />
+                        <circle class="dl-pkt dl-pkt-f" style="--k:1" cx="46" cy="30" r="1.5" />
+                        <circle class="dl-pkt dl-pkt-b" style="--k:0" cx="214" cy="30" r="1.5" />
+                        <circle class="dl-pkt dl-pkt-b" style="--k:1" cx="214" cy="30" r="1.5" />
+                        <line class="dl-ghost" x1="46" y1="30" x2="118" y2="30" opacity="0" />
+                        <line class="dl-ghost" x1="214" y1="30" x2="142" y2="30" opacity="0" />
+                        <line class="dl-line" style="--len:72px" x1="46" y1="30" x2="118" y2="30" />
+                        <line class="dl-line" style="--len:72px" x1="214" y1="30" x2="142" y2="30" />
+                        <circle class="dl-tip" cx="85.6" cy="30" r="1.4" />
+                        <circle class="dl-tip dl-tip-r" cx="174.4" cy="30" r="1.4" />
+                        <g class="dl-in">
+                            <path class="dl-shackle" d="M125.5 36v-10a4.5 4.5 0 0 1 9 0v4" />
+                            <rect class="dl-lock-body" x="122.5" y="29.5" width="15" height="11" rx="1.5" />
+                            <circle class="dl-keyhole" cx="130" cy="35" r="1.3" />
+                        </g>
+                        <circle class="dl-ring" cx="130" cy="30" r="9" />
+                    </svg>
+                    <div class="dl-names"><span class="a"></span><span class="b"></span></div>
+                </div>
+                <div class="dl-swap dl-copy">
+                    <div class="s s-ask">
+                        <p class="sas-body">${esc(t("friends.dl.body"))}</p>
+                        <p class="sas-hint">${esc(t("friends.dl.hint"))}</p>
+                        <div class="dl-actions">
+                            <button type="button" class="dl-btn is-quiet" data-dl-close>${esc(t("friends.cancel"))}</button>
+                            <button type="button" class="dl-btn is-main" data-dl-go><span class="swap"><span class="swap-main">${esc(t("friends.dl.go"))}</span><span class="swap-alt">${esc(t("friends.dl.going"))}</span></span></button>
+                        </div>
+                    </div>
+                    <div class="s s-done">
+                        <p class="dl-status">${esc(t("friends.dl.done.status"))}</p>
+                        <p class="sas-body dl-last">${esc(t("friends.dl.done.body"))}</p>
+                        <div class="dl-actions"><button type="button" class="dl-btn is-main" data-dl-close>${esc(t("friends.dl.ok"))}</button></div>
+                    </div>
+                    <div class="s s-fail">
+                        <p class="dl-status dl-fail-why"></p>
+                        <p class="sas-body">${esc(t("friends.dl.fail.body"))}</p>
+                        <p class="sas-hint">${esc(t("friends.dl.fail.hint"))}</p>
+                        <div class="dl-actions">
+                            <button type="button" class="dl-btn is-quiet" data-dl-close>${esc(t("friends.dl.close"))}</button>
+                            <button type="button" class="dl-btn is-main" data-dl-retry>${esc(t("friends.dl.retry"))}</button>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+        document.body.appendChild(dlModal);
+        dlModal.addEventListener("click", (e) => {
+            if (e.target.closest("[data-dl-close]")) closeLinkModal();
+            else if (e.target.closest("[data-dl-go]")) dlJoin();
+            else if (e.target.closest("[data-dl-retry]")) openLinkModal({ phase: "ask", code: dlCode });
+        });
+    }
+
+    function dlLater(fn, ms) { dlTimers.push(setTimeout(fn, reduced() ? 0 : ms)); }
+
+    function setDlPhase(ph, instant) {
+        dlModal.dataset.phase = ph;
+        const copy = dlModal.querySelector(".dl-copy");
+        const s = copy.querySelector(`.s-${ph === "linking" ? "ask" : ph}`);
+        if (instant) copy.style.transition = "none";
+        copy.style.height = s.offsetHeight + "px";
+        if (instant) { void copy.offsetHeight; copy.style.transition = ""; }
+        dlModal.querySelector("[data-dl-go]").classList.toggle("is-swapped", ph === "linking");
+        if (ph === "done" || ph === "fail") dlLater(() => dlModal.querySelector(`.s-${ph} .is-main`)?.focus(), 360);
+    }
+
+    /* opts: {phase: "ask"|"linking"|"done", code?, other?} — other = the
+       other device's {os, app} when known (the source learns it from the
+       request, the target from the reply). */
+    function openLinkModal({ phase, code = null, other = null }) {
+        if (dlModal && dlStale && !linkOpen()) { dlModal.remove(); dlModal = null; }
+        if (!dlModal) { buildLinkModal(); dlStale = false; }
+        dlTimers.forEach(clearTimeout); dlTimers = [];
+        clearTimeout(dlTimer);
+        dlCode = code;
+        const me = window.VoidFriendStore.describeSelf();
+        const guess = other || (isPhone(me) ? { os: "mac", app: "app" } : { os: "iphone", app: "safari" });
+        dlModal.querySelector(".dl-dev-a").innerHTML = DL[devShape(me) + "L"];
+        dlModal.querySelector(".dl-dev-b").innerHTML = DL[devShape(guess) + "R"];
+        dlModal.querySelector(".dl-names .a").textContent = t("friends.devices.this");
+        dlModal.querySelector(".dl-names .b").textContent = other ? devName(other) : t("friends.devices.other");
+        const wasOpen = dlModal.classList.contains("is-open");
+        if (!wasOpen || phase === "ask") {
+            setDlPhase(phase === "done" ? "done" : "ask", true);
+            dlModal.classList.remove("is-open");
+            void dlModal.offsetWidth;
+            dlModal.classList.add("is-open");
+            dlModal.removeAttribute("inert");
+            dlModal.setAttribute("aria-hidden", "false");
+            document.addEventListener("keydown", dlEsc, true);
+        }
+        if (phase === "ask") dlLater(() => dlModal.querySelector("[data-dl-go]")?.focus(), 60);
+        /* linking opened fresh: let the lines grow first, then go on. */
+        else if (phase === "linking") dlLater(() => dlJoin(), wasOpen ? 0 : 200);
+        else if (wasOpen) setDlPhase(phase);
+    }
+
+    function dlJoin() {
+        if (!dlCode || dlModal.dataset.phase === "linking") return;
+        setDlPhase("linking");
+        clearTimeout(dlTimer);
+        dlTimer = setTimeout(() => { F.cancelTransfer(); linkFailed("gone"); }, LINK_WAIT_MS);
+        F.joinTransfer(dlCode);
+    }
+
+    function linkFailed(why) {
+        if (!dlModal?.classList.contains("is-open")) return false;
+        clearTimeout(dlTimer);
+        dlModal.querySelector(".dl-fail-why").textContent = t("friends.dl.fail." + why);
+        setDlPhase("fail");
+        return true;
+    }
+
+    function linkDone(other) {
+        clearTimeout(dlTimer);
+        if (other) {
+            dlModal.querySelector(".dl-names .b").textContent = devName(other);
+        }
+        setDlPhase("done");
+    }
+
+    function dlEsc(e) {
+        if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeLinkModal(); }
+    }
+    function closeLinkModal() {
+        if (!dlModal?.classList.contains("is-open")) return;
+        if (dlModal.dataset.phase === "linking") F.cancelTransfer();
+        dlTimers.forEach(clearTimeout); dlTimers = [];
+        clearTimeout(dlTimer);
+        dlModal.classList.remove("is-open");
+        dlModal.setAttribute("inert", "");
+        dlModal.setAttribute("aria-hidden", "true");
+        document.removeEventListener("keydown", dlEsc, true);
+    }
+    const linkOpen = () => !!dlModal?.classList.contains("is-open");
+
+    /* Typed code: the typing was the "yes", go straight to linking. */
+    function linkAndJoin(code) { openLinkModal({ phase: "linking", code }); }
 
     /* ---------- events → toasts ---------- */
     window.addEventListener("void:friends-event", (e) => {
@@ -1122,15 +1399,31 @@
             case "tag-sent": toast("friends.toast.link-sent", { duration: 5000 }); break;
             case "tag-invalid": toast("friends.toast.tag-invalid", { priority: "warn" }); break;
             case "tag-not-found": toast("friends.toast.tag-not-found", { priority: "warn", duration: 5000 }); break;
-            case "offline": toast("friends.toast.offline", { priority: "warn" }); break;
-            case "transfer-done":
-                toast(d.role === "source" ? "friends.toast.transfer-source" : "friends.toast.transfer-target", { duration: 6000 });
-                resetTransfer(false);
+            case "offline":
+                if (!linkFailed("offline")) toast("friends.toast.offline", { priority: "warn" });
                 break;
-            case "transfer-not-found": toast("friends.toast.transfer-not-found", { priority: "warn" }); break;
-            case "transfer-own": toast("friends.toast.transfer-own", { priority: "warn" }); break;
-            case "transfer-failed": toast("friends.toast.transfer-failed", { priority: "warn" }); resetTransfer(false); break;
+            /* The link dialog tells the story; toasts only when it is not open. */
+            case "transfer-done":
+                resetTransfer(false);
+                if (d.role === "source") {
+                    window.VoidAppModal?.close();
+                    openLinkModal({ phase: "done", other: d.other });
+                } else if (linkOpen()) linkDone(d.other);
+                else toast("friends.toast.transfer-target", { duration: 6000 });
+                break;
+            case "transfer-not-found":
+                if (!linkFailed("code")) toast("friends.toast.transfer-not-found", { priority: "warn" });
+                break;
+            case "transfer-own":
+                closeLinkModal();
+                toast("friends.toast.transfer-own", { priority: "warn" });
+                break;
+            case "transfer-failed":
+                resetTransfer(false);
+                if (!linkFailed("gone")) toast("friends.toast.transfer-failed", { priority: "warn" });
+                break;
             case "transfer-expired": resetTransfer(false); break;
+            case "unlinked": toast("friends.toast.unlinked", { priority: "warn", duration: 8000 }); break;
         }
         renderAll();
     });
@@ -1158,15 +1451,7 @@
     }
 
     function confirmTransferLink(code) {
-        const card = modalShell(t("friends.transfer"), `
-            <div class="fr-confirm">
-                <p class="fr-confirm-text">${esc(t("friends.transfer.question"))}</p>
-                <div class="fr-confirm-actions">
-                    <button type="button" class="fr-btn is-primary" data-ok>${esc(t("friends.transfer.go"))}</button>
-                </div>
-            </div>`, "fr-modal--small", ICON.qr);
-        if (!card) return;
-        card.querySelector("[data-ok]").addEventListener("click", () => { window.VoidAppModal.close(); F.joinTransfer(code); });
+        openLinkModal({ phase: "ask", code });
     }
 
     function consumeHash() {
@@ -1186,6 +1471,9 @@
         /* Dispatched on document (settings.js) and it does not bubble. */
         document.addEventListener("void:locale-changed", () => {
             if (profileSlot) profileSlot.innerHTML = "";
+            /* The link dialog may be mid-transfer (the transfer itself can
+               bring a new language): rebuild it on its next open instead. */
+            dlStale = true;
             renderAll();
         });
         window.addEventListener("void:participants-changed", renderAll);
@@ -1197,6 +1485,7 @@
         openPersonProfile,
         mountProfile,
         confirmFriendLink,
+        confirmTransferLink,
         openAdd: openAddModal,
         open: openPop,
         close: closePop,

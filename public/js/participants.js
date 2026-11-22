@@ -397,15 +397,23 @@ function _measureRegion(remPx) {
     const headerB = header ? header.getBoundingClientRect().bottom : 0;
     let ctrlT = window.innerHeight;
     if (controls && controls.getClientRects().length) ctrlT = controls.getBoundingClientRect().top;
-    // мобилка + чат: контролы скрыты, снизу лист чата → нижняя граница = верх листа.
-    // Берём CSS-высоту (getComputedStyle) — она не зависит от анимации transform.
+    const s = stage ? stage.getBoundingClientRect() : { left: 0, right: window.innerWidth };
+    const mSide = 1.4 * remPx, mTop = 1.0 * remPx, mBot = 1.0 * remPx;
+    /* Мобилка + чат: контролы погашены, снизу лист чата → область = полоса
+       между шапкой и верхом листа. Высота листа — из CSS (не зависит от его
+       transform-анимации), так что финальная раскладка известна в первый же
+       кадр открытия. Якорь (.users-slot) остаётся на месте и может оказаться
+       НИЖЕ верха листа → down бывает отрицательным; без клампов, иначе
+       центровка строк уезжает. */
     if (_isMobileChat()) {
         const chat = document.querySelector(".chat-panel");
         const h = chat ? parseFloat(getComputedStyle(chat).height) || 0 : 0;
-        if (h > 0) ctrlT = Math.min(ctrlT, window.innerHeight - h);
+        return {
+            up: ay - headerB - mTop,
+            down: window.innerHeight - h - ay - mBot,
+            halfW: Math.max(40, Math.min(ax - s.left, s.right - ax) - mSide)
+        };
     }
-    const s = stage ? stage.getBoundingClientRect() : { left: 0, right: window.innerWidth };
-    const mSide = 1.4 * remPx, mTop = 1.0 * remPx, mBot = 1.0 * remPx;
     return {
         up: Math.max(30, ay - headerB - mTop),
         down: Math.max(20, ctrlT - ay - mBot),
@@ -451,6 +459,7 @@ function _computeArc(others, pos, sz, rad, region, dip) {
    центрируется по вертикали в области. Без дуги, без релаксации (шаг гарантирует
    отсутствие наложений). Порядок — DOM (self на своём месте, не в центре). */
 function _computeRows(els, pos, sz, nameH, region) {
+    pos.clear();
     const n = els.length, perRow = 5;
     const rows = n <= perRow ? [els] : [els.slice(0, perRow), els.slice(perRow)];
     const gapX = sz * 1.42;
@@ -561,6 +570,16 @@ function layoutParticipants() {
     let selfNameH = _nameHeight(selfSz, remPx);
 
     if (rowsMode) {
+        /* Строки: сначала вписываем по размеру в полосу (fit-scale ниже
+           масштабирует вокруг якоря и сбил бы центровку), потом раскладка
+           с центровкой уже на итоговом размере. */
+        const rows = n <= 5 ? 1 : 2, cols = Math.min(n, 5);
+        const band = Math.max(1, region.up + region.down);
+        const fitH = sz2 => rows * (sz2 + _nameHeight(sz2, remPx)) + (rows - 1) * sz2 * 0.28;
+        const fitW = sz2 => (cols - 1) * sz2 * 1.42 + sz2;
+        let f = Math.min(1, band / fitH(sz), (2 * region.halfW) / fitW(sz));
+        sz = selfSz = Math.max(0.35 * sz, sz * f);
+        nameH = selfNameH = _nameHeight(sz, remPx);
         _computeRows(els, pos, sz, nameH, region);           // все N — строками (self в DOM-порядке)
     } else if (n === 1) {
         pos.set(els[0], { x: 0, y: 0 });
@@ -574,7 +593,7 @@ function layoutParticipants() {
         _computeArc(others, pos, sz, rad, region, _DIP_BY_COUNT[n] || 0);
         pos.set(selfEl, { x: 0, y: 0 });
     }
-    const f = _fitScale(pos, sz, nameH, selfEl, selfSz, selfNameH, region);
+    const f = rowsMode ? 1 : _fitScale(pos, sz, nameH, selfEl, selfSz, selfNameH, region);
     if (f < 1) {
         sz *= f; selfSz *= f;
         for (const p of pos.values()) { p.x *= f; p.y *= f; }

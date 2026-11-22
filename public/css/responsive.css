@@ -14,9 +14,63 @@
         top: calc(var(--hdr-axis) - 1.145rem);
     }
 
+    /* One button in the right corner, mirroring «чат»: the status dot +
+       «#CODE». It opens the room sheet (js/room-sheet.js, room-sheet.css);
+       the left corner is «друзья». Before a room there's nothing to show. */
     .footer-meta {
-        padding: 0 16px;
+        justify-content: flex-end;
+        gap: 0.57rem;
+        padding: 0 calc(var(--edge-btn) - var(--tracking-wide)) 0 0;
         box-sizing: border-box;
+    }
+
+    #connLabel,
+    .footer-divider,
+    .room-code-prefix {
+        display: none;
+    }
+
+    /* Outside a room the footer is «друзья» alone, centred. Joining slides
+       it to the left corner while the room button fades in on the right —
+       one --t-med, together; leaving plays it back. The pill moves by
+       transform, not the .friends box: a transform there would become the
+       containing block of the fixed friends sheet inside it. */
+    .footer-meta {
+        transition: opacity var(--t-med), transform var(--t-med), visibility var(--t-med);
+    }
+
+    .app:not([data-mode="room"]) .footer-meta {
+        opacity: 0;
+        visibility: hidden;
+        transform: translateX(0.57rem);
+    }
+
+    .friends .fbar-pill {
+        transition: color var(--t-fast), opacity var(--t-med), transform var(--t-med);
+    }
+
+    .app:not([data-mode="room"]) .friends .fbar-pill {
+        transform: translateX(calc(50vw - var(--edge-btn) + var(--fic-x) - 50%));
+    }
+
+    /* Trouble on the line: the button says what's wrong instead of the code
+       (the dot alone is too quiet for "reconnecting"). */
+    .footer-meta:has(.conn-dot:not(.live)) #connLabel {
+        display: inline;
+    }
+
+    .footer-meta:has(.conn-dot:not(.live)) #roomInfo {
+        display: none;
+    }
+
+    .room-code-id::before {
+        content: "#";
+    }
+
+    /* Dot and code read as one button: either half opens the sheet. */
+    .app[data-mode="room"] .conn-state {
+        padding: 0.71rem 0 0.71rem 0.57rem;
+        margin: -0.71rem 0;
     }
 
     .brand-tag {
@@ -135,16 +189,6 @@ body {
 
     .entry-code::placeholder {
         font-size: 13px;
-    }
-
-    /* Hide screencast button — not applicable on mobile */
-    #screencastBtn {
-        display: none;
-    }
-
-    /* Controls: 2-column grid without screencast */
-    .panel-controls {
-        grid-template-columns: 44px 44px;
     }
 
     /* panel-tail: allow wrapping to prevent horizontal overflow */

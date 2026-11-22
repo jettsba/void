@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "1.10.0";
+    const APP_VERSION = "1.11.0";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
@@ -122,6 +122,7 @@
             "controls.mute": "выключить микрофон",
             "controls.deaf": "выключить звук",
             "controls.screencast.soon": "демонстрация (скоро)",
+            "controls.camera": "камера",
             "controls.screencast.share": "показать экран",
             "controls.screencast.stop": "остановить показ",
             "controls.leave": "выйти",
@@ -169,6 +170,7 @@
             "footer.roomCode": "комната #{code}",
 
             "ping.empty": "нет участников",
+            "room.sheet.peers": "участники · пинг",
 
             "errors.room-not-found": "комната не найдена",
             "errors.room-full": "комната заполнена",
@@ -292,10 +294,9 @@
             "friends.req.sent": "заявка отправлена",
             "friends.pair.body": "это отпечаток вашей дружбы. его вычисляют ваши устройства из ключей, которыми вы обменялись, когда добавили друг друга.",
             "friends.pair.hint": "у тебя и у {nick} символы должны совпасть.\nкод не меняется, пока вы друзья",
-            "friends.transfer.enter.note": "код — на другом устройстве: профиль → перенос → показать код",
+            "friends.transfer.enter.note": "код — на другом устройстве: профиль → мои устройства → добавить → показать код",
             "friends.toast.tag-not-found": "нет такого кода или человек не в сети",
             "friends.toast.tag-invalid": "нужен код вида ник#0000",
-            "friends.transfer.question": "перенести друзей с другого устройства на это?",
             "friends.transfer.qr": "показать qr",
             "friends.code.copy": "скопировать {tag}",
             "friends.pair.title": "код дружбы",
@@ -344,12 +345,43 @@
             "friends.cancel": "отмена",
             "friends.invisible": "невидимка",
             "friends.invisible.hint": "друзья видят тебя не в сети, а ты их — как обычно",
-            "friends.transfer": "перенос на другое устройство",
-            "friends.transfer.hint": "друзья хранятся только на этом устройстве. перенос объединит списки на обоих",
             "friends.transfer.show": "показать код",
             "friends.transfer.enter": "ввести код",
-            "friends.transfer.go": "перенести",
             "friends.transfer.wait": "введи этот код на другом устройстве · {time}",
+            "friends.devices": "мои устройства",
+            "friends.devices.add": "добавить",
+            "friends.devices.add.title": "добавить устройство",
+            "friends.devices.show.hint": "для нового устройства",
+            "friends.devices.enter.hint": "с другого устройства",
+            "friends.devices.note": "сервер ничего не хранит. данные синхронизируются напрямую, когда два устройства в сети одновременно",
+            "friends.devices.here": "текущее",
+            "friends.devices.this": "это устройство",
+            "friends.devices.online": "в сети · синхронизировано",
+            "friends.devices.seen": "был {time}",
+            "friends.devices.unlink": "отвязать",
+            "friends.devices.sure": "точно?",
+            "friends.devices.other": "другое устройство",
+            "friends.devices.os.other": "устройство",
+            "friends.devices.app.app": "приложение",
+            "friends.devices.app.web": "браузер",
+            "friends.dl.ask": "связать устройства?",
+            "friends.dl.done": "устройства связаны",
+            "friends.dl.fail": "не удалось связать",
+            "friends.dl.body": "профиль, друзья и настройки будут синхронизироваться между этим и другим устройством.",
+            "friends.dl.hint": "сервер ничего не хранит — данные идут напрямую между вашими устройствами",
+            "friends.dl.go": "связать",
+            "friends.dl.going": "связываем…",
+            "friends.dl.done.status": "профиль, друзья и настройки уже синхронизированы.",
+            "friends.dl.done.body": "дальше всё обновляется само, когда на обоих устройствах открыт void. изменения, сделанные офлайн, приедут при следующей встрече устройств.",
+            "friends.dl.ok": "понятно",
+            "friends.dl.fail.gone": "второе устройство не ответило",
+            "friends.dl.fail.code": "код не найден или устарел",
+            "friends.dl.fail.offline": "нет связи с сервером",
+            "friends.dl.fail.body": "откройте void на обоих устройствах и попробуйте ещё раз.",
+            "friends.dl.fail.hint": "ключи не передавались — ничего не утекло",
+            "friends.dl.close": "закрыть",
+            "friends.dl.retry": "ещё раз",
+            "friends.toast.unlinked": "это устройство отвязали: ключ и друзья здесь стёрты",
             "friends.ios.hint": "safari может стереть данные сайта, если не заходить неделю. добавь void на экран «домой» или перенеси друзей в приложение",
             "friends.link.title": "приглашение в друзья",
             "friends.link.question": "тебя зовут в друзья по ссылке. принять?",
@@ -365,7 +397,6 @@
             "friends.toast.link-own": "это твоя же ссылка",
             "friends.toast.link-sent": "заявка отправлена — ждём ответа",
             "friends.toast.offline": "нет связи с сервером",
-            "friends.toast.transfer-source": "готово — друзья теперь и на другом устройстве",
             "friends.toast.transfer-target": "готово — друзья перенесены сюда",
             "friends.toast.transfer-not-found": "код не найден или устарел",
             "friends.toast.transfer-own": "это код с этого же устройства",
@@ -462,6 +493,7 @@
             "controls.mute": "mute",
             "controls.deaf": "deaf",
             "controls.screencast.soon": "screencast (soon)",
+            "controls.camera": "camera",
             "controls.screencast.share": "share screen",
             "controls.screencast.stop": "stop sharing",
             "controls.leave": "leave",
@@ -509,6 +541,7 @@
             "footer.roomCode": "room #{code}",
 
             "ping.empty": "no peers",
+            "room.sheet.peers": "peers · ping",
 
             "errors.room-not-found": "room not found",
             "errors.room-full": "room is full",
@@ -632,10 +665,9 @@
             "friends.req.sent": "request sent",
             "friends.pair.body": "this is the fingerprint of your friendship. your devices compute it from the keys you exchanged when you added each other.",
             "friends.pair.hint": "you and {nick} should see the same symbols.\nthe code stays the same while you are friends",
-            "friends.transfer.enter.note": "the code is on the other device: profile → transfer → show code",
+            "friends.transfer.enter.note": "the code is on the other device: profile → my devices → add → show code",
             "friends.toast.tag-not-found": "no such code, or they are offline",
             "friends.toast.tag-invalid": "use the nick#0000 format",
-            "friends.transfer.question": "move friends from the other device to this one?",
             "friends.transfer.qr": "show qr",
             "friends.code.copy": "copy {tag}",
             "friends.pair.title": "friendship code",
@@ -684,12 +716,43 @@
             "friends.cancel": "cancel",
             "friends.invisible": "invisible",
             "friends.invisible.hint": "friends see you offline, you still see them",
-            "friends.transfer": "move to another device",
-            "friends.transfer.hint": "friends live only on this device. moving merges the lists on both",
             "friends.transfer.show": "show code",
             "friends.transfer.enter": "enter code",
-            "friends.transfer.go": "move",
             "friends.transfer.wait": "enter this code on the other device · {time}",
+            "friends.devices": "my devices",
+            "friends.devices.add": "add",
+            "friends.devices.add.title": "add a device",
+            "friends.devices.show.hint": "for the new device",
+            "friends.devices.enter.hint": "from the other device",
+            "friends.devices.note": "the server stores nothing. data syncs directly whenever two devices are online at the same time",
+            "friends.devices.here": "current",
+            "friends.devices.this": "this device",
+            "friends.devices.online": "online · in sync",
+            "friends.devices.seen": "seen {time}",
+            "friends.devices.unlink": "unlink",
+            "friends.devices.sure": "sure?",
+            "friends.devices.other": "other device",
+            "friends.devices.os.other": "device",
+            "friends.devices.app.app": "app",
+            "friends.devices.app.web": "browser",
+            "friends.dl.ask": "link devices?",
+            "friends.dl.done": "devices linked",
+            "friends.dl.fail": "couldn't link",
+            "friends.dl.body": "profile, friends and settings will sync between this device and the other one.",
+            "friends.dl.hint": "the server stores nothing — data goes straight between your devices",
+            "friends.dl.go": "link",
+            "friends.dl.going": "linking…",
+            "friends.dl.done.status": "profile, friends and settings are in sync.",
+            "friends.dl.done.body": "from now on it updates by itself whenever void is open on both devices. changes made offline arrive the next time the devices meet.",
+            "friends.dl.ok": "got it",
+            "friends.dl.fail.gone": "the other device didn't answer",
+            "friends.dl.fail.code": "code not found or expired",
+            "friends.dl.fail.offline": "no connection to the server",
+            "friends.dl.fail.body": "open void on both devices and try again.",
+            "friends.dl.fail.hint": "no keys were sent — nothing leaked",
+            "friends.dl.close": "close",
+            "friends.dl.retry": "try again",
+            "friends.toast.unlinked": "this device was unlinked: its key and friends are wiped",
             "friends.ios.hint": "safari may wipe site data after a week without visits. add void to the home screen or move friends to the app",
             "friends.link.title": "friend invite",
             "friends.link.question": "you were invited to be friends. accept?",
@@ -705,7 +768,6 @@
             "friends.toast.link-own": "this is your own link",
             "friends.toast.link-sent": "request sent — waiting for an answer",
             "friends.toast.offline": "no connection to the server",
-            "friends.toast.transfer-source": "done — your friends are on the other device too",
             "friends.toast.transfer-target": "done — friends moved to this device",
             "friends.toast.transfer-not-found": "code not found or expired",
             "friends.toast.transfer-own": "this code is from this device",
@@ -823,6 +885,10 @@
                 }
                 if (typeof parsed.autoStart === "boolean") state.autoStart = parsed.autoStart;
                 if (typeof parsed.hotkeysEnabled === "boolean") state.hotkeysEnabled = parsed.hotkeysEnabled;
+                if (typeof parsed.sfxVolume === "number" && isFinite(parsed.sfxVolume)) {
+                    state.sfxVolume = clampGain(parsed.sfxVolume, AUDIO_SFX_VOLUME_MIN, AUDIO_SFX_VOLUME_MAX);
+                }
+                if (typeof parsed.sfxEnabled === "boolean") state.sfxEnabled = parsed.sfxEnabled;
             }
         } catch {
             /* приватный режим, мусор в storage — игнорим, остаются дефолты */
@@ -847,6 +913,63 @@
             localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
         } catch {
             /* квота, приватный режим — настройка проживёт сессию */
+        }
+    }
+
+    /* ===== device sync (js/friends/net.js, tasks/device-sync-plan.md) =====
+       Settings that follow the person, not the machine. Mic/speaker ids, gains,
+       ui scale, streamer mode and the desktop-only app settings stay local.
+       Every local change stamps its key; a stamp of 0 = never touched here,
+       so untouched defaults never override the other device. */
+    const SYNC_KEYS = ["nickname", "lang", "noiseSuppression", "bgTheme", "sfxVolume", "sfxEnabled"];
+    const SYNC_META_KEY = "void:settings-sync";
+    let syncMeta = {};
+    try {
+        const m = JSON.parse(localStorage.getItem(SYNC_META_KEY) || "{}");
+        if (m && typeof m === "object") for (const k of SYNC_KEYS) if (Number(m[k]) > 0) syncMeta[k] = Number(m[k]);
+    } catch { /* no storage — stamps live for the session */ }
+    let applyingSync = false;
+
+    function saveSyncMeta() {
+        try { localStorage.setItem(SYNC_META_KEY, JSON.stringify(syncMeta)); } catch { /* quota */ }
+    }
+    function stamp(key) {
+        if (applyingSync) return;
+        syncMeta[key] = Date.now();
+        saveSyncMeta();
+        document.dispatchEvent(new CustomEvent("void:settings-sync-changed"));
+    }
+    function getSynced() {
+        const out = {};
+        for (const k of SYNC_KEYS) out[k] = { v: state[k], at: syncMeta[k] || 0 };
+        return out;
+    }
+    /* Takes the already-merged winners; applies the ones newer than ours
+       through the normal setters, so every listener reacts as to a click. */
+    function applySynced(remote) {
+        if (!remote || typeof remote !== "object") return;
+        const setters = {
+            nickname: setNickname, lang: setLang, noiseSuppression: setNoiseSuppression,
+            bgTheme: setBgTheme, sfxVolume: setSfxVolume, sfxEnabled: setSfxEnabled,
+        };
+        let touched = false;
+        for (const k of SYNC_KEYS) {
+            const r = remote[k];
+            const at = Number(r?.at) || 0;
+            if (!at || at < (syncMeta[k] || 0) || (at === (syncMeta[k] || 0) && JSON.stringify(r.v) === JSON.stringify(state[k]))) continue;
+            applyingSync = true;
+            try { setters[k](r.v); } catch (e) { console.warn("[settings] sync", k, e); }
+            applyingSync = false;
+            syncMeta[k] = at;
+            touched = true;
+        }
+        if (touched) {
+            saveSyncMeta();
+            /* Panel may be open: refresh controls the setters don't touch. */
+            applyAudioControlsFromState();
+            applySfxUI();
+            if (document.activeElement !== nickInputEl) applyNickInputUI();
+            updateCatValues();
         }
     }
 
@@ -915,6 +1038,7 @@
         state.lang = lang;
         document.documentElement.lang = lang;
         saveState();
+        stamp("lang");
         applyI18n();
         applyLangToggleUI();
         document.dispatchEvent(new CustomEvent("void:locale-changed", { detail: { lang } }));
@@ -948,6 +1072,7 @@
         if (state.noiseSuppression === next) return;
         state.noiseSuppression = next;
         saveState();
+        stamp("noiseSuppression");
         document.dispatchEvent(new CustomEvent("void:noise-suppression-changed", { detail: { on: next } }));
     }
 
@@ -956,6 +1081,7 @@
         if (state.bgTheme === name) return;
         state.bgTheme = name;
         saveState();
+        stamp("bgTheme");
         applyBgThemeSegUI();
         /* background.js слушает это событие и плавно переключает фон. */
         document.dispatchEvent(new CustomEvent("void:bg-theme-changed", { detail: { theme: name } }));
@@ -1009,6 +1135,7 @@
         if (state.sfxVolume === next) return;
         state.sfxVolume = next;
         saveState();
+        stamp("sfxVolume");
         document.dispatchEvent(new CustomEvent("void:audio-sfx-changed", { detail: { volume: next, enabled: state.sfxEnabled } }));
     }
 
@@ -1017,6 +1144,7 @@
         if (state.sfxEnabled === next) return;
         state.sfxEnabled = next;
         saveState();
+        stamp("sfxEnabled");
         document.dispatchEvent(new CustomEvent("void:audio-sfx-changed", { detail: { volume: state.sfxVolume, enabled: next } }));
     }
 
@@ -1030,6 +1158,7 @@
         if (state.nickname === next) return next;
         state.nickname = next;
         saveState();
+        stamp("nickname");
         document.dispatchEvent(new CustomEvent("void:nickname-changed", { detail: { nickname: next } }));
         return next;
     }
@@ -1397,9 +1526,13 @@
                     </span>
                     <button type="button" class="cat-modal-close" data-cat-close
                         aria-label="${t("chat.close")}" data-i18n-attr="aria-label:chat.close">
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <svg class="cat-modal-x" viewBox="0 0 24 24" aria-hidden="true">
                             <path d="M6 6l12 12"/>
                             <path d="M18 6L6 18"/>
+                        </svg>
+                        <!-- Phones: the category is a page, this is «back» (settings.css). -->
+                        <svg class="cat-modal-back" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M15 5l-7 7 7 7"/>
                         </svg>
                     </button>
                 </header>
@@ -1459,7 +1592,70 @@
             <div class="profile-friends" id="profileFriendsSlot"></div>
         `, `<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20.5c0-3.6 3.4-5.5 7.5-5.5s7.5 1.9 7.5 5.5"/></svg>`);
 
-        audioModalEl = buildCatModalShell("catModalAudio", "settings.cat.audio", `
+        /* Audio devices: vertical faders + worded test buttons on desktop,
+           per-device rows with square icon buttons on phones. Picked once,
+           when the modal is built; both sets of styles live in settings.css. */
+        const audioDevicesHtml = matchMedia("(max-width: 640px)").matches ? `
+            <div class="audio-devs">
+                <div class="adev">
+                    <div class="adev-head">
+                        <span class="adev-label" data-i18n="settings.audio.mic">${t("settings.audio.mic")}</span>
+                        <span class="adev-value" id="settingsMicGainValue"><b>100</b>%</span>
+                    </div>
+                    <div class="settings-dropdown audio-device" id="settingsMicDropdown">
+                        <button type="button" class="settings-dropdown-trigger"
+                            aria-haspopup="listbox" aria-expanded="false"
+                            aria-label="${t("settings.audio.mic")}">
+                            <span class="settings-dropdown-current" data-default-label="settings.audio.default">${t("settings.audio.default")}</span>
+                            <svg class="settings-dropdown-chevron" viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M6 9l6 6 6-6"/>
+                            </svg>
+                        </button>
+                        <ul class="settings-dropdown-menu" role="listbox" aria-hidden="true"></ul>
+                    </div>
+                    <div class="adev-ctl">
+                        <div class="adev-level">
+                            <input type="range" id="settingsMicGain" class="hslider"
+                                min="0" max="150" step="1" aria-label="${t("settings.audio.gainIn")}"/>
+                            <div class="ameter" aria-hidden="true"><div class="ameter-fill" id="settingsMicMeterFill"></div></div>
+                        </div>
+                        <button type="button" class="audio-testbtn" id="settingsMicTest">
+                            <svg class="testbtn-ico ico-rec" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle class="testbtn-ico-dot" cx="12" cy="12" r="2.5"/></svg>
+                            <svg class="testbtn-ico ico-stop" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1.5"/></svg>
+                            <span class="testbtn-label" data-i18n="settings.audio.testMic">${t("settings.audio.testMic")}</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="adev">
+                    <div class="adev-head">
+                        <span class="adev-label" data-i18n="settings.audio.speakers">${t("settings.audio.speakers")}</span>
+                        <span class="adev-value" id="settingsSpkGainValue"><b>100</b>%</span>
+                    </div>
+                    <div class="settings-dropdown audio-device" id="settingsSpkDropdown">
+                        <button type="button" class="settings-dropdown-trigger"
+                            aria-haspopup="listbox" aria-expanded="false"
+                            aria-label="${t("settings.audio.speakers")}">
+                            <span class="settings-dropdown-current" data-default-label="settings.audio.default">${t("settings.audio.default")}</span>
+                            <svg class="settings-dropdown-chevron" viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M6 9l6 6 6-6"/>
+                            </svg>
+                        </button>
+                        <ul class="settings-dropdown-menu" role="listbox" aria-hidden="true"></ul>
+                    </div>
+                    <div class="adev-ctl">
+                        <div class="adev-level">
+                            <input type="range" id="settingsSpkGain" class="hslider"
+                                min="0" max="100" step="1" aria-label="${t("settings.audio.gainOut")}"/>
+                            <div class="ameter ameter--screen" aria-hidden="true"><div class="ameter-fill" id="settingsSpkMeterFill"></div></div>
+                        </div>
+                        <button type="button" class="audio-testbtn" id="settingsSpkTest">
+                            <svg class="testbtn-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 5.5v13l10.5-6.5z"/></svg>
+                            <span class="testbtn-label" data-i18n="settings.audio.testSpk">${t("settings.audio.testSpk")}</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+` : `
             <div class="audio-faders">
                 <div class="fader-card">
                     <div class="fader-top">
@@ -1522,16 +1718,19 @@
                 </div>
 
                 <button type="button" class="audio-testbtn" id="settingsMicTest">
-                    <svg class="testbtn-ico ico-rec" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="5"/></svg>
-                    <svg class="testbtn-ico ico-stop" viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1.5"/></svg>
+                    <svg class="testbtn-ico ico-rec" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle class="testbtn-ico-dot" cx="12" cy="12" r="2.5"/></svg>
+                    <svg class="testbtn-ico ico-stop" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1.5"/></svg>
                     <span class="testbtn-label" data-i18n="settings.audio.testMic">${t("settings.audio.testMic")}</span>
                 </button>
                 <button type="button" class="audio-testbtn" id="settingsSpkTest">
-                    <svg class="testbtn-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+                    <svg class="testbtn-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 5.5v13l10.5-6.5z"/></svg>
                     <span class="testbtn-label" data-i18n="settings.audio.testSpk">${t("settings.audio.testSpk")}</span>
                 </button>
             </div>
+`;
 
+        audioModalEl = buildCatModalShell("catModalAudio", "settings.cat.audio", `
+${audioDevicesHtml}
             <div class="iface-divider"></div>
 
             <label class="toggle-row">
@@ -1836,10 +2035,11 @@
                 <button type="button" class="support-close" id="supportClose"
                     data-i18n-attr="aria-label:support.qr.close"
                     aria-label="${t("support.qr.close")}">
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <svg class="cat-modal-x" viewBox="0 0 24 24" aria-hidden="true">
                         <path d="M6 6l12 12"/>
                         <path d="M18 6L6 18"/>
                     </svg>
+                    <svg class="cat-modal-back" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
                 </button>
                 <div class="support-content">
                     <div class="support-head">
@@ -1983,10 +2183,11 @@
                 <button type="button" class="bug-close" id="bugClose"
                     data-i18n-attr="aria-label:bug.thanks.close"
                     aria-label="${t("bug.thanks.close")}">
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <svg class="cat-modal-x" viewBox="0 0 24 24" aria-hidden="true">
                         <path d="M6 6l12 12"/>
                         <path d="M18 6L6 18"/>
                     </svg>
+                    <svg class="cat-modal-back" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
                 </button>
 
                 <div class="bug-view bug-view--form" id="bugFormView">
@@ -2552,8 +2753,13 @@
         return { setOptions, setValue, getValue: () => value };
     }
 
+    /* Desktop faders fill bottom-up, phone meters left to right. */
+    function meterAxis(fill) {
+        return fill.classList.contains("vmeter-fill") ? "height" : "width";
+    }
+
     function updateGainLabels() {
-        /* Крупное число + мелкий «%» (см. .fader-value). */
+        /* «100%»: число и знак (см. .adev-value). */
         const fmt = (v) => `<b>${Math.round(v * 100)}</b>%`;
         if (micGainValueEl) micGainValueEl.innerHTML = fmt(state.audioInGain);
         if (spkGainValueEl) spkGainValueEl.innerHTML = fmt(state.audioOutGain);
@@ -2715,7 +2921,7 @@
             const withGain = avg * state.audioInGain;
             const pct = Math.min(100, (withGain / 80) * 100);
             /* Вертикальный метр — заполняется снизу вверх (height, не width). */
-            micMeterFillEl.style.height = pct.toFixed(1) + "%";
+            micMeterFillEl.style[meterAxis(micMeterFillEl)] = pct.toFixed(1) + "%";
             /* Цветная подсветка «слишком громко»: дорисуем класс по порогу. */
             micMeterFillEl.classList.toggle("is-hot", pct > 92);
             previewRaf = requestAnimationFrame(tick);
@@ -2735,7 +2941,7 @@
         }
         previewAnalyser = null;
         if (micMeterFillEl) {
-            micMeterFillEl.style.height = "0%";
+            micMeterFillEl.style[meterAxis(micMeterFillEl)] = "0%";
             micMeterFillEl.classList.remove("is-hot");
         }
     }
@@ -2842,7 +3048,7 @@
                реально слышно. Нормируем к ~80 как у mic-метра. */
             const withVol = avg * state.audioOutGain;
             const pct = Math.min(100, (withVol / 80) * 100);
-            spkMeterFillEl.style.height = pct.toFixed(1) + "%";
+            spkMeterFillEl.style[meterAxis(spkMeterFillEl)] = pct.toFixed(1) + "%";
             spkMeterRaf = requestAnimationFrame(tick);
         };
         tick();
@@ -2857,7 +3063,7 @@
             spkMeterCtx = null;
         }
         spkMeterAnalyser = null;
-        if (spkMeterFillEl) spkMeterFillEl.style.height = "0%";
+        if (spkMeterFillEl) spkMeterFillEl.style[meterAxis(spkMeterFillEl)] = "0%";
     }
 
     async function restartPreview() {
@@ -3059,6 +3265,7 @@
         setSfxVolume, setSfxEnabled,
         setBgTheme, setUiScale,
         getNoiseSuppression, setNoiseSuppression,
+        getSynced, applySynced, SYNC_KEYS,
         openPanel, closePanel,
         /* Освежить сводные значения строк категорий. Зовётся из app-settings.js
            после изменения хоткеев / app-настроек, чьи модалки живут там. */

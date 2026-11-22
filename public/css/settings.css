@@ -612,7 +612,9 @@
 .field-block .settings-nick-input,
 .field-block .settings-nick-save { border-radius: 2px; }
 
-/* ========= AUDIO — vertical faders ========= */
+/* ========= AUDIO on desktop — vertical faders =========
+   Wider than a phone the audio modal is built with these (settings.js picks
+   the markup by width); phones get the per-device rows below. */
 
 .audio-faders {
     display: grid;
@@ -775,25 +777,129 @@
     text-transform: lowercase;
 }
 
-/* Кнопка теста динамиков — по вертикали центрирована со строкой процентов. */
-/* Кнопки проверки устройства — отдельные кнопки под карточками фейдеров (2-й ряд
-   грида .audio-faders), с доп. верхним отступом, чтобы «отлипнуть» от карточки. */
-.audio-testbtn {
+/* Desktop test buttons: a word with a line icon before it, the icon on the
+   text's own scale (like the link / lock icons on the room buttons). */
+.audio-faders .audio-testbtn {
     display: flex;
-    align-items: center;
-    justify-content: center;
     gap: 0.43rem;
     width: 100%;
+    height: auto;
     margin-top: 0.36rem;
     padding: 0.5rem 0.6rem;
-    background: transparent;
-    border: 1px solid var(--fg-4);
-    border-radius: 2px;
-    color: var(--fg-2);
+    font: inherit;
     font-size: 0.71rem;
     letter-spacing: var(--tracking);
     text-transform: lowercase;
     white-space: nowrap;
+}
+
+.audio-faders .testbtn-ico {
+    width: 1.15em;
+    height: 1.15em;
+    flex-shrink: 0;
+}
+
+.audio-faders .testbtn-label {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip: auto;
+}
+
+
+/* ========= AUDIO — one block per device =========
+   label · value / source dropdown / horizontal slider (the app's .hslider)
+   with the live level as a thin bar under it, and a square test button on
+   the right: record ↔ stop for the mic, play for the speakers. */
+
+.audio-devs {
+    display: flex;
+    flex-direction: column;
+    gap: 1.71rem;
+}
+
+.adev {
+    display: flex;
+    flex-direction: column;
+    gap: 0.71rem;
+    min-width: 0;
+}
+
+.adev-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.86rem;
+}
+
+.adev-label {
+    font-size: 0.86rem;
+    color: var(--fg);
+    letter-spacing: var(--tracking);
+    text-transform: lowercase;
+}
+
+.adev-value {
+    font-size: 0.79rem;
+    color: var(--fg-3);
+    font-variant-numeric: tabular-nums;
+}
+
+.adev-value b {
+    font-weight: 400;
+    color: var(--fg-2);
+}
+
+.adev-ctl {
+    display: flex;
+    align-items: center;
+    gap: 0.86rem;
+}
+
+/* Slider and meter share one width: the bar reads as the slider's level. */
+.adev-level {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.29rem;
+}
+
+.ameter {
+    position: relative;
+    height: 2px;
+    background: var(--fg-4);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+/* Follows the live level: linear 60ms (motion bible, rule 8). */
+.ameter-fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 0%;
+    background: var(--fg-2);
+    transition: width 60ms linear, background var(--t-fast);
+}
+
+.ameter--screen .ameter-fill { background: var(--screen); }
+.ameter-fill.is-hot { background: var(--signal-warn); }
+
+/* Square test button; the word lives on for screen readers only. */
+.audio-testbtn {
+    position: relative;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.57rem;
+    height: 2.57rem;
+    padding: 0;
+    background: transparent;
+    border: 1px solid var(--fg-4);
+    border-radius: 2px;
+    color: var(--fg-2);
     cursor: pointer;
     transition: color var(--t-fast), border-color var(--t-fast), background var(--t-fast);
 }
@@ -805,21 +911,45 @@
     border-color: var(--fg-2);
 }
 
-/* Активна (идёт проверка микрофона — loopback играет). */
+.audio-testbtn:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
+/* Active: the mic loopback is playing. */
 .audio-testbtn.is-active {
     color: var(--fg);
     border-color: var(--fg-2);
     background: var(--bg-2);
 }
 
+/* Line icons like the ones on the app's text buttons (link, lock): same
+   0.86rem box, 2px stroke; only the record dot is filled. */
 .testbtn-ico {
-    width: 0.72rem;
-    height: 0.72rem;
-    fill: currentColor;
-    flex-shrink: 0;
+    width: 0.86rem;
+    height: 0.86rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
 }
 
-/* Иконка record/stop переключается по .is-active (проверка микрофона). */
+.testbtn-ico-dot {
+    fill: currentColor;
+    stroke: none;
+}
+
+.testbtn-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+}
+
+/* record ↔ stop by .is-active (mic test). */
 .audio-testbtn .ico-stop { display: none; }
 .audio-testbtn.is-active .ico-rec { display: none; }
 .audio-testbtn.is-active .ico-stop { display: inline-block; }
@@ -839,45 +969,16 @@
     pointer-events: none;
 }
 
-/* Дропдаун устройства — нижняя часть рамки фейдера: на всю ширину, заподлицо,
-   отделён верхней линией. Триггер без своей рамки/фона. */
+/* Source dropdown: the standard field. Closed, its menu takes no height,
+   so it doesn't stretch the modal's scroll area. */
 .audio-device {
+    position: relative;
     width: 100%;
     min-width: 0;
-    border-top: 1px solid var(--fg-4);
 }
-.audio-device .settings-dropdown-trigger {
-    width: 100%;
-    min-width: 0;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-    padding: 0.71rem 0.71rem;
-    font-size: 0.75rem;
-    letter-spacing: var(--tracking);
-}
-.audio-device .settings-dropdown-trigger:hover,
-.audio-device .settings-dropdown-trigger:focus-visible { background: var(--bg-2); }
-.audio-device .settings-dropdown-current {
-    font-size: 0.75rem;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-/* Меню открываем ВВЕРХ (дропдаун у нижнего края модалки) и не даём ему
-   раздувать scroll-высоту body, пока он закрыт. */
-.audio-device .settings-dropdown-menu {
-    top: auto;
-    bottom: calc(100% + 0.43rem);
-    border-radius: 2px;
-    max-height: 0;
-    transform: translateY(0.29rem);
-}
-.audio-device.is-open .settings-dropdown-menu {
-    max-height: 15rem;
-    transform: translateY(0);
-}
+
+.audio-device .settings-dropdown-menu { max-height: 0; }
+.audio-device.is-open .settings-dropdown-menu { max-height: 15rem; }
 
 /* ========= Toggle row (шумоподавление) + Toggle switch ========= */
 
@@ -2626,10 +2727,19 @@
     50% { transform: translateY(-0.29rem); }
 }
 
-@media (max-width: 480px) {
+/* Phones: the eclipse sits at the 16px header padding, on the header axis.
+   The arrow stands under its centre, the text wraps inside the screen. */
+@media (max-width: 640px) {
     .settings-hint {
-        top: 6rem;
-        left: 2.57rem;
+        top: calc(var(--hdr-axis) + 0.93rem + 0.57rem);
+        left: calc(16px + 0.93rem - 0.355rem);
+        right: 16px;
+        align-items: flex-start;
+    }
+
+    .settings-hint-text {
+        white-space: normal;
+        line-height: 1.5;
     }
 }
 
@@ -2674,8 +2784,18 @@
         display: none;
     }
 
-    /* Сама панель настроек на телефоне — на весь экран, непрозрачный фон
-       (как у открытой категории, .cat-modal-card → --bg-0), без полупрозрачности. */
+}
+
+.cat-modal-back { display: none; }
+
+/* ========= PHONES: settings = full-screen pages =========
+   The panel covers the whole screen; a category is not a modal over it but
+   the next page: it slides in from the right over the list (which steps a
+   little to the left under it, like a native navigation stack), and its
+   header has «‹» back on the left instead of «×». */
+@media (max-width: 640px) {
+    .settings-scrim { display: none; }
+
     .settings-panel {
         width: 100%;
         max-width: 100%;
@@ -2683,25 +2803,77 @@
         background: var(--bg-0);
     }
 
-    /* Окна категорий на мобильном — на весь экран (нативное ощущение),
-       без внешних отступов и скруглений. */
-    .cat-modal { padding: 0; }
-    .cat-modal-card {
+    .settings-panel-inner {
+        padding: max(1.43rem, env(safe-area-inset-top)) 1.43rem 0;
+    }
+
+    body:has(.cat-modal.is-open, .support-modal.is-open, .bug-modal.is-open) .settings-panel.is-open {
+        transform: translateX(-25%);
+    }
+
+    .cat-modal,
+    .cat-modal.is-open {
+        padding: 0;
+        background: transparent;
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+    }
+
+    .cat-modal {
+        opacity: 1;
+        visibility: hidden;
+        transform: translateX(100%);
+        transition: transform var(--t-med), visibility 0s linear var(--d-med);
+    }
+
+    .cat-modal.is-open {
+        visibility: visible;
+        transform: none;
+        transition: transform var(--t-med), visibility 0s;
+    }
+
+    .cat-modal-card,
+    .cat-modal.is-open .cat-modal-card {
         width: 100%;
         max-width: 100%;
         height: 100%;
         max-height: 100%;
-        border-left: 0;
-        border-right: 0;
-        border-top: 0;
+        border: 0;
         border-radius: 0;
+        transform: none;
+        box-shadow: -1px 0 0 var(--fg-4);
     }
-    .cat-modal.is-open .cat-modal-card { transform: none; }
-    .cat-modal-card { transform: translateY(2%); }
-    .cat-modal-body { padding: 1.29rem; gap: 1.29rem; }
-    .audio-faders { gap: 0.57rem; }
-    .fader-top { padding: 1rem 0.57rem; }
+
+    .cat-modal-header {
+        justify-content: flex-start;
+        gap: 0.43rem;
+        padding: max(0.86rem, env(safe-area-inset-top)) 1.43rem 0.86rem 0.71rem;
+    }
+
+    .cat-modal-close {
+        order: -1;
+        width: 2.57rem;
+        height: 2.57rem;
+    }
+
+    .cat-modal-x { display: none; }
+    .cat-modal-back { display: block; }
+
+    .cat-modal-close svg {
+        width: 1.14rem;
+        height: 1.14rem;
+    }
+
+    .cat-modal-body {
+        flex: 1;
+        padding: 1.43rem 1.43rem max(1.43rem, env(safe-area-inset-bottom));
+        gap: 1.29rem;
+        overscroll-behavior: contain;
+    }
+
+
 }
+
 /* =========================================================================
    SUPPORT / BUG — приведение к VOID_STYLE_GUIDE (radius 2px, без теней,
    нейтральные кнопки). Report-кнопку опускаем вниз секции настроек.
@@ -2827,4 +2999,62 @@
 .bug-close {
     top: calc((4.29rem - 2.14rem) / 2);
     right: 1.14rem;
+}
+
+/* Phones: «поддержать» / «сообщить о проблеме» are pages like the categories
+   (PHONES block above). At the end: it must beat the SUPPORT / BUG pass. */
+@media (max-width: 640px) {
+    .support-modal,
+    .support-modal.is-open,
+    .bug-modal,
+    .bug-modal.is-open {
+        padding: 0;
+        background: transparent;
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+        opacity: 1;
+    }
+
+    .support-modal,
+    .bug-modal {
+        visibility: hidden;
+        transform: translateX(100%);
+        transition: transform var(--t-med), visibility 0s linear var(--d-med);
+    }
+
+    .support-modal.is-open,
+    .bug-modal.is-open {
+        visibility: visible;
+        transform: none;
+        transition: transform var(--t-med), visibility 0s;
+    }
+
+    .support-card,
+    .support-modal.is-open .support-card,
+    .bug-card,
+    .bug-modal.is-open .bug-card {
+        width: 100%;
+        height: 100%;
+        max-height: 100%;
+        border: 0;
+        transform: none;
+        background: var(--bg-0);
+        box-shadow: -1px 0 0 var(--fg-4);
+    }
+
+    .support-content { max-height: 100%; height: 100%; box-sizing: border-box; }
+
+    .support-close,
+    .bug-close {
+        top: calc((4.29rem - 2.57rem) / 2);
+        left: 0.71rem;
+        right: auto;
+        width: 2.57rem;
+        height: 2.57rem;
+    }
+
+    .support-head,
+    .bug-head {
+        padding: 0 1.43rem 0 3.71rem;
+    }
 }

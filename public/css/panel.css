@@ -321,6 +321,26 @@
     background: var(--fg-2);
 }
 
+/* «Войти» — квадрат со стрелкой, по высоте поля кода (как control-btn) */
+.btn.entry-go {
+    width: 3.14rem;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.btn.entry-go svg {
+    width: 1.29rem;
+    height: 1.29rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
 .btn.ghost {
     border-color: transparent;
     color: var(--fg-2);
@@ -330,6 +350,17 @@
 .btn.ghost:focus-visible {
     color: var(--fg);
     outline: none;
+}
+
+/* «Создать» — ghost-кнопка: рамки не видно, видно только текст. Высота
+   уходит в padding и гасится таким же отрицательным margin — кликабельная
+   зона прежняя, а в раскладке кнопка занимает ровно строку текста. Иначе
+   под «или» к gap прибавлялась пустая половина 3.14rem-коробки (~37px
+   против ~20px сверху). */
+.panel-tail .btn.ghost {
+    height: auto;
+    padding-block: 1rem;
+    margin-block: -1rem;
 }
 
 .entry-divider {

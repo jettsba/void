@@ -391,6 +391,8 @@ body::after {
 @media (max-width: 640px) {
     :root {
         --hdr-axis: 3rem;
-        --edge-btn: var(--edge);
+        /* = the «void» eclipse's x (16px header padding + its 0.86rem
+           nudge, header.css): «чат» and «друзья» mirror it. */
+        --edge-btn: calc(16px + 0.86rem);
     }
 }

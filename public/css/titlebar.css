@@ -191,3 +191,38 @@ html.desktop .settings-hint {
 html.desktop .chat-lightbox-close {
     top: calc(1.43rem + var(--titlebar-h));
 }
+
+/* ============ Угловые кнопки от края окна, а не от полосы ============
+   Полоса окна — часть страницы: угол, где нет кнопок окна, отдаётся
+   странице, и кнопка в нём стоит на --edge-btn от настоящего края окна.
+   mac: светофор слева → «чат» (и его панель) поднимаются к верху, полоса
+        перетаскивания уступает правый угол (с открытым чатом — всю панель).
+   windows: кнопки окна справа → зеркально: поднимается логотип, полоса
+        уступает левый угол; сама полоса прозрачная, как на маке, иначе
+        логотип лежал бы на обрезанном стекле. */
+html.desktop.mac .chat-toggle {
+    top: calc(var(--edge-btn) - 0.83rem);
+}
+html.desktop.mac .chat-panel {
+    top: 0;
+}
+html.desktop.mac .void-titlebar {
+    right: 9rem;
+}
+html.desktop.mac body.chat-open .void-titlebar {
+    right: calc(min(28.57rem, calc(100vw - 32px)) + var(--edge)); /* --chat-panel-w живёт на .app */
+}
+
+html.desktop:not(.mac) .void-titlebar {
+    left: 11rem;
+    background: transparent;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    border-bottom: 0;
+}
+html.desktop:not(.mac) .header {
+    top: calc(-1 * var(--titlebar-h));
+}
+html.desktop:not(.mac) .settings-hint {
+    top: calc(var(--edge-btn) + 1.86rem + 1.07rem);
+}

@@ -1,0 +1,195 @@
+/* ===== Room sheet (phones, js/room-sheet.js) =====
+   One bottom sheet instead of the ping + invite popups. The same shell as the
+   friends sheet on phones (friends.css): scrim, slide up from the bottom
+   edge, hairline on top. No grip: it closes by a swipe down, a tap on the
+   scrim or the cross (js/room-sheet.js). Its sections hold the live popup nodes, so
+   here they only lose their popup chrome (position, border, fade). */
+
+.room-sheet { display: none; }
+
+@media (max-width: 640px) {
+    .room-sheet {
+        display: block;
+        position: fixed;
+        inset: 0;
+        z-index: 62;
+        pointer-events: none;
+        visibility: hidden;
+        transition: visibility 0s linear var(--d-med);
+    }
+
+    .room-sheet.is-open {
+        pointer-events: auto;
+        visibility: visible;
+        transition: none;
+    }
+
+    .room-sheet-scrim {
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.55);
+        opacity: 0;
+        transition: opacity var(--t-med);
+    }
+
+    .room-sheet.is-open .room-sheet-scrim { opacity: 1; }
+
+    .room-sheet-pop {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        max-height: 85dvh;
+        display: flex;
+        flex-direction: column;
+        background: var(--bg-1);
+        border-top: 1px solid var(--fg-4);
+        border-radius: 2px 2px 0 0;
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+        transform: translateY(100%);
+        transition: transform var(--t-med);
+        letter-spacing: var(--tracking);
+        touch-action: pan-y;
+    }
+
+    .room-sheet.is-open .room-sheet-pop { transform: none; }
+
+    /* Following a finger: no transition, the offset comes from JS. */
+    .room-sheet.is-open .room-sheet-pop.is-dragging {
+        transform: translateY(var(--drag-y, 0px));
+        transition: none;
+    }
+
+    .room-sheet-head {
+        display: flex;
+        align-items: center;
+        gap: 0.86rem;
+        padding: 0.71rem 0.86rem 0.71rem 1.43rem;
+        border-bottom: 1px solid var(--fg-4);
+    }
+
+    /* The head is the connection state; the room's name is the code row
+       right under it, so no title repeating it. */
+    .room-sheet-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.57rem;
+        margin-right: auto;
+        color: var(--fg-2);
+        font-size: 0.79rem;
+        letter-spacing: var(--tracking-wide);
+        text-transform: lowercase;
+    }
+
+    .room-sheet-close {
+        flex-shrink: 0;
+        width: 2.57rem;
+        height: 2.57rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        background: transparent;
+        border: 0;
+        color: var(--fg-3);
+        cursor: pointer;
+    }
+
+    .room-sheet-close svg {
+        width: 1rem;
+        height: 1rem;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.6;
+        stroke-linecap: round;
+    }
+
+    .room-sheet-body {
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        padding: 0 1.43rem;
+    }
+
+    .room-sheet-sec {
+        display: flex;
+        flex-direction: column;
+        gap: 0.71rem;
+        padding: 1.14rem 0;
+    }
+
+    .room-sheet-sec + .room-sheet-sec { border-top: 1px solid var(--fg-4); }
+
+    /* The first and last rows carry their own air (2.86rem code row, 2.29rem
+       safety row), so the body's edges are trimmed to read as one rhythm. */
+    .room-sheet-sec:first-child { padding-top: 0.86rem; }
+    .room-sheet-sec:last-child { padding-bottom: 1.14rem; }
+
+    .room-sheet-label {
+        color: var(--fg-3);
+        font-size: 0.71rem;
+        letter-spacing: var(--tracking-wide);
+        text-transform: lowercase;
+    }
+
+    /* Nobody else in the room: no peers list and no safety code. The code
+       also hides while the browser can't compute it. */
+    .room-sheet-sec[data-rs="ping"]:has(.ping-row-empty),
+    .room-sheet-sec[data-rs="sas"]:has(.sas-row[data-state="alone"]),
+    .room-sheet-sec[data-rs="sas"]:has(.sas-row[data-state="unavailable"]) { display: none; }
+
+    /* ---- borrowed popup content, without the popup chrome ---- */
+    .room-sheet .invite-panel {
+        position: static;
+        transform: none;
+        min-width: 0;
+        padding: 0;
+        border: 0;
+        background: none;
+        opacity: 1;
+        pointer-events: auto;
+        gap: 0.71rem;
+    }
+
+    .room-sheet .invite-code-row {
+        min-height: 2.86rem;
+        font-size: 0.93rem;
+    }
+
+    .room-sheet .invite-link-btn { min-height: 2.86rem; }
+
+    /* On desktop «закрыть вход» is set off by a rule; here the section gap
+       already separates it. */
+    .room-sheet .room-close {
+        padding-top: 0;
+        border-top: 0;
+    }
+
+    .room-sheet .ping-panel-list { gap: 0.57rem; }
+
+    .room-sheet .ping-row { font-size: 0.86rem; }
+
+    .room-sheet .ping-row-empty {
+        justify-content: flex-start;
+        font-size: 0.79rem;
+    }
+
+    .room-sheet .sas-row {
+        justify-content: center;
+        min-height: 2.29rem;
+        margin: 0;
+        padding: 0;
+        border: 0;
+    }
+
+    .room-sheet .sas-mini { gap: 1rem; }
+
+    .room-sheet .sas-mini-icon {
+        width: 1.43rem;
+        height: 1.43rem;
+    }
+}
+
+@media (max-width: 640px) and (prefers-reduced-motion: reduce) {
+    .room-sheet,
+    .room-sheet * { transition-duration: 0.01ms !important; }
+}

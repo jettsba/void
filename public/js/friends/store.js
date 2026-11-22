@@ -4,17 +4,23 @@
    and ECDH alone covers what we need — a per-friendship secret S plus key
    confirmation by MAC. Signatures are not needed anywhere.
 
-   Friend entry: {pub, s, role, nick, alias, added}
+   Friend entry: {pub, s, role, nick, alias, added, aliasAt, seenAt}
      pub   — their raw public key, b64url (fingerprint + "same person" check)
      s     — friendship secret S, b64url (presence tokens + message key)
      role  — 0/1, fixed at befriending, picks which token direction is mine
-   See tasks/friends-plan.md for the protocol. */
+     aliasAt / seenAt — LWW stamps for device sync (js/friends/merge.js)
+   Tombs {id, at}: removed friendships, so a sync never brings them back.
+   Devices {id, os, app, seen} + revoked {id, at}: my devices with this key
+   (synced list for the profile), and the ones I unlinked.
+   See tasks/friends-plan.md for the protocol, tasks/device-sync-plan.md
+   for device sync. */
 (function () {
     "use strict";
 
     const DB_NAME = "void-friends";
     const STORE = "kv";
-    const MAX_FRIENDS = 100;
+    const M = window.VoidFriendMerge;
+    const MAX_FRIENDS = M.MAX_FRIENDS;
     const te = new TextEncoder();
     const td = new TextDecoder();
     const subtle = crypto.subtle;
@@ -85,7 +91,14 @@
     /* ---------- state ---------- */
     let identity = null;      // {pub, priv: CryptoKey, jwk}
     let friends = [];
-    let prefs = { invisible: false };
+    let tombs = [];
+    let prefs = { invisible: false, invisibleAt: 0 };
+    /* dev — random id of this device; linked — a transfer happened or another
+       device with this key showed up; lastSync — last sync-state exchange. */
+    let meta = { dev: "", linked: false, lastSync: 0 };
+    let devices = [];
+    let revoked = [];
+    let selfSecretP = null;
     let readyPromise = null;
     const listeners = new Set();
 
@@ -114,9 +127,21 @@
                     await idbSet("identity", { pub: identity.pub, jwk: identity.jwk });
                 }
                 const list = await idbGet("friends");
-                friends = Array.isArray(list) ? list.filter(validFriend) : [];
+                friends = Array.isArray(list) ? list.map(M.normFriend).filter(Boolean) : [];
+                tombs = M.decodeTombs(await idbGet("tombs"));
                 const p = await idbGet("prefs");
-                if (p && typeof p === "object") prefs = { invisible: !!p.invisible };
+                if (p && typeof p === "object") prefs = { invisible: !!p.invisible, invisibleAt: Number(p.invisibleAt) || 0 };
+                const m = await idbGet("sync");
+                meta = {
+                    dev: typeof m?.dev === "string" && m.dev ? m.dev : b64u(randomBytes(9)),
+                    linked: m?.linked === true,
+                    lastSync: Number(m?.lastSync) || 0,
+                };
+                if (!m?.dev) await idbSet("sync", meta);
+                const dv = await idbGet("devices");
+                devices = (dv?.devices || []).map(M.normDevice).filter(Boolean);
+                revoked = (dv?.revoked || []).map(M.normRevoked).filter(Boolean);
+                await ensureSelf();
                 if (friends.length) askPersist();
             })();
             readyPromise.catch(err => {
@@ -127,17 +152,91 @@
         return readyPromise;
     }
 
-    function validFriend(f) {
-        return f && isPub(f.pub) && typeof f.s === "string" && f.s.length === 43 &&
-            (f.role === 0 || f.role === 1);
+    const cleanNick = M.cleanNick;
+
+    /* ---------- my devices ---------- */
+    /* What this device is, as two words the UI translates: os + app
+       ("app" = the desktop app, else the browser). */
+    function describeSelf() {
+        const ua = navigator.userAgent || "";
+        const plat = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || "";
+        const touchMac = /Mac/.test(plat) && navigator.maxTouchPoints > 1;
+        const os = /iPhone|iPod/.test(ua) ? "iphone"
+            : /iPad/.test(ua) || touchMac ? "ipad"
+            : /Android/i.test(ua) ? "android"
+            : /mac/i.test(plat || ua) ? "mac"
+            : /win/i.test(plat || ua) ? "windows"
+            : /linux|cros/i.test(plat || ua) ? "linux" : "other";
+        const app = window.VoidPlatform === "desktop" ? "app"
+            : /YaBrowser/.test(ua) ? "yandex"
+            : /Edg\//.test(ua) ? "edge"
+            : /OPR\//.test(ua) ? "opera"
+            : /Firefox|FxiOS/.test(ua) ? "firefox"
+            : /Chrome|CriOS/.test(ua) ? "chrome"
+            : /Safari/.test(ua) ? "safari" : "web";
+        return { os, app };
     }
 
-    function cleanNick(n) {
-        return typeof n === "string" ? n.replace(/[\u0000-\u001f\u007f-\u009f]/g, "").trim().slice(0, 32) : "";
+    async function saveDevices() {
+        await idbSet("devices", { devices, revoked });
+    }
+
+    /* Keep my own row in the list (and its name current). */
+    async function ensureSelf() {
+        const me = describeSelf();
+        const cur = devices.find(d => d.id === meta.dev);
+        if (cur && cur.os === me.os && cur.app === me.app) return;
+        devices = devices.filter(d => d.id !== meta.dev);
+        devices.push({ id: meta.dev, ...me, seen: Date.now() });
+        await saveDevices();
+    }
+
+    /* Last time a device was seen online (only ever moves forward). */
+    async function touchDevice(id, at = Date.now()) {
+        const d = devices.find(x => x.id === id);
+        if (!d || d.seen >= at) return;
+        d.seen = at;
+        await saveDevices();
+    }
+
+    async function revokeDevice(id) {
+        if (!M.DEV_RX.test(id) || id === meta.dev) return false;
+        devices = devices.filter(d => d.id !== id);
+        revoked = revoked.filter(r => r.id !== id);
+        revoked.push({ id, at: Date.now() });
+        await saveDevices();
+        emit();
+        return true;
+    }
+
+    /* This device was unlinked from another one: forget the key, friends and
+       the device list, start over as a brand-new device. Device-local
+       settings (mic, volume, nick) stay — they never were the shared part. */
+    async function wipe() {
+        identity = await generateIdentity();
+        selfSecretP = null;
+        friends = [];
+        tombs = [];
+        prefs = { invisible: false, invisibleAt: 0 };
+        devices = [];
+        revoked = [];
+        meta = { dev: b64u(randomBytes(9)), linked: false, lastSync: 0 };
+        await idbSet("identity", { pub: identity.pub, jwk: identity.jwk });
+        await idbSet("prefs", prefs);
+        await idbSet("sync", meta);
+        await ensureSelf();
+        await saveFriends();
+    }
+
+    function tomb(s, at = Date.now()) {
+        const id = M.tombId(s);
+        tombs = tombs.filter(t => t.id !== id);
+        tombs.push({ id, at });
     }
 
     async function saveFriends() {
         await idbSet("friends", friends);
+        await idbSet("tombs", tombs);
         askPersist();
         emit();
     }
@@ -280,14 +379,20 @@
 
     async function addFriend({ pub, s, nick }) {
         if (!isPub(pub) || pub === identity.pub) return null;
+        const now = Date.now();
+        const old = find(pub);
         const entry = {
             pub,
             s,
             role: identity.pub < pub ? 0 : 1,
             nick: cleanNick(nick),
-            alias: find(pub)?.alias || "",
-            added: Date.now(),
+            alias: old?.alias || "",
+            added: now,
+            aliasAt: old?.aliasAt || now,
+            seenAt: now,
         };
+        /* Re-befriended: the old friendship is gone for every device. */
+        if (old && old.s !== s) tomb(old.s, now);
         friends = friends.filter(f => f.pub !== pub);
         if (friends.length >= MAX_FRIENDS) return null;
         friends.push(entry);
@@ -296,9 +401,11 @@
     }
 
     async function removeFriend(pub) {
-        const before = friends.length;
-        friends = friends.filter(f => f.pub !== pub);
-        if (friends.length !== before) await saveFriends();
+        const f = find(pub);
+        if (!f) return;
+        tomb(f.s);
+        friends = friends.filter(x => x !== f);
+        await saveFriends();
     }
 
     async function updateFriend(pub, patch) {
@@ -307,58 +414,141 @@
         let changed = false;
         if (typeof patch.nick === "string") {
             const n = cleanNick(patch.nick);
-            if (n && n !== f.nick) { f.nick = n; changed = true; }
+            if (n && n !== f.nick) { f.nick = n; f.seenAt = Date.now(); changed = true; }
         }
         if (typeof patch.alias === "string") {
             const a = cleanNick(patch.alias);
-            if (a !== f.alias) { f.alias = a; changed = true; }
+            if (a !== f.alias) { f.alias = a; f.aliasAt = Date.now(); changed = true; }
         }
         /* New pub comes only from a status sealed with S, i.e. from the friend
            themself (after a device transfer their key changes, S does not). */
         if (isPub(patch.pub) && patch.pub !== f.pub && !find(patch.pub) && patch.pub !== identity.pub) {
-            f.pub = patch.pub; changed = true;
+            f.pub = patch.pub; f.seenAt = Date.now(); changed = true;
         }
         if (changed) await saveFriends();
     }
 
     async function setPrefs(patch) {
-        prefs = { ...prefs, ...patch };
+        const next = { ...prefs, ...patch };
+        if (!!next.invisible !== !!prefs.invisible) next.invisibleAt = Date.now();
+        prefs = next;
         await idbSet("prefs", prefs);
         emit();
     }
 
-    /* Transfer: export what the other device needs; import merges. */
-    function exportBundle() {
-        return { identity: { pub: identity.pub, jwk: identity.jwk }, friends: friends.map(f => ({ ...f })) };
-    }
-
-    function mergeLists(mine, theirs) {
-        const out = mine.map(f => ({ ...f }));
-        for (const f of Array.isArray(theirs) ? theirs : []) {
-            if (!validFriend(f) || out.some(x => x.pub === f.pub || x.s === f.s)) continue;
-            if (out.length >= MAX_FRIENDS) break;
-            out.push({ pub: f.pub, s: f.s, role: f.role, nick: cleanNick(f.nick), alias: cleanNick(f.alias), added: Number(f.added) || Date.now() });
+    /* ---------- device sync ---------- */
+    /* Secret only my own devices can compute: ECDH of my key with itself. */
+    function selfSecret() {
+        if (!selfSecretP) {
+            const id = identity;
+            selfSecretP = (async () => {
+                const pub = await subtle.importKey("raw", unb64u(id.pub), { name: "ECDH", namedCurve: "P-256" }, false, []);
+                const shared = new Uint8Array(await subtle.deriveBits({ name: "ECDH", public: pub }, id.priv, 256));
+                return b64u(await hkdf(shared, new Uint8Array(0), "void-self-v1"));
+            })();
+            selfSecretP.catch(() => { selfSecretP = null; });
         }
-        return out;
+        return selfSecretP;
     }
 
-    /* Source device: union the other device's friends into ours. */
-    async function absorbFriends(theirs) {
-        friends = mergeLists(friends, theirs).filter(f => f.pub !== identity.pub);
-        await saveFriends();
+    function syncState() {
+        return { friends, tombs, prefs, devices, revoked };
     }
 
-    /* Target device: adopt the source's key and the merged list. */
+    /* Merge a remote state in. Returns what changed so net can react. */
+    async function applyRemote(remote) {
+        const before = M.stateKey(syncState());
+        const m = M.merge(syncState(), remote, { selfPub: identity.pub });
+        /* My own id is on the revoked list: I was unlinked. Merge nothing. */
+        if (m.revoked.some(r => r.id === meta.dev)) return { selfRevoked: true };
+        const removed = friends.filter(f => !m.friends.some(x => x.pub === f.pub)).map(f => f.pub);
+        const invisibleChanged = !!m.prefs.invisible !== !!prefs.invisible;
+        const changed = M.stateKey(m) !== before;
+        if (changed) {
+            friends = m.friends;
+            tombs = m.tombs;
+            if (m.prefs.invisibleAt !== prefs.invisibleAt || invisibleChanged) {
+                prefs = { ...prefs, ...m.prefs };
+                await idbSet("prefs", prefs);
+            }
+            devices = m.devices;
+            revoked = m.revoked;
+            if (!devices.some(d => d.id === meta.dev)) await ensureSelf();
+            await saveDevices();
+            await saveFriends();
+        }
+        return { changed, removed, invisibleChanged, overflow: m.overflow };
+    }
+
+    async function setMeta(patch) {
+        meta = { ...meta, ...patch };
+        await idbSet("sync", meta);
+    }
+
+    /* Transfer: export what the other device needs; import merges.
+       Friends stay objects here (older clients read only those fields). */
+    function exportBundle() {
+        return {
+            identity: { pub: identity.pub, jwk: identity.jwk },
+            friends: friends.map(f => ({ ...f })),
+            tombs: M.encodeTombs(tombs),
+            prefs: { ...prefs },
+            devices: M.encodeDevices(devices),
+            revoked: M.encodeRevoked(revoked),
+        };
+    }
+
+    function remoteOf(bundle) {
+        return {
+            friends: Array.isArray(bundle?.friends) ? bundle.friends : [],
+            tombs: M.decodeTombs(bundle?.tombs),
+            prefs: bundle?.prefs && typeof bundle.prefs === "object" ? bundle.prefs : null,
+            devices: Array.isArray(bundle?.devices) ? bundle.devices : [],
+            revoked: Array.isArray(bundle?.revoked) ? bundle.revoked : [],
+        };
+    }
+
+    /* Unlinked once (while offline it never heard) and now linked again on
+       purpose: come back under a fresh device id, or the next sync would
+       wipe what this transfer just brought. */
+    function freshIdIfRevoked(remote) {
+        if (!remote.revoked.map(M.normRevoked).some(r => r?.id === meta.dev)) return;
+        devices = devices.filter(d => d.id !== meta.dev);
+        meta = { ...meta, dev: b64u(randomBytes(9)) };
+    }
+
+    /* Source device: merge the other device's state into ours. */
+    async function absorbBundle(bundle) {
+        const remote = remoteOf(bundle);
+        freshIdIfRevoked(remote);
+        const r = await applyRemote(remote);
+        await setMeta({ linked: true, lastSync: Date.now() });
+        return r;
+    }
+
+    /* Target device: adopt the source's key and merge the lists. */
     async function adoptBundle(bundle) {
         const rec = bundle?.identity;
         if (!rec || !isPub(rec.pub) || !rec.jwk) throw new Error("bad bundle");
         const next = await importIdentity(rec);
-        const merged = mergeLists(Array.isArray(bundle.friends) ? bundle.friends.filter(validFriend) : [], friends)
-            .filter(f => f.pub !== next.pub);
+        const prevPrefs = prefs;
+        const remote = remoteOf(bundle);
+        freshIdIfRevoked(remote);
+        const m = M.merge(syncState(), remote, { selfPub: next.pub });
         identity = next;
-        friends = merged;
+        selfSecretP = null;
+        friends = m.friends;
+        tombs = m.tombs;
+        prefs = { ...prefs, ...m.prefs };
+        devices = m.devices;
+        revoked = m.revoked;
+        await ensureSelf();
+        await saveDevices();
         await idbSet("identity", { pub: rec.pub, jwk: rec.jwk });
+        await idbSet("prefs", prefs);
+        await setMeta({ linked: true, lastSync: Date.now() });
         await saveFriends();
+        return { invisibleChanged: !!prevPrefs.invisible !== !!prefs.invisible };
     }
 
     window.VoidFriendStore = {
@@ -367,6 +557,13 @@
         get pub() { return identity?.pub || null; },
         get friends() { return friends; },
         get prefs() { return prefs; },
+        get meta() { return meta; },
+        get devices() { return devices; },
+        get revoked() { return revoked; },
+        describeSelf,
+        touchDevice,
+        revokeDevice,
+        wipe,
         onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); },
         find,
         addFriend,
@@ -374,8 +571,12 @@
         updateFriend,
         setPrefs,
         exportBundle,
-        absorbFriends,
+        absorbBundle,
         adoptBundle,
+        selfSecret,
+        syncState,
+        applyRemote,
+        setMeta,
         isPub,
         isNonce,
         cleanNick,

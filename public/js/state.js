@@ -220,7 +220,13 @@ function renderRoomCodeLabel(code) {
     const suffix = i === -1 ? "" : filled.slice(i + SENTINEL.length);
 
     roomCodeText.textContent = "";
-    if (prefix) roomCodeText.append(document.createTextNode(prefix));
+    /* Own span: phones show only «#CODE» (responsive.css hides the word). */
+    if (prefix) {
+        const pre = document.createElement("span");
+        pre.className = "room-code-prefix";
+        pre.textContent = prefix;
+        roomCodeText.append(pre);
+    }
     const codeSpan = document.createElement("span");
     codeSpan.className = "room-code-id";
     codeSpan.textContent = segment;

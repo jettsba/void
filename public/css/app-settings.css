@@ -1004,6 +1004,56 @@ html:not(.desktop) #settingsAppBtn {
   color: var(--screen);
 }
 
+/* Phones: every app modal (friends, profile, code, devices) is a bottom
+   sheet, the same shell as the room and friends sheets: full width, hairline
+   on top, slides up from the edge; swipe down, the scrim or the cross close
+   it (js/room-sheet.js bindSheetSwipe). */
+@media (max-width: 640px) {
+  .app-modal-scrim {
+    align-items: flex-end;
+    padding: 0;
+    background: rgba(0, 0, 0, 0.55);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  .app-modal-card,
+  .app-modal-card--wide {
+    width: 100%;
+    max-height: 85dvh;
+    border-width: 1px 0 0;
+    border-color: var(--fg-4);
+    border-radius: 2px 2px 0 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+    transform: translateY(100%);
+  }
+
+  .app-modal-scrim.is-open .app-modal-card.is-dragging {
+    transform: translateY(var(--drag-y, 0px));
+    transition: none;
+  }
+
+  .app-modal-header {
+    padding: 0.71rem 0.86rem 0.71rem 1.43rem;
+  }
+
+  .app-modal-close {
+    width: 2.57rem;
+    height: 2.57rem;
+  }
+
+  .app-modal-close svg {
+    width: 1rem;
+    height: 1rem;
+  }
+
+  .app-modal-body {
+    padding: 1.43rem;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .app-modal-card {
     transition: none;

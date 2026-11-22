@@ -1,3 +1,6 @@
+/* Phones / tablets: no screen share there (the button is the camera stub). */
+const TOUCH_ONLY = matchMedia("(hover: none) and (pointer: coarse)");
+
 async function tryJoin() {
     /* currentRoomCode != null — вход уже идёт (ждём микрофон/сокет/ответ).
        Второй Enter/клик слал повторный join, его confirm сервер отбивал, и
@@ -220,7 +223,7 @@ function tearDownRoomState() {
     updateScreencastButton(false);
     screencastBtn.classList.add("control-btn-stub");
     screencastBtn.setAttribute("aria-disabled", "true");
-    screencastBtn.setAttribute("aria-label", _t("controls.screencast.soon"));
+    screencastBtn.setAttribute("aria-label", _t(TOUCH_ONLY.matches ? "controls.camera" : "controls.screencast.soon"));
 
     nicknameMap.clear();
     leaveToken = null;
@@ -513,9 +516,13 @@ function enterRoomUI() {
     applyAudioState();
     setConnectionState("connected");
 
-    screencastBtn.classList.remove("control-btn-stub");
-    screencastBtn.setAttribute("aria-label", _t("controls.screencast.share"));
-    syncScreencastBtnBlocked();
+    /* Touch devices can't share a screen: the slot shows the camera (coming
+       in a later update) and stays a disabled stub. */
+    if (!TOUCH_ONLY.matches) {
+        screencastBtn.classList.remove("control-btn-stub");
+        screencastBtn.setAttribute("aria-label", _t("controls.screencast.share"));
+        syncScreencastBtnBlocked();
+    }
 
     startConnQualityMonitor();
 
@@ -536,7 +543,7 @@ document.addEventListener("void:locale-changed", () => {
 
     if (screencastBtn) {
         if (screencastBtn.classList.contains("control-btn-stub")) {
-            screencastBtn.setAttribute("aria-label", _t("controls.screencast.soon"));
+            screencastBtn.setAttribute("aria-label", _t(TOUCH_ONLY.matches ? "controls.camera" : "controls.screencast.soon"));
         } else {
             const isOn = screencastBtn.classList.contains("active");
             screencastBtn.setAttribute("aria-label", isOn ? _t("controls.screencast.stop") : _t("controls.screencast.share"));

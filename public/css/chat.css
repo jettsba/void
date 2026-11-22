@@ -26,7 +26,7 @@
 }
 
 /* Open, the toggle steps aside: the panel fades in over its corner and
-   closes from its own header («закрыть», .chat-close). */
+   closes from its own header (the cross, .chat-close). */
 body.chat-open .app .chat-toggle {
     opacity: 0;
     pointer-events: none;
@@ -126,8 +126,37 @@ body.chat-open .app .chat-toggle {
     line-height: 1;
 }
 
+/* The same cross as the room sheet's and the settings' heads: a 2.57rem
+   hit box with a 1rem line icon, its ink standing where the old word ended. */
 .chat-close {
-    margin-left: auto;
+    flex-shrink: 0;
+    width: 2.57rem;
+    height: 2.57rem;
+    margin: 0 -0.79rem 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    color: var(--fg-3);
+    cursor: pointer;
+    transition: color var(--t-fast);
+}
+
+.chat-close:hover,
+.chat-close:focus-visible {
+    outline: none;
+    color: var(--fg);
+}
+
+.chat-close svg {
+    width: 1rem;
+    height: 1rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
 }
 
 .chat-messages {

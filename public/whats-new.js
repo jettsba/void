@@ -39,25 +39,25 @@
    Посмотреть, как это выглядит, ДО выкатки: `VoidWhatsNewPreview()` в консоли. */
 
 window.VoidWhatsNew = {
-    version: "1.10.0",
+    version: "1.11.0",
     ru: [
-        "теперь в void есть друзья. добавляй людей из комнаты, по qr, ссылке или по нику",
-        "— все по-прежнему приватно: void ничего не знает о твоих друзьях. список хранится только на твоем устройстве, у каждой дружбы свой секретный ключ",
-        "— видно, кто из друзей онлайн и в какой он комнате, зайти к нему можно в один клик",
-        "режим невидимки и перенос списка друзей на другое устройство через qr",
-        "профиль человека открывается двойным кликом по нему в комнате",
-        "обновлён внешний вид: окна, кнопки, отступы и анимации приведены к одному стилю",
-        "у кода комнаты появилась кнопка копирования",
-        "длинные уведомления на телефоне больше не обрезаются",
+        "добавлена полноценная синхронизация данных между устройствами",
+        "в профиле добавлен список связанных устройств",
+        "перенос на другое устройство теперь забирает и настройки: ник, язык, тему, звуки",
+        "полностью переработан мобильный интерфейс: множественные улучшения",
+        "код комнаты вводится в любой раскладке",
+        "кнопка входа в комнату стала стрелкой",
+        "громкость звуков приложения сохраняется после перезапуска",
+        "удалённые друзья больше не возвращаются после переноса",
     ],
     en: [
-        "void now has friends. add people from a room, by qr, by link or by a nick#0000 code",
-        "— still private: void knows nothing about your friends. the list lives only on your device, every friendship has its own key",
-        "— see which friends are online and in which room, and join them in one click",
-        "invisible mode and moving your friends list to another device via qr",
-        "double-click someone in a room to open their profile",
-        "refreshed look: windows, buttons, spacing and animations now share one style",
-        "the room code got a copy button",
-        "long notifications on phones no longer get cut off",
+        "full data sync between your devices",
+        "your profile now lists your linked devices",
+        "moving to another device now brings your settings too: nick, language, theme, sounds",
+        "fully reworked mobile interface: lots of improvements",
+        "the room code can be typed in any keyboard layout",
+        "the join button is now an arrow",
+        "app sound volume is kept after a restart",
+        "removed friends no longer come back after a device move",
     ]
 };

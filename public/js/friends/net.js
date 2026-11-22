@@ -10,7 +10,8 @@
     "use strict";
 
     const S = window.VoidFriendStore;
-    if (!S || !window.crypto?.subtle || !window.indexedDB) return;
+    const W = window.VoidFriendMerge;
+    if (!S || !W || !window.crypto?.subtle || !window.indexedDB) return;
 
     const OFFLINE_DEBOUNCE_MS = 6000;
     const LIVENESS_MS = 75_000;               // server keepalive is every 30 s
@@ -21,6 +22,10 @@
     const STATUS_POLL_MS = 2000;
     const MAX_DECLINES = 3;               // per person per session, then auto-decline
     const MAX_OWNED_LINKS = 2;            // + friend-code handle + transfer = server cap 4
+    const SYNC_DEBOUNCE_MS = 1000;
+    /* Sealed relay must stay under the server's 56 KB cap (FR_MAX_RELAY_BYTES):
+       b64 + iv + tag + label ≈ 4/3 × plaintext + 60. */
+    const MAX_PLAIN_BYTES = 41_000;
 
     let ws = null;
     let reconnectTimer = null;
@@ -44,6 +49,12 @@
     const declines = new Map();                // userId → times declined this session
     /* userId in my current room → pub of a friend. */
     const roomFriends = new Map();
+    /* My other devices (same key) online right now: peer → {tokens:Set, dev}
+       (dev = its device id, known from its first sync message).
+       lastSent: peer → key of the state it already has (sent or received). */
+    const devices = new Map();
+    const lastSent = new Map();
+    let syncTimer = null;
 
     let lastStatusJson = "";
     let seq = 0;
@@ -64,7 +75,7 @@
 
     /* ---------- socket ---------- */
     function wanted() {
-        return !!S.pub && (S.friends.length > 0 || invites.size > 0);
+        return !!S.pub && (S.friends.length > 0 || invites.size > 0 || S.meta.linked);
     }
 
     function wsUrl() {
@@ -163,6 +174,15 @@
         const invisible = !!S.prefs.invisible;
         const index = new Map();
         const announce = [], listen = [];
+        /* Self tokens: only my own devices can compute them. In both lists and
+           announced even when invisible: they link my devices to each other. */
+        const self = await S.selfSecret();
+        for (const day of days) {
+            const t = await S.presenceToken(self, "self", day);
+            index.set(t, { self: true });
+            announce.push(t);
+            listen.push(t);
+        }
         for (const f of S.friends) {
             for (const day of days) {
                 const a = await S.presenceToken(f.s, f.role, day);
@@ -236,6 +256,8 @@
     }
 
     function dropAllPresence() {
+        devices.clear();
+        lastSent.clear();
         for (const [pub, p] of presence) {
             p.chans.clear();
             scheduleOffline(pub);
@@ -306,9 +328,13 @@
     function friendStatus(pub) {
         const p = presence.get(pub);
         if (!p) return null;
+        /* A friend on two devices: "in a room" beats "idle", so the phone
+           lying on the desk does not hide the call on the PC. */
         let best = null;
         for (const ch of p.chans.values()) {
-            if (ch.status && (!best || ch.status.at > best.at)) best = ch.status;
+            const st = ch.status;
+            if (!st) continue;
+            if (!best || (!!st.room !== !!best.room ? !!st.room : st.at > best.at)) best = st;
         }
         return best;
     }
@@ -335,12 +361,16 @@
         switch (m.type) {
             case "fr-online": {
                 const e = tokenIndex.get(m.t);
-                if (e && e.dir === "listen" && typeof m.peer === "string") chanUp(e.pub, m.peer, m.t);
+                if (!e || typeof m.peer !== "string") break;
+                if (e.self) deviceUp(m.peer, m.t);
+                else if (e.dir === "listen") chanUp(e.pub, m.peer, m.t);
                 break;
             }
             case "fr-offline": {
                 const e = tokenIndex.get(m.t);
-                if (e) chanDown(e.pub, m.peer, m.t);
+                if (!e) break;
+                if (e.self) deviceDown(m.peer, m.t);
+                else chanDown(e.pub, m.peer, m.t);
                 break;
             }
             case "fr-msg":
@@ -369,6 +399,12 @@
         const env = splitEnvelope(d);
         if (!env || typeof peer !== "string") return;
         const tok = tokenIndex.get(env.label);
+        if (tok?.self) {
+            if (!devices.has(peer)) return;
+            const msg = await S.open(await S.selfSecret(), "self", env.label, env.body);
+            if (msg) onDeviceMsg(peer, msg);
+            return;
+        }
         if (tok) {
             const f = S.find(tok.pub);
             if (!f) return;
@@ -412,6 +448,196 @@
     }
 
     const ROOM_CODE_RX_SAFE = /^[A-Z0-9]{3,12}$/;
+
+    /* ---------- device sync (my devices with the same key) ----------
+       Whole state every time, merged by js/friends/merge.js (commutative,
+       idempotent, canonical), so order and duplicates don't matter. Sent
+       when a device shows up and 1 s after any local change; a received
+       state is answered only if the merge gave something the sender lacks.
+       See tasks/device-sync-plan.md. */
+    function syncKeys() { return window.VoidSettings?.SYNC_KEYS || []; }
+    function localSettings() {
+        const all = window.VoidSettings?.getSynced?.();
+        return all ? W.mergeSettings(all, null, syncKeys()) : {};
+    }
+
+    function payloadOf(state, settings) {
+        const m = W.merge(state, null, { selfPub: S.pub });
+        return {
+            f: W.encodeFriends(m.friends),
+            t: W.encodeTombs(m.tombs),
+            p: m.prefs.invisibleAt ? [m.prefs.invisible, m.prefs.invisibleAt] : null,
+            set: settings,
+            dv: W.encodeDevices(m.devices),
+            rv: W.encodeRevoked(m.revoked),
+        };
+    }
+    const payloadKey = (p) => JSON.stringify([p.f, p.t, p.p, p.set, p.dv, p.rv]);
+    const isRevoked = (id) => S.revoked.some(r => r.id === id);
+
+    /* Safety net, the unit test shows 100 friends + all tombs fit: drop the
+       oldest tombs until the sealed message is under the relay cap. */
+    function fitBudget(obj, field, encoded) {
+        const size = () => te.encode(JSON.stringify(obj)).length;
+        if (size() <= MAX_PLAIN_BYTES) return obj;
+        const at = (t) => encoded ? t[1] : t.at;
+        obj[field] = [...obj[field]].sort((a, b) => at(b) - at(a));
+        while (obj[field].length && size() > MAX_PLAIN_BYTES) obj[field].pop();
+        return obj;
+    }
+    const te = new TextEncoder();
+
+    async function sendSync(peer, payload, key) {
+        const dev = devices.get(peer);
+        const label = dev && [...dev.tokens][0];
+        if (!label) return;
+        const body = fitBudget({ k: "sy", dev: S.meta.dev, ...payload }, "t", true);
+        const d = await S.seal(await S.selfSecret(), "self", label, body);
+        if (d && send({ type: "fr-relay", to: peer, d })) lastSent.set(peer, key);
+    }
+
+    function flushSync() {
+        syncTimer = null;
+        if (!devices.size) return;
+        const payload = payloadOf(S.syncState(), localSettings());
+        const key = payloadKey(payload);
+        for (const peer of devices.keys()) {
+            if (lastSent.get(peer) !== key) sendSync(peer, payload, key);
+        }
+    }
+
+    function scheduleSync() {
+        if (!devices.size) return;
+        clearTimeout(syncTimer);
+        syncTimer = setTimeout(flushSync, SYNC_DEBOUNCE_MS);
+    }
+
+    function deviceUp(peer, token) {
+        let d = devices.get(peer);
+        const isNew = !d;
+        if (!d) devices.set(peer, (d = { tokens: new Set() }));
+        d.tokens.add(token);
+        if (!isNew) return;
+        lastSent.delete(peer);
+        if (!S.meta.linked) S.setMeta({ linked: true });
+        S.touchDevice(S.meta.dev);
+        const payload = payloadOf(S.syncState(), localSettings());
+        sendSync(peer, payload, payloadKey(payload));
+        emitChange();
+    }
+
+    function deviceDown(peer, token) {
+        const d = devices.get(peer);
+        if (!d) return;
+        d.tokens.delete(token);
+        if (d.tokens.size) return;
+        devices.delete(peer);
+        lastSent.delete(peer);
+        if (d.dev) S.touchDevice(d.dev);
+        /* The friend-code handle belongs to whichever of my devices claimed it
+           first. That one is gone: claim it here (no-op if already ours). */
+        if (handleH && !S.prefs.invisible) send({ type: "fr-invite-open", h: handleH, multi: true });
+        emitChange();
+    }
+
+    /* After any merge (sync or transfer): make presence / handle / UI follow. */
+    async function afterMerge(res) {
+        for (const pub of res.removed || []) {
+            presence.delete(pub);
+            for (const [uid, e] of [...roomFriends]) if (e.pub === pub) roomFriends.delete(uid);
+        }
+        if (res.overflow) event("limit");
+        if (res.invisibleChanged) {
+            await syncHandle();
+            if (!S.prefs.invisible) broadcastStatus();
+        }
+        if (res.changed || res.invisibleChanged) pushPresence();
+        ensureSocket();
+        emitChange();
+    }
+
+    function applySettings(remote) {
+        const merged = W.mergeSettings(localSettings(), remote, syncKeys());
+        window.VoidSettings?.applySynced?.(merged);
+    }
+
+    async function onDeviceMsg(peer, msg) {
+        if (msg.k !== "sy") return;
+        const dev = devices.get(peer);
+        if (!dev) return;
+        if (typeof msg.dev === "string" && W.DEV_RX.test(msg.dev) && dev.dev !== msg.dev) {
+            dev.dev = msg.dev;
+            emitChange();
+        }
+        /* An unlinked device: take nothing from it. Our state carries the
+           revoked list, so once it has it, it wipes itself. */
+        if (dev.dev && isRevoked(dev.dev)) {
+            const mine = payloadOf(S.syncState(), localSettings());
+            sendSync(peer, mine, payloadKey(mine));
+            return;
+        }
+        const remote = {
+            friends: W.decodeFriends(msg.f),
+            tombs: W.decodeTombs(msg.t),
+            prefs: Array.isArray(msg.p) ? { invisible: !!msg.p[0], invisibleAt: msg.p[1] } : null,
+            devices: Array.isArray(msg.dv) ? msg.dv : [],
+            revoked: Array.isArray(msg.rv) ? msg.rv : [],
+        };
+        const theirSettings = msg.set && typeof msg.set === "object" ? msg.set : {};
+        const res = await S.applyRemote(remote);
+        if (res.selfRevoked) { await unlinkedHere(); return; }
+        applySettings(theirSettings);
+        await S.setMeta({ linked: true, lastSync: Date.now() });
+        await afterMerge(res);
+
+        const mine = payloadOf(S.syncState(), localSettings());
+        const key = payloadKey(mine);
+        const theirs = payloadKey(payloadOf(remote, W.mergeSettings(theirSettings, null, syncKeys())));
+        if (theirs === key) lastSent.set(peer, key);           // they already have it
+        else if (lastSent.get(peer) !== key) sendSync(peer, mine, key);
+        clearTimeout(syncTimer);
+        syncTimer = null;
+    }
+
+    /* Another of my devices unlinked this one. Drop every channel built on
+       the old key, then come back as a new, unlinked device. */
+    async function unlinkedHere() {
+        for (const [h, inv] of invites) if (inv.role === "owner") send({ type: "fr-invite-close", h });
+        invites.clear();
+        handleH = null;
+        incoming.length = 0;
+        roomOut.clear(); roomFin.clear(); linkFin.clear();
+        roomFriends.clear();
+        presence.clear();
+        devices.clear();
+        lastSent.clear();
+        clearTimeout(syncTimer);
+        syncTimer = null;
+        await S.wipe();
+        await pushPresence();
+        await syncHandle();
+        event("unlinked");
+        emitChange();
+    }
+
+    /* My devices for the profile: this one first, then online, then by last seen. */
+    function deviceList() {
+        const online = new Set([...devices.values()].map(d => d.dev).filter(Boolean));
+        return S.devices.map(d => ({
+            id: d.id, os: d.os, app: d.app, seen: d.seen,
+            self: d.id === S.meta.dev,
+            online: d.id === S.meta.dev || online.has(d.id),
+        })).sort((a, b) => (b.self - a.self) || (b.online - a.online) || (b.seen - a.seen));
+    }
+
+    async function unlinkDevice(id) {
+        if (!(await S.revokeDevice(id))) return false;
+        lastSent.clear();
+        clearTimeout(syncTimer);
+        flushSync();
+        emitChange();
+        return true;
+    }
 
     /* ---------- in-room requests (over the room DataChannel) ---------- */
     function sendRoom(userId, obj) {
@@ -646,12 +872,14 @@
             return;
         }
         if (inv.kind === "merge" && msg.k === "mg-req") {
-            await S.absorbFriends(msg.friends);
-            const out = await S.seal(inv.secret, "inv", h, { k: "mg-data", ...S.exportBundle() });
+            const res = await S.absorbBundle(msg);
+            if (msg.set && typeof msg.set === "object") applySettings(msg.set);
+            const body = fitBudget({ k: "mg-data", ...S.exportBundle(), set: localSettings(), me: S.describeSelf() }, "tombs", true);
+            const out = await S.seal(inv.secret, "inv", h, body);
             send({ type: "fr-relay", to: peer, d: out });
             invites.delete(h);
-            event("transfer-done", { role: "source" });
-            pushPresence();
+            event("transfer-done", { role: "source", other: W.normDevice({ id: "000000000000", ...msg.me }) });
+            await afterMerge({ ...res, changed: true });
         }
     }
 
@@ -687,9 +915,11 @@
         if (inv.kind === "merge" && inv.role === "opener" && msg.k === "mg-data") {
             invites.delete(h);
             try {
-                await S.adoptBundle(msg);
-                await syncHandle();
-                event("transfer-done", { role: "target" });
+                const res = await S.adoptBundle(msg);
+                if (msg.set && typeof msg.set === "object") applySettings(msg.set);
+                await syncHandle();   // new key → new nick#code, old handle closed there
+                if (res.invisibleChanged && !S.prefs.invisible) broadcastStatus();
+                event("transfer-done", { role: "target", other: W.normDevice({ id: "000000000000", ...msg.me }) });
             } catch (_) {
                 event("transfer-failed");
             }
@@ -790,7 +1020,9 @@
         if (invites.get(h)?.role === "owner") { event("transfer-own"); return false; }
         invites.set(h, { kind: "merge", role: "opener", secret, exp: Date.now() + SESSION_TTL_MS });
         if (!(await waitOpen())) { invites.delete(h); event("offline"); return false; }
-        const d = await S.seal(secret, "inv", h, { k: "mg-req", friends: S.exportBundle().friends });
+        const { identity: _, ...mine } = S.exportBundle();
+        const body = fitBudget({ k: "mg-req", ...mine, set: localSettings(), me: S.describeSelf() }, "tombs", true);
+        const d = await S.seal(secret, "inv", h, body);
         send({ type: "fr-invite-use", h, d });
         return true;
     }
@@ -868,7 +1100,8 @@
         return { incoming: incoming.map(r => ({ id: r.id, nick: r.nick, via: r.via, pub: r.pub })), outgoing };
     }
 
-    S.onChange(() => { ensureSocket(); emitChange(); });
+    S.onChange(() => { ensureSocket(); emitChange(); scheduleSync(); });
+    document.addEventListener("void:settings-sync-changed", scheduleSync);
 
     S.ready().then(() => {
         syncHandle();
@@ -899,6 +1132,10 @@
         get invisible() { return !!S.prefs.invisible; },
         get count() { return S.friends.length; },
         get myPub() { return S.pub; },
+        /* devices — my other devices online now; lastSync — ms or 0. */
+        syncInfo: () => ({ devices: devices.size, lastSync: S.meta.lastSync || 0, linked: !!S.meta.linked }),
+        deviceList,
+        unlinkDevice,
         myTag,
         useTag,
         friendCode: (pub) => S.friendCode(pub),

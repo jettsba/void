@@ -269,28 +269,34 @@ test("friends: room request, presence, join, closed lock, link, transfer, invisi
     await shot(e, "09-add-link.png");
     await e.evaluate(() => window.VoidAppModal.close());
 
-    /* settings profile: nick#code, transfer buttons */
+    /* settings profile: nick#code, my devices, "add" opens the transfer modal */
     await e.evaluate(() => document.getElementById("settingsCatProfile").click());
-    await e.waitForSelector('[data-sx-open="show"]');
+    await e.waitForSelector("#profileFriendsSlot [data-dev-add]");
     await e.waitForTimeout(500);
+    assert.equal(await e.locator("#profileFriendsSlot .fr-dev").count(), 1, "only this device listed");
+    assert.equal(await e.locator('#profileFriendsSlot [data-sx-open]').count(), 0, "transfer buttons left the profile");
     await shot(e, "10-settings-profile.png");
-    await e.click('[data-sx-open="show"]');
+    await e.click("#profileFriendsSlot [data-dev-add]");
+    await e.waitForSelector('.fr-modal [data-sx-open="show"]');
+    await e.waitForTimeout(400);
+    await shot(e, "10b-device-add.png");
+    await e.click('.fr-modal [data-sx-open="show"]');
     await e.waitForTimeout(900);
     await shot(e, "11-transfer-show.png");
-    await e.click("#profileFriendsSlot [data-sx-sq]");
+    await e.click(".fr-modal [data-sx-sq]");
     await e.waitForTimeout(1400);
     await shot(e, "11b-transfer-qr.png");
-    await e.click("#profileFriendsSlot [data-sx-sq]");
+    await e.click(".fr-modal [data-sx-sq]");
     await e.waitForTimeout(400);
-    await e.click("#profileFriendsSlot [data-sx-cancel]");
+    await e.click(".fr-modal [data-sx-cancel]");
     await e.waitForTimeout(400);
-    await e.click('[data-sx-open="enter"]');
+    await e.click('.fr-modal [data-sx-open="enter"]');
     await e.waitForTimeout(500);
     await e.keyboard.type("s29h");
     await e.waitForTimeout(200);
-    assert.equal(await e.inputValue('[data-sx="enter"] .sx-input'), "S29H");
+    assert.equal(await e.inputValue('.fr-modal [data-sx="enter"] .sx-input'), "S29H");
     await shot(e, "12-transfer-enter.png");
-    await e.click("#profileFriendsSlot [data-sx-cancel]");
+    await e.evaluate(() => window.VoidAppModal.close());
     await e.keyboard.press("Escape");
 
     /* --- device transfer: C → D --- */
@@ -316,4 +322,105 @@ test("friends: room request, presence, join, closed lock, link, transfer, invisi
     /* --- removal propagates --- */
     await b.evaluate((pub) => window.VoidFriends.removeFriend(pub), (await friends(b))[0].pub);
     await waitFor(async () => (await friends(a)).length === 1, { what: "A dropped B" });
+});
+
+/* Device sync: P transfers its key to P2, then the two stay in sync on their
+   own — adds, renames, removals, invisible, synced settings. tasks/device-sync-plan.md */
+test("device sync: one key on two devices, changes follow both ways", { timeout: 180_000 }, async () => {
+    async function befriend(owner, other) {
+        const before = (await friends(owner)).length;
+        const link = await owner.evaluate(() => window.VoidFriends.createLink());
+        await other.evaluate((l) => window.VoidFriends.useLink(l), link);
+        await waitFor(() => owner.evaluate(() => window.VoidFriends.requests().incoming.length > 0), { what: `${owner._name} gets request` });
+        const id = await owner.evaluate(() => window.VoidFriends.requests().incoming[0].id);
+        await owner.evaluate((i) => window.VoidFriends.acceptRequest(i), id);
+        await waitFor(async () => (await friends(owner)).length === before + 1, { what: `${owner._name} befriended ${other._name}` });
+    }
+    async function transfer(src, dst) {
+        const { code } = await src.evaluate(() => window.VoidFriends.startTransfer());
+        await dst.evaluate((k) => window.VoidFriends.joinTransfer(k), code);
+        await waitFor(async () => (await myPub(dst)) === (await myPub(src)), { what: "key adopted" });
+    }
+    const devs = (page) => page.evaluate(() => window.VoidFriends.syncInfo().devices);
+    const names = async (page) => (await friends(page)).map(f => f.name).sort();
+
+    const p = await openClient("P"), q = await openClient("Q"), r = await openClient("R");
+    await befriend(p, q);
+    const p2 = await openClient("P2");
+    await p.evaluate(() => window.VoidSettings.setUiScale(1.2));      // device-local, must not travel
+    await transfer(p, p2);
+    await waitFor(async () => (await friends(p2)).length === 1, { what: "P2 got Q" });
+    await waitFor(async () => (await devs(p)) === 1 && (await devs(p2)) === 1, { what: "devices see each other" });
+
+    /* friend added on P after the transfer lands on P2 */
+    await befriend(p, r);
+    await waitFor(async () => (await friends(p2)).length === 2, { what: "R synced to P2" });
+    const rPub = await myPub(r);
+
+    /* rename on P2 → P */
+    await p2.evaluate((pub) => window.VoidFriends.renameFriend(pub, "arr"), rPub);
+    await waitFor(async () => (await names(p)).includes("arr"), { what: "alias synced to P" });
+
+    /* synced settings both ways, device-local ones stay put */
+    await p.evaluate(() => window.VoidSettings.setLang("en"));
+    await waitFor(() => p2.evaluate(() => window.VoidSettings.getLang() === "en"), { what: "lang synced" });
+    await p2.evaluate(() => window.VoidSettings.setSfxVolume(0.5));
+    await waitFor(() => p.evaluate(() => window.VoidSettings.getSfxVolume() === 0.5), { what: "sfx synced" });
+    assert.equal(await p2.evaluate(() => window.VoidSettings.getUiScale()), 1);
+
+    /* invisible follows */
+    await p.evaluate(() => window.VoidFriends.setInvisible(true));
+    await waitFor(() => p2.evaluate(() => window.VoidFriends.invisible), { what: "invisible synced" });
+    await p2.evaluate(() => window.VoidFriends.setInvisible(false));
+    await waitFor(() => p.evaluate(() => !window.VoidFriends.invisible), { what: "visible synced" });
+
+    /* removal on P2 → gone on P too, and stays gone after a re-transfer */
+    const qPub = await myPub(q);
+    await p2.evaluate((pub) => window.VoidFriends.removeFriend(pub), qPub);
+    await waitFor(async () => !(await friends(p)).some(f => f.pub === qPub), { what: "removal synced to P" });
+    await waitFor(async () => (await friends(q)).length === 0, { what: "Q dropped P" });
+    await transfer(p, p2);
+    await new Promise(res => setTimeout(res, 1500));
+    for (const page of [p, p2]) {
+        assert.ok(!(await friends(page)).some(f => f.pub === qPub), `${page._name}: removed friend came back`);
+    }
+
+    /* P closes: R still sees P online through P2 */
+    await p.context().close();
+    await waitFor(async () => (await devs(p2)) === 0, { what: "P2 notices P left" });
+    await new Promise(res => setTimeout(res, 8000));                 // past the 6 s offline debounce
+    assert.ok((await friends(r))[0]?.online, "R sees P online through P2 only");
+    await waitFor(async () => (await p2.evaluate(() => window.VoidFriends.syncInfo().lastSync)) > 0, { what: "lastSync stamped" });
+
+    /* unlink: P3 joins through the UI, P2 unlinks it from the profile table
+       (two clicks: "unlink" → "sure?") → P3 wipes its key and friends */
+    const p3 = await openClient("P3");
+    const { code: c3 } = await p2.evaluate(() => window.VoidFriends.startTransfer());
+    await p3.evaluate((k) => window.VoidFriendsUI.confirmTransferLink(k), c3);
+    await p3.waitForSelector('.dl-modal.is-open [data-dl-go]');
+    await p3.waitForTimeout(500);
+    await shot(p3, "20-link-ask.png");
+    await p3.click('.dl-modal [data-dl-go]');
+    await waitFor(() => p3.evaluate(() => document.querySelector(".dl-modal")?.dataset.phase === "done"), { what: "P3 link dialog done" });
+    await shot(p3, "21-link-done.png");
+    await waitFor(() => p2.evaluate(() => document.querySelector(".dl-modal")?.dataset.phase === "done"), { what: "P2 link dialog done" });
+    await waitFor(async () => (await myPub(p3)) === (await myPub(p2)), { what: "P3 adopted key" });
+    const p3Dev = await p3.evaluate(() => window.VoidFriendStore.meta.dev);
+    await waitFor(() => p2.evaluate((id) => window.VoidFriends.deviceList().some(d => d.id === id && d.online), p3Dev), { what: "P2 lists P3 online" });
+
+    await p2.click(".dl-modal .s-done [data-dl-close]");
+    await p2.evaluate(() => document.getElementById("settingsCatProfile").click());
+    const row = `#profileFriendsSlot .fr-dev[data-id="${p3Dev}"] [data-unlink]`;
+    await p2.waitForSelector(row);
+    await p2.waitForTimeout(400);
+    await p2.click(row);
+    await p2.waitForTimeout(300);
+    await shot(p2, "22-unlink-sure.png");
+    assert.ok(await p2.evaluate((id) => window.VoidFriends.deviceList().some(d => d.id === id), p3Dev), "one click does not unlink");
+    await p2.click(row);
+    await waitFor(() => p2.evaluate((id) => !window.VoidFriends.deviceList().some(d => d.id === id), p3Dev), { what: "P2 dropped P3" });
+    await waitFor(async () => (await myPub(p3)) !== (await myPub(p2)), { what: "P3 got a new key" });
+    await waitFor(async () => (await friends(p3)).length === 0, { what: "P3 friends wiped" });
+    assert.notEqual(await p3.evaluate(() => window.VoidFriendStore.meta.dev), p3Dev, "P3 has a new device id");
+    assert.equal((await friends(p2)).length, 1, "P2 keeps its friends");
 });
