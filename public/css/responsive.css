@@ -7,11 +7,14 @@
 
     .header {
         padding: 0 16px;
+        /* Box centred on --hdr-axis (base.css), so «void», «чат» and the
+           settings hint all follow it. */
+        height: calc(2 * var(--hdr-axis));
     }
 
     /* The phone header keeps its box-centred axis (--hdr-axis, base.css). */
     .chat-toggle {
-        top: calc(var(--hdr-axis) - 1.145rem);
+        top: calc(var(--hdr-axis) - 1.145rem + var(--safe-t));
     }
 
     /* One button in the right corner, mirroring «чат»: the status dot +
@@ -95,7 +98,7 @@
 /* dvh: correct viewport height accounting for browser chrome */
 .app {
     height: 100vh;
-    height: 100dvh;
+    height: var(--app-h, 100dvh);
 }
 
 body {
@@ -195,6 +198,12 @@ body {
     .panel-tail {
         white-space: normal;
         text-align: center;
+    }
+
+    /* «создать комнату →» fits a phone in one line; wrapped it turned into
+       a square block. */
+    .panel-tail .btn.ghost {
+        white-space: nowrap;
     }
 
     /* Touch targets: comfortable size */

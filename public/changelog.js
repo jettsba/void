@@ -27,6 +27,26 @@
 
 window.VoidChangelog = [
     {
+        version: "1.12.1",
+        date: "2026-11-23",
+        ru: [
+            "void адаптирован под формат pwa-приложения",
+            "исправлен баг долгого открытия комнат на телефоне",
+            "ник теперь переезжает на все связанные устройства",
+            "- другие настройки, заданные до появления синхронизации, также будут перенесены",
+            "доработан интерфейс на мобильной версии: подсказки, шапка и кнопка «создать комнату»",
+            "аватар больше не уезжает при открытии чата на iphone"
+        ],
+        en: [
+            "void is adapted for use as a pwa app",
+            "fixed rooms taking long to open on phones",
+            "your nickname now carries over to all linked devices",
+            "- other settings set before sync existed carry over too",
+            "polished the mobile interface: hints, header and the «create room» button",
+            "the avatar no longer drifts when the chat opens on iphone"
+        ],
+    },
+    {
         version: "1.12.0",
         date: "2026-11-23",
         ru: [

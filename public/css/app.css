@@ -11,11 +11,14 @@
     --footer-row-h: calc(2 * (var(--edge-btn) - 0.71rem) + 2.29rem);
     --chat-panel-w: min(28.57rem, calc(100vw - 32px));
     --chat-rail: 0px;
-    --chat-sheet-h: min(55.71rem, calc(66.667vh + env(safe-area-inset-bottom, 0px)));
+    --chat-sheet-h: min(55.71rem, calc(66.667vh + var(--safe-b)));
     position: relative;
     z-index: 2;
     height: 100vh;
     width: 100%;
+    /* Header and footer rows step out of the notch and the home bar. */
+    padding-block: var(--safe-t) var(--safe-b);
+    box-sizing: border-box;
     min-width: 0;
     display: grid;
     grid-template-rows: var(--hdr-h) 1fr var(--footer-row-h);

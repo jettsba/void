@@ -377,6 +377,21 @@ function getOrCreateAudioContext() {
    `new AudioWorkletNode(новый ctx)` падал с «AudioWorklet does not have a valid
    AudioWorkletGlobalScope … addModule first». Свойство на ctx живёт ровно
    столько же, сколько сам ctx: новый ctx ⇒ новый addModule. */
+/* rnnoise-sync.js is 1.6 MB on the wire (base64 WASM barely compresses). On a
+   phone fetching it at the "create" tap cost seconds; pull it into the HTTP
+   cache while the entry screen idles, so the worklet's addModule later only
+   revalidates (304). Skipped when noise suppression is off. */
+function warmRnnoise() {
+    if (window.VoidSettings?.getNoiseSuppression?.() === false) return;
+    for (const url of ["audio/rnnoise-processor.js", "audio/rnnoise-sync.js"]) {
+        fetch(url, { priority: "low" }).then(r => r.arrayBuffer()).catch(() => { /* offline: loads on demand */ });
+    }
+}
+window.addEventListener("load", () => {
+    const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 1500));
+    idle(warmRnnoise, { timeout: 3000 });
+}, { once: true });
+
 async function createRnnoiseNode(ctx) {
     if (!ctx || !ctx.audioWorklet) return null;
     try {

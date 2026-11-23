@@ -9,7 +9,7 @@
     /* The icon's INK top (not the 2.29rem box) stands --edge-btn from the top,
        level with the «void» eclipse: the ink starts 0.83rem below the box
        top (svg padding + centring, measured). */
-    top: calc(var(--edge-btn) - 0.83rem);
+    top: calc(var(--edge-btn) - 0.83rem + var(--safe-t));
     /* Mirror of the «void» eclipse on the left; the negative margin drops
        the trailing letter-spacing, so the ink (not the box) ends at --edge-btn. */
     right: max(var(--edge-btn), env(safe-area-inset-right));
@@ -69,8 +69,8 @@ body.chat-open .app .chat-toggle {
     right: max(var(--edge), env(safe-area-inset-right));
     z-index: 54;
     box-sizing: border-box;
-    padding-top: max(var(--edge), env(safe-area-inset-top));
-    padding-bottom: max(var(--edge), env(safe-area-inset-bottom));
+    padding-top: max(var(--edge), var(--safe-t));
+    padding-bottom: max(var(--edge), var(--safe-b));
     opacity: 0;
     visibility: hidden;
     pointer-events: none;

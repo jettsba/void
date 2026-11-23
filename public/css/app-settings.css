@@ -1156,7 +1156,7 @@ html:not(.desktop) #settingsAppBtn {
     border-width: 1px 0 0;
     border-color: var(--fg-4);
     border-radius: 2px 2px 0 0;
-    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-bottom: var(--safe-b);
     overscroll-behavior: contain;
     touch-action: pan-y;
     transform: translateY(100%);

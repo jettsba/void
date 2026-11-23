@@ -13,7 +13,7 @@
     --fic-x: 0.11rem;
     position: absolute;
     left: calc(var(--edge-btn) - var(--fic-x));
-    bottom: 0;
+    bottom: var(--safe-b);
     height: var(--footer-row-h);
     display: flex;
     align-items: center;
@@ -1234,7 +1234,7 @@
     position: absolute;
     left: 1rem;
     right: 1rem;
-    bottom: calc(2.29rem + env(safe-area-inset-bottom, 0px));
+    bottom: calc(2.29rem + var(--safe-b));
     margin: 0;
     color: var(--fg);
     font-size: 0.79rem;
@@ -1245,7 +1245,7 @@
 
 .fr-scan-close {
     position: absolute;
-    top: calc(1rem + env(safe-area-inset-top, 0px));
+    top: calc(1rem + var(--safe-t));
     right: 1rem;
     width: 2.57rem;
     height: 2.57rem;
@@ -1785,7 +1785,7 @@
         bottom: 0;
         z-index: 60;
         width: auto;
-        padding-bottom: env(safe-area-inset-bottom, 0px);
+        padding-bottom: var(--safe-b);
         border-width: 1px 0 0;
         border-radius: 2px 2px 0 0;
         transform: translateY(100%);

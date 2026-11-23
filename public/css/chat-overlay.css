@@ -144,7 +144,7 @@
 @media (max-width: 740px) {
     .app {
         --chat-rail: 0px;
-        --chat-sheet-h: min(55.71rem, calc(68dvh + env(safe-area-inset-bottom, 0px)));
+        --chat-sheet-h: min(55.71rem, calc(68dvh + var(--safe-b)));
     }
 
     body.chat-open .app {
@@ -214,10 +214,10 @@
     }
 
     .chat-input-row {
-        padding-bottom: max(10px, calc(10px + env(safe-area-inset-bottom, 0px)));
+        padding-bottom: max(10px, calc(10px + var(--safe-b)));
     }
 
     .chat-jump-bottom {
-        bottom: calc(78px + env(safe-area-inset-bottom, 0px));
+        bottom: calc(78px + var(--safe-b));
     }
 }

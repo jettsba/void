@@ -2702,7 +2702,7 @@
    сверху и слева (base.css), стрелка 0.71rem шириной, под эклипсом 1.07rem. */
 .settings-hint {
     position: fixed;
-    top: calc(var(--edge-btn) + 1.86rem + 1.07rem);
+    top: calc(var(--edge-btn) + 1.86rem + 1.07rem + var(--safe-t));
     left: calc(var(--edge-btn) + 0.93rem - 0.355rem);
     z-index: 50;
     display: flex;
@@ -2744,8 +2744,10 @@
    The arrow stands under its centre, the text wraps inside the screen. */
 @media (max-width: 640px) {
     .settings-hint {
-        top: calc(var(--hdr-axis) + 0.93rem + 0.57rem);
-        left: calc(16px + 0.93rem - 0.355rem);
+        top: calc(var(--hdr-axis) + 0.93rem + 0.86rem + var(--safe-t));
+        /* --edge-btn = the eclipse's x on phones (base.css), not the bare
+           16px padding: the arrow stood 0.86rem left of the eclipse. */
+        left: calc(var(--edge-btn) + 0.93rem - 0.355rem);
         right: 16px;
         align-items: flex-start;
     }
@@ -2817,7 +2819,7 @@
     }
 
     .settings-panel-inner {
-        padding: max(1.43rem, env(safe-area-inset-top)) 1.43rem 0;
+        padding: max(1.43rem, var(--safe-t)) 1.43rem 0;
     }
 
     body:has(.cat-modal.is-open, .support-modal.is-open, .bug-modal.is-open) .settings-panel.is-open {
@@ -2860,7 +2862,7 @@
     .cat-modal-header {
         justify-content: flex-start;
         gap: 0.43rem;
-        padding: max(0.86rem, env(safe-area-inset-top)) 1.43rem 0.86rem 0.71rem;
+        padding: max(0.86rem, var(--safe-t)) 1.43rem 0.86rem 0.71rem;
     }
 
     .cat-modal-close {
@@ -2879,7 +2881,7 @@
 
     .cat-modal-body {
         flex: 1;
-        padding: 1.43rem 1.43rem max(1.43rem, env(safe-area-inset-bottom));
+        padding: 1.43rem 1.43rem max(1.43rem, var(--safe-b));
         gap: 1.29rem;
         overscroll-behavior: contain;
     }

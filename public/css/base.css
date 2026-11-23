@@ -28,6 +28,10 @@
        --edge-btn  the corner controls, a step further in: the «void» eclipse
                    (top, left), «чат» (top, right), «друзья» (bottom, left). */
     --edge: 1.43rem;
+    /* Safe-area insets (notch / home bar). Read them only through these, so
+       a platform quirk can be patched in one place. */
+    --safe-t: env(safe-area-inset-top, 0px);
+    --safe-b: env(safe-area-inset-bottom, 0px);
     --edge-btn: calc(var(--edge) + 0.57rem);
     /* The header axis = the eclipse's middle when its top is at --edge-btn
        (1.86rem tall, header.css). */
@@ -127,6 +131,9 @@
 html,
 body {
     height: 100%;
+    /* Never shorter than the screen in a home-screen app: iOS paints only as
+       far as the document reaches (js/pwa-insets.js). */
+    min-height: var(--screen-h, 0px);
     background: var(--bg-0);
     color: var(--fg);
     font-family: var(--font);
@@ -387,12 +394,26 @@ body::after {
     }
 }
 
-/* Phones keep their own header (64px row, 6rem header box, responsive.css). */
+/* Phones keep their own header (64px row, header box = 2 × axis, responsive.css). */
 @media (max-width: 640px) {
     :root {
-        --hdr-axis: 3rem;
+        /* Eclipse top 0.71rem below the visible top, like a native nav bar:
+           right under the clock in Safari (its page starts below the status
+           bar) and under the notch in the home-screen app (+ --safe-t). */
+        --hdr-axis: 1.64rem;
         /* = the «void» eclipse's x (16px header padding + its 0.86rem
            nudge, header.css): «чат» and «друзья» mirror it. */
         --edge-btn: calc(16px + 0.86rem);
     }
 }
+
+/* Home-screen app: iOS 27 blurs whatever sits right under the status bar (its
+   scroll-edge effect; not ours — no overlay, no scrolling, and an opaque fixed
+   bar there did not stop it; seen on the iOS 27.2 simulator). The header
+   stands just past that band; Safari keeps it tight under the clock. */
+@media (max-width: 640px) and (display-mode: standalone) {
+    :root {
+        --hdr-axis: 2.43rem;
+    }
+}
+

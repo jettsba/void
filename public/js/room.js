@@ -24,18 +24,9 @@ async function tryJoin() {
     // Сертификат для кода безопасности должен быть готов до первого peer'а.
     await window.VoidSafety?.ready;
 
-    try {
-        await tryAcquireMic();
-    } catch {
-        abortJoinAttempt("mic-blocked");
-        return;
-    }
-
-    try {
-        await connectSocket();
-    } catch {
-        closeAllConnections();
-        abortJoinAttempt("connection-failed");
+    const failed = await acquireMicAndSocket();
+    if (failed) {
+        abortJoinAttempt(failed);
         return;
     }
 
@@ -69,6 +60,29 @@ async function tryJoin() {
  * permissions.query не съест gesture. На Chrome activation окно ~5s,
  * await на быстрый query внутри click handler'а не критичен.
  */
+/* The mic and the signalling socket don't depend on each other, so the socket
+   opens while the mic spins up. They used to run one after the other, and on
+   a phone the mic step alone (permission + RNNoise, a 1.6 MB worklet on a cold
+   cache) left create/join hanging for 3-5 s before the socket even started.
+   Returns null on success, else the abort reason. */
+async function acquireMicAndSocket() {
+    const socketReady = connectSocket();
+    socketReady.catch(() => { /* awaited below, or dropped with the socket */ });
+    try {
+        await tryAcquireMic();
+    } catch {
+        resetSocketConnection();
+        return "mic-blocked";
+    }
+    try {
+        await socketReady;
+    } catch {
+        closeAllConnections();
+        return "connection-failed";
+    }
+    return null;
+}
+
 async function tryAcquireMic() {
     let permState = null;
     if (navigator.permissions?.query) {
@@ -392,18 +406,9 @@ async function handleCreateClick() {
 
     await window.VoidSafety?.ready;
 
-    try {
-        await tryAcquireMic();
-    } catch {
-        abortJoinAttempt("mic-blocked");
-        return;
-    }
-
-    try {
-        await connectSocket();
-    } catch {
-        closeAllConnections();
-        abortJoinAttempt("connection-failed");
+    const failed = await acquireMicAndSocket();
+    if (failed) {
+        abortJoinAttempt(failed);
         return;
     }
 

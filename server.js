@@ -72,6 +72,16 @@ const PORT = process.env.PORT || 3000;
  */
 const HOST = process.env.BIND_HOST || "127.0.0.1";
 
+/* Hosts served the app (public/) rather than the landing. DEV_LAN_APP=1 adds
+   private-network IPs, so a phone on the same Wi-Fi can open the dev server
+   (.claude/launch.json "void-lan"). Never set in production. */
+const DEV_LAN_APP = process.env.DEV_LAN_APP === "1";
+const LAN_IP_RX = /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)\d{1,3}\.\d{1,3}(\.\d{1,3})?$/;
+function isAppHost(host) {
+    return host === "app.void-room.space" || host === "localhost" || host === "127.0.0.1"
+        || (DEV_LAN_APP && LAN_IP_RX.test(host));
+}
+
 // Шрифты + фавиконки доступны на обоих доменах (лендинг + приложение).
 // favicons лежат только в public/, но landing index.html ссылается на тот
 // же путь /static/favicon/... — без явного маунта он бы отдавал 404 на
@@ -195,9 +205,7 @@ const BOT_UA_PATTERN = /googlebot|bingbot|yandex|duckduckbot|baiduspider|applebo
 app.use((req, res, next) => {
     if (req.path !== '/') return next();
 
-    const isApp = req.hostname === 'app.void-room.space'
-               || req.hostname === 'localhost'
-               || req.hostname === '127.0.0.1';
+    const isApp = isAppHost(req.hostname);
     if (isApp) return next();
 
     res.set('Vary', 'Accept-Language');
@@ -215,9 +223,7 @@ app.use((req, res, next) => {
    и /en/ на лендинг-домене — остальные пути (privacy, статика, ассеты)
    уходят дальше в express.static. */
 function isLandingHost(req) {
-    return !(req.hostname === 'app.void-room.space'
-          || req.hostname === 'localhost'
-          || req.hostname === '127.0.0.1');
+    return !isAppHost(req.hostname);
 }
 app.get('/', (req, res, next) => {
     if (!isLandingHost(req)) return next();
@@ -234,9 +240,7 @@ app.get('/en/', (req, res, next) => {
    extensions:['html'] позволяет /privacy матчить landing/privacy.html без
    trailing slash и без вынужденной /privacy/index.html структуры. */
 app.use((req, res, next) => {
-    const isApp = req.hostname === 'app.void-room.space'
-               || req.hostname === 'localhost'
-               || req.hostname === '127.0.0.1';
+    const isApp = isAppHost(req.hostname);
     express.static(path.join(__dirname, isApp ? 'public' : 'landing'), { extensions: ['html'] })(req, res, next);
 });
 

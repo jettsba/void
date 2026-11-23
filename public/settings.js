@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "1.12.0";
+    const APP_VERSION = "1.12.1";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
@@ -3211,8 +3211,20 @@ ${audioDevicesHtml}
 
     /* ===== bootstrap ===== */
 
+    /* Values set before device sync existed carry no stamp, so they were
+       never sent (a nickname from 1.10 stayed on its device forever). Give a
+       non-default unstamped value the lowest real stamp: it beats a device
+       that never touched the key, and loses to any explicit change. */
+    function adoptLegacySyncStamps() {
+        for (const k of SYNC_KEYS) {
+            if (syncMeta[k]) continue;
+            if (JSON.stringify(state[k]) !== JSON.stringify(DEFAULTS[k])) syncMeta[k] = 1;
+        }
+    }
+
     function init() {
         loadState();
+        adoptLegacySyncStamps();
         /* Язык, выбранный в кастомном установщике, инжектится главным процессом
            один раз через initialization_script (window.__VOID_INSTALLER_LANG__).
            Перебивает сохранённый — это свежий осознанный выбор юзера при установке.
