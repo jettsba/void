@@ -41,10 +41,10 @@ services:
       - BUG_SMTP_USER=${BUG_SMTP_USER:-}
       - BUG_SMTP_PASS=${BUG_SMTP_PASS:-}
       - BUG_SMTP_TO=${BUG_SMTP_TO:-}
-      # TURN endpoint (GET /api/turn-credentials) выдаёт клиенту HMAC-подписанные
-      # короткие credentials для coturn-сервиса ниже. Если TURN_HOST / TURN_SECRET
-      # пусты — endpoint возвращает 503, клиент работает только со STUN (legacy
-      # режим). Эти же значения используются coturn (как static-auth-secret).
+      # Сервер выдаёт участнику комнаты (в user-list / по turn-refresh)
+      # HMAC-подписанные короткие credentials для coturn-сервиса ниже. Если
+      # TURN_HOST / TURN_SECRET пусты — TURN не раздаётся, клиент работает только
+      # со STUN. Эти же значения используются coturn (как static-auth-secret).
       - TURN_HOST=${TURN_HOST:-}
       - TURN_SECRET=${TURN_SECRET:-}
       # TLS-вход coturn (turns://) для сетей, где пускают только 443. Hostname

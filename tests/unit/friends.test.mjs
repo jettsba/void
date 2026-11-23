@@ -114,3 +114,18 @@ test("multi invite (friend code handle): not consumed, first owner keeps it", ()
     [owner, other, u1, u2].forEach(F.handleFriendDisconnect);
     assert.equal(F._friendsStats().invites, 0);
 });
+
+test("invite check: reports open/closed without consuming or linking", () => {
+    const owner = fakeWs(), asker = fakeWs();
+    F.handleFriendInviteCheck(asker, { h: hash("c") });
+    assert.equal(asker.of("fr-invite-alive")[0].ok, false);
+    F.handleFriendInviteOpen(owner, { h: hash("c") });
+    F.handleFriendInviteCheck(asker, { h: hash("c") });
+    F.handleFriendInviteCheck(owner, { h: hash("c") });
+    assert.equal(asker.of("fr-invite-alive")[1].ok, true);
+    assert.equal(owner.of("fr-invite-alive")[0].ok, false);
+    assert.equal(owner.of("fr-invite-hit").length, 0);
+    F.handleFriendInviteUse(asker, { h: hash("c"), d: "req" });
+    assert.equal(asker.of("fr-invite-res")[0].ok, true);
+    [owner, asker].forEach(F.handleFriendDisconnect);
+});

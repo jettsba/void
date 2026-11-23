@@ -1,0 +1,6 @@
+/* Dark from the very first frame: a home-screen launch painted white until
+   base.css arrived, and iOS caches the status-strip colour from it.
+   Kept as a file, never an inline <style>: Tauri hashes inline styles into
+   style-src, and a hash makes the browser drop 'unsafe-inline', which kills
+   every style="" attribute (the hotkeys keyboard collapsed in v1.12.1). */
+html { background: #0a0a0b; }

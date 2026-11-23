@@ -1375,8 +1375,8 @@
     }
     const linkOpen = () => !!dlModal?.classList.contains("is-open");
 
-    /* Typed code: the typing was the "yes", go straight to linking. */
-    function linkAndJoin(code) { openLinkModal({ phase: "linking", code }); }
+    /* Typed code: still ask — linking hands this device the whole account. */
+    function linkAndJoin(code) { openLinkModal({ phase: "ask", code }); }
 
     /* ---------- events → toasts ---------- */
     window.addEventListener("void:friends-event", (e) => {
@@ -1429,8 +1429,14 @@
     });
 
     /* ---------- incoming links (#friend=…, #transfer=…) ---------- */
-    function confirmFriendLink(secret) {
+    async function confirmFriendLink(secret) {
         if (!F.parseLinkSecret(secret)) return false;
+        /* Dead or own link: say so right away instead of offering it. */
+        const state = await F.checkLink(secret);
+        if (state && state !== "ok") {
+            window.dispatchEvent(new CustomEvent("void:friends-event", { detail: { kind: state === "own" ? "link-own" : "link-dead" } }));
+            return false;
+        }
         const showChoice = !IS_DESKTOP && !isTouch();
         const card = modalShell(t("friends.link.title"), `
             <div class="fr-confirm">

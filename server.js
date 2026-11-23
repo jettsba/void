@@ -23,7 +23,7 @@ import {
 import { mountAdminStats } from "./lib/admin-stats.js";
 import { mountDownloadBeaconEndpoint } from "./lib/dl-beacon.js";
 import { mountBugReport } from "./lib/bug-report.js";
-import { mountTurnEndpoint } from "./lib/turn.js";
+import { logTurnConfig } from "./lib/turn.js";
 import { mountLeaveBeaconEndpoint } from "./lib/leave-beacon.js";
 import { startGeo } from "./lib/privacy.js";
 import {
@@ -32,6 +32,7 @@ import {
     handleFriendInviteOpen,
     handleFriendInviteClose,
     handleFriendInviteUse,
+    handleFriendInviteCheck,
     handleFriendDisconnect,
 } from "./lib/friends.js";
 import {
@@ -267,10 +268,7 @@ mountAdminStats(app);
    route (нет смысла парсить тело на каждом запросе статики). 256 KB cap —
    с запасом под полный log.bugReport() от Chrome (история + peer stats). */
 mountBugReport(app, express.json({ limit: "256kb" }));
-/* /api/turn-credentials — ПЕРЕХОДНЫЙ путь только для десктопов до 1.7.0 (новый
-   клиент получает TURN-креды по WS в user-list). Сжат лимитом, удаляется в
-   1.7.2 — см. lib/turn.js. */
-mountTurnEndpoint(app, getClientIp);
+logTurnConfig();
 /* T1.1: /api/leave-room — приём navigator.sendBeacon на pagehide. Гарантирует
    быстрое (до 1s) исчезновение «призрака» в комнате при закрытии вкладки,
    когда WS leave-room не успевает уйти из TCP-буфера. 256 байт лимит — body
@@ -285,7 +283,7 @@ mountDownloadBeaconEndpoint(app, express.json({ limit: "256b" }));
    (landing/404.html для RU, landing/en/404.html для EN-путей). App-сабдомен
    обычно SPA — все маршруты сводятся к /, поэтому отдаём минимум.
    Важно: эта middleware идёт ПОСЛЕ express.static И ПОСЛЕ всех API-маунтов
-   (mountAdminStats / mountTurnEndpoint / mountBugReport / mountLeaveBeacon) —
+   (mountAdminStats / mountBugReport / mountLeaveBeacon) —
    иначе catch-all перехватит их запросы первым (Express матчит маршруты в
    порядке регистрации). */
 app.use((req, res) => {
@@ -520,6 +518,10 @@ wss.on("connection", (ws, req) => {
 
                 case "fr-invite-use":
                     handleFriendInviteUse(ws, data);
+                    break;
+
+                case "fr-invite-check":
+                    handleFriendInviteCheck(ws, data);
                     break;
 
                 default:

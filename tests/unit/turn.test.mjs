@@ -5,7 +5,7 @@ import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 
 const H = await import("../../lib/handlers.js");
-const { mountTurnEndpoint } = await import("../../lib/turn.js");
+const turnModule = await import("../../lib/turn.js");
 const { rooms } = await import("../../lib/state.js");
 
 let ipSeq = 0;
@@ -52,22 +52,7 @@ test("turn-refresh: members only, at most once per 30 s", () => {
     assert.ok(replies[0].turn.iceServers.length > 0);
 });
 
-test("legacy HTTP endpoint: rate-limited, short-lived, no userId", () => {
-    let handler;
-    mountTurnEndpoint({ get: (path, fn) => { handler = fn; } }, () => "203.0.113.9");
-    const call = () => {
-        const res = {
-            code: 200, body: null,
-            set() {}, status(c) { this.code = c; return this; }, json(b) { this.body = b; }
-        };
-        handler({ query: { uid: "VICTIM01" } }, res);
-        return res;
-    };
-    const first = call();
-    assert.equal(first.code, 200);
-    const relay = first.body.iceServers.find(s => s.username);
-    assert.ok(!relay.username.includes("VICTIM01"));
-    assert.equal(first.body.ttl, 1800);
-    for (let i = 0; i < 4; i++) assert.equal(call().code, 200);
-    assert.equal(call().code, 429);
+test("no HTTP path for TURN credentials: the legacy endpoint is gone", () => {
+    assert.equal(turnModule.mountTurnEndpoint, undefined);
+    assert.equal(typeof turnModule.logTurnConfig, "function");
 });

@@ -382,6 +382,9 @@
             case "fr-invite-res":
                 onInviteRes(m.h, m.ok === true);
                 break;
+            case "fr-invite-alive":
+                aliveWaits.get(m.h)?.(m.ok === true);
+                break;
             case "server-restarting":
                 if (ws) { const s = ws; ws = null; try { s.close(); } catch (_) {} scheduleReconnect(true); }
                 break;
@@ -820,6 +823,26 @@
         return true;
     }
 
+    /* Probe a link before offering it: "ok" | "dead" | "own" | "invalid",
+       or null when the server can't be asked (offline/slow) — then the
+       caller offers it anyway and useLink reports the outcome. */
+    const aliveWaits = new Map();
+    async function checkLink(raw) {
+        const secret = parseLinkSecret(raw);
+        if (!secret) return "invalid";
+        await S.ready();
+        const h = await S.sha256B64("friend|" + secret);
+        if (invites.get(h)?.role === "owner") return "own";
+        if (!(await waitOpen(4000))) return null;
+        const ok = await new Promise((resolve) => {
+            const done = (v) => { clearTimeout(timer); aliveWaits.delete(h); resolve(v); };
+            const timer = setTimeout(() => done(null), 4000);
+            aliveWaits.set(h, done);
+            send({ type: "fr-invite-check", h });
+        });
+        return ok === null ? null : ok ? "ok" : "dead";
+    }
+
     async function useLink(raw) {
         const secret = parseLinkSecret(raw);
         if (!secret) { event("link-invalid"); return false; }
@@ -1122,6 +1145,7 @@
         onRoomMessage,
         createLink,
         useLink,
+        checkLink,
         parseLinkSecret,
         startTransfer,
         cancelTransfer,

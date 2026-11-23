@@ -27,6 +27,18 @@
 
 window.VoidChangelog = [
     {
+        version: "1.12.2",
+        date: "2026-11-24",
+        ru: [
+            "недействительная ссылка в друзья сразу говорит, что она больше не работает",
+            "исправлена клавиатура в окне горячих клавиш на desktop"
+        ],
+        en: [
+            "a dead friend link now says so right away",
+            "fixed the keyboard in the desktop hotkeys window"
+        ],
+    },
+    {
         version: "1.12.1",
         date: "2026-11-23",
         ru: [

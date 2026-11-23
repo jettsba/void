@@ -92,7 +92,7 @@ devDeps: `@tauri-apps/cli`, `@jitsi/rnnoise-wasm`, `nodemon`. Никаких ORM
 │   ├── dl-beacon.js           — POST /api/dl-hit: клик-счётчик скачиваний с /dl (installer/portable/dmg)
 │   ├── bug-report.js          — POST /api/report-bug → Yandex SMTP (nodemailer)
 │   ├── leave-beacon.js        — POST /api/leave-room (navigator.sendBeacon на pagehide)
-│   ├── turn.js                — HMAC-SHA1 короткие creds для coturn: участнику в user-list / по turn-refresh; переходный GET /api/turn-credentials для старых десктопов (до 1.7.2)
+│   ├── turn.js                — HMAC-SHA1 короткие creds для coturn: участнику в user-list / по turn-refresh
 │   ├── resume-ticket.js       — подпись билетов закрытых комнат (секрет: env RESUME_SECRET или data/resume-secret)
 │   ├── privacy.js             — псевдонимы для логов: IP → `ip#3fa9c1 (RU)` (суточная соль в памяти + страна по офлайн-базе DB-IP), код комнаты → room ref
 │   └── log.js                 — structured logger; поля `ip`/`code` маскирует сам (через privacy.js)
