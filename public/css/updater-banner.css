@@ -10,7 +10,7 @@
 .updater-banner {
     position: fixed;
     left: 1rem;
-    bottom: 1rem;
+    bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
     z-index: 60;
     width: min(20rem, calc(100vw - 2rem));
     background: var(--bg-1);

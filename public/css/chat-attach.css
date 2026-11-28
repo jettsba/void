@@ -173,9 +173,10 @@
     display: none;
 }
 
-/* Свои attachment'ы пока летят к пирам — показываем тонкий «бегунок».
-   Никаких процентов: всё равно прогресс по каналам, не по байтам. */
-.chat-msg-self .chat-attach:not(.is-ready) .chat-attach-progress-bar {
+/* Свой attachment до первого тика прогресса (сжатие картинки, ожидание
+   очереди канала) — тонкий «бегунок». Дальше — честная полоса по байтам,
+   ушедшим из буфера канала (has-progress ставит updateMessageProgress). */
+.chat-msg-self .chat-attach:not(.is-ready):not(.has-progress) .chat-attach-progress-bar {
     width: 35%;
     background: linear-gradient(90deg,
             transparent,

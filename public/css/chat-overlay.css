@@ -130,7 +130,7 @@
     }
 
     .chat-msg,
-    .chat-msg-self .chat-attach:not(.is-ready) .chat-attach-progress-bar {
+    .chat-msg-self .chat-attach:not(.is-ready):not(.has-progress) .chat-attach-progress-bar {
         animation: none;
     }
 }

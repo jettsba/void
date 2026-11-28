@@ -548,20 +548,64 @@ async function sendChatAttachment(file, kind) {
     if (chatChannels.size === 0) return;
 
     const json = JSON.stringify(meta);
+    const size = payloadBytes.byteLength;
+    /* Реальный прогресс отправителя: по каждому каналу «ушло в сеть» =
+       отданное в send() минус то, что ещё лежит в bufferedAmount. Своя очередь
+       на канал (enqueueSend) гарантирует, что в буфере сейчас только наши
+       байты. Полоса = среднее по собеседникам; канал, который закрылся или
+       упал, считается отработавшим, чтобы полоса не застревала. */
+    const tracks = [];
     const tasks = [];
     chatChannels.forEach((channel, uid) => {
+        const track = { channel, sent: 0, done: false };
+        tracks.push(track);
         tasks.push(enqueueSend(uid, async () => {
-            if (channel.readyState !== "open") return;
-            try { channel.send(json); }
-            catch (err) { log.warn("chat", "meta send failed", { userId: uid, err: err?.message || String(err) }); return; }
-            await sendChunksToChannel(channel, payloadBytes, totalChunks);
+            try {
+                if (channel.readyState !== "open") return;
+                try { channel.send(json); }
+                catch (err) { log.warn("chat", "meta send failed", { userId: uid, err: err?.message || String(err) }); return; }
+                await sendChunksToChannel(channel, payloadBytes, totalChunks, track);
+                await waitForDrain(channel);
+            } finally {
+                track.done = true;
+            }
         }));
     });
-    await Promise.all(tasks);
-    markOwnAttachmentReady(meta.msgId);
+    const tick = () => {
+        let sum = 0;
+        for (const t of tracks) {
+            if (t.done) { sum += 1; continue; }
+            const open = t.channel.readyState === "open";
+            const out = open ? Math.max(0, t.sent - t.channel.bufferedAmount) : size;
+            sum += size > 0 ? Math.min(1, out / size) : 0;
+        }
+        updateMessageProgress(meta.msgId, sum / tracks.length, size);
+    };
+    const ticker = setInterval(tick, 200);
+    try {
+        await Promise.all(tasks);
+    } finally {
+        clearInterval(ticker);
+    }
+    markOwnAttachmentReady(meta.msgId, size);
 }
 
-async function sendChunksToChannel(channel, buffer, totalChunks) {
+/* Дождаться, пока хвост файла реально уйдёт из буфера канала: после цикла
+   чанков в bufferedAmount ещё может лежать до CHAT_HIGH_WATER — без этого
+   «отправлено» загоралось бы раньше, чем у собеседника доехал файл. */
+function waitForDrain(channel) {
+    return new Promise((resolve) => {
+        const started = Date.now();
+        const check = () => {
+            if (channel.readyState !== "open" || channel.bufferedAmount === 0
+                || Date.now() - started > CHAT_LOW_BUFFER_TIMEOUT_MS) return resolve();
+            setTimeout(check, 100);
+        };
+        check();
+    });
+}
+
+async function sendChunksToChannel(channel, buffer, totalChunks, track) {
     const bytes = new Uint8Array(buffer);
     for (let i = 0; i < totalChunks; i++) {
         if (channel.readyState !== "open") return;
@@ -579,6 +623,7 @@ async function sendChunksToChannel(channel, buffer, totalChunks) {
 
         try {
             channel.send(slice);
+            if (track) track.sent = end;
         } catch (err) {
             log.warn("chat", "chunk send failed", { err: err?.message || String(err) });
             return;
@@ -817,7 +862,7 @@ function handleIncoming(data, userId) {
             return;
         }
 
-        updateMessageProgress(inbox.node, inbox.received / inbox.meta.totalChunks);
+        updateMessageProgress(inbox.node, inbox.received / inbox.meta.totalChunks, inbox.meta.size);
 
         if (inbox.received >= inbox.meta.totalChunks) {
             clearInboxWatchdog(inbox);
@@ -1080,11 +1125,23 @@ function msgNode(target) {
     return chatMessagesEl.querySelector(`[data-msg-id="${cssEscape(target)}"]`);
 }
 
-function updateMessageProgress(target, frac) {
+/* Полоса + «12 / 50 mb» в строке размера файла (у картинок строки размера нет).
+   Итоговый размер возвращают finalize/markOwn — по готовности. */
+function updateMessageProgress(target, frac, total) {
     const wrap = msgNode(target);
     if (!wrap) return;
+    const f = Math.max(0, Math.min(1, frac));
+    const attach = wrap.querySelector(".chat-attach");
+    if (attach) attach.classList.add("has-progress");
     const bar = wrap.querySelector(".chat-attach-progress-bar");
-    if (bar) bar.style.width = Math.round(Math.min(1, frac) * 100) + "%";
+    if (bar) bar.style.width = Math.round(f * 100) + "%";
+    const sz = wrap.querySelector(".chat-attach-file-size");
+    if (sz && total > 0) sz.textContent = `${formatSize(f * total)} / ${formatSize(total)}`;
+}
+
+function resetSizeLabel(attach, total) {
+    const sz = attach.querySelector(".chat-attach-file-size");
+    if (sz && total > 0) sz.textContent = formatSize(total);
 }
 
 function finalizeMessageAttachment(target, url, meta) {
@@ -1106,15 +1163,18 @@ function finalizeMessageAttachment(target, url, meta) {
             dl.download = meta.name || "file";
         }
     }
+    resetSizeLabel(attach, meta.size);
     attach.classList.add("is-ready");
     requestAnimationFrame(refreshChatJumpButton);
 }
 
-function markOwnAttachmentReady(msgId) {
+function markOwnAttachmentReady(msgId, size) {
     const wrap = msgNode(msgId);
     if (!wrap) return;
     const attach = wrap.querySelector(".chat-attach");
-    if (attach) attach.classList.add("is-ready");
+    if (!attach) return;
+    resetSizeLabel(attach, size);
+    attach.classList.add("is-ready");
 }
 
 function failPendingMessage(target) {
