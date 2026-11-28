@@ -1,7 +1,7 @@
 /* ============ Окно тихого обновления (updater v2, режим A) ============
    Живёт в отдельном frameless-окне (label "updater"), поднятом из Rust на
    старте, когда найден апдейт. Рендерит терминальный блок-бар + лог по
-   событиям из Rust, управляет кнопками окна (свернуть / закрыть).
+   событиям из Rust. Полосы и кнопок окна нет — только блок прогресса.
 
    События (Rust → это окно):
      void:upd-begin     { version }            — старт, версия для лога
@@ -9,19 +9,20 @@
      void:upd-phase     { phase: install|done} — фазы после скачивания
      void:upd-error     { message }            — ошибка (окно закроется из Rust)
 
-   Кнопок действия НЕТ — обновление идёт само. Закрытие (✕) = выход (Rust). */
+   Кнопок НЕТ — обновление идёт само. */
 
 (function () {
     "use strict";
 
     const T = window.__TAURI__;
     const BAR_LEN = 22;
+    const LOG_MAX = 6;
 
     const fillEl = document.getElementById("uwBarFill");
     const emptyEl = document.getElementById("uwBarEmpty");
     const pctEl = document.getElementById("uwPct");
     const logEl = document.getElementById("uwLog");
-    const footEl = document.getElementById("uwFoot");
+    const IS_MAC = /Mac/i.test(navigator.platform || navigator.userAgent || "");
 
     let version = null;
     let logStarted = false;
@@ -29,13 +30,12 @@
 
     setBar(0);
 
-    /* ---- кнопки окна (свернуть / закрыть) ---- */
+    /* Полосы нет — окно тащится за любое место. */
     if (T && T.window) {
         const win = T.window.getCurrentWindow();
-        const min = document.getElementById("uwMin");
-        const close = document.getElementById("uwClose");
-        if (min) min.addEventListener("click", () => win.minimize().catch(noop));
-        if (close) close.addEventListener("click", () => win.close().catch(noop));
+        document.addEventListener("mousedown", (e) => {
+            if (e.button === 0) win.startDragging().catch(noop);
+        });
     }
 
     /* ---- блок-бар [████░░░░] NN% ---- */
@@ -53,6 +53,8 @@
         line.className = cls;
         line.textContent = text;
         logEl.appendChild(line);
+        // Окно маленькое: держим последние строки, старые уезжают.
+        while (logEl.children.length > LOG_MAX) logEl.removeChild(logEl.firstChild);
     }
 
     function startLog(v) {
@@ -60,14 +62,18 @@
         if (logStarted) return;
         logStarted = true;
         addLine("dim", "void / update — v" + (version || "?"));
-        addLine("arr", "→ download  void_setup.exe");
+        addLine("arr", IS_MAC ? "→ download  void.app.tar.gz" : "→ download  void_setup.exe");
     }
 
     /* Лог фазы установки. NSIS теперь идёт тихо (installMode quiet), так что
        эти строки — единственная видимая обратная связь, пока он распаковывает
        и ставит. Стаггерим, чтобы выглядело как реальный прогресс инсталлера. */
     function runInstallLog() {
-        const steps = [
+        const steps = IS_MAC ? [
+            "→ verify  signature",
+            "→ extract  void.app",
+            "→ replace  application",
+        ] : [
             "→ verify  signature",
             "→ extract  void-desktop.exe",
             "→ install  application files",
@@ -99,18 +105,15 @@
             const phase = (e.payload || {}).phase;
             if (phase === "install") {
                 setBar(100);
-                if (footEl) footEl.textContent = "установка…";
                 runInstallLog();
             } else if (phase === "done") {
                 setBar(100);
                 addLine("ok", "done — relaunching");
-                if (footEl) footEl.textContent = "перезапуск…";
             }
         }).catch(noop);
 
         T.event.listen("void:upd-error", (e) => {
             addLine("dim", "ошибка обновления");
-            if (footEl) footEl.textContent = "ошибка";
         }).catch(noop);
     }
 })();

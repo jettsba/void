@@ -30,7 +30,8 @@
         { id: "L4", h: 720, fps: 30, bps: 1_600_000 },
     ];
     const DEFAULT_TIER = 2;               // пока зритель не прислал размер
-    const PHONE_MAX_TIER = 3;             // телефон греется и садит батарею
+    const PHONE_MAX_TIER = 3;             // телефон греется и садит батарею…
+    const PHONE_FULL_VIEWERS = 2;         // …но 1-2 энкодера 720p он тянет
     const CAM_UPLOAD_BUDGET = 4_000_000;  // на ВСЕ отправки камеры
     const CAM_RELAY_MAX = 1_000_000;      // relay-пара, на зрителя
     const PARK_MS = 2000;                 // трек обогнал camera-state
@@ -47,6 +48,8 @@
     let camTrack = null;
     let camOn = false;
     let camStarting = false;
+    let facing = "user";       // телефон: фронталка / тыл (кнопка на своей плитке)
+    let multiCam = false;      // камер больше одной → есть что переключать
 
     /** userId → { caps:Set, cam:bool, sid:string|null } — из user-list /
      *  new-participant / camera-state. */
@@ -128,7 +131,16 @@
         if (camOn || camStarting) return camOn;
         if (typeof isJoined !== "undefined" && !isJoined) return false;
         camStarting = true;
+        facing = "user";
         syncButton();
+        /* Плитка с лоадером — сразу: камера просыпается до секунды, без неё
+           сцена уже перестроилась, а на месте кадра пусто. */
+        window.VoidCamStage?.setLocalPending(true);
+        /* Камеру будим ПОСЛЕ перехода сцены: на маке её старт вешает главный
+           поток ~1 с, и переход посреди этого дёргался бы. Плитка с лоадером
+           уже стоит, лишние 0.3 с не видны. */
+        const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+        await new Promise(r => setTimeout(r, reduce ? 0 : MOTION.med + 40));
         let track = null;
         try {
             const s = await acquire();
@@ -139,6 +151,7 @@
             log.warn("cam", "camera start failed", { err: err?.name || String(err) });
             camStarting = false;
             syncButton();
+            window.VoidCamStage?.setLocalPending(false);
             errorToast(err);
             return false;
         }
@@ -147,6 +160,7 @@
         if (typeof isJoined !== "undefined" && !isJoined) {
             track.stop();
             syncButton();
+            window.VoidCamStage?.setLocalPending(false);
             return false;
         }
         try { track.contentHint = "motion"; } catch (_) {}
@@ -157,7 +171,59 @@
         syncButton();
         window.VoidCamStage?.setLocal(stream());
         log.info("cam", "camera on", { settings: track.getSettings?.() || null });
+        countCams();
         return true;
+    }
+
+    /* Кнопка смены камеры (только тач) есть, если камер больше одной. Список
+       устройств с метками доступен только после разрешения — считаем после
+       старта. */
+    function countCams() {
+        if (!isTouch() || !navigator.mediaDevices?.enumerateDevices) { multiCam = false; return; }
+        navigator.mediaDevices.enumerateDevices().then(list => {
+            multiCam = list.filter(d => d.kind === "videoinput").length > 1;
+            window.VoidCamStage?.syncSelf();
+        }).catch(() => {});
+    }
+
+    /* Телефон: фронталка ↔ тыл. Старый трек гасим ДО запроса: iOS не держит
+       две камеры разом (вторая открылась бы немой). Не вышло — возвращаем
+       прежнюю, не вышло и это — камера выключается. */
+    async function flip() {
+        if (!camOn || camStarting) return;
+        camStarting = true;
+        syncButton();
+        const next = facing === "user" ? "environment" : "user";
+        if (camTrack) { camTrack.onended = null; camTrack.stop(); }
+        const open = async (mode) => {
+            try {
+                return await navigator.mediaDevices.getUserMedia({ audio: false, video: { ...CONSTRAINTS, facingMode: { exact: mode } } });
+            } catch (err) {
+                if (err?.name !== "OverconstrainedError") throw err;
+                return await navigator.mediaDevices.getUserMedia({ audio: false, video: { ...CONSTRAINTS, facingMode: mode } });
+            }
+        };
+        let track = null;
+        try {
+            track = (await open(next)).getVideoTracks()[0] || null;
+            if (track) facing = track.getSettings?.().facingMode || next;
+        } catch (err) {
+            log.warn("cam", "camera flip failed", { err: err?.name || String(err) });
+            errorToast(err);
+            try { track = (await open(facing)).getVideoTracks()[0] || null; } catch (_) { track = null; }
+        }
+        camStarting = false;
+        if (!camOn) { track?.stop(); syncButton(); return; }
+        if (!track) { stop(); return; }
+        try { track.contentHint = "motion"; } catch (_) {}
+        setTrack(track);
+        for (const [uid, sender] of camSenders) {
+            enqueue(sender, () => sender.replaceTrack(track));
+            applyParams(uid);
+        }
+        syncButton();
+        window.VoidCamStage?.setLocal(stream());
+        window.VoidCamStage?.syncSelf();
     }
 
     function setTrack(track) {
@@ -188,6 +254,7 @@
         if (!silent) broadcast();
         syncButton();
         window.VoidCamStage?.setLocal(null);
+        facing = "user";
         log.info("cam", "camera off");
     }
 
@@ -207,11 +274,13 @@
             if (!track || !camOn) { s.getTracks().forEach(t => t.stop()); return; }
             try { track.contentHint = "motion"; } catch (_) {}
             setTrack(track);
+            facing = "user";
             for (const [uid, sender] of camSenders) {
                 enqueue(sender, () => sender.replaceTrack(track));
                 applyParams(uid);
             }
             window.VoidCamStage?.setLocal(stream());
+            window.VoidCamStage?.syncSelf();
         } catch (err) {
             errorToast(err);
         } finally {
@@ -291,9 +360,12 @@
         return Math.max(1, n);
     }
 
+    /* Телефон режем до L3 только при 3+ зрителях: с одним-двумя кап 540p
+       давал заметное мыло на большой плитке десктопа, а аппаратный H.264
+       тянет 720p без перегрева. */
     function tierIndexFor(userId) {
         let ti = demand.get(userId) ?? DEFAULT_TIER;
-        if (isTouch()) ti = Math.min(ti, PHONE_MAX_TIER);
+        if (isTouch() && activeViewers() > PHONE_FULL_VIEWERS) ti = Math.min(ti, PHONE_MAX_TIER);
         return ti;
     }
 
@@ -306,8 +378,12 @@
         if (typeof screenStream !== "undefined" && screenStream?.active) budget /= 2;
         let bps = Math.min(tier.bps, Math.round(budget / activeViewers()));
         if (peers.get(userId)?._isRelay) bps = Math.min(bps, CAM_RELAY_MAX);
-        const srcH = sender.track?.getSettings?.().height || 720;
-        const scale = Math.max(1, Math.round((srcH / tier.h) * 1000) / 1000);
+        /* Ступень = КОРОТКАЯ сторона кадра (зритель просит ровно её, см.
+           cam-stage renderedShort): портретный кадр телефона 720×1280 на L4
+           уходит целиком, а не ужатым до 405×720. */
+        const st = sender.track?.getSettings?.() || {};
+        const srcShort = Math.min(st.width || 1280, st.height || 720);
+        const scale = Math.max(1, Math.round((srcShort / tier.h) * 1000) / 1000);
         return { active: true, tier, bps, scale, fps: tier.fps };
     }
 
@@ -552,12 +628,14 @@
     document.addEventListener("void:locale-changed", syncButton);
 
     window.VoidCam = {
-        start, stop, toggle, reset, reannounce,
+        start, stop, toggle, flip, reset, reannounce,
         attachPeer, detachPeer, forget, reapply, reapplyAll,
         routeTrack, onPeerInfo, onPeerState, onScreencastState, onPeerMessage, onChannelOpen,
         setWant,
         isOn: () => camOn,
         isStarting: () => camStarting,
+        facing: () => facing,
+        canFlip: () => camOn && multiCam,
         localStream: () => (camOn ? stream() : null),
         localTrack: () => camTrack,
         remoteStream: (uid) => remote.get(uid)?.stream || null,

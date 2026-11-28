@@ -154,17 +154,10 @@
         return window.VoidNotes ? window.VoidNotes.listHtml(items) : "";
     }
 
-    /** Тело модалки: одна версия — как раньше, «что нового:» + список; несколько
-     *  — секция на версию с её номером в подписи (свежая сверху). */
+    /** Тело модалки: секция на версию (свежая сверху), даже если версия одна —
+     *  номер теперь живёт здесь, заголовок модалки — просто «что нового». */
     function sectionsHtml() {
         const vs = shownVersions.filter((v) => itemsFor(v).length);
-        if (vs.length <= 1) {
-            return `
-            <div class="app-section">
-                <span class="app-section-label">${esc(T("whatsnew.heading"))}</span>
-                <ul class="app-modal-bullets">${listHtml(itemsFor(vs[0] || shownVersion))}</ul>
-            </div>`;
-        }
         /* Вёрстка — как в окне «история изменений» (js/changelog.js): номер +
            дата, разделитель между версиями. */
         const list = Array.isArray(window.VoidChangelog) ? window.VoidChangelog : [];
@@ -187,9 +180,8 @@
         dismiss(); // баннер своё отработал
         const modal = window.VoidAppModal;
         if (!modal) return;
-        /* Заголовок — сама версия: технический ID, регистр не трогаем (гайд §2). */
         const card = modal.open(
-            "v" + esc(shownVersion),
+            esc(T("whatsnew.cta")),
             `
             <div data-wn-body>${sectionsHtml()}</div>
             <button type="button" class="whats-new-history" data-wn-history>${esc(T("changelog.title"))}</button>
@@ -219,6 +211,8 @@
     document.addEventListener("void:locale-changed", () => {
         renderBanner();
         const body = document.querySelector("[data-wn-body]");
+        const title = body?.closest(".app-modal-card, .notes-card")?.querySelector(".app-modal-title");
+        if (title) title.textContent = T("whatsnew.cta");
         const history = document.querySelector("[data-wn-history]");
         if (history) history.textContent = T("changelog.title");
         if (body) body.innerHTML = sectionsHtml();

@@ -1375,8 +1375,11 @@ fn reassert_custom_uninstaller() {
     }
 }
 
-/// Окно обновления (режим A) — frameless 640×468 в стиле инсталлера.
-/// Закрытие (✕) = выход из приложения (отмена; relaunch повторит чек).
+/// Окно обновления (режим A) — небольшое окошко без полосы и кнопок: только
+/// блок прогресса. Рамка — системная: на Windows frameless (углы решает ОС),
+/// на маке обычное окно с прозрачной полосой — родные скругление и тень, а
+/// светофор спрятан. Закрыть окно из интерфейса нельзя; если ОС всё же
+/// закроет его (Alt+F4 / ⌘Q) — выход (отмена; relaunch повторит чек).
 fn launch_updater_window(app: &AppHandle) {
     if app.get_webview_window("updater").is_some() {
         return;
@@ -1392,17 +1395,28 @@ fn launch_updater_window(app: &AppHandle) {
         WebviewUrl::App("updater.html".into())
     };
 
-    let win = match WebviewWindowBuilder::new(app, "updater", url)
-        .title("void")
-        .inner_size(640.0, 468.0)
+    let mut builder = WebviewWindowBuilder::new(app, "updater", url)
+        .title("обновление void")
+        .inner_size(420.0, 264.0)
         .resizable(false)
-        .decorations(false)
+        .maximizable(false)
         .background_color(APP_BG)
         .center()
         .visible(true)
-        .focused(true)
-        .build()
+        .focused(true);
+
+    #[cfg(target_os = "macos")]
     {
+        builder = builder
+            .title_bar_style(tauri::TitleBarStyle::Overlay)
+            .hidden_title(true);
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        builder = builder.decorations(false);
+    }
+
+    let win = match builder.build() {
         Ok(w) => w,
         Err(e) => {
             eprintln!("[updater-window] build failed: {:?}", e);
@@ -1410,10 +1424,38 @@ fn launch_updater_window(app: &AppHandle) {
         }
     };
 
+    #[cfg(target_os = "macos")]
+    hide_traffic_lights(&win);
+
     let app_for_close = app.clone();
     win.on_window_event(move |event| {
         if let WindowEvent::CloseRequested { .. } = event {
             app_for_close.exit(0);
+        }
+    });
+}
+
+/// Спрятать светофор окна (macOS). Tauri умеет только двигать кнопки, поэтому
+/// напрямую: -[NSWindow standardWindowButton:] → setHidden:YES для close (0),
+/// miniaturize (1), zoom (2). AppKit трогаем только с главного потока.
+#[cfg(target_os = "macos")]
+fn hide_traffic_lights(win: &tauri::WebviewWindow) {
+    use objc2::msg_send;
+    use objc2::runtime::AnyObject;
+    let w = win.clone();
+    let _ = win.run_on_main_thread(move || {
+        let Ok(ns) = w.ns_window() else { return };
+        let ns = ns as *mut AnyObject;
+        if ns.is_null() {
+            return;
+        }
+        for kind in 0usize..3 {
+            unsafe {
+                let btn: *mut AnyObject = msg_send![ns, standardWindowButton: kind];
+                if !btn.is_null() {
+                    let _: () = msg_send![btn, setHidden: true];
+                }
+            }
         }
     });
 }

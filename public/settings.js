@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "1.13.1";
+    const APP_VERSION = "1.13.2";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
@@ -132,6 +132,7 @@
             "cam.focus": "крупно",
             "cam.unfocus": "вернуть в сетку",
             "cam.volume": "громкость",
+            "cam.flip": "сменить камеру",
             "cam.screen": "экран",
             "cam.local": "локально",
             "errors.camera.denied": "нет доступа к камере — разреши его в настройках браузера",
@@ -268,7 +269,6 @@
 
             "whatsnew.banner": "void обновлён до {v}",
             "whatsnew.cta": "что нового",
-            "whatsnew.heading": "что нового:",
             "whatsnew.close": "закрыть",
             "changelog.title": "история изменений",
             "changelog.current": "текущая",
@@ -521,6 +521,7 @@
             "cam.focus": "focus",
             "cam.unfocus": "back to grid",
             "cam.volume": "volume",
+            "cam.flip": "switch camera",
             "cam.screen": "screen",
             "cam.local": "local",
             "errors.camera.denied": "no camera access — allow it in the browser settings",
@@ -657,7 +658,6 @@
 
             "whatsnew.banner": "void updated to {v}",
             "whatsnew.cta": "what's new",
-            "whatsnew.heading": "what's new:",
             "whatsnew.close": "close",
             "changelog.title": "changelog",
             "changelog.current": "current",

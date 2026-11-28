@@ -27,6 +27,28 @@
 
 window.VoidChangelog = [
     {
+        version: "1.13.2",
+        date: "2026-11-28",
+        ru: [
+            "окно обновления стало компактным",
+            "камера включается без пустой паузы",
+            "- плитка появляется сразу с индикатором, кадр проявляется, как только камера проснется",
+            "кнопки внизу плавно перестраиваются в ряд при переходе к камерам",
+            "ник под миниатюрой больше не обрезается без причины",
+            "на телефоне теперь можно сменить камеру",
+            "камера с телефона на большом экране стала чётче"
+        ],
+        en: [
+            "the update window is now compact",
+            "turning on the camera no longer leaves an empty pause",
+            "- the tile appears right away with an indicator, the picture fades in once the camera wakes up",
+            "the bottom buttons now flow smoothly into one row when cameras appear",
+            "nicknames under thumbnails no longer get cut off for no reason",
+            "on a phone you can switch cameras",
+            "a phone camera now looks sharper on a big screen"
+        ]
+    },
+    {
         version: "1.13.1",
         date: "2026-11-28",
         ru: [

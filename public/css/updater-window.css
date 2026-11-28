@@ -1,8 +1,10 @@
 /* ============ Окно тихого обновления (updater v2, режим A) ============
    Стилистика — variant signal из design_handoff/VOID_INSTALLER_HANDOFF.md
    (шаг «установка»): тёмный минимализм, JetBrains Mono, нижний регистр,
-   терминальный блок-бар. Окно frameless 640×468, создаётся из Rust
-   (launch_updater_window). Та же стилистика — у будущего NSIS-инсталлера. */
+   терминальный блок-бар. Окошко 420×264 без полосы и кнопок (как апдейтер
+   Discord): только блок прогресса с воздухом вокруг. Рамку рисует ОС
+   (launch_updater_window): Windows — frameless, macOS — родное окно со
+   скруглением, светофор спрятан. Тащится за любое место (updater-window.js). */
 
 @font-face {
     font-family: "JetBrains Mono";
@@ -57,49 +59,11 @@ body {
 
 .uw-root { display: flex; flex-direction: column; height: 100vh; }
 
-/* ---- titlebar ---- */
-.uw-titlebar {
-    flex: 0 0 36px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 0 6px 0 14px;
-    border-bottom: 1px solid var(--fg-4);
-    background: var(--bg-0);
-}
-.uw-glyph {
-    width: 13px;
-    height: 13px;
-    display: inline-flex;
-    color: var(--fg);
-    filter: drop-shadow(0 0 3px rgba(230, 230, 232, .35));
-}
-.uw-glyph svg { width: 13px; height: 13px; }
-.uw-title { font-size: 11px; letter-spacing: .18em; color: var(--fg-3); }
-
-.uw-winctl { margin-left: auto; display: flex; gap: 2px; }
-.uw-wbtn {
-    width: 30px;
-    height: 24px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    background: none;
-    border: 0;
-    border-radius: 2px;
-    color: var(--fg-3);
-    cursor: pointer;
-    transition: color var(--t-fast), background var(--t-fast);
-}
-.uw-wbtn svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.2; stroke-linecap: round; }
-.uw-wbtn:hover { color: var(--fg-2); }
-.uw-wbtn-close:hover { color: var(--warn); }
-
 /* ---- body ---- */
 .uw-body { position: relative; flex: 1 1 auto; overflow: hidden; }
 .uw-content {
     position: absolute;
-    top: 76px;
+    top: 32px;
     left: 50%;
     transform: translateX(-50%);
     width: 324px;
@@ -114,14 +78,10 @@ body {
 .uw-bar-pct { color: var(--fg); margin-left: 12px; }
 
 .uw-divider { border-top: 1px solid var(--fg-4); margin-top: 18px; }
-.uw-log { padding-top: 14px; font-size: 11.5px; line-height: 1.75; max-height: 160px; overflow: hidden; }
+.uw-log { padding-top: 14px; font-size: 11.5px; line-height: 1.75; height: 136px; overflow: hidden; }
 .uw-log .dim { color: var(--fg-3); }
 .uw-log .arr { color: var(--fg-2); white-space: pre; }
 .uw-log .ok { color: var(--screen); }
-
-/* ---- footer ---- */
-.uw-footer { flex: 0 0 56px; display: flex; align-items: center; justify-content: center; }
-.uw-foot-label { font-size: 12px; letter-spacing: .18em; color: var(--fg-3); opacity: .6; }
 
 /* ---- vignette (поверх всего, §11) ---- */
 .uw-vignette {

@@ -20,6 +20,15 @@
     margin-left: 0.57rem;
 }
 
+/* Копия «выйти» на время перехода две строки ↔ одна (js/cam-stage.js
+   morphControls): рамка едет абсолютом, сама кнопка ждёт на новом месте. */
+.panel-controls .ctl-ghost {
+    position: absolute;
+    margin: 0;
+    pointer-events: none;
+    grid-column: auto;
+}
+
 @media (hover: none) and (pointer: coarse) {
     .panel-controls {
         grid-template-columns: repeat(3, 3.14rem);
@@ -159,10 +168,58 @@
     opacity: 1;
 }
 
-/* свой кадр — зеркалом, только на экране (собеседникам уходит как есть) */
-.cam-tile.is-self video,
-.cam-tile.is-self canvas {
+/* свой кадр — зеркалом, только на экране (собеседникам уходит как есть);
+   так же у Zoom/Meet/Discord. Тыловая камера телефона — как есть. */
+.cam-tile.is-self:not(.is-rear) video,
+.cam-tile.is-self:not(.is-rear) canvas {
     transform: scaleX(-1);
+}
+
+/* Кадра ещё нет (камера просыпается / поток едет) — дышащие точки, как у
+   лоадера демки, без подписи. Пришёл кадр — точки гаснут, кадр проявляется. */
+.cam-wait {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    pointer-events: none;
+    opacity: 1;
+    transition: opacity var(--t-med);
+}
+
+.cam-wait i {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--fg-2);
+    opacity: 0.3;
+    animation: cam-wait-breath 1.2s var(--ease) infinite;
+}
+
+.cam-wait i:nth-child(2) { animation-delay: 0.2s; }
+.cam-wait i:nth-child(3) { animation-delay: 0.4s; }
+
+.cam-tile.is-live .cam-wait,
+.cam-tile.is-ghost .cam-wait {
+    opacity: 0;
+}
+
+.cam-tile.is-live .cam-wait i {
+    animation: none;
+}
+
+@keyframes cam-wait-breath {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .cam-wait i {
+        animation: none;
+        opacity: 0.7;
+    }
 }
 
 /* Говорит: язык кольца блоба — поднимается и гаснет за --t-med, дышит
@@ -357,11 +414,14 @@ body.show-cam-tiers .cam-tier {
     overflow: visible;
 }
 
+/* left: 50% урезал бы доступную ширину до половины плитки (ник рвался
+   многоточием при свободном месте) — ширина по тексту, потолок — плитка. */
 .cam-tile.thumb .cam-tag {
     top: 100%;
     bottom: auto;
     left: 50%;
-    max-width: none;
+    width: max-content;
+    max-width: calc(100% - 0.57rem);
     transform: translateX(-50%);
     background: none;
     padding: 0.36rem 0.29rem 0.14rem;
@@ -386,11 +446,25 @@ body.show-cam-tiers .cam-tier {
 }
 
 /* ===== Режим управления (клик по плитке) =====
-   справа сверху — фокус · справа снизу — вертикальная громкость (как дуга
-   блоба: hairline-дорожка, заливка 1.4px). Миниатюра: съезжает на 0.86rem,
-   над ней горизонтальная громкость, затемнение + стрелка вверх. */
+   Справа снизу — как у демки на весь экран: квадрат громкости (по наведению
+   растёт вверх слайдером, иконка = тишина/вернуть) и под ним «развернуть».
+   Своя плитка: громкости нет; на телефоне на её месте — смена камеры.
+   Миниатюра фокуса: съезжает на 0.86rem, над ней — громкость линией с
+   точкой (язык дуги блоба), затемнение + стрелка вверх. */
+.cam-tile {
+    --cb: 2rem;
+    --cpad: 0.43rem;
+}
+
+.cam-tile.small {
+    --cb: 1.71rem;
+    --cpad: 0.29rem;
+}
+
 .cam-expand,
 .cam-vol,
+.cam-flip,
+.cam-hvol,
 .cam-up {
     opacity: 0;
     pointer-events: none;
@@ -402,42 +476,73 @@ body.show-cam-tiers .cam-tier {
 }
 
 .cam-tile.is-ctl:not(.thumb) .cam-expand,
-.cam-tile.is-ctl:not(.is-self) .cam-vol {
+.cam-tile.is-ctl:not(.thumb):not(.is-self) .cam-vol,
+.cam-tile.is-ctl.is-self.can-flip:not(.thumb) .cam-flip,
+.cam-tile.thumb.is-ctl:not(.is-self) .cam-hvol {
     opacity: 1;
     pointer-events: auto;
 }
 
+.cam-tile.thumb .cam-vol,
+.cam-tile.thumb .cam-flip,
+.cam-tile:not(.thumb) .cam-hvol,
 .cam-stage.lone .cam-expand {
     display: none;
 }
 
-.cam-expand {
+.cam-expand,
+.cam-flip,
+.cam-vol {
     position: absolute;
-    top: 0.43rem;
-    right: 0.43rem;
-    width: 2rem;
-    height: 2rem;
+    right: var(--cpad);
+    width: var(--cb);
+    background: rgba(16, 16, 18, 0.6);
+    border: 1px solid var(--fg-4);
+    border-radius: 2px;
+    color: var(--fg-2);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    transition: opacity var(--t-med), color var(--t-fast), border-color var(--t-fast),
+        background var(--t-fast), height var(--t-med);
+}
+
+.cam-expand,
+.cam-flip {
+    bottom: var(--cpad);
+    height: var(--cb);
     display: grid;
     place-items: center;
     padding: 0;
-    border: 0;
-    border-radius: 2px;
-    background: rgba(10, 10, 11, 0.72);
-    color: var(--fg-2);
     cursor: pointer;
-    transition: opacity var(--t-med), color var(--t-fast);
 }
 
-.cam-expand:hover {
+/* над «развернуть»; без неё (одна плитка) — в самом углу */
+.cam-vol,
+.cam-flip {
+    bottom: calc(var(--cpad) + var(--cb) + 0.36rem);
+}
+
+.cam-stage.lone .cam-vol,
+.cam-stage.lone .cam-flip {
+    bottom: var(--cpad);
+}
+
+.cam-expand:hover,
+.cam-flip:hover,
+.cam-vol:hover {
     color: var(--fg);
+    border-color: var(--fg-2);
+    background: rgba(16, 16, 18, 0.88);
 }
 
-.cam-expand svg {
-    width: 1.07rem;
-    height: 1.07rem;
+.cam-expand svg,
+.cam-flip svg,
+.cam-vol-btn svg {
+    width: 1rem;
+    height: 1rem;
     fill: none;
     stroke: currentColor;
-    stroke-width: 1.4;
+    stroke-width: 1.5;
     stroke-linecap: round;
     stroke-linejoin: round;
     vector-effect: non-scaling-stroke;
@@ -452,75 +557,148 @@ body.show-cam-tiers .cam-tier {
     display: block;
 }
 
+/* Квадрат громкости: в покое — иконка; наведение/тянем — растёт вверх, но
+   не выше плитки. */
 .cam-vol {
-    position: absolute;
-    right: 0.57rem;
-    bottom: 0.57rem;
-    width: 1.14rem;
-    height: clamp(3.5rem, 34%, 8rem);
-    cursor: ns-resize;
+    height: var(--cb);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    overflow: hidden;
+}
+
+.cam-vol:hover,
+.cam-tile.vol-drag .cam-vol {
+    height: min(8.6rem, calc(100% - 2 * var(--cpad) - var(--cb) - 0.36rem));
+}
+
+.cam-stage.lone .cam-vol:hover,
+.cam-stage.lone .cam-tile.vol-drag .cam-vol {
+    height: min(8.6rem, calc(100% - 2 * var(--cpad)));
+}
+
+.cam-vol-btn {
+    flex: 0 0 calc(var(--cb) - 2px);
+    width: 100%;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    cursor: pointer;
+}
+
+.cam-vol-btn .i-vol-off,
+.cam-tile.is-silent .cam-vol-btn .i-vol {
+    display: none;
+}
+
+.cam-tile.is-silent .cam-vol-btn .i-vol-off {
+    display: block;
+}
+
+.cam-vol-slider {
+    flex: 1 1 auto;
+    align-self: stretch;
+    display: flex;
+    justify-content: center;
+    padding: 0.75rem 0 0.35rem;
+    min-height: 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--t-fast);
     touch-action: none;
+    cursor: ns-resize;
 }
 
-.cam-vol::before,
-.cam-vol i {
-    content: "";
-    position: absolute;
-    left: 50%;
-    bottom: 0;
-    transform: translateX(-50%);
-    border-radius: 1px;
+.cam-vol:hover .cam-vol-slider,
+.cam-tile.vol-drag .cam-vol-slider {
+    opacity: 1;
+    pointer-events: auto;
 }
 
-.cam-vol::before {
-    top: 0;
-    width: 1px;
+/* Дорожка / заливка / точка — общие для обоих слайдеров (стиль volume-arc) */
+.cam-vol-track {
+    position: relative;
+    width: 3px;
+    border-radius: 3px;
     background: rgba(230, 230, 232, 0.14);
 }
 
-.cam-vol i {
-    width: 1.4px;
+.cam-vol-fill {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
     height: calc(var(--v, 1) * 100%);
+    border-radius: 3px;
     background: rgba(230, 230, 232, 0.7);
     transition: background var(--t-fast);
 }
 
-.cam-vol:hover i {
+.cam-vol-knob {
+    position: absolute;
+    left: 50%;
+    bottom: calc(var(--v, 1) * 100%);
+    width: 0.72rem;
+    height: 0.72rem;
+    border-radius: 50%;
+    background: var(--fg);
+    transform: translate(-50%, 50%);
+    filter: drop-shadow(0 0 4px rgba(230, 230, 232, 0.45));
+    transition: filter var(--t-fast);
+}
+
+.cam-tile.vol-drag .cam-vol-fill {
     background: var(--fg);
 }
 
-/* миниатюра: полоска горизонтальная, над плиткой */
-.cam-tile.thumb.is-ctl {
+.cam-tile.vol-drag .cam-vol-knob {
+    filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.7));
+}
+
+.cam-tile.is-silent .cam-vol-track {
+    opacity: 0.35;
+}
+
+/* миниатюра: линия с точкой над плиткой */
+.cam-tile.thumb.is-ctl:not(.is-self) {
     translate: 0 0.86rem;
 }
 
-.cam-tile.thumb .cam-vol {
-    left: 0;
-    right: 0;
-    top: -0.86rem;
-    bottom: auto;
-    width: auto;
-    height: 0.57rem;
+.cam-hvol {
+    position: absolute;
+    left: 0.36rem;
+    right: 0.36rem;
+    top: -1rem;
+    height: 0.86rem;
+    display: flex;
+    align-items: center;
     cursor: ew-resize;
+    touch-action: none;
 }
 
-.cam-tile.thumb .cam-vol::before,
-.cam-tile.thumb .cam-vol i {
-    left: 0;
+.cam-hvol .cam-vol-track {
+    width: 100%;
+    height: 3px;
+}
+
+.cam-hvol .cam-vol-fill {
+    top: 0;
+    right: auto;
+    height: auto;
+    width: calc(var(--v, 1) * 100%);
+}
+
+.cam-hvol .cam-vol-knob {
+    left: calc(var(--v, 1) * 100%);
     top: 50%;
     bottom: auto;
-    transform: translateY(-50%);
-}
-
-.cam-tile.thumb .cam-vol::before {
-    right: 0;
-    width: auto;
-    height: 1px;
-}
-
-.cam-tile.thumb .cam-vol i {
-    height: 1.4px;
-    width: calc(var(--v, 1) * 100%);
+    width: 0.64rem;
+    height: 0.64rem;
+    transform: translate(-50%, -50%);
 }
 
 .cam-up {
@@ -550,6 +728,22 @@ body.show-cam-tiers .cam-tier {
     opacity: 1;
     visibility: visible;
     transition: color var(--t-fast), opacity var(--t-med), visibility 0s;
+}
+
+/* Тач: наведения нет — в режиме управления слайдер раскрыт сразу. */
+@media (hover: none), (pointer: coarse) {
+    .cam-tile.is-ctl:not(.thumb) .cam-vol {
+        height: min(8.6rem, calc(100% - 2 * var(--cpad) - var(--cb) - 0.36rem));
+    }
+
+    .cam-stage.lone .cam-tile.is-ctl .cam-vol {
+        height: min(8.6rem, calc(100% - 2 * var(--cpad)));
+    }
+
+    .cam-tile.is-ctl .cam-vol-slider {
+        opacity: 1;
+        pointer-events: auto;
+    }
 }
 
 /* 3+ равные плитки (десктоп): статус mute/deaf всегда, ник проявляется

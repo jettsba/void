@@ -372,6 +372,13 @@
   padding-bottom: 0;
 }
 
+/* «что нового» (js/desktop/whats-new.js) берёт те же секции, но в обычной
+   notes-card: у неё полный верхний padding тела, и свой отступ секции давал
+   двойную щель под шапкой. */
+[data-wn-body] > .changelog-entry:first-child {
+  padding-top: 0;
+}
+
 .changelog-entry + .changelog-entry {
   border-top: 1px solid var(--fg-4);
 }
