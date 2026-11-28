@@ -1,4 +1,4 @@
-/* Phones / tablets: no screen share there (the button is the camera stub). */
+/* Phones / tablets: no screen share there (the button is hidden, css/screencast.css). */
 const TOUCH_ONLY = matchMedia("(hover: none) and (pointer: coarse)");
 
 async function tryJoin() {
@@ -232,12 +232,15 @@ function tearDownRoomState() {
         stopScreenShare();
         isScreencasting = false;
     }
+    /* Камера: трек стоп (гаснет диод), сцена назад в голос. До
+       closeAllConnections — сендеры ещё живы, но слать уже некуда. */
+    window.VoidCam?.reset();
     roomScreencasterId = null;
     closeScreenOverlay();
     updateScreencastButton(false);
     screencastBtn.classList.add("control-btn-stub");
     screencastBtn.setAttribute("aria-disabled", "true");
-    screencastBtn.setAttribute("aria-label", _t(TOUCH_ONLY.matches ? "controls.camera" : "controls.screencast.soon"));
+    screencastBtn.setAttribute("aria-label", _t("controls.screencast.soon"));
 
     nicknameMap.clear();
     leaveToken = null;
@@ -250,6 +253,7 @@ function tearDownRoomState() {
     }
 
     isJoined = false;
+    window.VoidWakeLock?.stop();
     currentRoomCode = null;
     _peerTrouble = false;
 
@@ -508,6 +512,7 @@ function enterRoomUI() {
     hideEntryError();
 
     isJoined = true;
+    window.VoidWakeLock?.start();
 
     if (window.VoidDesktop) window.VoidDesktop.setTrayState({ inRoom: true, roomCode: currentRoomCode });
 
@@ -521,8 +526,7 @@ function enterRoomUI() {
     applyAudioState();
     setConnectionState("connected");
 
-    /* Touch devices can't share a screen: the slot shows the camera (coming
-       in a later update) and stays a disabled stub. */
+    /* Touch devices can't share a screen: the button stays a hidden stub. */
     if (!TOUCH_ONLY.matches) {
         screencastBtn.classList.remove("control-btn-stub");
         screencastBtn.setAttribute("aria-label", _t("controls.screencast.share"));
@@ -548,7 +552,7 @@ document.addEventListener("void:locale-changed", () => {
 
     if (screencastBtn) {
         if (screencastBtn.classList.contains("control-btn-stub")) {
-            screencastBtn.setAttribute("aria-label", _t(TOUCH_ONLY.matches ? "controls.camera" : "controls.screencast.soon"));
+            screencastBtn.setAttribute("aria-label", _t("controls.screencast.soon"));
         } else {
             const isOn = screencastBtn.classList.contains("active");
             screencastBtn.setAttribute("aria-label", isOn ? _t("controls.screencast.stop") : _t("controls.screencast.share"));

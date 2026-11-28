@@ -42,6 +42,7 @@ import {
     handleJoinRoom,
     handleJoinConfirm,
     handleScreencastState,
+    handleCameraState,
     handleRoomCloseVote,
     handleRoomOpen,
     handleAudioState,
@@ -476,6 +477,10 @@ wss.on("connection", (ws, req) => {
 
                 case "screencast-state":
                     handleScreencastState(ws, data);
+                    break;
+
+                case "camera-state":
+                    handleCameraState(ws, data);
                     break;
 
                 case "room-close-vote":

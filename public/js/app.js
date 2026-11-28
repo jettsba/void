@@ -175,6 +175,7 @@ function init() {
     micBtn.addEventListener("click", toggleMic);
     soundBtn.addEventListener("click", toggleSound);
     screencastBtn.addEventListener("click", handleScreencastBtnClick);
+    document.getElementById("camBtn")?.addEventListener("click", toggleCamera);
 
     document.getElementById("screenOverlayClose").addEventListener("click", closeScreenOverlay);
 
@@ -777,6 +778,15 @@ function reflowLobbyPanel() {
     const footer = document.querySelector(".footer-meta");
     const users = document.querySelector(".users-area");
     if (!panel || !footer || !users) return;
+
+    /* Режим камер: панель стоит у футера по своей формуле (js/cam-stage.js),
+       её бокс сейчас не про штатное положение — squeeze по нему соврал бы на
+       возврат (и пока она едет обратно). Сцена зовёт нас, когда панель доехала. */
+    const appCls = document.getElementById("app")?.classList;
+    if (appCls && (appCls.contains("cams") || appCls.contains("cam-motion"))) {
+        if (typeof scheduleParticipantsLayout === "function") scheduleParticipantsLayout(true);
+        return;
+    }
 
     const pr = panel.getBoundingClientRect();
 

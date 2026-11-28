@@ -3,11 +3,14 @@
 <plist version="1.0">
 <dict>
     <!-- Без этой строки macOS не покажет запрос доступа к микрофону и молча
-         откажет getUserMedia. Камера и запись экрана своей строки не требуют:
-         камеру void не просит, а демонстрацию WebKit ведёт через системный
-         выбор экрана. -->
+         откажет getUserMedia. Запись экрана своей строки не требует:
+         демонстрацию WebKit ведёт через системный выбор экрана. -->
     <key>NSMicrophoneUsageDescription</key>
     <string>void uses the microphone for voice calls.</string>
+    <!-- Камера в звонке и сканер QR в друзьях (js/camera.js, js/friends/ui.js).
+         Без строки getUserMedia({video}) отказывает молча, без запроса. -->
+    <key>NSCameraUsageDescription</key>
+    <string>void uses the camera for video in calls and to scan friend QR codes.</string>
     <!-- Звук демонстрации: Core Audio process tap пишет системный звук (кроме
          самого void), и без этой строки система не покажет запрос «запись звука
          системы» — создание тапа просто вернёт ошибку. См.

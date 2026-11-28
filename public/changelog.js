@@ -27,6 +27,30 @@
 
 window.VoidChangelog = [
     {
+        version: "1.13.0",
+        date: "2026-11-28",
+        ru: [
+            "в void теперь можно включить камеру",
+            "- вид в комнате полностью адаптивный",
+            "- качество автоматически подстраивается",
+            "- работает вместе с демкой экрана",
+            "раздел «аудио» в настройках теперь называется «устройства»",
+            "сканер qr-кода в друзьях теперь и в приложении",
+            "микрофон на телефоне сам оживает после сворачивания, экран не гаснет во время звонка",
+            "блобы теперь плавнее появляются, уходят и переезжают"
+        ],
+        en: [
+            "you can now turn on your camera in void",
+            "- the room layout is fully adaptive",
+            "- quality adjusts automatically",
+            "- works alongside screen sharing",
+            "the “audio” settings section is now called “devices”",
+            "the friends qr scanner now works in the app too",
+            "the phone mic recovers on its own after minimizing, the screen stays on during a call",
+            "participant blobs appear, leave and move more smoothly"
+        ],
+    },
+    {
         version: "1.12.2",
         date: "2026-11-24",
         ru: [

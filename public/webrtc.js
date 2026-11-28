@@ -253,26 +253,99 @@ function watchLocalMicTrack(stream) {
     const track = stream?.getAudioTracks?.()[0];
     if (!track) return;
     track.addEventListener("ended", onLocalMicEnded, { once: true });
+    /* Mobile OSes take the mic away without ending the track: iOS mutes it
+       when the PWA goes to background / Control Center opens, Android Chrome
+       when the screen turns off. WebKit often never unmutes it on return
+       (the capture stays dead while the track looks "live"), so a mute is a
+       cue to re-check once the app is back in front. */
+    track.addEventListener("mute", () => scheduleMicHealthCheck("mute"));
 }
 
 let _micReinitInFlight = false;
+let _micCheckTimer = null;
+let _micGestureRetryArmed = false;
 
-async function onLocalMicEnded() {
+function onLocalMicEnded() {
+    log.warn("rtc", "local mic track ended unexpectedly");
+    /* Hidden (iOS kills capture on background): getUserMedia would fail or
+       hang there, so leave it to the visibility handler on return. */
+    if (document.visibilityState === "visible") recoverLocalMic("ended");
+}
+
+/* Focus matters only for the mute path: with Control Center / the shade
+   open the page is still "visible", but the OS holds the mic until it closes. */
+function _micInForeground() {
+    return document.visibilityState === "visible"
+        && (typeof document.hasFocus !== "function" || document.hasFocus());
+}
+
+/* Silent self-heal: no toast while we can still recover on our own. If
+   getUserMedia fails here (iOS can refuse it without a user gesture right
+   after resume), the next tap anywhere retries; only a failure on that
+   explicit retry is worth telling the user about. */
+let _micRecoveryTimes = [];
+
+async function recoverLocalMic(reason, fromGesture = false) {
     if (_micReinitInFlight) return;
+    if (typeof isJoined !== "undefined" && !isJoined) return;
+    /* Cap automatic rebuilds: if the OS keeps handing us a muted track
+       (mic held by a phone call), don't spin getUserMedia every second.
+       A tap still goes through. */
+    const now = Date.now();
+    _micRecoveryTimes = _micRecoveryTimes.filter(ts => now - ts < 30000);
+    if (!fromGesture && _micRecoveryTimes.length >= 3) {
+        armMicGestureRetry(reason);
+        return;
+    }
+    _micRecoveryTimes.push(now);
     _micReinitInFlight = true;
     try {
-        log.warn("rtc", "local mic track ended unexpectedly");
-        if (typeof isJoined !== "undefined" && !isJoined) return;
-        if (typeof showRoomToast === "function") {
-            showRoomToast(_micT("errors.mic-lost"));
+        if (fromGesture && audioContext && audioContext.state !== "running") {
+            await audioContext.resume().catch(() => {});
         }
+        log.info("rtc", "mic recovery", { reason, fromGesture });
         const ok = await reinitLocalMic();
-        if (!ok && typeof showRoomToast === "function") {
-            showRoomToast(_micT("errors.mic-lost.failed"));
-        }
+        if (ok) return;
+        if (!fromGesture) armMicGestureRetry(reason);
+        else if (typeof showRoomToast === "function") showRoomToast(_micT("errors.mic-lost.failed"));
     } finally {
         _micReinitInFlight = false;
     }
+}
+
+function armMicGestureRetry(reason) {
+    if (_micGestureRetryArmed) return;
+    _micGestureRetryArmed = true;
+    const retry = () => {
+        window.removeEventListener("pointerdown", retry, true);
+        window.removeEventListener("keydown", retry, true);
+        _micGestureRetryArmed = false;
+        if (micNeedsRecovery()) recoverLocalMic(reason, true);
+    };
+    window.addEventListener("pointerdown", retry, true);
+    window.addEventListener("keydown", retry, true);
+}
+
+function micNeedsRecovery() {
+    if (typeof isJoined !== "undefined" && !isJoined) return false;
+    if (!localStream) return false;
+    const t = localStream.getAudioTracks?.()[0];
+    return !t || t.readyState === "ended" || t.muted;
+}
+
+/* A mute can be transient (an OS sound, a quick shade pull), so give the
+   track a moment to unmute by itself and only rebuild if it is still dead
+   while the app is in front. While hidden we wait: the visibility/focus
+   handlers re-run this on return. */
+function scheduleMicHealthCheck(reason, delay = 1200) {
+    clearTimeout(_micCheckTimer);
+    _micCheckTimer = setTimeout(() => {
+        _micCheckTimer = null;
+        if (!_micInForeground() || !micNeedsRecovery()) return;
+        const t = localStream.getAudioTracks?.()[0];
+        log.warn("rtc", "mic dead in foreground, recovering", { reason, track: t?.readyState, muted: t?.muted });
+        recoverLocalMic(reason);
+    }, delay);
 }
 
 function _micT(key) {
@@ -288,17 +361,36 @@ function _micT(key) {
  * Возвращает true если получилось, false если getUserMedia провалился.
  */
 async function reinitLocalMic() {
-    teardownAudioGraph();
-    localStream = null;
-    processedStream = null;
+    clearTimeout(_micCheckTimer);
+    _micCheckTimer = null;
 
+    /* Acquire first, tear down after: a failed getUserMedia (no gesture,
+       OS still holding the mic) must not leave us with no graph at all —
+       the old one stays wired and the next trigger retries. */
+    let fresh;
     try {
-        localStream = await acquireMicStream();
+        fresh = await acquireMicStream();
     } catch (err) {
         log.error("rtc", "mic re-acquire failed", { err: err?.message || String(err) });
         return false;
     }
+    /* Left the room while getUserMedia was pending. */
+    if (typeof isJoined !== "undefined" && !isJoined) {
+        fresh.getTracks().forEach(t => t.stop());
+        return false;
+    }
 
+    const oldRaw = localStream;
+    const oldProcessed = processedStream;
+    teardownAudioGraph();
+    localStream = fresh;
+    processedStream = null;
+    oldRaw?.getTracks().forEach(t => t.stop());
+    oldProcessed?.getTracks().forEach(t => t.stop());
+
+    if (audioContext && audioContext.state !== "running") {
+        audioContext.resume().catch(() => {});
+    }
     processedStream = await applyAudioProcessing(localStream);
     watchLocalMicTrack(localStream);
 
@@ -791,16 +883,11 @@ document.addEventListener("visibilitychange", () => {
                 ctx: audioContext?.state || "none",
                 processed: processedStream?.active ?? null
             });
-            /* Если track реально умер за время фоновой работы (выдернули
-               USB, OS прибила сессию) — onLocalMicEnded мог не выстрелить,
-               пока вкладка была hidden (event loop тоже мог тормозить).
-               Триггерим reinit вручную через тот же путь — там стоит
-               _micReinitInFlight guard, повторный no-op безопасен. */
-            if (t.readyState === "ended" && typeof onLocalMicEnded === "function") {
-                log.warn("rtc", "mic track ended during background, reiniting");
-                onLocalMicEnded();
-            }
         }
+        /* Track ended or stuck muted after background (iOS PWA, Android
+           screen-off) — re-check and silently rebuild. Short delay lets an
+           honest track unmute by itself first. */
+        if (micNeedsRecovery()) scheduleMicHealthCheck("visible", 600);
     }
 
     for (const audio of audioMap.values()) {
@@ -810,6 +897,16 @@ document.addEventListener("visibilitychange", () => {
         }
     }
 });
+
+/* Closing Control Center / the notification shade on iOS returns focus
+   without any visibilitychange, and a PWA resumed from the app switcher can
+   come back via pageshow only. Same silent check on both. */
+["focus", "pageshow"].forEach(ev => window.addEventListener(ev, () => {
+    if (audioContext && (audioContext.state === "suspended" || audioContext.state === "interrupted")) {
+        audioContext.resume().catch(() => {});
+    }
+    if (micNeedsRecovery()) scheduleMicHealthCheck(ev, 600);
+}));
 
 /**
  * T2-bg-fix: мгновенно открыть mic gate (без ramp'а). Используется в
@@ -1039,45 +1136,12 @@ function createPeer(userId, isChatInitiator) {
 
     peer.ontrack = (event) => {
         if (event.track.kind === 'video') {
-            let videoEl = videoMap.get(userId);
-            if (!videoEl) {
-                videoEl = document.createElement('video');
-                videoEl.autoplay = true;
-                videoEl.playsInline = true;
-                videoEl.muted = true; // audio routed via WebAudio in screen overlay only
-                videoMap.set(userId, videoEl);
-            }
-            videoEl.srcObject = event.streams[0];
-            event.track.onended = () => {
-                videoMap.delete(userId);
-                if (typeof closeScreenOverlay === 'function') {
-                    /* track.ended может быть «временно» (стример пересобирает peer);
-                       сохраняем lastWatchedUserId — если в течение auto-reopen
-                       окна приедет новый трек, авто-реоткроемся. Если стример
-                       реально выключил демку, придёт screencast-state:false. */
-                    closeScreenOverlay({ preserveAutoReopen: true });
-                }
-            };
-            /* Hot-swap: оверлей уже открыт для этого user'а, но трек
-               пересоздался (sig-stuck rebuild, ICE restart с новым m-line'ом).
-               screenOverlayVideo всё ещё держит СТАРЫЙ stream-объект, кадры
-               по нему не идут → визуально чёрный экран. Подменяем srcObject
-               на новый стрим напрямую, не дожидаясь auto-reopen. */
-            if (typeof refreshOverlayStreamIfOpen === 'function') {
-                refreshOverlayStreamIfOpen(userId, event.streams[0]);
-            }
-            /* Watchdog «черный экран»: бывает peer connected, screen-track
-               приехал, но frame'ы не декодируются (transceiver direction
-               перепутался, codec mismatch, BWE стартовал в 0). Через 5s
-               после первого ontrack проверяем framesDecoded; если 0 — дёргаем
-               ICE restart, что часто разлепляет негоциацию. Без watchdog'а
-               зритель сидит на черном экране, пока не нажмёт re-join. */
-            scheduleVideoDecodeWatchdog(peer, userId);
-            /* Если пользователь успел кликнуть «watch screen» до того,
-               как трек приехал — открыть оверлей сейчас. */
-            if (typeof notifyScreenVideoReady === 'function') {
-                notifyScreenVideoReady(userId);
-            }
+            /* Видео теперь двух сортов: камера и демка. Камеру узнаём по id
+               её MediaStream (camera-state sid, js/camera.js); трек, который
+               обогнал camera-state, камера-модуль паркует и сам вернёт в
+               handleScreenVideoTrack, если камерой он не окажется. */
+            if (window.VoidCam?.routeTrack(peer, userId, event)) return;
+            handleScreenVideoTrack(peer, userId, event);
             return;
         }
 
@@ -1173,7 +1237,7 @@ function createPeer(userId, isChatInitiator) {
                 sdp = patchOpusForStereo(sdp);
                 /* x-google-* в fmtp видео: бьёт BWE cold-start ramp в зародыше
                    (без него Chrome стартует с 200 kbps и ползёт минуту). */
-                sdp = patchVideoStartBitrate(sdp, screenTargetHeight, screenTargetFps);
+                sdp = patchVideoStartBitrate(sdp, screenTargetHeight, screenTargetFps, screenStream.id);
             }
             /* L6: warn если SDP подбирается к лимиту сервера (48 KB, MAX_SDP_BYTES
                в lib/handlers.js; порог предупреждения — 3/4 от него). Каждый
@@ -1238,6 +1302,10 @@ function createPeer(userId, isChatInitiator) {
         preferH264Video(peer);
     }
 
+    /* Камера: новому пиру — так же, как демка (и только тем, кто умеет её
+       показать: caps, js/camera.js). */
+    window.VoidCam?.attachPeer(userId, peer);
+
     peers.set(userId, peer);
 
     /* Если идёт наша демка и подключился новый зритель — пересчитать video-бюджет
@@ -1247,6 +1315,51 @@ function createPeer(userId, isChatInitiator) {
     reapplyScreenVideoBudget();
 
     return peer;
+}
+
+/* Видео-трек демки (до камер всё входящее видео было демкой). Вынесено из
+   ontrack: сюда же камера-модуль возвращает припаркованный трек, если тот
+   оказался не камерой (js/camera.js routeTrack). */
+function handleScreenVideoTrack(peer, userId, event) {
+    let videoEl = videoMap.get(userId);
+    if (!videoEl) {
+        videoEl = document.createElement('video');
+        videoEl.autoplay = true;
+        videoEl.playsInline = true;
+        videoEl.muted = true; // audio routed via WebAudio in screen overlay only
+        videoMap.set(userId, videoEl);
+    }
+    videoEl.srcObject = event.streams[0];
+    event.track.onended = () => {
+        videoMap.delete(userId);
+        if (typeof closeScreenOverlay === 'function') {
+            /* track.ended может быть «временно» (стример пересобирает peer);
+               сохраняем lastWatchedUserId — если в течение auto-reopen
+               окна приедет новый трек, авто-реоткроемся. Если стример
+               реально выключил демку, придёт screencast-state:false. */
+            closeScreenOverlay({ preserveAutoReopen: true });
+        }
+    };
+    /* Hot-swap: оверлей уже открыт для этого user'а, но трек
+       пересоздался (sig-stuck rebuild, ICE restart с новым m-line'ом).
+       screenOverlayVideo всё ещё держит СТАРЫЙ stream-объект, кадры
+       по нему не идут → визуально чёрный экран. Подменяем srcObject
+       на новый стрим напрямую, не дожидаясь auto-reopen. */
+    if (typeof refreshOverlayStreamIfOpen === 'function') {
+        refreshOverlayStreamIfOpen(userId, event.streams[0]);
+    }
+    /* Watchdog «черный экран»: бывает peer connected, screen-track
+       приехал, но frame'ы не декодируются (transceiver direction
+       перепутался, codec mismatch, BWE стартовал в 0). Через 5s
+       после первого ontrack проверяем framesDecoded; если 0 — дёргаем
+       ICE restart, что часто разлепляет негоциацию. Без watchdog'а
+       зритель сидит на черном экране, пока не нажмёт re-join. */
+    scheduleVideoDecodeWatchdog(peer, userId, event.track.id);
+    /* Если пользователь успел кликнуть «watch screen» до того,
+       как трек приехал — открыть оверлей сейчас. */
+    if (typeof notifyScreenVideoReady === 'function') {
+        notifyScreenVideoReady(userId);
+    }
 }
 
 /**
@@ -1708,6 +1821,7 @@ function pinPeerToRelay(userId, reason, fields) {
     /* Битрейт-капы relay — потолки, ставить заранее безопасно. */
     peer._isRelay = true;
     enqueueScreenParams(() => applyRelayBitrateLimits(peer));
+    window.VoidCam?.reapply(userId);
     peer._recoveryPhase = "restarting";
     reevaluatePeerHealth();
     const t = setTimeout(() => {
@@ -1910,7 +2024,7 @@ function stopZombieWatcher(userId) {
  * помог за следующее окно — health-state-machine сама дойдёт до rebuild.
  * Идемпотентно: повторный вызов сбрасывает таймер, чтобы не накапливать.
  */
-function scheduleVideoDecodeWatchdog(peer, userId) {
+function scheduleVideoDecodeWatchdog(peer, userId, trackId) {
     const prev = videoDecodeWatchdogs.get(userId);
     if (prev) clearTimeout(prev);
     const timer = setTimeout(async () => {
@@ -1922,7 +2036,10 @@ function scheduleVideoDecodeWatchdog(peer, userId) {
             const stats = await p.getStats();
             let decoded = null;
             stats.forEach(r => {
-                if (r.type === "inbound-rtp" && r.kind === "video") {
+                /* Только трек демки: камера в том же peer'е может честно
+                   стоять (выключена → 0 кадров), это не повод для restart. */
+                if (r.type === "inbound-rtp" && r.kind === "video"
+                    && (!trackId || !r.trackIdentifier || r.trackIdentifier === trackId)) {
                     decoded = (decoded || 0) + (r.framesDecoded || 0);
                 }
             });
@@ -2074,6 +2191,7 @@ function cleanupPeerSlot(userId) {
     clearVideoDecodeWatchdog(userId);
     clearSigStuckTimer(userId);
     _pingCache.delete(userId);
+    window.VoidCam?.detachPeer(userId);
 
     /* F20: peer ушёл — пересчитываем сводное здоровье. Если это был
        единственный «трудный» peer — индикатор вернётся в зелёное. */
@@ -2517,6 +2635,7 @@ async function startScreenShare(height = 1080, fps = 60, captureAudio = false) {
        (иначе ранние пиры считались бы под неполный счёт). relay/direct — внутри. */
     reapplyScreenVideoBudget();
     startScreenAdapt();
+    window.VoidCam?.reapplyAll();
     /* `ended` тут означает ровно одно: демку прекратили СНАРУЖИ — кнопкой
        «Остановить показ» браузера или системы. Собственный stopScreenShare()
        снимает этот обработчик до track.stop() (спека `ended` на stop() не
@@ -2564,7 +2683,7 @@ function patchOpusForStereo(sdp) {
  *
  * Парсим SDP посекционно по `m=` строкам, чтобы случайно не задеть аудио-fmtp.
  */
-function patchVideoStartBitrate(sdp, height, fps) {
+function patchVideoStartBitrate(sdp, height, fps, streamId) {
     /* Цифры в КБИТАХ для x-google-* (не байтах, как maxBitrate).
        max — потолок (помогает стабильности BWE, см. rtcbits).
        start — УМЕРЕННЫЙ (≤2.5 Mbps): даёт приличную картинку в первые секунды
@@ -2586,11 +2705,20 @@ function patchVideoStartBitrate(sdp, height, fps) {
     const max   = target;
 
     const lines = sdp.split(/\r?\n/);
+    /* Только m-секция демки (a=msid её стрима): рядом теперь живёт камера, ей
+       демочные потолки ни к чему. Без streamId — все video, как раньше. */
+    const ownSection = (from) => {
+        if (!streamId) return true;
+        for (let k = from + 1; k < lines.length && !lines[k].startsWith("m="); k++) {
+            if (lines[k].startsWith(`a=msid:${streamId} `)) return true;
+        }
+        return false;
+    };
     let videoPts = null; // Set<string> | null — null когда вне m=video секции
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         if (line.startsWith("m=")) {
-            if (line.startsWith("m=video ")) {
+            if (line.startsWith("m=video ") && ownSection(i)) {
                 videoPts = new Set();
                 const parts = line.split(/\s+/);
                 for (let j = 3; j < parts.length; j++) {
@@ -2669,8 +2797,12 @@ function preferH264Video(peer) {
         ...caps.codecs.filter(second),
         ...caps.codecs.filter(c => !first(c) && !second(c))
     ];
+    /* Только трансиверы демки: у камеры свой порядок (H.264 → VP8, см.
+       js/camera.js) — VP9 софтовый, а энкодеров камеры до 9 разом. */
+    const mine = screenSenders.get(peer._userId) || [];
     for (const t of peer.getTransceivers()) {
         if (t.sender?.track?.kind !== "video") continue;
+        if (!mine.includes(t.sender)) continue;
         if (typeof t.setCodecPreferences !== "function") continue;
         try {
             t.setCodecPreferences(preferred);
@@ -3001,6 +3133,7 @@ function stopScreenShare() {
     screenTargetHeight = 1080;
     screenTargetFps = 30;
     stopScreenAdapt();
+    window.VoidCam?.reapplyAll();
     emitScreencastActive(false);
     labEvent("screen-stop", {});
 }
@@ -3044,6 +3177,23 @@ function stopScreenAdapt() {
     _adaptState.clear();
 }
 
+/* outbound-rtp + media-source одного конкретного трека из снимка getStats.
+   До камер видео-отправка в peer'е была одна (демка), и брали «любой video».
+   Связка: media-source.trackIdentifier === track.id ← outbound.mediaSourceId.
+   Движок без mediaSourceId (старый WebKit) — прежний «любой video», если он
+   в снимке единственный. */
+function senderVideoStats(stats, track) {
+    let src = null;
+    const outs = [];
+    stats.forEach(r => {
+        if (r.type === "media-source" && r.kind === "video" && track && r.trackIdentifier === track.id) src = r;
+        else if (r.type === "outbound-rtp" && r.kind === "video") outs.push(r);
+    });
+    let out = src ? outs.find(o => o.mediaSourceId === src.id) || null : null;
+    if (!out && outs.length === 1 && !outs[0].mediaSourceId) out = outs[0];
+    return { out, src };
+}
+
 function isSoftwareEncoder(out) {
     if (out.powerEfficientEncoder === false) return true;
     return /OpenH264|libvpx|libaom|SVT/i.test(out.encoderImplementation || "");
@@ -3067,12 +3217,9 @@ async function screenAdaptTick() {
                sender.getStats её отдаёт не везде — тогда спрашиваем peer. */
             stats = sender._bootH ? await peer.getStats() : await sender.getStats();
         } catch (_) { continue; }
-        let out = null, src = null;
-        stats.forEach(r => {
-            /* video у нас — только демка, так что в снимке peer'а она одна. */
-            if (r.type === "outbound-rtp" && r.kind === "video") out = r;
-            else if (r.type === "media-source" && r.kind === "video") src = r;
-        });
+        /* Рядом с демкой в снимке peer'а может быть камера — берём строго
+           outbound-rtp трека демки. */
+        const { out, src } = senderVideoStats(stats, sender.track);
         const now = performance.now();
         if (sender._bootH) screenBootTick(userId, st, sender, stats, now);
         if (!out) continue;
@@ -3214,13 +3361,20 @@ async function _collectPeerHud() {
     for (const [userId, peer] of peers) {
         let stats;
         try { stats = await peer.getStats(); } catch (_) { continue; }
-        let vout = null, aout = null, vrin = null, arin = null;
+        let aout = null, arin = null;
         stats.forEach(r => {
-            if (r.type === "outbound-rtp" && r.kind === "video") vout = r;
-            else if (r.type === "outbound-rtp" && r.kind === "audio") aout = r;
-            else if (r.type === "remote-inbound-rtp" && r.kind === "video") vrin = r;
+            if (r.type === "outbound-rtp" && r.kind === "audio" && r.mediaSourceId
+                && peer._micSender?.track && stats.get(r.mediaSourceId)?.trackIdentifier === peer._micSender.track.id) aout = r;
+            else if (r.type === "outbound-rtp" && r.kind === "audio" && !aout) aout = r;
             else if (r.type === "remote-inbound-rtp" && r.kind === "audio") arin = r;
         });
+        /* Демка и камера — отдельные outbound'ы одного peer'а. */
+        const scrTrack = (screenSenders.get(userId) || []).find(s => s.track?.kind === "video")?.track;
+        const vout = scrTrack ? senderVideoStats(stats, scrTrack).out : null;
+        const camTrack = window.VoidCam?.localTrack?.();
+        const cout = camTrack ? senderVideoStats(stats, camTrack).out : null;
+        let vrin = null;
+        stats.forEach(r => { if (vout && r.type === "remote-inbound-rtp" && r.localId === vout.id) vrin = r; });
         const pair = selectedCandidatePair(stats);
         const lc = pair && stats.get(pair.localCandidateId);
         const rc = pair && stats.get(pair.remoteCandidateId);
@@ -3246,7 +3400,12 @@ async function _collectPeerHud() {
             line += `\n   screen: ${vout.frameWidth || 0}x${vout.frameHeight || 0}@${Math.round(vout.framesPerSecond || 0)} ${kbps}kbps qLim=${vout.qualityLimitationReason || "?"} loss=${loss}%`;
             line += `\n   enc: ${vout.encoderImplementation || "?"}`;
         }
-        _hudPrev.set(userId, { vbytes: vout?.bytesSent || 0, abytes: aout?.bytesSent || 0, ts: now });
+        if (cout) {
+            const kbps = dt ? Math.round(((cout.bytesSent - (prev.cbytes || 0)) * 8) / 1000 / dt) : 0;
+            const tier = window.VoidCam?.tierInfo?.(userId);
+            line += `\n   cam: ${cout.frameWidth || 0}x${cout.frameHeight || 0}@${Math.round(cout.framesPerSecond || 0)} ${kbps}kbps ${tier?.id || "?"} qLim=${cout.qualityLimitationReason || "?"} enc=${cout.encoderImplementation || "?"}`;
+        }
+        _hudPrev.set(userId, { vbytes: vout?.bytesSent || 0, abytes: aout?.bytesSent || 0, cbytes: cout?.bytesSent || 0, ts: now });
         lines.push(line);
     }
     return lines.length ? lines.join("\n") : null;
@@ -3288,11 +3447,12 @@ async function collectDiagReport() {
         for (const [userId, peer] of peers) {
             let stats;
             try { stats = await peer.getStats(); } catch (_) { continue; }
-            let vout = null, pair = null;
+            let pair = null;
             stats.forEach(r => {
-                if (r.type === "outbound-rtp" && r.kind === "video") vout = r;
-                else if (r.type === "candidate-pair" && r.nominated && r.state === "succeeded") pair = r;
+                if (r.type === "candidate-pair" && r.nominated && r.state === "succeeded") pair = r;
             });
+            const scrTrack = (screenSenders.get(userId) || []).find(s => s.track?.kind === "video")?.track;
+            const vout = scrTrack ? senderVideoStats(stats, scrTrack).out : null;
             const lc = pair && stats.get(pair.localCandidateId);
             const rc = pair && stats.get(pair.remoteCandidateId);
             report.peers.push({
@@ -3671,6 +3831,9 @@ async function reportConnectivity(peer) {
         peer._isRelay = true;
         await enqueueScreenParams(() => applyRelayBitrateLimits(peer));
     }
+    /* Параметры камеры — заново на живом соединении: до первой негоциации
+       setParameters мог не принять encodings, плюс relay-кап. */
+    window.VoidCam?.reapply(peer._userId);
 }
 
 /**
@@ -3692,7 +3855,9 @@ async function reportConnectivity(peer) {
  * 256 kbps, критично для качества демки и в общем балансе это копейки).
  */
 async function applyRelayBitrateLimits(peer) {
-    const senders = peer.getSenders ? peer.getSenders() : [];
+    /* Только демка: у камеры свой relay-кап (js/camera.js), иначе на неё
+       легли бы демочные 8M/60fps. */
+    const senders = screenSenders.get(peer._userId) || [];
     /* Тот же бюджет-на-зрителя, что и для direct: relay-потолок 8 Mbps, при
        большом числе зрителей делённый бюджет опускает его ниже (6 зрителей →
        ~4.7 Mbps, 9 → ~3.1 Mbps). */

@@ -48,13 +48,17 @@ function _onAnimationEndOrFallback(el, onDone) {
     const fire = () => {
         if (done) return;
         done = true;
-        el.removeEventListener("animationend", fire);
+        el.removeEventListener("animationend", onEnd);
         clearTimeout(timer);
         if (typeof onDone === "function") onDone();
         else el.remove();
     };
-    el.addEventListener("animationend", fire, { once: true });
-    const timer = setTimeout(fire, 500);
+    /* Ловим конец именно ухода блоба (blob-gone, 1.5 × --d-med): ник гаснет
+       раньше, и его animationend всплывает сюда же — по нему узел снимался бы
+       посреди схлопывания. */
+    const onEnd = (e) => { if (e.target === el) fire(); };
+    el.addEventListener("animationend", onEnd);
+    const timer = setTimeout(fire, MOTION.med * 1.5 + 200);
 }
 
 /**
@@ -80,15 +84,16 @@ function _markMounted(el) {
         el.classList.remove("pop-in");
         el.classList.add("is-in");
     };
-    /* Именно фейд самого участника: animationend аватара всплывает сюда же,
-       обе анимации одной длины — берём одну, чтобы не ловить гонку. */
+    /* Ждём ПОСЛЕДНЮЮ фазу рождения — проявление ника (blob-name-in, с задержкой
+       0.6 × --d-med, кончается позже blob-born). Фейд самого участника теперь
+       короткий (--t-fast): снимать .pop-in по нему — оборвать рождение. */
     const onEnd = (e) => {
-        if (e.target === el && e.animationName === "participant-fade-in") finish();
+        if (e.animationName === "blob-name-in") finish();
     };
     el.addEventListener("animationend", onEnd);
     /* Страховка как у _onAnimationEndOrFallback: при prefers-reduced-motion
-       анимации нет вовсе → события не будет. 700ms > 520ms длительности. */
-    const timer = setTimeout(finish, 700);
+       анимации нет вовсе → события не будет. */
+    const timer = setTimeout(finish, MOTION.med * 1.6 + 200);
 }
 
 /* ===== Invite hint =====
@@ -396,7 +401,7 @@ function _measureRegion(remPx) {
     const ax = a.left + a.width / 2, ay = a.top + a.height / 2;
     const headerB = header ? header.getBoundingClientRect().bottom : 0;
     let ctrlT = window.innerHeight;
-    if (controls && controls.getClientRects().length) ctrlT = controls.getBoundingClientRect().top;
+    if (controls && controls.getClientRects().length) ctrlT = controls.getBoundingClientRect().top - _panelSlideDelta();
     const s = stage ? stage.getBoundingClientRect() : { left: 0, right: window.innerWidth };
     const mSide = 1.4 * remPx, mTop = 1.0 * remPx, mBot = 1.0 * remPx;
     /* Мобилка + чат: контролы погашены, снизу лист чата → область = полоса
@@ -419,6 +424,24 @@ function _measureRegion(remPx) {
         down: Math.max(20, ctrlT - ay - mBot),
         halfW: Math.max(40, Math.min(ax - s.left, s.right - ax) - mSide)
     };
+}
+
+/* Панель ещё едет (выход из режима камер, js/cam-stage.js): её бокс сейчас
+   ниже, чем будет — корона по нему садилась на контролы. Поправка = где
+   панель сейчас − где кончится её transition. В покое 0. (Брать точку
+   покоя из --panel-offset-y нельзя: на телефоне responsive.css ставит
+   панель иначе, и корону уносило за экран.) */
+function _panelSlideDelta() {
+    const panel = document.querySelector(".panel-area");
+    const slide = panel?.getAnimations?.().find(a => a.transitionProperty === "transform");
+    if (!slide) return 0;
+    const kf = slide.effect?.getKeyframes?.() || [];
+    const ty = (t) => (t && t !== "none" ? new DOMMatrixReadOnly(t).m42 : 0);
+    try {
+        return ty(getComputedStyle(panel).transform) - ty(kf[kf.length - 1]?.transform);
+    } catch (_) {
+        return 0;
+    }
 }
 
 /* Дуга-корона: self в (0,0), others — по верхней полудуге (dy<0 = вверх).
@@ -550,8 +573,16 @@ function _fitScale(pos, sz, nameH, selfEl, selfSz, selfNameH, region) {
     return Math.max(0.35, f);
 }
 
-/* Главная функция: вычисляет и проставляет --sz/--px/--py всем участникам. */
-function layoutParticipants() {
+/* Главная функция раскладки. Сценой владеет js/cam-stage.js: в голосе он
+   зовёт корону (layoutCorona), с камерами раскладывает блобы в ряд под
+   сеткой сам. Без модуля камер — сразу корона. */
+function layoutParticipants(instant) {
+    if (window.VoidCamStage) { window.VoidCamStage.layout(instant); return; }
+    layoutCorona();
+}
+
+/* Корона: вычисляет и проставляет --sz/--px/--py всем участникам. */
+function layoutCorona() {
     if (!participantsContainer) return;
     const els = [...participantsContainer.querySelectorAll(".participant:not(.pop-out)")];
     const n = els.length;
@@ -628,7 +659,7 @@ function scheduleParticipantsLayout(instant) {
         const all = (inst && participantsContainer)
             ? [...participantsContainer.querySelectorAll(".participant")] : [];
         if (inst) all.forEach(e => e.classList.add("no-anim"));
-        layoutParticipants();
+        layoutParticipants(inst);
         if (inst) requestAnimationFrame(() => all.forEach(e => e.classList.remove("no-anim")));
         if (_pendingPopIns.size) {
             const pend = [..._pendingPopIns]; _pendingPopIns.clear();

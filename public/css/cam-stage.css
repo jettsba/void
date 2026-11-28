@@ -1,0 +1,619 @@
+/* ---------- Камеры: кнопка, режим сцены, плитки (js/cam-stage.js) ----------
+   Перенос лабы public/lab/cameras.html (tasks/camera-plan.md §5 «Решения из
+   лабы»). Стиль — rules/VOID_STYLE_GUIDE.md: hairline-бордеры, без теней,
+   движение = фейд + сдвиг ≤ 0.57rem за --t-med. */
+
+/* ===== Контролы =====
+   Сетка [mic][deaf][cam][screen], «выйти» на всю ширину снизу. Тач: демки
+   нет (кнопка скрыта, css/screencast.css) → три колонки. В режиме камер —
+   одна строка: видео нужна высота. */
+.panel-controls {
+    grid-template-columns: repeat(4, 3.14rem);
+}
+
+.app.cams .panel-controls {
+    grid-template-columns: repeat(4, 3.14rem) auto;
+}
+
+.app.cams .panel-controls .leave-btn {
+    grid-column: auto;
+    margin-left: 0.57rem;
+}
+
+@media (hover: none) and (pointer: coarse) {
+    .panel-controls {
+        grid-template-columns: repeat(3, 3.14rem);
+    }
+
+    .app.cams .panel-controls {
+        grid-template-columns: repeat(3, 3.14rem) auto;
+    }
+}
+
+/* «Вкл» — бордер --fg, не зелёный: зелёный по гайду = on-air демки, второй
+   сигнальный цвет на одной панели запрещён. */
+#camBtn.active {
+    color: var(--fg);
+    border-color: var(--fg);
+}
+
+#camBtn.is-busy {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+/* ===== Панель в режиме камер: едет вниз к футеру =====
+   transition — на базовом состоянии (.cam-motion живёт весь заход/выход),
+   иначе обратный переезд шёл бы без анимации. */
+.app.cam-motion .panel-area {
+    transition: transform var(--t-med);
+}
+
+@media (max-width: 740px) {
+    /* мобильный чат гасит панель фейдом (css/chat-overlay.css) — не терять */
+    .app.cam-motion .panel-area {
+        transition: transform var(--t-med), opacity var(--t-med), visibility var(--t-med);
+    }
+}
+
+.app.cams .panel-area {
+    transform: translateY(var(--cam-panel-shift, 0px));
+}
+
+/* ===== Ряд блобов: ники скрыты у всех, по наведению — в одну строку ===== */
+.app.cam-motion .participant .participant-name {
+    transition: opacity var(--t-med);
+}
+
+.app.cams .participant .participant-name {
+    opacity: 0;
+    flex-direction: row;
+    gap: 0.5em;
+    top: calc(100% + 0.36rem);   /* то же расстояние, что у ника миниатюры */
+}
+
+.app.cams .participant-name-line {
+    display: inline;
+}
+
+@media (hover: hover) {
+    .app.cams .participant:hover .participant-name {
+        opacity: 1;
+    }
+}
+
+/* ===== Сцена ===== */
+.cam-stage {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 3;
+}
+
+.cam-tile {
+    position: absolute;
+    left: 0;
+    top: 0;
+    box-sizing: border-box;
+    border: 1px solid var(--fg-4);
+    border-radius: 2px;
+    background: var(--bg-1);
+    overflow: hidden;
+    pointer-events: auto;
+    cursor: pointer;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+    transition: border-color var(--t-fast), translate var(--t-med);
+}
+
+.cam-stage.no-anim .cam-tile {
+    transition: none !important;
+}
+
+.cam-tile.is-ghost {
+    pointer-events: none;
+    z-index: 0;
+}
+
+.cam-tile.is-gone {
+    pointer-events: none;
+}
+
+.cam-tile.is-drag {
+    transition: width var(--t-med), height var(--t-med), border-color var(--t-fast) !important;
+    z-index: 5;
+    cursor: grabbing;
+    border-color: var(--fg-2);
+}
+
+.cam-tile.is-focus {
+    border-color: var(--fg-3);
+}
+
+.cam-frame {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    border-radius: 1px;
+    clip-path: inset(0 round 1px);
+}
+
+.cam-tile video,
+.cam-tile canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;   /* кадр обрезается, плитка всегда полная */
+    display: block;
+}
+
+/* кадр проявляется, когда пришёл первый (до этого — тихая подложка) */
+.cam-tile video {
+    opacity: 0;
+    transition: opacity var(--t-med);
+}
+
+.cam-tile.is-live video {
+    opacity: 1;
+}
+
+/* свой кадр — зеркалом, только на экране (собеседникам уходит как есть) */
+.cam-tile.is-self video,
+.cam-tile.is-self canvas {
+    transform: scaleX(-1);
+}
+
+/* Говорит: язык кольца блоба — поднимается и гаснет за --t-med, дышит
+   (ритм rbreath, гайд §8), пока человек говорит. Бордер + мягкий внутренний
+   свет (теней снаружи гайд не разрешает). */
+.cam-speak {
+    position: absolute;
+    inset: -1px;
+    border-radius: 2px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity var(--t-med);
+}
+
+.cam-speak::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 2px;
+    border: 1px solid rgba(200, 200, 204, 0.88);
+    box-shadow: inset 0 0 1.71rem rgba(200, 200, 204, 0.12);
+    animation: cam-breath 2.4s var(--ease) infinite;
+}
+
+@keyframes cam-breath {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.55; }
+}
+
+.cam-tile.is-speaking .cam-speak {
+    opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .cam-speak::before {
+        animation: none;
+    }
+}
+
+/* ===== Плашка: статус + ник (ник = путь в профиль) ===== */
+.cam-tag {
+    position: absolute;
+    left: 0.43rem;
+    bottom: 0.43rem;
+    max-width: calc(100% - 0.86rem);
+    display: inline-flex;
+    align-items: center;
+    gap: 0;
+    padding: 0.21rem 0.43rem;
+    background: rgba(10, 10, 11, 0.72);
+    border-radius: 2px;
+    color: var(--fg-2);
+    font-size: 0.71rem;
+    letter-spacing: var(--tracking);
+    text-transform: lowercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    pointer-events: auto;
+    transition: color var(--t-fast), opacity var(--t-med);
+}
+
+.cam-tag:hover {
+    color: var(--fg);
+}
+
+.cam-tag.is-inert,
+.cam-tag.is-inert:hover {
+    cursor: default;
+    color: var(--fg-2);
+}
+
+.cam-tag svg {
+    width: 0.86rem;
+    height: 0.86rem;
+    flex: none;
+    stroke: var(--signal-warn);
+    stroke-width: 1.5;
+    fill: none;
+    display: none;
+}
+
+/* deaf ⊇ muted → deaf побеждает (как иконки блоба) */
+.cam-tile.is-muted:not(.is-deaf) .cam-tag .i-mic,
+.cam-tile.is-deaf .cam-tag .i-deaf {
+    display: block;
+}
+
+/* ник сразу занимает место и просто проявляется рядом с иконкой статуса
+   (без выезда — появление = фейд); иконка не двигается */
+.cam-nick {
+    display: grid;
+    grid-template-columns: 1fr;
+    min-width: 0;
+    transition: opacity var(--t-med);
+}
+
+.cam-nick > span {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.cam-tile.is-muted .cam-nick,
+.cam-tile.is-deaf .cam-nick {
+    margin-left: 0.36rem;
+}
+
+.cam-tile.small .cam-tag {
+    font-size: 0.64rem;
+    left: 0.29rem;
+    bottom: 0.29rem;
+}
+
+/* dev: ступень, которую мы просим у отправителя (журнал/отладка) */
+.cam-tier {
+    position: absolute;
+    right: 0.43rem;
+    top: 0.43rem;
+    padding: 0.14rem 0.36rem;
+    background: rgba(10, 10, 11, 0.72);
+    border-radius: 2px;
+    color: var(--fg-2);
+    font-size: 0.64rem;
+    letter-spacing: 0;
+    display: none;
+    pointer-events: none;
+    transition: opacity var(--t-med);
+}
+
+body.show-cam-tiers .cam-tier {
+    display: block;
+}
+
+/* «смотреть экран»: у владельца камеры блоба нет, кнопка демки — на плитке */
+.cam-screen {
+    position: absolute;
+    left: 0.43rem;
+    top: 0.43rem;
+    display: none;
+    align-items: center;
+    gap: 0.36rem;
+    padding: 0.21rem 0.5rem;
+    border: 0;
+    border-radius: 2px;
+    background: rgba(10, 10, 11, 0.72);
+    color: var(--screen);
+    font: inherit;
+    font-size: 0.71rem;
+    letter-spacing: var(--tracking-wide);
+    text-transform: lowercase;
+    cursor: pointer;
+    pointer-events: auto;
+    transition: color var(--t-fast), opacity var(--t-med);
+}
+
+.cam-screen:hover {
+    color: var(--fg);
+}
+
+.cam-screen svg {
+    width: 0.93rem;
+    height: 0.93rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.cam-tile.is-sharing .cam-screen {
+    display: inline-flex;
+}
+
+.cam-tile.small .cam-screen span,
+.cam-tile.thumb .cam-screen span {
+    display: none;
+}
+
+.cam-tile.thumb .cam-screen {
+    padding: 0.21rem;
+    left: 0.21rem;
+    top: 0.21rem;
+}
+
+/* ===== Миниатюры фокуса: ник ПОД плиткой, по наведению =====
+   Зазор 0.36rem — паддинг ВНУТРИ ника, курсор не выходит из hover плитки по
+   пути вниз; гаснет через --d-slow, чтобы до ника можно было дотянуться. */
+.cam-tile.thumb {
+    overflow: visible;
+}
+
+.cam-tile.thumb .cam-tag {
+    top: 100%;
+    bottom: auto;
+    left: 50%;
+    max-width: none;
+    transform: translateX(-50%);
+    background: none;
+    padding: 0.36rem 0.29rem 0.14rem;
+    font-size: 0.64rem;
+    opacity: 0;
+    visibility: hidden;
+    transition: color var(--t-fast), opacity var(--t-med), visibility 0s linear var(--d-med);
+}
+
+.cam-tile.thumb.nick-on .cam-tag {
+    opacity: 1;
+    visibility: visible;
+    transition: color var(--t-fast), opacity var(--t-med), visibility 0s;
+}
+
+.cam-tile.thumb .cam-tier {
+    opacity: 0;
+}
+
+.cam-tile.thumb:hover .cam-tier {
+    opacity: 1;
+}
+
+/* ===== Режим управления (клик по плитке) =====
+   справа сверху — фокус · справа снизу — вертикальная громкость (как дуга
+   блоба: hairline-дорожка, заливка 1.4px). Миниатюра: съезжает на 0.86rem,
+   над ней горизонтальная громкость, затемнение + стрелка вверх. */
+.cam-expand,
+.cam-vol,
+.cam-up {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--t-med);
+}
+
+.cam-tile.is-ctl .cam-tier {
+    opacity: 0;
+}
+
+.cam-tile.is-ctl:not(.thumb) .cam-expand,
+.cam-tile.is-ctl:not(.is-self) .cam-vol {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.cam-stage.lone .cam-expand {
+    display: none;
+}
+
+.cam-expand {
+    position: absolute;
+    top: 0.43rem;
+    right: 0.43rem;
+    width: 2rem;
+    height: 2rem;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 2px;
+    background: rgba(10, 10, 11, 0.72);
+    color: var(--fg-2);
+    cursor: pointer;
+    transition: opacity var(--t-med), color var(--t-fast);
+}
+
+.cam-expand:hover {
+    color: var(--fg);
+}
+
+.cam-expand svg {
+    width: 1.07rem;
+    height: 1.07rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    vector-effect: non-scaling-stroke;
+}
+
+.cam-expand .i-min,
+.cam-tile.is-focus .cam-expand .i-max {
+    display: none;
+}
+
+.cam-tile.is-focus .cam-expand .i-min {
+    display: block;
+}
+
+.cam-vol {
+    position: absolute;
+    right: 0.57rem;
+    bottom: 0.57rem;
+    width: 1.14rem;
+    height: clamp(3.5rem, 34%, 8rem);
+    cursor: ns-resize;
+    touch-action: none;
+}
+
+.cam-vol::before,
+.cam-vol i {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: 0;
+    transform: translateX(-50%);
+    border-radius: 1px;
+}
+
+.cam-vol::before {
+    top: 0;
+    width: 1px;
+    background: rgba(230, 230, 232, 0.14);
+}
+
+.cam-vol i {
+    width: 1.4px;
+    height: calc(var(--v, 1) * 100%);
+    background: rgba(230, 230, 232, 0.7);
+    transition: background var(--t-fast);
+}
+
+.cam-vol:hover i {
+    background: var(--fg);
+}
+
+/* миниатюра: полоска горизонтальная, над плиткой */
+.cam-tile.thumb.is-ctl {
+    translate: 0 0.86rem;
+}
+
+.cam-tile.thumb .cam-vol {
+    left: 0;
+    right: 0;
+    top: -0.86rem;
+    bottom: auto;
+    width: auto;
+    height: 0.57rem;
+    cursor: ew-resize;
+}
+
+.cam-tile.thumb .cam-vol::before,
+.cam-tile.thumb .cam-vol i {
+    left: 0;
+    top: 50%;
+    bottom: auto;
+    transform: translateY(-50%);
+}
+
+.cam-tile.thumb .cam-vol::before {
+    right: 0;
+    width: auto;
+    height: 1px;
+}
+
+.cam-tile.thumb .cam-vol i {
+    height: 1.4px;
+    width: calc(var(--v, 1) * 100%);
+}
+
+.cam-up {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    background: rgba(10, 10, 11, 0.55);
+    color: var(--fg);
+}
+
+.cam-up svg {
+    width: 1.29rem;
+    height: 1.29rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.cam-tile.thumb.is-ctl .cam-up {
+    opacity: 1;
+}
+
+.cam-tile.thumb.is-ctl .cam-tag {
+    opacity: 1;
+    visibility: visible;
+    transition: color var(--t-fast), opacity var(--t-med), visibility 0s;
+}
+
+/* 3+ равные плитки (десктоп): статус mute/deaf всегда, ник проявляется
+   рядом по наведению (и в режиме управления). Нет статуса → плашка только
+   по наведению. */
+.cam-stage.many .cam-tile:not(.thumb):not(.is-muted):not(.is-deaf) .cam-tag {
+    opacity: 0;
+}
+
+.cam-stage.many .cam-tile:not(.thumb) .cam-nick {
+    grid-template-columns: 0fr;
+    opacity: 0;
+    margin-left: 0;
+}
+
+.cam-stage.many .cam-tile:not(.thumb):hover .cam-tag,
+.cam-stage.many .cam-tile.is-ctl:not(.thumb) .cam-tag {
+    opacity: 1;
+}
+
+.cam-stage.many .cam-tile:not(.thumb):hover .cam-nick,
+.cam-stage.many .cam-tile.is-ctl:not(.thumb) .cam-nick {
+    grid-template-columns: 1fr;
+    opacity: 1;
+}
+
+.cam-stage.many .cam-tile.is-muted:not(.thumb):hover .cam-nick,
+.cam-stage.many .cam-tile.is-deaf:not(.thumb):hover .cam-nick,
+.cam-stage.many .cam-tile.is-muted.is-ctl:not(.thumb) .cam-nick,
+.cam-stage.many .cam-tile.is-deaf.is-ctl:not(.thumb) .cam-nick {
+    margin-left: 0.36rem;
+}
+
+/* Тач (нет наведения): ники видны всегда — под блобами ряда (шаг ряда по
+   самому длинному нику, длинные — многоточием) и под каждой миниатюрой.
+   «Телефон» = нет наведения ИЛИ грубый указатель ИЛИ ширина ≤ 640 — тем же
+   условием, что isPhone() в js/cam-stage.js. */
+@media (hover: none), (pointer: coarse), (max-width: 640px) {
+    .app.cams .participant .participant-name {
+        opacity: 1;
+        max-width: var(--nick-w, 6rem);
+        overflow: hidden;
+        justify-content: center;
+    }
+
+    .app.cams .participant-name-line:last-child {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .cam-tile.thumb .cam-tag {
+        opacity: 1;
+        visibility: visible;
+        left: 0;
+        right: 0;
+        transform: none;
+        width: auto;
+        max-width: none;
+        justify-content: center;
+        padding: 0.29rem 0 0;
+    }
+
+    .cam-tile.thumb .cam-nick {
+        min-width: 0;
+    }
+}

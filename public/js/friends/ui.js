@@ -28,9 +28,10 @@
     const isTouch = () => matchMedia("(hover: none) and (pointer: coarse)").matches;
     const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
     const IS_DESKTOP = window.VoidPlatform === "desktop";
-    /* Camera scan only in a browser: the desktop app has no camera permission
-       on purpose (1.7.0 security patch), and a phone is the device that scans. */
-    const CAN_SCAN = !IS_DESKTOP && !!navigator.mediaDevices?.getUserMedia;
+    /* Camera scan everywhere there is getUserMedia. On desktop the camera is
+       granted only right after an explicit arm (lib.rs arm_camera, called in
+       openScanner below) — no script opens it silently. */
+    const CAN_SCAN = !!navigator.mediaDevices?.getUserMedia;
     const MED_MS = typeof MOTION !== "undefined" ? MOTION.med : 320;
 
     const svg = (inner) => `<svg viewBox="0 0 24 24" aria-hidden="true">${inner}</svg>`;
@@ -186,7 +187,7 @@
         requestAnimationFrame(() => requestAnimationFrame(() => box.classList.add("is-drawn")));
     }
 
-    /* ---------- camera scanner (web) ---------- */
+    /* ---------- camera scanner ---------- */
     let scanner = null;
     async function openScanner(onText) {
         if (!CAN_SCAN || scanner) return;
@@ -217,6 +218,9 @@
         requestAnimationFrame(() => el.classList.add("is-open"));
         try {
             await loadScript("vendor/jsQR.js");
+            if (IS_DESKTOP) {
+                try { await window.__TAURI__?.core?.invoke?.("arm_camera"); } catch (_) {}
+            }
             state.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
         } catch (_) {
             close();

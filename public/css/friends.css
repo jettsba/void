@@ -1283,10 +1283,11 @@
 
 .blob-more i {
     position: absolute;
-    left: -0.21rem;
-    top: -0.21rem;
-    width: 0.43rem;
-    height: 0.43rem;
+    /* доли блоба (эталон 0.43rem при 6rem), как центральная точка */
+    left: calc(var(--size, 6rem) * -0.0358);
+    top: calc(var(--size, 6rem) * -0.0358);
+    width: calc(var(--size, 6rem) * 0.0717);
+    height: calc(var(--size, 6rem) * 0.0717);
     border-radius: 50%;
     background: var(--fg-2);
     opacity: 0;
@@ -1298,8 +1299,8 @@
     opacity: 1;
 }
 
-.participant.blob-active .blob-more i:nth-child(1) { transform: translateX(-0.86rem); }
-.participant.blob-active .blob-more i:nth-child(3) { transform: translateX(0.86rem); }
+.participant.blob-active .blob-more i:nth-child(1) { transform: translateX(calc(var(--size, 6rem) * -0.1433)); }
+.participant.blob-active .blob-more i:nth-child(3) { transform: translateX(calc(var(--size, 6rem) * 0.1433)); }
 
 .participant-avatar::before {
     transition: transform var(--t-med), background var(--t-fast), box-shadow var(--t-med), opacity var(--t-med);

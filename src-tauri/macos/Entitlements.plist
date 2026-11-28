@@ -6,5 +6,8 @@
          глушит микрофон: запрос даже не дойдёт до системного диалога. -->
     <key>com.apple.security.device.audio-input</key>
     <true/>
+    <!-- То же для камеры: hardened runtime без права глушит её до запроса. -->
+    <key>com.apple.security.device.camera</key>
+    <true/>
 </dict>
 </plist>

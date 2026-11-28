@@ -1,6 +1,6 @@
 [package]
 name = "void-desktop"
-version = "1.12.2"
+version = "1.13.0"
 description = "Void — эфемерные P2P голосовые комнаты"
 authors = ["Void"]
 edition = "2021"
@@ -47,6 +47,10 @@ winreg = "0.52"
 # «tauri.localhost хочет использовать микрофон». Версия синхронна с той, что
 # тянет wry (см. Cargo.lock) — иначе разъедутся COM-типы Microsoft::*.
 webview2-com = "0.38"
+# Та же windows-core, что у webview2-com (НЕ наша 0.59): только через её
+# трейт Interface можно сделать cast COM-типа Microsoft::* (lib.rs
+# setup_media_permissions — ICoreWebView2PermissionRequestedEventArgs3).
+wv2-core = { package = "windows-core", version = "0.61" }
 # windows-core — нужен для макроса #[implement] (реализация COM-интерфейса
 # IActivateAudioInterfaceCompletionHandler в screen_audio.rs). Версия = windows.
 windows-core = "0.59"

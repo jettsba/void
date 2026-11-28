@@ -42,13 +42,18 @@
         toggleMic:    "Ctrl+Shift+M",
         toggleSound:  "Ctrl+Shift+D",
         toggleWindow: "Ctrl+Shift+V",
-        leaveRoom:    "Ctrl+Shift+Q"
+        leaveRoom:    "Ctrl+Shift+Q",
+        /* Камера — без бинда по умолчанию: глобальная комбинация забирает
+           клавиши у всей системы, а свободной «очевидной» нет (Ctrl+Shift+C —
+           инспектор в браузерах и IDE). Назначают сами. */
+        toggleCamera: ""
     };
     const DEFAULT_HOTKEYS_MAC = {
         toggleMic:    "Shift+Super+M",   // ⌘⇧M — как в Discord
         toggleSound:  "Shift+Super+D",   // ⌘⇧D — как в Discord
         toggleWindow: "Ctrl+Shift+V",
-        leaveRoom:    "Ctrl+Shift+Q"
+        leaveRoom:    "Ctrl+Shift+Q",
+        toggleCamera: ""
     };
     const DEFAULT_HOTKEYS = window.VoidIsMac ? DEFAULT_HOTKEYS_MAC : DEFAULT_HOTKEYS_WIN;
 
@@ -65,6 +70,7 @@
     const HOTKEY_ROWS = [
         { action: "toggleMic",    labelKey: "hotkeys.action.toggleMic" },
         { action: "toggleSound",  labelKey: "hotkeys.action.toggleSound" },
+        { action: "toggleCamera", labelKey: "hotkeys.action.toggleCamera" },
         { action: "toggleWindow", labelKey: "hotkeys.action.toggleWindow" },
         { action: "leaveRoom",    labelKey: "hotkeys.action.leaveRoom" }
     ];
@@ -1083,6 +1089,9 @@
                 break;
             case "toggleSound":
                 if (typeof toggleSound === "function") toggleSound();
+                break;
+            case "toggleCamera":
+                if (typeof toggleCamera === "function") toggleCamera();
                 break;
             case "leaveRoom":
                 if (typeof leaveRoom === "function" && typeof isJoined !== "undefined" && isJoined) {

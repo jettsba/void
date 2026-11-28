@@ -470,6 +470,8 @@ function openScreenOverlay(userId) {
     screenOverlay.removeAttribute("inert");
     screenOverlay.setAttribute("aria-hidden", "false");
     screenOverlay.classList.add("is-visible");
+    /* Демка накрыла сцену камер — их кадры никто не видит, просим 0. */
+    window.VoidCamStage?.refreshDemand();
     showScreenControls();
 
     screenOverlayTrackCleanup?.();
@@ -516,6 +518,7 @@ function closeScreenOverlay(opts) {
         document.webkitExitFullscreen?.();
     }
     screenOverlay.classList.remove("is-visible");
+    window.VoidCamStage?.refreshDemand(true);
     stopOverlayFirstFrameWatch();
     stopScreenControlsIdle();
     hideOverlayElement(screenOverlay);

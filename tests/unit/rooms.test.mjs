@@ -324,3 +324,61 @@ test("screen-share flag survives a signaling blip", (t) => {
     H.handleScreencastState(a.ws, { screen: true });
     assert.ok(a.ws.last("screencast-rejected"), "second sharer is still blocked");
 });
+
+/* Камеры (tasks/camera-plan.md §2). */
+function enterCaps(code, userId, caps, { create = false, ...extra } = {}) {
+    const ws = fakeWs();
+    if (create) H.handleCreateRoom(ws, { code });
+    else H.handleJoinRoom(ws, { code, userId, ...extra });
+    H.handleJoinConfirm(ws, { code, userId, nickname: userId.toLowerCase(), caps });
+    return { ws, list: ws.last("user-list") };
+}
+
+test("camera: caps are whitelisted and travel in user-list / new-participant", () => {
+    const a = enterCaps("ROOMK", "AAAA1111", ["cam", "evil", "cam", 5], { create: true });
+    const b = enterCaps("ROOMK", "BBBB2222", undefined);
+    assert.deepEqual(rooms.get("ROOMK").users.get("AAAA1111").caps, ["cam"]);
+    assert.deepEqual(b.list.users[0].caps, ["cam"]);
+    assert.equal(b.list.users[0].cam, false);
+    const np = a.ws.last("new-participant");
+    assert.deepEqual(np.caps, [], "an old client announces nothing");
+    assert.equal(np.cam, false);
+});
+
+test("camera: state is broadcast with the stream id, bad ids are ignored, repeats are not echoed", () => {
+    const a = enterCaps("ROOML", "AAAA1111", ["cam"], { create: true });
+    const b = enterCaps("ROOML", "BBBB2222", ["cam"]);
+    H.handleCameraState(b.ws, { cam: true, sid: "<script>" });
+    assert.ok(!a.ws.last("camera-state"), "invalid sid → ignored");
+    H.handleCameraState(b.ws, { cam: true, sid: "{5f0c2a7e-1b2c-4d5e-8f90-123456789abc}" });
+    let st = a.ws.last("camera-state");
+    assert.deepEqual([st.userId, st.cam, st.sid], ["BBBB2222", true, "{5f0c2a7e-1b2c-4d5e-8f90-123456789abc}"]);
+    assert.ok(!b.ws.last("camera-state"), "no echo to the sender");
+    H.handleCameraState(b.ws, { cam: true, sid: "{5f0c2a7e-1b2c-4d5e-8f90-123456789abc}" });
+    assert.equal(a.ws.sent.filter(m => m.type === "camera-state").length, 1, "repeat is not re-broadcast");
+    H.handleCameraState(b.ws, { cam: false });
+    st = a.ws.last("camera-state");
+    assert.equal(st.cam, false);
+    const c = enterCaps("ROOML", "CCCC3333", ["cam"]);
+    const bInList = c.list.users.find(u => u.id === "BBBB2222");
+    assert.equal(bInList.cam, false);
+    assert.equal(bInList.camSid, "{5f0c2a7e-1b2c-4d5e-8f90-123456789abc}", "last sid is kept for the receiver");
+});
+
+test("camera: flag survives a signaling blip (late joiner sees it too)", (t) => {
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    const a = enterCaps("ROOMM", "AAAA1111", ["cam"], { create: true });
+    const b = enterCaps("ROOMM", "BBBB2222", ["cam"]);
+    H.handleCameraState(b.ws, { cam: true, sid: "abc-123" });
+    H.handleDisconnect(b.ws);
+    t.mock.timers.tick(3_000);
+    const back = fakeWs();
+    H.handleJoinRoom(back, { code: "ROOMM", userId: "BBBB2222", token: b.list.leaveToken, resume: true });
+    H.handleJoinConfirm(back, { code: "ROOMM", userId: "BBBB2222", nickname: "bbbb2222", caps: ["cam"] });
+    const u = rooms.get("ROOMM").users.get("BBBB2222");
+    assert.deepEqual([u.cam, u.camSid], [true, "abc-123"]);
+    const np = a.ws.last("new-participant");
+    assert.deepEqual([np.cam, np.camSid], [true, "abc-123"]);
+    const c = enterCaps("ROOMM", "CCCC3333", ["cam"]);
+    assert.equal(c.list.users.find(x => x.id === "BBBB2222").cam, true);
+});

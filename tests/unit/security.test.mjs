@@ -2,7 +2,7 @@ import "./_env.mjs";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-const { getClientIp, isValidCode, sanitizeNickname, isValidUserId } = await import("../../lib/security.js");
+const { getClientIp, isValidCode, sanitizeNickname, isValidUserId, isValidCamSid, sanitizeCaps } = await import("../../lib/security.js");
 const { isValidSdp } = await import("../../lib/handlers.js");
 
 const req = (remote, xff) => ({ socket: { remoteAddress: remote }, headers: xff ? { "x-forwarded-for": xff } : {} });
@@ -33,4 +33,22 @@ test("isValidSdp: type and size cap (48 KB regression: big screen-share SDP was 
     assert.ok(!isValidSdp({ type: "answer", sdp }, "offer", 48 * 1024));
     assert.ok(!isValidSdp({ type: "offer", sdp: "" }, "offer", 48 * 1024));
     assert.ok(!isValidSdp({ type: "offer", sdp: "a".repeat(49 * 1024) }, "offer", 48 * 1024));
+});
+
+test("camera stream id: uuid / firefox braces ok, markup and overlong rejected", () => {
+    assert.ok(isValidCamSid("5f0c2a7e-1b2c-4d5e-8f90-123456789abc"));
+    assert.ok(isValidCamSid("{5f0c2a7e-1b2c-4d5e-8f90-123456789abc}"));
+    assert.ok(!isValidCamSid(""));
+    assert.ok(!isValidCamSid("a b"));
+    assert.ok(!isValidCamSid("<img>"));
+    assert.ok(!isValidCamSid("x".repeat(65)));
+    assert.ok(!isValidCamSid(42));
+});
+
+test("caps: whitelist, dedupe, cap on length, junk → []", () => {
+    assert.deepEqual(sanitizeCaps(["cam"]), ["cam"]);
+    assert.deepEqual(sanitizeCaps(["cam", "cam", "admin", {}]), ["cam"]);
+    assert.deepEqual(sanitizeCaps("cam"), []);
+    assert.deepEqual(sanitizeCaps(null), []);
+    assert.deepEqual(sanitizeCaps([..."xxxxxxxx", "cam"]), [], "only the first 8 entries are looked at");
 });

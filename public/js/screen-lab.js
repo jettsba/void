@@ -456,11 +456,27 @@
         const prev = slot.prev;
         const dt = prev ? (now - prev.now) / 1000 : 0;
         const pick = (type, kind) => all.filter(r => r.type === type && r.kind === kind);
-        /* Видео-outbound у нас ровно один (демка), inbound — демка собеседника. */
-        const vout = pick("outbound-rtp", "video")[0] || null;
-        const vin = pick("inbound-rtp", "video")[0] || null;
+        /* Видео теперь двух сортов: демка и камера (js/camera.js). Демку и
+           камеру разводим по трекам: outbound — через media-source.trackIdentifier,
+           inbound — по trackIdentifier принятого трека. Без камер — как раньше. */
+        const outFor = (track) => {
+            if (!track) return null;
+            const src = all.find(r => r.type === "media-source" && r.kind === "video" && r.trackIdentifier === track.id);
+            return src ? all.find(r => r.type === "outbound-rtp" && r.mediaSourceId === src.id) || null : null;
+        };
+        const inFor = (track) => track ? pick("inbound-rtp", "video").find(r => r.trackIdentifier === track.id) || null : null;
+        const camTrackOut = window.VoidCam?.localTrack?.() || null;
+        const camTrackIn = window.VoidCam?.remoteTrack?.(uid) || null;
+        const scrOutTrack = (typeof screenStream !== "undefined" && screenStream?.getVideoTracks?.()[0]) || null;
+        const scrInTrack = (typeof videoMap !== "undefined" && videoMap.get(uid)?.srcObject?.getVideoTracks?.()[0]) || null;
+        const vout = outFor(scrOutTrack) || (camTrackOut ? null : pick("outbound-rtp", "video")[0] || null);
+        const vin = inFor(scrInTrack) || (camTrackIn ? null : pick("inbound-rtp", "video")[0] || null);
         const vsrc = vout?.mediaSourceId ? report.get(vout.mediaSourceId) : null;
         const vrin = vout ? all.find(r => r.type === "remote-inbound-rtp" && r.localId === vout.id) : null;
+        const cout = outFor(camTrackOut);
+        const cin = inFor(camTrackIn);
+        const csrc = cout?.mediaSourceId ? report.get(cout.mediaSourceId) : null;
+        const crin = cout ? all.find(r => r.type === "remote-inbound-rtp" && r.localId === cout.id) : null;
         const p = prev?.byId || new Map();
 
         const conn = pair ? ((lc?.candidateType === "relay" || rc?.candidateType === "relay") ? "relay" : "direct") : "none";
@@ -473,7 +489,12 @@
             availOutKbps: pair?.availableOutgoingBitrate != null ? Math.round(pair.availableOutgoingBitrate / 1000) : null,
             availInKbps: pair?.availableIncomingBitrate != null ? Math.round(pair.availableIncomingBitrate / 1000) : null,
             out: summarizeOut(vout, vout && p.get(vout.id), vsrc, vrin, dt, codecs),
-            in: summarizeIn(vin, vin && p.get(vin.id), dt, codecs)
+            in: summarizeIn(vin, vin && p.get(vin.id), dt, codecs),
+            cam: (cout || cin) ? {
+                tier: window.VoidCam?.tierInfo?.(uid) || null,
+                out: summarizeOut(cout, cout && p.get(cout.id), csrc, crin, dt, codecs),
+                in: summarizeIn(cin, cin && p.get(cin.id), dt, codecs)
+            } : undefined
         });
 
         const byId = new Map();

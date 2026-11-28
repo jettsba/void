@@ -46,6 +46,7 @@
     <link rel="stylesheet" href="css/chat-attach.css">
     <link rel="stylesheet" href="css/chat-overlay.css">
     <link rel="stylesheet" href="css/screencast.css">
+    <link rel="stylesheet" href="css/cam-stage.css">
     <link rel="stylesheet" href="css/responsive.css">
     <link rel="stylesheet" href="css/settings.css">
     <link rel="stylesheet" href="css/app-settings.css">
@@ -231,6 +232,13 @@
                                 <line class="strike" x1="20" y1="4" x2="4" y2="20" />
                             </svg>
                         </button>
+                        <button type="button" class="control-btn" id="camBtn" aria-label="camera"
+                            data-i18n-attr="aria-label:controls.camera.on" aria-pressed="false">
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <rect x="3" y="6.5" width="13" height="11" rx="2" />
+                                <path d="M16 10.5 L21 7.5 V16.5 L16 13.5" />
+                            </svg>
+                        </button>
                         <button type="button" class="control-btn control-btn-stub" id="screencastBtn"
                             aria-label="screencast (soon)" data-i18n-attr="aria-label:controls.screencast.soon"
                             aria-disabled="true">
@@ -248,12 +256,6 @@
                                     <path d="M8 20 H16" />
                                     <line x1="9.5" y1="8" x2="14.5" y2="13" />
                                     <line x1="14.5" y1="8" x2="9.5" y2="13" />
-                                </svg>
-                            </span>
-                            <span class="sc-btn-icon sc-btn-icon--cam" aria-hidden="true">
-                                <svg viewBox="0 0 24 24">
-                                    <rect x="3" y="6.5" width="13" height="11" rx="2" />
-                                    <path d="M16 10.5 L21 7.5 V16.5 L16 13.5" />
                                 </svg>
                             </span>
                         </button>
@@ -544,11 +546,15 @@
     <script defer src="js/username.js"></script>
     <script defer src="js/controls.js"></script>
     <script defer src="js/participants.js"></script>
+    <script defer src="js/cam-grid.js"></script>
+    <script defer src="js/camera.js"></script>
+    <script defer src="js/cam-stage.js"></script>
     <script defer src="js/volume-arc.js"></script>
     <script defer src="js/ping-panel.js"></script>
     <script defer src="js/screen-overlay.js"></script>
     <script defer src="js/screen-lab.js"></script>
     <script defer src="js/intro.js"></script>
+    <script defer src="js/wake-lock.js"></script>
     <script defer src="js/room.js"></script>
     <script defer src="js/room-close.js"></script>
     <script defer src="js/room-sheet.js"></script>

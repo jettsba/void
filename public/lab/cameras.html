@@ -1,0 +1,1216 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>void · lab · cameras</title>
+<!-- Camera-stage lab (tasks/camera-plan.md §5). Real room CSS + the real
+     participants.js corona for the voice state; the camera state (blob strip,
+     video grid, focus, drag-reorder) is prototyped here before it goes to prod.
+     Mock only: no network, synthetic video (or your own webcam for self). -->
+<script src="/ui-scale-bootstrap.js"></script>
+<link rel="stylesheet" href="/css/base.css">
+<link rel="stylesheet" href="/css/app.css">
+<link rel="stylesheet" href="/css/stage.css">
+<link rel="stylesheet" href="/css/panel.css">
+<link rel="stylesheet" href="/css/screencast.css">
+<link rel="stylesheet" href="/css/responsive.css">
+<style>
+html, body { background: var(--bg-0); color: var(--fg); font-family: var(--font); }
+body { opacity: 1 !important; margin: 0; overflow: hidden; }
+.app { opacity: 1; }
+
+/* ---- minimal header / footer stand-ins (real ones carry app logic) ---- */
+.lab-hdr { display: flex; align-items: center; justify-content: space-between;
+    padding: 0 var(--edge-btn); color: var(--fg-2); font-size: 0.86rem;
+    letter-spacing: var(--tracking-wide); }
+.lab-hdr b { color: var(--fg); font-weight: 400; }
+.lab-hdr button, .lab-chat-close { background: none; border: 0; color: var(--fg-2); font: inherit;
+    letter-spacing: var(--tracking-wide); cursor: pointer; transition: color var(--t-fast), opacity var(--t-med); }
+.lab-hdr button:hover, .lab-chat-close:hover { color: var(--fg); }
+body.chat-open #chatToggle { opacity: 0; pointer-events: none; }
+.footer.footer-meta { display: flex; align-items: center; justify-content: center;
+    color: var(--fg-3); font-size: 0.79rem; letter-spacing: var(--tracking-wide); }
+
+/* chat stand-in: prod width (--chat-panel-w, css/app.css) and prod motion
+   (fade + 0.57rem from its edge, --t-med, style guide §4 rule 4) */
+.lab-chat { position: fixed; top: var(--edge); right: var(--edge); bottom: var(--edge);
+    width: min(28.57rem, calc(100vw - 32px)); box-sizing: border-box;
+    border: 1px solid var(--fg-4); border-radius: 2px; background: var(--bg-1);
+    opacity: 0; transform: translateX(0.57rem); pointer-events: none;
+    transition: opacity var(--t-med), transform var(--t-med);
+    display: grid; grid-template-rows: auto 1fr; z-index: 12; }
+.lab-chat header { display: flex; justify-content: space-between; align-items: center;
+    padding: 0.86rem 1.14rem; border-bottom: 1px solid var(--fg-4);
+    font-size: 0.79rem; letter-spacing: var(--tracking-wide); color: var(--fg-2); }
+.lab-chat .lab-chat-body { display: grid; place-items: center; color: var(--fg-3); font-size: 0.79rem; }
+body.chat-open .lab-chat { opacity: 1; transform: none; pointer-events: auto; }
+
+/* ---- control panel in camera mode: slides down toward the footer ---- */
+.panel-area { transition: transform var(--t-med); }
+/* prod grid is 3 columns [mic][deaf][screen] + leave across; camera makes it 4 */
+.panel-controls { grid-template-columns: repeat(4, 3.14rem); }
+/* option: in camera mode the controls collapse into one row to give video the height */
+.app.cams.ctrl-row .panel-controls { grid-template-columns: repeat(4, 3.14rem) auto; }
+.app.cams.ctrl-row .panel-controls .leave-btn { grid-column: auto; margin-left: 0.57rem; }
+/* touch: no screen share — the camera takes that slot (prod: css/screencast.css) */
+@media (hover: none) and (pointer: coarse) {
+    #screencastBtn { display: none; }
+    .panel-controls { grid-template-columns: repeat(3, 3.14rem); }
+    .app.cams.ctrl-row .panel-controls { grid-template-columns: repeat(3, 3.14rem) auto; }
+}
+.app.cams .panel-area { transform: translateY(var(--cam-panel-shift, 0px)); }
+#camBtn.active { color: var(--fg); border-color: var(--fg); }
+
+/* blob in the strip: a small camera mark when that person is on camera */
+.participant .lab-cam-badge { position: absolute; top: 4%; right: 2%; width: 34%; height: 34%;
+    color: var(--fg-2); opacity: 0; transition: opacity var(--t-med); }
+.participant .lab-cam-badge svg { width: 100%; height: 100%; stroke: currentColor;
+    stroke-width: 1.5; fill: var(--bg-0); vector-effect: non-scaling-stroke; }
+.app.cams .participant.has-cam .lab-cam-badge { opacity: 1; }
+/* strip: nicks hidden for everyone, hover shows it — always one line */
+.participant .participant-name { transition: opacity var(--t-med); }
+.app.cams .participant .participant-name { opacity: 0; flex-direction: row; gap: 0.5em;
+    top: calc(100% + 0.36rem); }   /* same distance as a focus thumb → its nick */
+.app.cams .participant-name-line { display: inline; }
+@media (hover: hover) {
+    .app.cams .participant:hover .participant-name { opacity: 1; }
+}
+
+/* ---- video stage ---- */
+.cam-stage { position: fixed; inset: 0; pointer-events: none; z-index: 2; }
+.cam-tile { position: absolute; left: 0; top: 0; box-sizing: border-box;
+    border: 1px solid var(--fg-4); border-radius: 2px; background: var(--bg-1);
+    overflow: hidden; pointer-events: auto; cursor: pointer; touch-action: none;
+    transition: border-color var(--t-fast); }
+/* "morph" variant only: tiles glide to the new box */
+.cam-stage.anim-morph .cam-tile { transition: transform var(--t-med), width var(--t-med),
+    height var(--t-med), border-color var(--t-fast); }
+.cam-stage.no-anim .cam-tile { transition: none !important; }
+.cam-tile.is-ghost { pointer-events: none; z-index: 0; }
+.cam-tile.is-gone { pointer-events: none; }
+.cam-tile.is-drag { transition: width var(--t-med), height var(--t-med), border-color var(--t-fast) !important;
+    z-index: 5; cursor: grabbing; border-color: var(--fg-2); }
+.cam-tile.is-focus { border-color: var(--fg-3); }
+.cam-tile canvas, .cam-tile video { position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: cover; display: block; }
+.cam-tile.is-self canvas, .cam-tile.is-self video { transform: scaleX(-1); }
+
+/* speaking: same language as the blob ring — rises and fades over --t-med, then
+   breathes (rbreath rhythm, style guide §8) while the person keeps talking.
+   Border + soft inner light; the light is the tile twin of the ring's ambient glow. */
+.cam-speak { position: absolute; inset: -1px; border-radius: 2px; pointer-events: none;
+    opacity: 0; transition: opacity var(--t-med); }
+.cam-speak::before { content: ""; position: absolute; inset: 0; border-radius: 2px;
+    border: 1px solid rgba(200, 200, 204, 0.88);
+    box-shadow: inset 0 0 1.71rem rgba(200, 200, 204, 0.12);
+    animation: cam-breath 2.4s var(--ease) infinite; }
+@keyframes cam-breath { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+.cam-tile.is-speaking .cam-speak { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .cam-speak::before { animation: none; } }
+
+.cam-tag { position: absolute; left: 0.43rem; bottom: 0.43rem; max-width: calc(100% - 0.86rem);
+    display: inline-flex; align-items: center; gap: 0.36rem; padding: 0.21rem 0.43rem;
+    background: rgba(10, 10, 11, 0.72); border-radius: 2px; color: var(--fg);
+    font-size: 0.71rem; letter-spacing: var(--tracking); white-space: nowrap; overflow: hidden;
+    text-overflow: ellipsis; }
+/* nick on the tile = the way to the profile (the camera owner has no blob) */
+.cam-tag { color: var(--fg-2); cursor: pointer; pointer-events: auto;
+    transition: color var(--t-fast), opacity var(--t-med); }
+.cam-tag:hover { color: var(--fg); }
+.cam-tag { gap: 0; }
+.cam-tag svg { width: 0.86rem; height: 0.86rem; flex: none; stroke: var(--signal-warn);
+    stroke-width: 1.5; fill: none; display: none; }
+/* status: deaf ⊇ muted, so deaf wins (same rule as the blob icons) */
+.cam-tile.is-muted:not(.is-deaf) .cam-tag .i-mic,
+.cam-tile.is-deaf .cam-tag .i-deaf { display: block; }
+/* the nick takes its room at once and simply fades in next to the status
+   icon (no slide-out — style guide: appearance = fade); the icon never moves */
+.cam-nick { display: grid; grid-template-columns: 1fr; min-width: 0;
+    transition: opacity var(--t-med); }
+.cam-nick > span { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.cam-tile.is-muted .cam-nick { margin-left: 0.36rem; }
+.cam-tier { position: absolute; right: 0.43rem; top: 0.43rem; padding: 0.14rem 0.36rem;
+    background: rgba(10, 10, 11, 0.72); border-radius: 2px; color: var(--fg-2);
+    font-size: 0.64rem; letter-spacing: 0; display: none; }
+body.show-tiers .cam-tier { display: block; }
+.cam-tile.small .cam-tag { font-size: 0.64rem; left: 0.29rem; bottom: 0.29rem; }
+/* focus mode thumbnails: no nick until hover */
+.cam-tier { transition: opacity var(--t-med); }
+/* a thumb is too small for a nick on it: on hover it shows UNDER the tile */
+.cam-tile.thumb { overflow: visible; }
+/* the 0.36rem gap is padding INSIDE the nick, so the cursor never leaves the
+   tile's hover on its way down; hiding waits --d-slow, so the nick can be
+   reached and clicked (it opens the profile) */
+.cam-tile.thumb .cam-tag { top: 100%; bottom: auto; left: 50%; max-width: none;
+    transform: translateX(-50%); background: none; padding: 0.36rem 0.29rem 0.14rem; font-size: 0.64rem;
+    opacity: 0; visibility: hidden;
+    transition: color var(--t-fast), opacity var(--t-med), visibility 0s linear var(--d-med); }
+.cam-tile.thumb.nick-on .cam-tag { opacity: 1; visibility: visible;
+    transition: color var(--t-fast), opacity var(--t-med), visibility 0s; }
+.cam-tile.thumb .cam-tier { opacity: 0; }
+.cam-tile.thumb:hover .cam-tier { opacity: 1; }
+
+/* ---- tile control mode (click a tile) ----
+   top right: focus button · bottom right: vertical volume bar (blob-arc look:
+   hairline track, 1.4px fill). A thumb in focus mode: slides down, a horizontal
+   bar appears above it, the tile dims under an "up" arrow — click again = focus. */
+.cam-tile { transition: border-color var(--t-fast), translate var(--t-med); }
+.cam-expand, .cam-vol, .cam-up { opacity: 0; pointer-events: none; transition: opacity var(--t-med); }
+.cam-tier { pointer-events: none; }
+.cam-tile.is-ctl .cam-tier { opacity: 0; }
+.cam-tile.is-ctl:not(.thumb) .cam-expand,
+.cam-tile.is-ctl:not(.is-self) .cam-vol { opacity: 1; pointer-events: auto; }
+.cam-stage.lone .cam-expand { display: none; }
+.cam-expand { position: absolute; top: 0.43rem; right: 0.43rem; width: 2rem; height: 2rem;
+    display: grid; place-items: center; padding: 0; border: 0; border-radius: 2px;
+    background: rgba(10, 10, 11, 0.72); color: var(--fg-2); cursor: pointer;
+    transition: opacity var(--t-med), color var(--t-fast); }
+.cam-expand:hover { color: var(--fg); }
+.cam-expand svg { width: 1.07rem; height: 1.07rem; fill: none; stroke: currentColor; stroke-width: 1.4;
+    stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.cam-expand .i-min, .cam-tile.is-focus .cam-expand .i-max { display: none; }
+.cam-tile.is-focus .cam-expand .i-min { display: block; }
+.cam-vol { position: absolute; right: 0.57rem; bottom: 0.57rem; width: 1.14rem;
+    height: clamp(3.5rem, 34%, 8rem); cursor: ns-resize; touch-action: none; }
+.cam-vol::before, .cam-vol i { content: ""; position: absolute; left: 50%; bottom: 0;
+    transform: translateX(-50%); border-radius: 1px; }
+.cam-vol::before { top: 0; width: 1px; background: rgba(230, 230, 232, 0.14); }
+.cam-vol i { width: 1.4px; height: calc(var(--v, 1) * 100%); background: rgba(230, 230, 232, 0.7);
+    transition: background var(--t-fast); }
+.cam-vol:hover i { background: var(--fg); }
+/* thumb: bar goes horizontal, above the tile */
+.cam-tile.thumb.is-ctl { translate: 0 0.86rem; }
+.cam-tile.thumb .cam-vol { left: 0; right: 0; top: -0.86rem; bottom: auto; width: auto; height: 0.57rem;
+    cursor: ew-resize; }
+.cam-tile.thumb .cam-vol::before, .cam-tile.thumb .cam-vol i { left: 0; top: 50%; bottom: auto;
+    transform: translateY(-50%); }
+.cam-tile.thumb .cam-vol::before { right: 0; width: auto; height: 1px; }
+.cam-tile.thumb .cam-vol i { height: 1.4px; width: calc(var(--v, 1) * 100%); }
+.cam-up { position: absolute; inset: 0; display: grid; place-items: center;
+    background: rgba(10, 10, 11, 0.55); color: var(--fg); }
+.cam-up svg { width: 1.29rem; height: 1.29rem; fill: none; stroke: currentColor; stroke-width: 1.4;
+    stroke-linecap: round; stroke-linejoin: round; }
+.cam-tile.thumb.is-ctl .cam-up { opacity: 1; }
+.cam-tile.thumb.is-ctl .cam-tier { opacity: 0; }
+.cam-tile.thumb.is-ctl .cam-tag { opacity: 1; visibility: visible;
+    transition: color var(--t-fast), opacity var(--t-med), visibility 0s; }
+
+/* 3+ equal tiles (desktop): mute/deaf status always on, the nick slides out
+   next to it on hover (and in control mode). No status → the plate shows on
+   hover only. */
+.cam-stage.many .cam-tile:not(.thumb):not(.is-muted) .cam-tag { opacity: 0; }
+.cam-stage.many .cam-tile:not(.thumb) .cam-nick { grid-template-columns: 0fr; opacity: 0; margin-left: 0; }
+.cam-stage.many .cam-tile:not(.thumb):hover .cam-tag,
+.cam-stage.many .cam-tile.is-ctl:not(.thumb) .cam-tag { opacity: 1; }
+.cam-stage.many .cam-tile:not(.thumb):hover .cam-nick,
+.cam-stage.many .cam-tile.is-ctl:not(.thumb) .cam-nick { grid-template-columns: 1fr; opacity: 1; }
+.cam-stage.many .cam-tile.is-muted:not(.thumb):hover .cam-nick,
+.cam-stage.many .cam-tile.is-muted.is-ctl:not(.thumb) .cam-nick { margin-left: 0.36rem; }
+
+/* touch: no hover — nicks always on (layout reserves the line) */
+/* phone = no hover OR coarse pointer OR narrow (Safari's responsive mode
+   emulates the size but not hover/pointer — width alone has to count) */
+@media (hover: none), (pointer: coarse), (max-width: 640px) {
+    .app.cams .participant .participant-name { opacity: 1; max-width: var(--nick-w, 6rem);
+        overflow: hidden; justify-content: center; }
+    .app.cams .participant-name-line:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+    .cam-tile.thumb .cam-tag { opacity: 1; visibility: visible; left: 0; right: 0; transform: none;
+        width: auto; max-width: none; justify-content: center; padding: 0.29rem 0 0; }
+    .cam-tile.thumb .cam-nick { min-width: 0; }
+}
+
+/* ---- profile stand-in ---- */
+.lab-profile { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center;
+    background: rgba(10, 10, 11, 0.6); opacity: 0; pointer-events: none; transition: opacity var(--t-med); }
+.lab-profile-card { width: min(22rem, calc(100vw - 32px)); box-sizing: border-box; padding: 1.43rem;
+    background: var(--bg-1); border: 1px solid var(--fg-4); border-radius: 2px;
+    display: grid; gap: 1.14rem; transform: translateY(0.57rem); transition: transform var(--t-med); }
+.lab-profile-card b { font-weight: 400; color: var(--fg); letter-spacing: var(--tracking-wide); }
+.lab-profile-card span { color: var(--fg-3); font-size: 0.71rem; letter-spacing: var(--tracking-wide); }
+body.profile-open .lab-profile { opacity: 1; pointer-events: auto; }
+body.profile-open .lab-profile-card { transform: none; }
+
+/* ---- lab dock ---- */
+.lab-dock { position: fixed; left: var(--edge); top: calc(var(--hdr-h, 4rem) + 0.57rem); z-index: 10;
+    width: 17.5rem; max-height: calc(100vh - 8rem); overflow: auto; box-sizing: border-box;
+    background: var(--bg-1); border: 1px solid var(--fg-4); border-radius: 2px;
+    padding: 0.86rem; font-size: 0.71rem; letter-spacing: var(--tracking);
+    display: grid; gap: 0.79rem; transition: opacity var(--t-med), transform var(--t-med); }
+.lab-dock.is-hidden { opacity: 0; transform: translateX(-0.57rem); pointer-events: none; }
+.lab-dock h2 { margin: 0; font-size: 0.71rem; font-weight: 500; color: var(--fg-2);
+    letter-spacing: var(--tracking-wide); }
+.lab-row { display: grid; gap: 0.36rem; }
+.lab-row > span { color: var(--fg-3); letter-spacing: var(--tracking-wide); }
+.lab-seg { display: flex; flex-wrap: wrap; gap: 0.29rem; }
+.lab-seg button, .lab-btn { padding: 0.36rem 0.57rem; background: transparent; color: var(--fg-2);
+    border: 1px solid var(--fg-4); border-radius: 2px; font: inherit; letter-spacing: inherit;
+    cursor: pointer; transition: border-color var(--t-fast), color var(--t-fast); }
+.lab-seg button:hover, .lab-btn:hover { border-color: var(--fg-3); color: var(--fg); }
+.lab-seg button.is-on { border-color: var(--fg-2); color: var(--fg); }
+.lab-people { display: grid; grid-template-columns: 1fr 1fr; gap: 0.29rem; }
+.lab-people button { text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lab-people button.is-on::before { content: "● "; color: var(--fg); }
+.lab-stat { color: var(--fg-2); line-height: 1.6; letter-spacing: 0; }
+.lab-stat b { color: var(--fg); font-weight: 400; }
+.lab-range { width: 100%; accent-color: var(--fg-2); }
+.lab-toggle { position: fixed; left: var(--edge); bottom: var(--edge); z-index: 11; }
+</style>
+</head>
+<body>
+<div class="app visible" id="app" data-mode="room">
+    <header class="header lab-hdr">
+        <span><b>void</b> · lab · камеры</span>
+        <button type="button" id="chatToggle">чат</button>
+    </header>
+
+    <main class="stage">
+        <div class="stage-stack">
+            <div class="users-area" id="room">
+                <div class="users-slot">
+                    <div class="participants" id="participants"></div>
+                </div>
+            </div>
+            <div class="panel-area">
+                <div class="panel-controls" id="controls">
+                    <button type="button" class="control-btn" id="micBtn" aria-label="mic">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <rect x="9" y="3" width="6" height="12" rx="3" />
+                            <path d="M5 11a7 7 0 0 0 14 0" />
+                            <path d="M12 18v3" />
+                            <line class="strike-bg" x1="20" y1="4" x2="4" y2="20" />
+                            <line class="strike" x1="20" y1="4" x2="4" y2="20" />
+                        </svg>
+                    </button>
+                    <button type="button" class="control-btn" id="soundBtn" aria-label="deaf">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M4 9v6h4l5 4V5L8 9H4z" />
+                            <path class="wave" d="M16 8a5 5 0 0 1 0 8" />
+                            <line class="strike-bg" x1="20" y1="4" x2="4" y2="20" />
+                            <line class="strike" x1="20" y1="4" x2="4" y2="20" />
+                        </svg>
+                    </button>
+                    <button type="button" class="control-btn" id="camBtn" aria-label="camera">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <rect x="3" y="6.5" width="13" height="11" rx="2" />
+                            <path d="M16 10.5 L21 7.5 V16.5 L16 13.5" />
+                        </svg>
+                    </button>
+                    <button type="button" class="control-btn" id="screencastBtn" aria-label="screen">
+                        <span class="sc-btn-icon sc-btn-icon--idle" aria-hidden="true">
+                            <svg viewBox="0 0 24 24">
+                                <rect x="3" y="4" width="18" height="13" rx="2.5" />
+                                <path d="M10 14 L15 9" />
+                                <path d="M11 9 H15 V13" />
+                                <path d="M8 20 H16" />
+                            </svg>
+                        </span>
+                    </button>
+                    <button type="button" class="leave-btn" id="leaveBtn">выйти</button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="footer footer-meta">комната #L4B00</footer>
+</div>
+
+<aside class="lab-chat chat-panel" aria-label="chat stand-in">
+    <header><span>чат</span><button type="button" class="lab-chat-close" id="chatClose">закрыть</button></header>
+    <div class="lab-chat-body">чат (заглушка)</div>
+</aside>
+<div class="cam-stage" id="camStage"></div>
+<div class="lab-profile" id="profile" role="dialog" aria-label="profile stand-in">
+    <div class="lab-profile-card">
+        <span>профиль (заглушка)</span>
+        <b id="profileNick"></b>
+        <button type="button" class="lab-btn" data-close>закрыть</button>
+    </div>
+</div>
+
+<button type="button" class="lab-btn lab-toggle" id="dockToggle">лаба</button>
+<section class="lab-dock" id="dock">
+    <script>if (window.innerWidth <= 640) document.currentScript.parentElement.classList.add("is-hidden");</script>
+    <h2>лаборатория камер</h2>
+    <div class="lab-row"><span>людей в комнате</span>
+        <div class="lab-seg" id="segCount"></div></div>
+    <div class="lab-row"><span>камеры (клик — вкл/выкл)</span>
+        <div class="lab-people" id="people"></div>
+        <div class="lab-seg"><button type="button" id="allOn">все вкл</button>
+            <button type="button" id="allOff">все выкл</button>
+            <button type="button" id="oneOn">+1 камера</button></div></div>
+    <div class="lab-row"><span>контролы при камерах</span>
+        <div class="lab-seg" data-opt="ctrl">
+            <button type="button" data-v="row">одна строка</button>
+            <button type="button" data-v="grid">как сейчас</button></div></div>
+    <div class="lab-row"><span>размер блоба в ряду · <i id="blobVal"></i></span>
+        <input class="lab-range" type="range" id="blobSize" min="2" max="4.5" step="0.1"></div>
+    <div class="lab-row"><span>зазор сетки · <i id="gapVal"></i></span>
+        <input class="lab-range" type="range" id="gap" min="0.15" max="1.45" step="0.05"></div>
+    <div class="lab-row"><span>прочее</span>
+        <div class="lab-seg">
+            <button type="button" id="optTiers">ступени и трафик</button>
+            <button type="button" id="optSpeak">симуляция речи</button>
+            <button type="button" id="optWebcam">моя вебка</button></div></div>
+    <div class="lab-row"><span>оценка трафика (у меня)</span>
+        <div class="lab-stat" id="stat"></div></div>
+    <div class="lab-stat" style="color:var(--fg-3)">зафиксировано: неполный ряд по центру,
+        3 камеры — в два ряда, в ряду только те, кто без камеры (свой — по центру),
+        ники в ряду по наведению, профиль — по нику на плитке, кадр обрезается,
+        свой кадр показываем, перестройка — перетекание.<br>
+        клик по плитке — громкость (колесо/полоска) и кнопка фокуса; в фокусе клик по
+        миниатюре — громкость, ещё клик — в фокус. тащи плитку — меняет порядок.</div>
+</section>
+
+<script>
+/* stubs for globals that participants.js reaches into (real app wires them in app.js) */
+function openScreenOverlay() {}
+function toggleVolumeControl() {}
+</script>
+<script src="/js/config.js"></script>
+<script src="/js/state.js"></script>
+<script src="/js/username.js"></script>
+<script src="/js/participants.js"></script>
+<script>
+(() => {
+"use strict";
+
+/* ===================== state ===================== */
+const NICKS = ["quiet fox", "Cold Lamp", "neon moth", "Slow River", "paper owl",
+    "Static Bloom", "late tram", "Iron Fern", "soft echo", "Grey Comet"];
+const SELF = "me";
+clientId = SELF;
+participantsContainer = document.getElementById("participants");
+
+/* Fixed by the user 2026-11-27: fill=center, strip=all, fit=cover, self=show,
+   blob 3.8rem, gap 0.45rem, 3 cams in two rows, strip nicks on hover only,
+   re-layout = crossfade, grid hugs the bottom. Still open: ctrl. */
+const L = {
+    n: 4,
+    cams: new Set(),          // userIds with camera on
+    order: [],                // display order of camera tiles
+    focus: null,              // focused userId or null
+    fill: "center", fit: "cover", self: "show",
+    ctrl: "row", valign: "bottom",
+    ctl: null,                // tile in "control" mode (volume + focus button)
+    vol: new Map(),           // userId → 0..1, same scale as the blob arc
+    blobRem: 3.8, gapRem: 0.45,
+    tiers: true, speak: true, webcam: false,
+    muted: new Set(["u2", "u4"]),
+    deaf: new Set(["u4"]),     // deaf ⊇ muted, as in prod
+};
+/* one phone test for JS and CSS (see the @media above) */
+const isPhone = () => window.matchMedia("(hover: none), (pointer: coarse), (max-width: 640px)").matches;
+const ids = () => Array.from({ length: L.n }, (_, i) => i === 0 ? SELF : "u" + i);
+const nickOf = id => id === SELF ? NICKS[0] : NICKS[+id.slice(1)];
+const rem = () => parseFloat(getComputedStyle(document.documentElement).fontSize) || 14;
+const reduceMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const dur = () => reduceMotion() ? 1 : MOTION.med;
+
+const app = document.getElementById("app");
+const stageEl = document.querySelector(".stage");
+const panelArea = document.querySelector(".panel-area");
+const controlsEl = document.getElementById("controls");
+const camStage = document.getElementById("camStage");
+
+/* ===================== participants (real module) ===================== */
+const CAM_BADGE = '<span class="lab-cam-badge" aria-hidden="true"><svg viewBox="0 0 24 24">' +
+    '<rect x="3" y="6.5" width="13" height="11" rx="2"/><path d="M16 10.5 L21 7.5 V16.5 L16 13.5"/></svg></span>';
+
+function syncPeople() {
+    const want = ids();
+    for (const [id] of participantElements) if (!want.includes(id)) {
+        removeParticipant(id); L.cams.delete(id); L.muted.delete(id); L.deaf.delete(id);
+    }
+    for (const id of want) if (!participantElements.has(id)) {
+        addParticipant(id, nickOf(id));
+        participantElements.get(id).querySelector(".participant-avatar").insertAdjacentHTML("beforeend", CAM_BADGE);
+    }
+    for (const [id, el] of participantElements) {
+        el.classList.toggle("muted", L.muted.has(id));
+        el.classList.toggle("deaf", L.deaf.has(id));
+        el.classList.toggle("has-cam", L.cams.has(id));
+    }
+}
+
+/* ===================== grid math (→ public/js/cam-grid.js in prod) =====================
+   Returns [{x,y,w,h}] in region-local px, one per tile in display order.
+   equal grid: try every column count, keep the biggest 16:9 tile.
+   incomplete last row: hero | center | stretch. valign: bottom hugs the blob
+   strip (constant tiles→strip gap, slack goes up top), center splits it.
+   focus: one big tile, the rest in a row under it. */
+/* tile aspect: 16:9, but a tall narrow region (phone portrait) gets square
+   tiles — cover-crop keeps the face, the screen stops being half empty */
+let AR = 16 / 9;
+function fitGrid(n, W, H, g) {
+    let best = null;
+    const maxCols = n === 3 ? 2 : n;          // 3 cameras: 2 + 1, never a strip of three
+    for (let cols = 1; cols <= maxCols; cols++) {
+        const rows = Math.ceil(n / cols);
+        const w = Math.min((W - g * (cols - 1)) / cols, ((H - g * (rows - 1)) / rows) * AR);
+        if (w <= 0) continue;
+        if (!best || w > best.w + 0.5) best = { cols, rows, w, h: w / AR };
+    }
+    return best;
+}
+function heroGrid(n, W, H, g) {
+    const cells = n + 3; let best = null;
+    for (let rows = 2; rows <= cells; rows++) {
+        if (cells % rows) continue;
+        const cols = cells / rows; if (cols < 3) continue;
+        const w = Math.min((W - g * (cols - 1)) / cols, ((H - g * (rows - 1)) / rows) * AR);
+        if (w > 0 && (!best || w > best.w)) best = { cols, rows, w, h: w / AR };
+    }
+    return best;
+}
+function camGridLayout(n, W, H, o) {
+    const g = o.gap, out = [];
+    if (!n) return out;
+    const vy = bh => o.valign === "bottom" ? H - bh : (H - bh) / 2;
+    if (o.focusIdx != null && n > 1) {
+        const k = n - 1;
+        /* thumbnails never wider than the focused tile: with many people they
+           shrink in one row; below THUMB_MIN_W they wrap into rows instead
+           (phone: 8 thumbs → 2 rows of 4, not a train of specks) */
+        /* Exact solve instead of passes (the old loop oscillated on phones):
+           for every column count c the thumbs span the big tile's width, so
+           big + thumbs height is linear in the big width → solve it, cap thumbs
+           at maxSh, drop c whose thumbs end up narrower than minW, keep the
+           biggest focused tile. */
+        /* desktop: always one row — the "train", shrinking under the big tile;
+           phone (narrow): rows of square thumbs, liked 2026-11-27 */
+        const narrow = W < 40 * o.rem;
+        const minW = 3.5 * o.rem;
+        const maxSh = Math.max(4.3 * o.rem, Math.min(H * 0.2, 9 * o.rem));
+        let best = null;
+        const nk = o.nick || 0;   // touch: a nick line under every thumb row
+        for (let c = k; c >= (narrow ? 1 : k); c--) {
+            const rows = Math.ceil(k / c);
+            const Hn = H - rows * nk;
+            let bw = (Hn - rows * g + rows * (c - 1) * g / (c * AR)) * AR / (1 + rows / c);
+            bw = Math.min(W, bw);
+            let sw = (bw - (c - 1) * g) / c, sh = sw / AR;
+            if (sh > maxSh) {
+                sh = maxSh; sw = sh * AR;
+                bw = Math.min(W, (Hn - g - rows * sh - (rows - 1) * g) * AR);
+            }
+            if (narrow && sw < minW && c > 1) continue;
+            if (!best || bw > best.bw + 0.5) best = { c, rows, bw, sw, sh };
+        }
+        const cols = best.c, rows = best.rows, sw = best.sw, sh = best.sh, bw = best.bw;
+        const blockH = () => rows * (sh + nk) + (rows - 1) * g;
+        const bh = bw / AR;
+        const top = vy(bh + g + blockH());
+        const big = { x: (W - bw) / 2, y: top, w: bw, h: bh };
+        let j = 0;
+        for (let i = 0; i < n; i++) {
+            if (i === o.focusIdx) { out.push(big); continue; }
+            const r = Math.floor(j / cols), c = j % cols;
+            const inRow = r === rows - 1 ? k - r * cols : cols;
+            const rx = (W - (inRow * sw + (inRow - 1) * g)) / 2;
+            out.push({ x: rx + c * (sw + g), y: top + bh + g + r * (sh + nk + g), w: sw, h: sh });
+            j++;
+        }
+        return out;
+    }
+    const eq = fitGrid(n, W, H, g);
+    if (o.fill === "hero" && n % eq.cols !== 0 && n >= 3) {
+        const hg = heroGrid(n, W, H, g);
+        if (hg && hg.w >= eq.w * 0.65) {
+            const bw = hg.cols * hg.w + (hg.cols - 1) * g, bh = hg.rows * hg.h + (hg.rows - 1) * g;
+            const ox = (W - bw) / 2, oy = vy(bh);
+            const taken = new Set(["0,0", "0,1", "1,0", "1,1"]);
+            out.push({ x: ox, y: oy, w: hg.w * 2 + g, h: hg.h * 2 + g });
+            for (let r = 0; r < hg.rows && out.length < n; r++)
+                for (let c = 0; c < hg.cols && out.length < n; c++) {
+                    if (taken.has(r + "," + c)) continue;
+                    out.push({ x: ox + c * (hg.w + g), y: oy + r * (hg.h + g), w: hg.w, h: hg.h });
+                }
+            return out;
+        }
+    }
+    const { cols, rows, w, h } = eq;
+    const bw = cols * w + (cols - 1) * g, bh = rows * h + (rows - 1) * g;
+    const ox = (W - bw) / 2, oy = vy(bh);
+    for (let i = 0; i < n; i++) {
+        const r = Math.floor(i / cols), c = i % cols;
+        const inRow = r === rows - 1 ? n - r * cols : cols;
+        if (inRow < cols && o.fill === "stretch") {
+            const sw = (bw - (inRow - 1) * g) / inRow;
+            out.push({ x: ox + c * (sw + g), y: oy + r * (h + g), w: sw, h });
+        } else {
+            const rx = ox + (bw - (inRow * w + (inRow - 1) * g)) / 2;
+            out.push({ x: rx + c * (w + g), y: oy + r * (h + g), w, h });
+        }
+    }
+    return out;
+}
+
+/* ===================== quality ladder (plan §1) ===================== */
+const TIERS = [
+    { id: "L1", max: 200, res: "320×180", fps: 15, kbps: 150 },
+    { id: "L2", max: 380, res: "640×360", fps: 30, kbps: 500 },
+    { id: "L3", max: 560, res: "960×540", fps: 30, kbps: 900 },
+    { id: "L4", max: Infinity, res: "1280×720", fps: 30, kbps: 1600 },
+];
+const CAM_UPLOAD_BUDGET = 4000;
+const tierFor = cssH => {
+    const h = Math.min(720, cssH * (window.devicePixelRatio || 1));
+    return TIERS.find(t => h <= t.max);
+};
+
+/* ===================== tiles + synthetic video ===================== */
+const tiles = new Map(); // userId → {el, canvas|video, ctx, hue, phase, rect}
+let webcamStream = null;
+
+function makeTile(id) {
+    const el = document.createElement("div");
+    el.className = "cam-tile";
+    el.dataset.id = id;
+    const canvas = document.createElement("canvas");
+    canvas.width = 320; canvas.height = 180;
+    el.appendChild(canvas);
+    el.insertAdjacentHTML("beforeend",
+        '<span class="cam-speak" aria-hidden="true"></span>' +
+        '<span class="cam-up" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></svg></span>' +
+        '<button type="button" class="cam-expand" aria-label="focus">' +
+        '<svg class="i-max" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>' +
+        '<svg class="i-min" viewBox="0 0 24 24"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg></button>' +
+        '<span class="cam-vol" aria-label="volume"><i></i></span>' +
+        '<span class="cam-tag">' +
+        '<svg class="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="12" rx="3"/>' +
+        '<path d="M5 11a7 7 0 0 0 14 0"/><line x1="20" y1="4" x2="4" y2="20"/></svg>' +
+        '<svg class="i-deaf" viewBox="0 0 24 24"><path d="M6 13v-1a6 6 0 0 1 12 0v1"/>' +
+        '<rect x="4.5" y="12" width="3.5" height="6.5" rx="1.75"/><rect x="16" y="12" width="3.5" height="6.5" rx="1.75"/>' +
+        '<line x1="20" y1="4" x2="4" y2="20"/></svg>' +
+        '<span class="cam-nick"><span></span></span></span><span class="cam-tier"></span>');
+    el.querySelector(".cam-nick > span").textContent = displayNick(nickOf(id)) + (id === SELF ? " (ты)" : "");
+    if (id === SELF) el.classList.add("is-self");
+    camStage.appendChild(el);
+    const idx = id === SELF ? 0 : +id.slice(1);
+    const t = { el, canvas, ctx: canvas.getContext("2d"), hue: (idx * 47 + 200) % 360, phase: idx * 1.7, rect: null };
+    tiles.set(id, t);
+    bindDrag(el, id);
+    if (id === SELF && webcamStream) attachWebcam(t);
+    drawFrame(t, performance.now());
+    return t;
+}
+function attachWebcam(t) {
+    if (t.video) return;
+    const v = document.createElement("video");
+    v.autoplay = true; v.muted = true; v.playsInline = true; v.srcObject = webcamStream;
+    t.el.insertBefore(v, t.canvas); t.canvas.remove(); t.video = v;
+}
+function drawFrame(t, now) {
+    if (t.video) return;
+    const c = t.ctx, W = 320, H = 180, s = now / 1000 + t.phase;
+    const g = c.createRadialGradient(W * 0.5, H * 0.35, 10, W * 0.5, H * 0.5, W * 0.7);
+    g.addColorStop(0, `hsl(${t.hue} 14% 22%)`); g.addColorStop(1, `hsl(${t.hue} 18% 8%)`);
+    c.fillStyle = g; c.fillRect(0, 0, W, H);
+    const sway = Math.sin(s * 0.9) * 6, nod = Math.sin(s * 1.7) * 2;
+    c.fillStyle = `hsl(${t.hue} 10% 34%)`;
+    c.beginPath(); c.ellipse(W / 2 + sway * 0.6, H + 18, 78, 62, 0, Math.PI, 0); c.fill();
+    c.fillStyle = `hsl(${t.hue} 12% 44%)`;
+    c.beginPath(); c.ellipse(W / 2 + sway, H * 0.47 + nod, 30, 37, sway * 0.01, 0, Math.PI * 2); c.fill();
+}
+let lastDraw = 0;
+function loop(now) {
+    if (now - lastDraw > 40) { lastDraw = now; for (const t of tiles.values()) drawFrame(t, now); }
+    requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+/* ---- tile motion (style guide §4: fades + shifts ≤ 8px, --t-med, --ease) ----
+   appear: fade in + rise 0.57rem from below · disappear: mirror.
+   re-layout (focus, join/leave, reorder): crossfade — snapshot ghost fades out at
+   the old box while the tile fades in at the new one. ("seq" and "morph" were
+   tried in the lab and dropped 2026-11-27.) */
+const RISE = "0.57rem";
+const anim = (el, frames, extra) => el.animate(frames,
+    { duration: dur(), easing: MOTION.ease, fill: "both", ...extra });
+function setBox(t, r) {
+    t.el.style.transform = `translate(${r.x.toFixed(1)}px, ${r.y.toFixed(1)}px)`;
+    t.el.style.width = r.w.toFixed(1) + "px";
+    t.el.style.height = r.h.toFixed(1) + "px";
+}
+function stopMotion(t) {
+    t.el.getAnimations().forEach(a => { if (a.id === "tile") a.cancel(); });
+}
+function appear(t, delay = 0) {
+    const a = anim(t.el, [{ opacity: 0, translate: `0 ${RISE}` }, { opacity: 1, translate: "0 0" }], { delay });
+    a.id = "tile";
+    a.onfinish = () => a.cancel();
+}
+function disappear(t) {
+    stopMotion(t);
+    t.el.classList.add("is-gone");
+    const a = anim(t.el, [{ opacity: 1, translate: "0 0" }, { opacity: 0, translate: `0 ${RISE}` }]);
+    a.onfinish = () => t.el.remove();
+}
+function snapshot(t) {
+    const g = t.el.cloneNode(true);
+    g.classList.add("is-ghost");
+    g.classList.remove("is-drag");
+    const src = t.video || t.canvas;
+    const c = document.createElement("canvas");
+    c.width = src.videoWidth || src.width || 320; c.height = src.videoHeight || src.height || 180;
+    try { c.getContext("2d").drawImage(src, 0, 0, c.width, c.height); } catch (_) {}
+    g.querySelector("canvas, video")?.replaceWith(c);
+    camStage.insertBefore(g, camStage.firstChild);
+    const a = anim(g, [{ opacity: 1 }, { opacity: 0 }]);
+    a.onfinish = () => g.remove();
+}
+function moveTile(t, r, instant) {
+    const prev = t.rect;
+    t.rect = r;
+    if (!prev) { setBox(t, r); return "new"; }
+    const same = Math.abs(prev.x - r.x) < 0.5 && Math.abs(prev.y - r.y) < 0.5 &&
+        Math.abs(prev.w - r.w) < 0.5 && Math.abs(prev.h - r.h) < 0.5;
+    if (same) return "same";
+    if (instant || reduceMotion()) { setBox(t, r); return "moved"; }
+    /* crossfade: the old frame fades out where it was, the tile fades in where
+       it goes. Pure opacity — no rise (it read as a twitch on every re-layout). */
+    stopMotion(t);
+    snapshot(t);
+    setBox(t, r);
+    const a = anim(t.el, [{ opacity: 0 }, { opacity: 1 }]);
+    a.id = "tile"; a.onfinish = () => a.cancel();
+    return "moved";
+}
+
+/* ===================== stage modes =====================
+   voice → entering (blobs fly into the strip, panel slides, --t-med) → cams (tiles appear)
+   cams → leaving (tiles fade out, --t-med) → voice (strip back into the corona, panel back).
+   Sequential on purpose (motion bible rule 3): tiles need the room the blobs vacate. */
+const origLayout = layoutParticipants;
+let stageMode = "voice", modeTimer = 0;
+let panelShift = 0;
+
+function visibleCams() {
+    const list = L.order.filter(id => L.cams.has(id));
+    return L.self === "hide" ? list.filter(id => id !== SELF) : list;
+}
+
+/* participants.js calls layoutParticipants() by name on every add/remove —
+   rebinding the global lets the strip own blob positions in camera mode. */
+layoutParticipants = function () {
+    if (stageMode === "voice") return voiceLayout();
+    layoutAll();   // strip position depends on the tiles — one owner for both
+};
+
+/* The corona reads the controls' box to size its region. While the panel is
+   still sliding back from the camera position that box is far too low → the
+   corona came out low and sat on the controls (bug 2026-11-27). Measure it at
+   its resting position instead. */
+function voiceLayout() {
+    /* The rest-point correction now lives in prod (participants.js
+       _panelSlideDelta), so the corona is measured right on its own. */
+    origLayout();
+}
+
+/* the blob strip sits centred between the tiles' bottom and the controls' top,
+   with this gap on each side (focus mode a bit more air) */
+const STRIP_GAP = 1.86, STRIP_GAP_FOCUS = 2.0;   // rem (grid: 1.43 → 1.86, more air around the strip)
+const focusOn = () => !!L.focus && visibleCams().length > 1 && visibleCams().includes(L.focus);
+const stripGap = r => (focusOn() ? STRIP_GAP_FOCUS : STRIP_GAP) * r;
+
+function geometry() {
+    const r = rem();
+    const st = stageEl.getBoundingClientRect();
+    const padR = parseFloat(getComputedStyle(stageEl).paddingRight) || 0;
+    const ctrl = controlsEl.getBoundingClientRect();
+    const m = getComputedStyle(panelArea).transform;
+    const curY = m && m !== "none" ? new DOMMatrixReadOnly(m).m42 : 0;
+    const baseCtrlTop = ctrl.top - curY;               // panel top with no transform at all
+    /* camera mode: controls sit low; on a phone the footer row is tight, give
+       the controls the same air from it as the screen edge (--edge 1.43rem) */
+    const ctrlTop = st.bottom - (isPhone() ? 1.43 : 0.57) * r - ctrl.height;
+    const shift = ctrlTop - baseCtrlTop;
+    return { r, st, right: st.right - padR, ctrlTop, shift };
+}
+
+/* Blob size and step for the strip (nicks hidden → no room reserved for them). */
+function stripMetrics(geo) {
+    const { r, st, right } = geo;
+    /* strip = only the people who WATCH (no camera): a camera owner already has
+       a tile, a second blob for them is noise. Everyone on camera → no strip.
+       Self sits in the centre (odd count) or the slot nearest to it (even). */
+    const members = ids().filter(id => id !== SELF && !L.cams.has(id));
+    if (!L.cams.has(SELF)) members.splice(Math.floor(members.length / 2), 0, SELF);
+    const avail = (right - st.left) - 2 * 1.43 * r;
+    let sz = L.blobRem * r, step = sz + 0.86 * r;
+    /* touch: nicks are always shown, one line → the step must fit the longest
+       one (mono: ~0.78em per char incl. tracking, as participants.js measures) */
+    const touch = isPhone();
+    if (touch) {
+        const fs = Math.min(0.86 * r, Math.max(0.62 * r, sz * 0.16));
+        const longest = Math.max(0, ...members.map(id => displayNick(nickOf(id)).length));
+        step = Math.max(step, longest * fs * 0.78 + 0.57 * r);
+    }
+    if (members.length > 1 && (members.length - 1) * step + sz > avail) {
+        const f = avail / ((members.length - 1) * step + Math.max(sz, step));
+        sz *= f; step *= f;
+    }
+    participantsContainer.style.setProperty("--nick-w", Math.max(step - 0.43 * r, sz).toFixed(1) + "px");
+    return { members, sz: members.length ? sz : 0, step };
+}
+
+/* Blob leaves the stage (got a camera) / comes back (camera off) — the same
+   birth/collapse as prod pop-in/pop-out (css/stage.css): collapse into a point
+   WHERE IT STANDS, be born from a point IN ITS NEW SLOT. Never slide while at
+   size 0 (that was the "grows from the corner" bug). */
+const hiddenBlobs = new Set();
+const BLOB_LIFE = () => reduceMotion() ? 1 : MOTION.med * 1.5;
+const BORN = [
+    { transform: "scale(0)", easing: MOTION.ease, offset: 0 },
+    { transform: "scale(0.16)", easing: MOTION.ease, offset: 0.3 },
+    { transform: "scale(1)", offset: 1 }];
+const COLLAPSE = [
+    { transform: "scale(1)", easing: MOTION.ease, offset: 0 },
+    { transform: "scale(0.16)", easing: MOTION.ease, offset: 0.6 },
+    { transform: "scale(0)", offset: 1 }];
+function hideBlob(id, el) {
+    if (hiddenBlobs.has(id)) return;
+    hiddenBlobs.add(id);
+    el.style.pointerEvents = "none";
+    const av = el.querySelector(".participant-avatar");
+    el._blobAnims?.forEach(a => a.cancel());
+    /* leaving is shorter than being born (one --d-med): the dot must not
+       linger while a neighbour already slides into its place */
+    const a1 = av.animate(COLLAPSE, { duration: dur(), fill: "forwards" });
+    const a2 = el.animate([{ opacity: 1, offset: 0 }, { opacity: 1, offset: 0.6 }, { opacity: 0, offset: 1 }],
+        { duration: dur(), fill: "forwards" });
+    el._blobAnims = [a1, a2];
+    a2.onfinish = () => { if (hiddenBlobs.has(id)) { el.style.opacity = "0"; a1.cancel(); a2.cancel(); } };
+}
+/* place(el) sets the final position; the blob jumps there invisibly, then is born */
+function showBlob(id, el, place) {
+    if (!hiddenBlobs.has(id)) { place(); return; }
+    hiddenBlobs.delete(id);
+    el._blobAnims?.forEach(a => a.cancel());
+    el.classList.add("no-anim");
+    place();
+    el.style.opacity = "";
+    el.style.pointerEvents = "";
+    void el.offsetWidth;
+    requestAnimationFrame(() => el.classList.remove("no-anim"));
+    const av = el.querySelector(".participant-avatar");
+    el._blobAnims = [av.animate(BORN, { duration: BLOB_LIFE() }),
+        el.querySelector(".participant-name").animate([{ opacity: 0 }, { opacity: 1 }],
+            { duration: dur(), delay: MOTION.med * 0.6, fill: "backwards", easing: MOTION.ease })];
+}
+
+function layoutStrip(geo, cy0) {
+    const { st, right } = geo;
+    const { members, sz, step } = stripMetrics(geo);
+    const slot = document.querySelector(".users-slot").getBoundingClientRect();
+    const cx = slot.left + slot.width / 2, cy = slot.top + slot.height / 2;
+    const y = cy0 ?? (geo.ctrlTop - stripGap(geo.r) - sz / 2);
+    const midX = st.left + (right - st.left) / 2;
+    const x0 = midX - ((members.length - 1) * step) / 2;
+    const szPx = sz.toFixed(1) + "px";
+    for (const [id, el] of participantElements) {
+        const i = members.indexOf(id);
+        if (i < 0) { hideBlob(id, el); continue; }   // collapses where it stands
+        showBlob(id, el, () => {
+            el.style.setProperty("--sz", szPx);
+            el.style.setProperty("--px", (x0 + i * step - cx).toFixed(1) + "px");
+            el.style.setProperty("--py", (y - cy).toFixed(1) + "px");
+        });
+    }
+}
+
+let dragState = null;
+
+function layoutAll(reason) {
+    const instant = reason === "resize";
+    const want = L.cams.size > 0;
+    if (want && (stageMode === "voice" || stageMode === "leaving")) {
+        clearTimeout(modeTimer);
+        if (stageMode === "leaving") stageMode = "cams";
+        else {
+            stageMode = "entering";
+            modeTimer = setTimeout(() => { stageMode = "cams"; layoutAll(); }, dur());
+        }
+    } else if (!want && (stageMode === "cams" || stageMode === "entering")) {
+        clearTimeout(modeTimer);
+        stageMode = "leaving";
+        for (const t of tiles.values()) disappear(t);
+        tiles.clear();
+        modeTimer = setTimeout(() => { stageMode = "voice"; layoutAll(); }, dur());
+    }
+
+    const camsLayout = stageMode !== "voice";
+    app.classList.toggle("cams", camsLayout);
+    app.classList.toggle("ctrl-row", L.ctrl === "row");
+    camStage.classList.toggle("no-anim", instant);
+    if (instant) requestAnimationFrame(() => camStage.classList.remove("no-anim"));
+
+    const geo = geometry();
+    panelShift = camsLayout ? geo.shift : 0;
+    app.style.setProperty("--cam-panel-shift", panelShift + "px");
+
+    if (!camsLayout) {
+        /* back to the corona: hidden blobs are born at their corona slots */
+        const back = [...hiddenBlobs].filter(id => participantElements.has(id));
+        for (const id of back) participantElements.get(id).classList.add("no-anim");
+        voiceLayout();
+        for (const id of back) {
+            const el = participantElements.get(id);
+            showBlob(id, el, () => {});
+            el.classList.add("no-anim");
+            requestAnimationFrame(() => el.classList.remove("no-anim"));
+        }
+        renderStat([]);
+        return;
+    }
+    const r = geo.r;
+    const list = visibleCams();
+    if (stageMode === "cams") for (const [id, t] of tiles) if (!list.includes(id)) { disappear(t); tiles.delete(id); }
+    if (!list.length) { layoutStrip(geo); renderStat([]); return; }
+
+    /* Composition = grid + (strip). Equal air: above the grid, grid→strip and
+       strip→controls are the same; no strip → grid centred between the stage
+       top and the controls. Each gap ≥ G. Computed in every camera phase, so the
+       strip lands where it will stay while the tiles are still hidden. */
+    /* touch has no hover → nicks are always on: under strip blobs and under
+       focus thumbs, and the layout reserves their line */
+    const touch = isPhone();
+    const sm = stripMetrics(geo), G = stripGap(r), sz = sm.sz;
+    const nickFont = Math.min(0.86 * r, Math.max(0.62 * r, sz * 0.16));
+    const stripH = sz ? sz + (touch ? 0.36 * r + nickFont * 1.3 : 0) : 0;
+    const minTop = 0.57 * r;
+    const left = geo.st.left + 1.43 * r, right = geo.right - 1.43 * r;
+    const W = right - left;
+    /* (no extra reserve under focus thumbs: a thumb in control mode slides
+       0.86rem + its nick ≈ 1.9rem — fits in the 2rem focus gap) */
+    const H = Math.max(40, geo.ctrlTop - geo.st.top - minTop - (stripH ? 2 * G + stripH : G));
+    AR = W / H < 0.9 ? 1 : 16 / 9;
+    const focusIdx = focusOn() ? list.indexOf(L.focus) : null;   // a lone camera has nothing to focus away from
+    if (L.ctl && !list.includes(L.ctl)) L.ctl = null;
+    camStage.classList.toggle("lone", list.length < 2);
+    /* 3+ equal tiles on desktop: nick on hover only */
+    camStage.classList.toggle("many", list.length > 2 && focusIdx == null && !touch);
+    const rects = camGridLayout(list.length, W, H,
+        { gap: L.gapRem * r, fill: L.fill, valign: "top", focusIdx, rem: r,
+          nick: touch ? 0.29 * r + 0.64 * r * 1.3 : 0 });
+    const gridH = Math.max(...rects.map(b => b.y + b.h)) - Math.min(...rects.map(b => b.y));
+    const y0rel = Math.min(...rects.map(b => b.y));
+    const free = (geo.ctrlTop - geo.st.top) - gridH - stripH;
+    const parts = stripH ? 3 : 2;
+    let gap = Math.max(G, free / parts);
+    let airTop = free - gap * (parts - 1);
+    if (airTop < minTop) { airTop = minTop; gap = (free - airTop) / (parts - 1); }
+    const top = geo.st.top + airTop - y0rel;
+    layoutStrip(geo, geo.st.top + airTop + gridH + gap + sz / 2);
+    if (stageMode !== "cams") { renderStat([]); return; }   // tiles wait for the room
+
+    const report = [];
+    list.forEach((id, i) => {
+        const t = tiles.get(id) || makeTile(id);
+        const b = rects[i];
+        const box = { x: left + b.x, y: top + b.y, w: b.w, h: b.h };
+        t.el.classList.toggle("is-focus", focusIdx === i);
+        t.el.classList.toggle("thumb", focusIdx != null && focusIdx !== i);
+        t.el.classList.toggle("is-ctl", L.ctl === id);
+        t.el.style.setProperty("--v", (L.vol.get(id) ?? 1).toFixed(3));
+        t.el.classList.toggle("small", b.h < 6 * r);
+        t.el.classList.toggle("is-muted", L.muted.has(id));
+        t.el.classList.toggle("is-deaf", L.deaf.has(id));
+        const dragged = dragState && dragState.id === id && dragState.moved;
+        if (dragged) t.rect = box;                     // follows the pointer; lands on drop
+        else if (moveTile(t, box, instant) === "new") appear(t);
+        const tier = tierFor(b.h);
+        t.el.querySelector(".cam-tier").textContent =
+            id === SELF ? "локально"
+                : b.w < 14 * r ? `${tier.id} · ${tier.kbps}k`
+                : `${tier.id} · ${tier.res}@${tier.fps} · ${tier.kbps}k`;
+        report.push({ id, tier });
+    });
+    renderStat(report);
+}
+
+function renderStat(report) {
+    const el = document.getElementById("stat");
+    const others = report.filter(x => x.id !== SELF);
+    const viewers = L.n - 1;
+    let down = 0;
+    for (const x of others) down += Math.min(x.tier.kbps, CAM_UPLOAD_BUDGET / Math.max(1, viewers));
+    const avg = others.length ? others.reduce((s, x) => s + x.tier.kbps, 0) / others.length : 500;
+    const up = L.cams.has(SELF) ? viewers * Math.min(avg, CAM_UPLOAD_BUDGET / Math.max(1, viewers)) : 0;
+    const gbh = kb => (kb * 3600 / 8 / 1e6).toFixed(2);
+    el.innerHTML = `камер: <b>${report.length}</b> · режим: <b>${stageMode === "voice" ? "голос" : (L.focus ? "фокус" : "сетка")}</b><br>` +
+        `приём видео: <b>${(down / 1000).toFixed(2)} Mbps</b> (~${gbh(down)} ГБ/ч)<br>` +
+        `отдача моей камеры: <b>${(up / 1000).toFixed(2)} Mbps</b> на ${viewers} чел.<br>` +
+        `<span style="color:var(--fg-3)">бюджет камеры ${CAM_UPLOAD_BUDGET / 1000}M делится на зрителей</span>`;
+}
+
+let raf = 0;
+function relayout() {
+    if (raf) return;
+    raf = requestAnimationFrame(() => { raf = 0; layoutAll("resize"); });
+}
+window.addEventListener("resize", relayout);
+new ResizeObserver(relayout).observe(stageEl);
+
+/* ===================== interactions ===================== */
+function bindDrag(el, id) {
+    /* nick-on: on at once, off --d-slow after the pointer leaves — only for
+       hover, so entering focus doesn't leave nicks hanging under the thumbs */
+    let nickTimer = 0;
+    el.addEventListener("pointerenter", () => { clearTimeout(nickTimer); el.classList.add("nick-on"); });
+    el.addEventListener("pointerleave", () => {
+        clearTimeout(nickTimer);
+        nickTimer = setTimeout(() => el.classList.remove("nick-on"), MOTION.slow);
+    });
+    /* focus button (top right): grid tile → focus, focused tile → back to grid */
+    el.querySelector(".cam-expand").addEventListener("click", e => {
+        e.stopPropagation();
+        L.focus = focusOn() && L.focus === id ? null : id;
+        L.ctl = null;
+        layoutAll();
+    });
+    /* volume: wheel anywhere on the tile (like the blob arc, 5 % a notch),
+       or drag along the bar (vertical on tiles, horizontal above a thumb) */
+    const setVol = v => {
+        v = Math.max(0, Math.min(1, v));
+        L.vol.set(id, v);
+        el.style.setProperty("--v", v.toFixed(3));
+    };
+    el.addEventListener("wheel", e => {
+        if (L.ctl !== id || id === SELF) return;
+        e.preventDefault();
+        const n = window.VoidWheel ? window.VoidWheel.notches(e) : -Math.sign(e.deltaY);
+        if (n) setVol((L.vol.get(id) ?? 1) + n * 0.05);
+        armCtl();
+    }, { passive: false });
+    const bar = el.querySelector(".cam-vol");
+    const fromPointer = e => {
+        const b = bar.getBoundingClientRect();
+        setVol(el.classList.contains("thumb") ? (e.clientX - b.left) / b.width : (b.bottom - e.clientY) / b.height);
+    };
+    bar.addEventListener("pointerdown", e => {
+        e.stopPropagation();
+        try { bar.setPointerCapture(e.pointerId); } catch (_) {}
+        bar._drag = true; fromPointer(e); armCtl();
+    });
+    bar.addEventListener("pointermove", e => { if (bar._drag) { fromPointer(e); armCtl(); } });
+    el.addEventListener("pointermove", () => { if (L.ctl === id) armCtl(); });
+    const stopBar = () => { bar._drag = false; };
+    bar.addEventListener("pointerup", stopBar);
+    bar.addEventListener("pointercancel", stopBar);
+    bar.addEventListener("click", e => e.stopPropagation());
+    el.querySelector(".cam-tag").addEventListener("click", e => {
+        e.stopPropagation();
+        openProfile(id);
+    });
+    el.addEventListener("pointerdown", e => {
+        if (e.button !== 0 || e.target.closest(".cam-tag, .cam-expand, .cam-vol")) return;
+        const t = tiles.get(id);
+        if (!t || !t.rect) return;
+        dragState = { id, sx: e.clientX, sy: e.clientY, ox: t.rect.x, oy: t.rect.y, moved: false };
+        try { el.setPointerCapture(e.pointerId); } catch (_) {}
+    });
+    el.addEventListener("pointermove", e => {
+        if (!dragState || dragState.id !== id) return;
+        const dx = e.clientX - dragState.sx, dy = e.clientY - dragState.sy;
+        if (!dragState.moved && Math.hypot(dx, dy) < 6) return;
+        if (!dragState.moved) { stopMotion(tiles.get(id)); dragState.moved = true; }
+        el.classList.add("is-drag");
+        el.style.transform = `translate(${dragState.ox + dx}px, ${dragState.oy + dy}px)`;
+        for (const [oid, t] of tiles) {
+            if (oid === id || !t.rect) continue;
+            const r = t.rect;
+            if (e.clientX >= r.x && e.clientX <= r.x + r.w && e.clientY >= r.y && e.clientY <= r.y + r.h) {
+                const a = L.order.indexOf(id), b = L.order.indexOf(oid);
+                L.order.splice(a, 1); L.order.splice(b, 0, id);
+                layoutAll();
+                break;
+            }
+        }
+    });
+    const end = () => {
+        if (!dragState || dragState.id !== id) return;
+        const moved = dragState.moved;
+        dragState = null;
+        el.classList.remove("is-drag");
+        if (!moved) {
+            /* click = control mode (volume, focus button). A thumb already in
+               control mode goes into focus on the second click. */
+            /* phone: a thumb goes straight into focus — controls live only on the
+               focused tile there (thumbs are too small to hold them) */
+            const phone = isPhone();
+            if (el.classList.contains("thumb") && (phone || L.ctl === id)) { L.focus = id; L.ctl = null; }
+            else L.ctl = L.ctl === id ? null : id;
+            armCtl(); layoutAll(); return;
+        }
+        /* the dropped tile settles from under the pointer into its slot */
+        const t = tiles.get(id);
+        const from = el.style.transform;
+        setBox(t, t.rect);
+        const a = el.animate([{ transform: from }, { transform: el.style.transform }],
+            { duration: dur(), easing: MOTION.ease });
+        a.id = "tile";
+        layoutAll();
+    };
+    el.addEventListener("pointerup", end);
+    el.addEventListener("pointercancel", end);
+}
+
+/* profile stand-in (prod: VoidFriendsUI.openPersonProfile) */
+function openProfile(id) {
+    document.getElementById("profileNick").textContent = displayNick(nickOf(id)) + (id === SELF ? " (ты)" : "");
+    document.body.classList.add("profile-open");
+}
+document.getElementById("profile").addEventListener("click", e => {
+    if (e.target.id === "profile" || e.target.closest("[data-close]")) document.body.classList.remove("profile-open");
+});
+
+function setCam(id, on) {
+    if (on) { L.cams.add(id); if (!L.order.includes(id)) L.order.push(id); }
+    else { L.cams.delete(id); if (L.focus === id) L.focus = null; }
+    L.order = L.order.filter(x => x !== SELF).concat(L.order.includes(SELF) ? [SELF] : []);
+    syncPeople(); renderDock(); layoutAll();
+}
+
+document.getElementById("camBtn").addEventListener("click", () => setCam(SELF, !L.cams.has(SELF)));
+function syncSelfButtons() {
+    document.getElementById("micBtn").classList.toggle("off", L.muted.has(SELF));
+    document.getElementById("soundBtn").classList.toggle("off", L.deaf.has(SELF));
+}
+document.getElementById("micBtn").addEventListener("click", () => {
+    if (L.deaf.has(SELF)) L.deaf.delete(SELF);           // un-deaf brings the mic back too
+    if (L.muted.has(SELF)) L.muted.delete(SELF); else L.muted.add(SELF);
+    syncSelfButtons(); syncPeople(); layoutAll();
+});
+document.getElementById("soundBtn").addEventListener("click", () => {
+    if (L.deaf.has(SELF)) { L.deaf.delete(SELF); L.muted.delete(SELF); }
+    else { L.deaf.add(SELF); L.muted.add(SELF); }      // deaf ⊇ muted
+    syncSelfButtons(); syncPeople(); layoutAll();
+});
+/* Control mode (tile or thumb) drops back by itself after CTL_IDLE without
+   any action on that tile — changed mind / forgot. Wheel, bar, pointer moves
+   over the tile re-arm it. Medium on purpose: long enough to reach for the
+   bar, short enough not to linger. */
+const CTL_IDLE = 8000;
+let ctlTimer = 0;
+function armCtl() {
+    clearTimeout(ctlTimer);
+    if (!L.ctl) return;
+    ctlTimer = setTimeout(() => { L.ctl = null; layoutAll(); }, CTL_IDLE);
+}
+
+/* click anywhere off the tiles closes the control mode */
+document.addEventListener("pointerdown", e => {
+    if (!L.ctl || e.target.closest(".cam-tile, .lab-dock, #dockToggle")) return;
+    L.ctl = null; layoutAll();
+});
+
+function setChat(open) {
+    document.body.classList.toggle("chat-open", open);
+    relayout();
+}
+document.getElementById("chatToggle").addEventListener("click", () => setChat(true));
+document.getElementById("chatClose").addEventListener("click", () => setChat(false));
+document.addEventListener("keydown", e => {
+    if (e.key !== "Escape") return;
+    if (document.body.classList.contains("profile-open")) document.body.classList.remove("profile-open");
+    else if (L.ctl) { L.ctl = null; layoutAll(); }
+    else setChat(false);
+});
+/* the stage padding animates for --t-med when the chat opens: follow it */
+stageEl.addEventListener("transitionend", e => { if (e.propertyName === "padding-right") relayout(); });
+document.getElementById("dockToggle").addEventListener("click", () =>
+    document.getElementById("dock").classList.toggle("is-hidden"));
+
+/* ===================== dock ===================== */
+function renderDock() {
+    const seg = document.getElementById("segCount");
+    seg.innerHTML = "";
+    for (let n = 1; n <= 10; n++) {
+        const b = document.createElement("button");
+        b.type = "button"; b.textContent = n; b.classList.toggle("is-on", n === L.n);
+        b.onclick = () => { L.n = n; L.order = L.order.filter(id => ids().includes(id));
+            if (L.focus && !ids().includes(L.focus)) L.focus = null;
+            syncPeople(); renderDock(); layoutAll(); };
+        seg.appendChild(b);
+    }
+    const people = document.getElementById("people");
+    people.innerHTML = "";
+    for (const id of ids()) {
+        const b = document.createElement("button");
+        b.type = "button"; b.className = "lab-btn" + (L.cams.has(id) ? " is-on" : "");
+        b.textContent = displayNick(nickOf(id)) + (id === SELF ? " (ты)" : "");
+        b.onclick = () => setCam(id, !L.cams.has(id));
+        people.appendChild(b);
+    }
+    document.querySelectorAll(".lab-seg[data-opt]").forEach(s => {
+        s.querySelectorAll("button").forEach(b => b.classList.toggle("is-on", L[s.dataset.opt] === b.dataset.v));
+    });
+    document.getElementById("camBtn").classList.toggle("active", L.cams.has(SELF));
+    document.getElementById("optTiers").classList.toggle("is-on", L.tiers);
+    document.getElementById("optSpeak").classList.toggle("is-on", L.speak);
+    document.getElementById("optWebcam").classList.toggle("is-on", L.webcam);
+    document.body.classList.toggle("show-tiers", L.tiers);
+    document.getElementById("blobVal").textContent = L.blobRem.toFixed(1) + "rem";
+    document.getElementById("gapVal").textContent = L.gapRem.toFixed(2) + "rem";
+}
+document.querySelectorAll(".lab-seg[data-opt]").forEach(s => {
+    s.addEventListener("click", e => {
+        const b = e.target.closest("button"); if (!b) return;
+        L[s.dataset.opt] = b.dataset.v; renderDock(); layoutAll();
+    });
+});
+document.getElementById("allOn").onclick = () => { for (const id of ids()) setCam(id, true); };
+document.getElementById("allOff").onclick = () => { for (const id of ids()) setCam(id, false); };
+document.getElementById("oneOn").onclick = () => {
+    const next = ids().find(id => !L.cams.has(id)); if (next) setCam(next, true);
+};
+document.getElementById("optTiers").onclick = () => { L.tiers = !L.tiers; renderDock(); };
+document.getElementById("optSpeak").onclick = () => { L.speak = !L.speak; renderDock(); };
+document.getElementById("optWebcam").onclick = async () => {
+    if (!L.webcam) {
+        try {
+            webcamStream = await navigator.mediaDevices.getUserMedia({
+                video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 } } });
+            L.webcam = true;
+            const t = tiles.get(SELF); if (t) attachWebcam(t);
+            if (!L.cams.has(SELF)) setCam(SELF, true);
+        } catch (err) { alert("камера недоступна: " + (err?.name || err)); }
+    } else {
+        webcamStream?.getTracks().forEach(t => t.stop()); webcamStream = null; L.webcam = false;
+        const t = tiles.get(SELF);
+        if (t && t.video) { t.video.remove(); t.video = null; t.el.insertBefore(t.canvas, t.el.firstChild); }
+    }
+    renderDock();
+};
+const blob = document.getElementById("blobSize"), gap = document.getElementById("gap");
+blob.value = L.blobRem; gap.value = L.gapRem;
+blob.oninput = () => { L.blobRem = +blob.value; renderDock(); layoutAll("resize"); };
+gap.oninput = () => { L.gapRem = +gap.value; renderDock(); layoutAll("resize"); };
+
+/* speaking simulation: phrases of 1.5–4 s with pauses, like a real call
+   (the old 900 ms coin-flip blinked). Blobs get the real .speaking ring. */
+const talkUntil = new Map();
+setInterval(() => {
+    const now = performance.now();
+    for (const [id, el] of participantElements) {
+        let until = talkUntil.get(id) || 0;
+        if (now > until + 600 && L.speak && !L.muted.has(id) && Math.random() < 0.12) {
+            until = now + 1500 + Math.random() * 2500;
+            talkUntil.set(id, until);
+        }
+        const talk = L.speak && !L.muted.has(id) && now < until;
+        el.classList.toggle("speaking", talk);
+        tiles.get(id)?.el.classList.toggle("is-speaking", talk);
+    }
+}, 250);
+
+/* ===================== boot ===================== */
+syncPeople();
+renderDock();
+requestAnimationFrame(() => requestAnimationFrame(() => layoutAll("resize")));
+})();
+</script>
+</body>
+</html>

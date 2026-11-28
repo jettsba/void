@@ -91,7 +91,7 @@ function stopLivenessWatchdog() {
  * mesh пересобирается с нуля через closeRemotePeerConnections — старые SDP
  * и кандидаты устарели в момент close().
  */
-const _BUFFERABLE_TYPES = new Set(["audio-state", "screencast-state", "nickname-update"]);
+const _BUFFERABLE_TYPES = new Set(["audio-state", "screencast-state", "camera-state", "nickname-update"]);
 const _OUTGOING_BUFFER_TTL_MS = 10_000;
 const _outgoingBuffer = new Map(); // type → {data, addedAt}
 
@@ -360,6 +360,11 @@ function sendSocket(data) {
     }
 }
 
+/* Что этот клиент умеет показывать (lib/security.js sanitizeCaps). "cam" —
+   камеры соседей: без него они нам камеру не шлют (старый клиент считал бы
+   её демкой). Принимать камеру можно и без своей. */
+const CLIENT_CAPS = ["cam"];
+
 function handleSocketMessage(data) {
     switch (data.type) {
         case "keepalive":
@@ -383,7 +388,8 @@ function handleSocketMessage(data) {
                     type: "join-room-confirm",
                     code: data.code,
                     userId: clientId,
-                    nickname: currentUsername
+                    nickname: currentUsername,
+                    caps: CLIENT_CAPS
                 });
             } else if (data.reason === "code-taken"
                 && typeof retryCreateRoomAfterCollision === "function") {
@@ -404,7 +410,8 @@ function handleSocketMessage(data) {
                 type: "join-room-confirm",
                 code: data.code,
                 userId: clientId,
-                nickname: currentUsername
+                nickname: currentUsername,
+                caps: CLIENT_CAPS
             });
             break;
 
@@ -445,9 +452,14 @@ function handleSocketMessage(data) {
             if (typeof handleScreencastStateMsg === "function") {
                 handleScreencastStateMsg(data);
             }
+            window.VoidCam?.onScreencastState(data.userId, !!data.screen);
             /* Звук скринкаста слышат все в комнате (self играет у себя в момент
                тоггла; сюда приходит только чужой стейт — не self-эхо). */
             if (window.VoidSounds) VoidSounds.screencast(!!data.screen);
+            break;
+
+        case "camera-state":
+            window.VoidCam?.onPeerState(data.userId, !!data.cam, data.sid);
             break;
 
         case "screencast-rejected":
@@ -474,12 +486,16 @@ function handleSocketMessage(data) {
             removeParticipant(data.userId);
             // Закрываем peer + audio + analyser + health timer.
             cleanupPeerSlot(data.userId);
+            window.VoidCam?.forget(data.userId);
             // Звук выхода другого участника (вариант 0) — слышат все в комнате.
             if (window.VoidSounds) VoidSounds.peerLeave();
             break;
 
         case "new-participant": {
             addParticipant(data.userId, data.nickname);
+            /* caps/камера — до callUser: createPeer сразу решает, слать ли ему
+               нашу камеру. */
+            window.VoidCam?.onPeerInfo(data.userId, data);
             const existingPeer = peers.get(data.userId);
             /* Пир под этим userId ЖИВ — значит это не новый человек и не призрак,
                а сосед, который перезашёл на сигналинге (наша выкатка, его блип).
@@ -546,6 +562,7 @@ function handleSocketMessage(data) {
                     && typeof broadcastScreencastState === "function") {
                     broadcastScreencastState(true);
                 }
+                window.VoidCam?.reannounce();
             }
             data.users.forEach(user => {
                 addParticipant(user.id, user.nickname);
@@ -553,6 +570,8 @@ function handleSocketMessage(data) {
                 if (user.screen && typeof handleScreencastStateMsg === "function") {
                     handleScreencastStateMsg({ userId: user.id, screen: true });
                 }
+                window.VoidCam?.onPeerInfo(user.id, user);
+                if (user.screen) window.VoidCam?.onScreencastState(user.id, true);
             });
 
             /* Реконнект: сверяем состав вместо оптового сноса. Раньше

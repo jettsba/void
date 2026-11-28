@@ -107,6 +107,24 @@ static CLOSE_TO_TRAY: AtomicBool = AtomicBool::new(true);
 /// читает его в рантайме и гасит/пропускает F12 и Ctrl+Shift+I/J/C.
 static DEV_ACCESS: AtomicBool = AtomicBool::new(false);
 
+/// Камера (WebView2): до какого момента (мс UNIX) PermissionRequested с
+/// CAMERA отвечаем ALLOW. Взводит команда arm_camera — её JS зовёт прямо
+/// перед getUserMedia({video}) по нажатию кнопки камеры / сканера QR. Вне
+/// окна камера ОТКЛОНЯЕТСЯ без промпта: молча открыть её не может никакой
+/// скрипт (аудит 1.7.0 снял постоянный автогрант именно поэтому).
+#[cfg(windows)]
+static CAMERA_ARMED_UNTIL_MS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+#[cfg(windows)]
+const CAMERA_ARM_WINDOW_MS: u64 = 10_000;
+
+#[cfg(windows)]
+fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
+}
+
 /// HWND главного окна (как isize). Нужен screen_indicator'у, чтобы исключить
 /// главное окно при скрытии индикатора захвата из таскбара. 0 = окна ещё нет.
 #[cfg(windows)]
@@ -212,6 +230,18 @@ fn stop_screen_audio(window: tauri::WebviewWindow) {
     {
         screen_audio_mac::stop();
     }
+}
+
+/// Разрешить камеру на ближайшие CAMERA_ARM_WINDOW_MS (см.
+/// CAMERA_ARMED_UNTIL_MS). Только главное окно. macOS: no-op — там доступ
+/// спрашивает система (TCC, NSCameraUsageDescription) и помнит ответ сама.
+#[tauri::command]
+fn arm_camera(window: tauri::WebviewWindow) {
+    if !from_main(&window) {
+        return;
+    }
+    #[cfg(windows)]
+    CAMERA_ARMED_UNTIL_MS.store(now_ms() + CAMERA_ARM_WINDOW_MS, Ordering::SeqCst);
 }
 
 /// Dev-режим разрешён только на машине, где его включили руками: файл
@@ -511,6 +541,7 @@ pub fn run() {
             open_devtools,
             open_external,
             save_file,
+            arm_camera,
             lab_sys_stats,
             lab_sys_reset,
             lab_webview_version
@@ -1158,16 +1189,17 @@ fn fit_main_window_to_monitor(window: &tauri::WebviewWindow) {
 /// убирает диалог насовсем. Token регистрации не храним: хендлер живёт всё
 /// время жизни окна.
 ///
-/// ТОЛЬКО микрофон. Камера в продукте не используется нигде (все getUserMedia —
-/// audio-only, демонстрация экрана идёт через getDisplayMedia — другой путь), а
-/// её авто-грант был мёртвой привилегией: любой скрипт, попавший в webview,
-/// получил бы видео без единого вопроса. Понадобится камера — грант по жесту в
-/// момент первого использования, не при старте.
+/// Микрофон — всегда. Камера — только в коротком окне после arm_camera (JS
+/// зовёт её по нажатию кнопки камеры или сканера QR, прямо перед
+/// getUserMedia); вне окна — DENY без промпта. Постоянный автогрант камеры
+/// аудит 1.7.0 снял: любой скрипт в webview получил бы видео без вопроса.
 #[cfg(windows)]
 fn setup_media_permissions(window: &tauri::WebviewWindow) {
     use webview2_com::Microsoft::Web::WebView2::Win32::{
-        ICoreWebView2PermissionRequestedEventArgs, COREWEBVIEW2_PERMISSION_KIND,
-        COREWEBVIEW2_PERMISSION_KIND_MICROPHONE, COREWEBVIEW2_PERMISSION_STATE_ALLOW,
+        ICoreWebView2PermissionRequestedEventArgs, ICoreWebView2PermissionRequestedEventArgs3,
+        COREWEBVIEW2_PERMISSION_KIND,
+        COREWEBVIEW2_PERMISSION_KIND_CAMERA, COREWEBVIEW2_PERMISSION_KIND_MICROPHONE,
+        COREWEBVIEW2_PERMISSION_STATE_ALLOW, COREWEBVIEW2_PERMISSION_STATE_DENY,
     };
     use webview2_com::PermissionRequestedEventHandler;
 
@@ -1185,6 +1217,18 @@ fn setup_media_permissions(window: &tauri::WebviewWindow) {
                         args.PermissionKind(&mut kind)?;
                         if kind == COREWEBVIEW2_PERMISSION_KIND_MICROPHONE {
                             args.SetState(COREWEBVIEW2_PERMISSION_STATE_ALLOW)?;
+                        } else if kind == COREWEBVIEW2_PERMISSION_KIND_CAMERA {
+                            // Не сохранять решение в профиле: иначе один ALLOW
+                            // открыл бы камеру навсегда без события (и без гейта).
+                            if let Ok(a3) = wv2_core::Interface::cast::<ICoreWebView2PermissionRequestedEventArgs3>(&args) {
+                                let _ = a3.SetSavesInProfile(false);
+                            }
+                            let armed = now_ms() <= CAMERA_ARMED_UNTIL_MS.load(Ordering::SeqCst);
+                            args.SetState(if armed {
+                                COREWEBVIEW2_PERMISSION_STATE_ALLOW
+                            } else {
+                                COREWEBVIEW2_PERMISSION_STATE_DENY
+                            })?;
                         }
                     }
                     Ok(())

@@ -368,6 +368,7 @@ function bindChatChannel(channel, userId) {
     channel.onopen = () => {
         log.debug("chat", "channel open", { userId });
         window.VoidSafety?.onChannelOpen(userId);
+        window.VoidCam?.onChannelOpen(userId);
     };
     channel.onclose = () => {
         if (chatChannels.get(userId) === channel) {
@@ -692,6 +693,13 @@ function handleIncoming(data, userId) {
            type просто игнорируют. */
         if (json.type === "lab") {
             window.VoidScreenLab?.onPeerMessage(json, userId);
+            return;
+        }
+        /* Камера (js/camera.js): зритель сообщает, какой кадр ему нужен —
+           отправитель подстраивает энкодер этой пары. Старые клиенты такой
+           type игнорируют. */
+        if (json.type === "cam") {
+            window.VoidCam?.onPeerMessage(json, userId);
             return;
         }
         /* Заявка в друзья (js/friends/net.js): владелец канала = отправитель. */

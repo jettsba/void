@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const APP_VERSION = "1.12.2";
+    const APP_VERSION = "1.13.0";
     /* Экспортируем версию в window — log.bugReport() кладёт её в отчёт,
        чтобы было видно с какой версии собран дамп. */
     window.VoidVersion = APP_VERSION;
@@ -31,6 +31,9 @@
         nickname: "",
         audioInId: "",
         audioOutId: "",
+        /* Камера (js/camera.js). Локальная настройка, не в SYNC_KEYS: у
+           каждого устройства свои камеры. Смена посреди звонка — на лету. */
+        videoInId: "",
         audioInGain: 1.0,
         audioOutGain: 1.0,
         /* Шумоподавление (RNNoise + штатный NS). Применяется при следующем
@@ -123,6 +126,21 @@
             "controls.deaf": "выключить звук",
             "controls.screencast.soon": "демонстрация (скоро)",
             "controls.camera": "камера",
+            "controls.camera.on": "включить камеру",
+            "controls.camera.off": "выключить камеру",
+            "cam.you": "ты",
+            "cam.focus": "крупно",
+            "cam.unfocus": "вернуть в сетку",
+            "cam.volume": "громкость",
+            "cam.screen": "экран",
+            "cam.local": "локально",
+            "errors.camera.denied": "нет доступа к камере — разреши его в настройках браузера",
+            "errors.camera.denied.mac": "нет доступа к камере — разреши void: системные настройки → конфиденциальность → камера",
+            "errors.camera.notfound": "камера не найдена",
+            "errors.camera.busy": "камера занята другим приложением",
+            "errors.camera.failed": "не удалось включить камеру",
+            "errors.camera.lost": "камера отключилась",
+            "settings.video.camera": "камера",
             "controls.screencast.share": "показать экран",
             "controls.screencast.stop": "остановить показ",
             "controls.leave": "выйти",
@@ -210,7 +228,7 @@
 
             "settings.title": "настройки",
             "settings.cat.profile": "профиль",
-            "settings.cat.audio": "аудио",
+            "settings.cat.audio": "устройства",
             "settings.cat.interface": "интерфейс",
             "settings.cat.hotkeys": "горячие клавиши",
             "settings.cat.app": "приложение",
@@ -222,6 +240,7 @@
             "hotkeys.action.toggleSound": "звук вкл/выкл",
             "hotkeys.action.toggleWindow": "показать/скрыть окно",
             "hotkeys.action.leaveRoom": "покинуть комнату",
+            "hotkeys.action.toggleCamera": "камера вкл/выкл",
             "hotkeys.webhint": "в web-версии хоткеи работают только при открытой вкладке",
             "hotkeys.restore": "восстановить",
             "hotkeys.cap.mouse3": "колесо-клик",
@@ -496,6 +515,21 @@
             "controls.deaf": "deaf",
             "controls.screencast.soon": "screencast (soon)",
             "controls.camera": "camera",
+            "controls.camera.on": "turn camera on",
+            "controls.camera.off": "turn camera off",
+            "cam.you": "you",
+            "cam.focus": "focus",
+            "cam.unfocus": "back to grid",
+            "cam.volume": "volume",
+            "cam.screen": "screen",
+            "cam.local": "local",
+            "errors.camera.denied": "no camera access — allow it in the browser settings",
+            "errors.camera.denied.mac": "no camera access — allow void in System Settings → Privacy & Security → Camera",
+            "errors.camera.notfound": "no camera found",
+            "errors.camera.busy": "the camera is busy in another app",
+            "errors.camera.failed": "couldn't start the camera",
+            "errors.camera.lost": "camera disconnected",
+            "settings.video.camera": "camera",
             "controls.screencast.share": "share screen",
             "controls.screencast.stop": "stop sharing",
             "controls.leave": "leave",
@@ -583,7 +617,7 @@
 
             "settings.title": "settings",
             "settings.cat.profile": "profile",
-            "settings.cat.audio": "audio",
+            "settings.cat.audio": "devices",
             "settings.cat.interface": "interface",
             "settings.cat.hotkeys": "hotkeys",
             "settings.cat.app": "application",
@@ -595,6 +629,7 @@
             "hotkeys.action.toggleSound": "sound on/off",
             "hotkeys.action.toggleWindow": "show/hide window",
             "hotkeys.action.leaveRoom": "leave room",
+            "hotkeys.action.toggleCamera": "camera on/off",
             "hotkeys.webhint": "in the web version hotkeys work only while the tab is open",
             "hotkeys.restore": "restore",
             "hotkeys.cap.mouse3": "middle click",
@@ -869,6 +904,7 @@
                 }
                 if (typeof parsed.audioInId === "string") state.audioInId = parsed.audioInId.slice(0, 200);
                 if (typeof parsed.audioOutId === "string") state.audioOutId = parsed.audioOutId.slice(0, 200);
+                if (typeof parsed.videoInId === "string") state.videoInId = parsed.videoInId.slice(0, 200);
                 if (typeof parsed.audioInGain === "number" && isFinite(parsed.audioInGain)) {
                     state.audioInGain = clampGain(parsed.audioInGain, AUDIO_IN_GAIN_MIN, AUDIO_IN_GAIN_MAX);
                 }
@@ -1063,6 +1099,7 @@
     function getNickname() { return state.nickname || ""; }
     function getAudioInId() { return state.audioInId || ""; }
     function getAudioOutId() { return state.audioOutId || ""; }
+    function getVideoInId() { return state.videoInId || ""; }
     function getAudioInGain() { return state.audioInGain; }
     function getAudioOutGain() { return state.audioOutGain; }
     function getSfxVolume() { return state.sfxVolume; }
@@ -1108,6 +1145,14 @@
         state.audioInId = next;
         saveState();
         document.dispatchEvent(new CustomEvent("void:audio-in-device-changed", { detail: { deviceId: next } }));
+    }
+
+    function setVideoInId(id) {
+        const next = typeof id === "string" ? id.slice(0, 200) : "";
+        if (state.videoInId === next) return;
+        state.videoInId = next;
+        saveState();
+        document.dispatchEvent(new CustomEvent("void:video-in-device-changed", { detail: { deviceId: next } }));
     }
 
     function setAudioOutId(id) {
@@ -1210,7 +1255,7 @@
     let noiseToggleEl, spkMeterFillEl;
     let sfxToggleEl, sfxVolumeEl, sfxVolumeValueEl, sfxVolumeRowEl;
     let micTestBtnEl;
-    let micDropdown, spkDropdown,
+    let micDropdown, spkDropdown, camDropdown,
         micGainEl, spkGainEl,
         micGainValueEl, spkGainValueEl,
         micMeterFillEl, spkTestBtnEl,
@@ -1420,6 +1465,11 @@
         spkDropdown = createDropdown($("settingsSpkDropdown"), {
             onChange: (v) => setAudioOutId(v)
         });
+        if ($("settingsCamDropdown")) {
+            camDropdown = createDropdown($("settingsCamDropdown"), {
+                onChange: (v) => setVideoInId(v)
+            });
+        }
 
         bindAudioControls();
 
@@ -1735,6 +1785,23 @@
 
         audioModalEl = buildCatModalShell("catModalAudio", "settings.cat.audio", `
 ${audioDevicesHtml}
+            <div class="iface-divider cam-dev-divider" hidden></div>
+
+            <div class="iface-row cam-dev-row" id="settingsCamRow" hidden>
+                <span class="toggle-row-label" data-i18n="settings.video.camera">${t("settings.video.camera")}</span>
+                <div class="settings-dropdown audio-device" id="settingsCamDropdown">
+                    <button type="button" class="settings-dropdown-trigger"
+                        aria-haspopup="listbox" aria-expanded="false"
+                        aria-label="${t("settings.video.camera")}">
+                        <span class="settings-dropdown-current" data-default-label="settings.audio.default">${t("settings.audio.default")}</span>
+                        <svg class="settings-dropdown-chevron" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M6 9l6 6 6-6"/>
+                        </svg>
+                    </button>
+                    <ul class="settings-dropdown-menu" role="listbox" aria-hidden="true"></ul>
+                </div>
+            </div>
+
             <div class="iface-divider"></div>
 
             <label class="toggle-row">
@@ -2813,6 +2880,17 @@ ${audioDevicesHtml}
         fillDropdown(micDropdown, ins, state.audioInId, "microphone", "audioInId");
         fillDropdown(spkDropdown, outs, state.audioOutId, "speaker", "audioOutId");
 
+        /* Камера: строка видна, только если в системе есть хоть одна. */
+        const cams = devices.filter(d => d.kind === "videoinput");
+        const camRow = document.getElementById("settingsCamRow");
+        if (camRow) {
+            camRow.hidden = !cams.length;
+            if (camRow.previousElementSibling?.classList.contains("cam-dev-divider")) {
+                camRow.previousElementSibling.hidden = !cams.length;
+            }
+        }
+        if (camDropdown && cams.length) fillDropdown(camDropdown, cams, state.videoInId, "camera", "videoInId");
+
         /* setSinkId есть только в Chrome/Edge/Firefox 116+; в Safari отсутствует.
            Если API недоступен — гасим dropdown и пишем подсказку. */
         const supportsSinkId = "setSinkId" in HTMLMediaElement.prototype;
@@ -2856,6 +2934,7 @@ ${audioDevicesHtml}
         dropdown.setValue(exists ? (savedId || "") : "", /*fireChange*/ false);
         if (!exists && savedId) {
             if (stateKey === "audioInId") setAudioInId("");
+            else if (stateKey === "videoInId") setVideoInId("");
             else setAudioOutId("");
         }
     }
@@ -3273,7 +3352,7 @@ ${audioDevicesHtml}
     window.VoidI18n = { t, applyI18n, getLang };
     window.VoidSettings = {
         getLang, getStreamer, getNickname,
-        getAudioInId, getAudioOutId, getAudioInGain, getAudioOutGain,
+        getAudioInId, getAudioOutId, getAudioInGain, getAudioOutGain, getVideoInId,
         getSfxVolume, getSfxEnabled,
         getBgTheme, getUiScale,
         setLang, setStreamer, setNickname,

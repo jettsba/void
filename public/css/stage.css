@@ -126,13 +126,16 @@
     /* Позиция = центр контейнера + офсет (--px/--py). Перемещение и сужение —
        плавные (одноразовые: вход/выход/resize, не непрерывные → без
        пиксель-джиттера текста).
-       Центрирование (-50%) — отдельным `translate`, который не анимируется,
-       а transition несёт только px-офсет. Когда -50% сидел внутри анимируемого
-       transform, WebKit на реальном iPhone фиксировал его в пикселях по
-       СТАРОЙ ширине на старте перехода: блоб, сжимаясь при открытии чата,
-       съезжал вправо и в конце дёргался на место. */
-    translate: -50% -50%;
-    transform: translate(var(--px, 0px), var(--py, 0px));
+       Центрирование — БЕЗ процентов: −size/2 прямо в transform. WebKit
+       (Safari, iPhone, WKWebView на маке) ускоряет переход transform и
+       замораживает проценты по размеру на СТАРТЕ — и внутри transform, и в
+       отдельном свойстве `translate` (так было раньше, не помогло). Блоб
+       доезжал со старой поправкой и в последний кадр прыгал на половину
+       разницы размеров (замер по кадрам, 2026-11-27). Здесь все слагаемые —
+       длины, переход интерполирует их вместе с width/height той же кривой,
+       центр стоит на месте. */
+    transform: translate(calc(var(--px, 0px) - var(--size) / 2),
+                         calc(var(--py, 0px) - var(--size) / 2));
     transition:
         transform var(--t-med),
         width var(--t-med),
@@ -148,12 +151,25 @@
 
 /* Вход/выход: участник несёт позиционный transform, поэтому pop-scale живёт на
    аватаре (иначе перетёр бы позицию). Участник — только фейд. */
+/* Рождение / уход (2026-11-27): блоб рождается ИЗ ТОЧКИ и схлопывается В
+   ТОЧКУ на своём месте. Сначала проявляется точка (≈ размер центральной точки),
+   потом из неё раскрывается блоб; ник подтягивается следом. Уход — зеркально:
+   ник гаснет, блоб стягивается в точку, точка исчезает. Без overshoot/spring
+   (гайд §4) — «физичность» даёт двухфазность, не отскок. 1.5 × --d-med. */
+.participant {
+    --blob-life: calc(var(--d-med) * 1.5);
+}
+
 .participant.pop-in {
-    animation: participant-fade-in var(--t-med) forwards;
+    animation: participant-fade-in var(--t-fast) forwards;
 }
 
 .participant.pop-in .participant-avatar {
-    animation: avatar-pop-in var(--t-med) both;
+    animation: blob-born var(--blob-life) both;
+}
+
+.participant.pop-in .participant-name {
+    animation: blob-name-in var(--t-med) calc(var(--d-med) * 0.6) both;
 }
 
 /* Вход отыграл: .pop-in снимается (_markMounted в js/participants.js), а
@@ -176,18 +192,35 @@
     opacity: 1;
 }
 
+/* уход короче рождения: точка не должна висеть, пока на её место уже
+   въезжает сосед — стянулся и сразу погас, одним --t-med */
 .participant.pop-out {
-    animation: participant-fade-out var(--t-med) forwards;
+    animation: blob-gone var(--d-med) forwards;
 }
 
 .participant.pop-out .participant-avatar {
-    animation: avatar-pop-out var(--t-med) both;
+    animation: blob-collapse var(--d-med) both;
+}
+
+.participant.pop-out .participant-name {
+    animation: participant-fade-out var(--t-fast) forwards;
 }
 
 @keyframes participant-fade-in { to { opacity: 1; } }
 @keyframes participant-fade-out { to { opacity: 0; } }
-@keyframes avatar-pop-in { from { transform: scale(0.4); } to { transform: scale(1); } }
-@keyframes avatar-pop-out { to { transform: scale(0.4); } }
+/* 0.16 ≈ доля центральной точки (11.83 %) с запасом на ореол — «точка» */
+@keyframes blob-born {
+    0%   { transform: scale(0);    animation-timing-function: var(--ease); }
+    30%  { transform: scale(0.16); animation-timing-function: var(--ease); }
+    100% { transform: scale(1); }
+}
+@keyframes blob-collapse {
+    0%   { transform: scale(1);    animation-timing-function: var(--ease); }
+    60%  { transform: scale(0.16); animation-timing-function: var(--ease); }
+    100% { transform: scale(0); }
+}
+@keyframes blob-gone { 0%, 60% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes blob-name-in { from { opacity: 0; } to { opacity: 1; } }
 
 @media (prefers-reduced-motion: reduce) {
     .lobby-ripple-ring {
@@ -212,7 +245,9 @@
     }
 
     .participant.pop-in .participant-avatar,
-    .participant.pop-out .participant-avatar {
+    .participant.pop-out .participant-avatar,
+    .participant.pop-in .participant-name,
+    .participant.pop-out .participant-name {
         animation: none;
     }
 
@@ -238,8 +273,12 @@
     position: absolute;
     left: 50%;
     top: 50%;
-    width: 0.71rem;
-    height: 0.71rem;
+    /* Точка — доля блоба, а не фикс: эталон 0.71rem при стандартных 6rem
+       (11.83 %). Фиксированная точка на маленьком блобе (корона на 10, ряд
+       под камерами) делала его «толстым». Проценты от аватара → растёт и
+       сжимается вместе с его анимацией. */
+    width: 11.83%;
+    height: 11.83%;
     margin: 0;
     border-radius: 50%;
     background: var(--fg-2);
@@ -260,7 +299,7 @@
 .participant.speaking:not(.muted):not(.deaf) .participant-avatar::before {
     transform: translate(-50%, -50%) scale(1.4);
     background: var(--signal);
-    box-shadow: 0 0 24px rgba(230, 230, 232, 0.45);
+    box-shadow: 0 0 calc(var(--size) * 0.286) rgba(230, 230, 232, 0.45); /* 24px при 6rem */
 }
 
 .participant.speaking:not(.muted):not(.deaf) .participant-avatar::after {
@@ -375,8 +414,8 @@
     position: absolute;
     left: 50%;
     top: 50%;
-    width: 1.5rem;
-    height: 1.5rem;
+    width: 25%;   /* 1.5rem при стандартных 6rem — масштабируется с блобом */
+    height: 25%;
     display: grid;
     place-items: center;
     color: var(--fg-2);

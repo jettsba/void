@@ -126,21 +126,15 @@
     vector-effect: non-scaling-stroke;
 }
 
-#screencastBtn:not(.active) .sc-btn-icon--stop,
-.sc-btn-icon--cam {
+#screencastBtn:not(.active) .sc-btn-icon--stop {
     display: none;
 }
 
-/* Touch devices can't share a screen: the slot is the camera, a disabled
-   stub until it ships (js/room.js keeps .control-btn-stub on). */
+/* Touch devices can't share a screen: the button is gone there, the camera
+   (#camBtn, css/cam-stage.css) takes its place in the grid. */
 @media (hover: none) and (pointer: coarse) {
-    #screencastBtn .sc-btn-icon--idle,
-    #screencastBtn .sc-btn-icon--stop {
+    #screencastBtn {
         display: none;
-    }
-
-    #screencastBtn .sc-btn-icon--cam {
-        display: inline-flex;
     }
 }
 
